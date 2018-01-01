@@ -1,4 +1,6 @@
 from django.core.management.base import BaseCommand
+from ...dispatcher import run_dispatcher
+from ...logs import logging_for_management_command
 
 
 class Command(BaseCommand):
@@ -8,4 +10,5 @@ class Command(BaseCommand):
     )
 
     def handle(self, *args, **options):
-        pass
+        logging_for_management_command()
+        run_dispatcher()
