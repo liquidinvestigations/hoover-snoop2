@@ -5,6 +5,8 @@
 #    pip-compile --output-file requirements.txt requirements.in
 #
 click==6.7                # via pip-tools
+django==2.0
 first==2.0.1              # via pip-tools
 pip-tools==1.11.0
+pytz==2017.3              # via django
 six==1.11.0               # via pip-tools
