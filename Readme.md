@@ -1,5 +1,7 @@
 # Snoop Mk2
-A lean and mean rewrite of [snoop](), the Hoover collection analyzer.
+A lean and mean rewrite of [snoop][], the Hoover collection analyzer.
+
+[snoop]: https://github.com/hoover/snoop
 
 ### Setup
 Snoop2 requires Python 3.6, and we recommend installing dependencies in a
