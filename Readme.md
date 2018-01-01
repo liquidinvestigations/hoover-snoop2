@@ -9,3 +9,19 @@ virtualenv.
 pip install -r requirements.txt
 ./manage.py migrate
 ```
+
+### Development
+Create an admin user:
+
+```shell
+./manage.py createsuperuser
+```
+
+
+Run the local development server:
+
+```shell
+./manage.py runserver
+```
+
+Then, open http://localhost:5000/ in your browser.
