@@ -12,6 +12,12 @@ pip install -r requirements.txt
 ./manage.py migrate
 ```
 
+It also requires a [RabbitMQ](http://www.rabbitmq.com/) server. On
+Debian/Ubuntu you can install it with apt:
+```shell
+sudo apt install rabbitmq-server
+```
+
 ### Analyzing a collection
 Snoop's job is to scan a directory from disk and analyze the files inside. For
 this example, we'll clone the [testdata repository][], but you can use any
@@ -33,6 +39,11 @@ launch analysis jobs for any new or modified files. You only need one
 dispatcher, it will scan all the collections registered in this snoop instance.
 ```shell
 ./maange.py rundispatcher
+```
+
+You also need at least one worker to do the actual processing:
+```shell
+celery -A snoop.data worker --loglevel=info
 ```
 
 
