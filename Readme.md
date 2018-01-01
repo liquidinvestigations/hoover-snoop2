@@ -12,6 +12,30 @@ pip install -r requirements.txt
 ./manage.py migrate
 ```
 
+### Analyzing a collection
+Snoop's job is to scan a directory from disk and analyze the files inside. For
+this example, we'll clone the [testdata repository][], but you can use any
+local directory.
+
+[testdata repository]: https://github.com/hoover/testdata
+
+```shell
+git clone https://github.com/hoover/testdata /tmp/testdata
+```
+
+First tell snoop about this new collection:
+```shell
+./manage.py createcollection testdata /tmp/testdata/data
+```
+
+Then start the dispatcher, which will periodically scan the directory, and
+launch analysis jobs for any new or modified files. You only need one
+dispatcher, it will scan all the collections registered in this snoop instance.
+```shell
+./maange.py rundispatcher
+```
+
+
 ### Development
 Create an admin user:
 
