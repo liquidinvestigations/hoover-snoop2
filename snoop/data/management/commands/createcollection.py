@@ -8,7 +8,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('name')
-        parser.add_argument('path', type=Path)
+        parser.add_argument('root', type=Path)
 
     def handle(self, *args, **options):
-        Collection.objects.create(name=options['name'], path=options['path'])
+        Collection.objects.create(name=options['name'], root=options['root'])
