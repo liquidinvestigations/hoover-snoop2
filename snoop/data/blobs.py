@@ -31,4 +31,7 @@ class FlatBlobStorage:
         Path(f.name).rename(self.root / writer.filename)
 
     def open(self, blob_id):
-        return (self.root / blob_id).open('rb')
+        return self.path(blob_id).open('rb')
+
+    def path(self, blob_id):
+        return self.root / blob_id
