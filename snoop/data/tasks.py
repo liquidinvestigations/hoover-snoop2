@@ -42,13 +42,20 @@ def laterz_shaorma(task_pk):
 
 def shaorma(func):
     def laterz(*args, depends_on={}):
-        task, _ = models.Task.objects.get_or_create(func=func.__name__, args=json.dumps(args, sort_keys=True))
+        task, _ = models.Task.objects.get_or_create(
+            func=func.__name__,
+            args=json.dumps(args, sort_keys=True),
+        )
         if depends_on:
             all_done = True
             for name, dep in depends_on.items():
                 if dep.result is None:
                     all_done = False
-                models.TaskDependency.objects.get_or_create(prev=dep, next=task, name=name)
+                models.TaskDependency.objects.get_or_create(
+                    prev=dep,
+                    next=task,
+                    name=name,
+                )
 
             if all_done:
                 print('all done, running: {}'.format(task))
@@ -84,7 +91,10 @@ def walk(directory_pk):
     path = directory_absolute_path(directory)
     for thing in path.iterdir():
         if thing.is_dir():
-            (child_directory, _) = directory.child_directory_set.get_or_create(collection=directory.collection, name=thing.name)
+            (child_directory, _) = directory.child_directory_set.get_or_create(
+                collection=directory.collection,
+                name=thing.name,
+            )
             walk.laterz(child_directory.pk)
         else:
             file_to_blob.laterz(directory_pk, thing.name)
@@ -117,7 +127,10 @@ def make_blob_from_file(path):
                 b.write(block)
 
             magic.finish()
-            hexdigest = {name: hash.hexdigest() for name, hash in hashes.items()}
+            hexdigest = {
+                name: hash.hexdigest()
+                for name, hash in hashes.items()
+            }
             b.set_filename(hexdigest['sha3_256'])
 
     blob, blob_created = models.Blob.objects.get_or_create(
@@ -190,7 +203,10 @@ def digest(file_pk):
 
     if blob.mime_type in SEVENZIP_KNOWN_TYPES:
         unarchive_task = unarchive.laterz(blob.pk)
-        create_archive_files.laterz(file.pk, depends_on={'archive_listing': unarchive_task})
+        create_archive_files.laterz(
+            file.pk,
+            depends_on={'archive_listing': unarchive_task},
+        )
 
 
 def archive_walk(path):
