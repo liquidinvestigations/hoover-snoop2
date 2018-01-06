@@ -1,9 +1,14 @@
 import logging
+import hashlib
 from pathlib import Path
+from django.conf import settings
 from . import celery
 from . import models
+from .blobs import FlatBlobStorage
 
 logger = logging.getLogger(__name__)
+
+blob_storage = FlatBlobStorage(settings.SNOOP_BLOB_STORAGE)
 
 
 def directory_absolute_path(directory):
@@ -36,8 +41,35 @@ def walk(directory_pk):
             file_to_blob.delay(directory_pk, thing.name)
 
 
+def chunks(file, blocksize=65536):
+    while True:
+        data = file.read(blocksize)
+        if not data:
+            return
+        yield data
+
+
 @celery.app.task
 def file_to_blob(directory_pk, name):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory) / name
     print('making blob', path)
+
+    hashes = {
+        'md5': hashlib.md5(),
+        'sha1': hashlib.sha1(),
+        'sha3_256': hashlib.sha3_256(),
+    }
+
+    with blob_storage.save() as b:
+        with path.open('rb') as f:
+            for block in chunks(f):
+                for h in hashes.values():
+                    h.update(block)
+                #magic.update(block)
+                b.write(block)
+
+            digest = {name: hash.hexdigest() for name, hash in hashes.items()}
+            b.set_filename(digest['sha3_256'])
+
+    print(digest)

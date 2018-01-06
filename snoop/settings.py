@@ -60,3 +60,5 @@ USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
+
+SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
