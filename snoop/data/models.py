@@ -26,7 +26,7 @@ class Collection(models.Model):
 class Directory(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
     name = models.CharField(max_length=255, blank=True)
-    parent_directory = models.ForeignKey('Directory', null=True, on_delete=models.DO_NOTHING)
+    parent_directory = models.ForeignKey('Directory', null=True, on_delete=models.DO_NOTHING, related_name='child_directory_set')
     container_file = models.ForeignKey('File', null=True, on_delete=models.DO_NOTHING)
 
     date_created = models.DateTimeField(auto_now_add=True)
