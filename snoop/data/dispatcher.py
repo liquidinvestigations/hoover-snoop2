@@ -8,4 +8,5 @@ logger = logging.getLogger(__name__)
 
 def run_dispatcher():
     for collection in models.Collection.objects.all():
-        tasks.walk.delay(collection.pk)
+        [root] = collection.directory_set.filter(parent_directory__isnull=True).all()
+        tasks.walk.delay(root.pk)
