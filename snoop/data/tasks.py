@@ -193,7 +193,52 @@ def call_7z(archive_path, output_dir):
 
 @shaorma
 def create_archive_files(file_pk, archive_listing):
-    print('create_archive_files: {}, {}'.format(file_pk, archive_listing))
+    with blob_storage.open(archive_listing.pk) as f:
+        archive_listing_data = json.load(f)
+
+    def create_directory_children(directory, children):
+        print(f'children: {children}')
+        for item in children:
+            print(f'item: {item}')
+            if item['type'] == 'file':
+                blob = models.Blob.objects.get(pk=item['blob_pk'])
+                create_file(directory, item['name'], blob)
+
+            if item['type'] == 'directory':
+                create_directory(directory, item['name'], item['children'])
+
+    def create_directory(parent_directory, name, children):
+        (directory, _) = parent_directory.child_directory_set.get_or_create(
+            name=name,
+            defaults=dict(
+                collection=parent_directory.collection,
+            ),
+        )
+        create_directory_children(directory, children)
+
+    def create_file(parent_directory, name, blob):
+        size = blob_storage.path(blob.pk).stat().st_size
+        now = datetime.utcnow()
+
+        parent_directory.child_file_set.get_or_create(
+            name=name,
+            defaults=dict(
+                collection=parent_directory.collection,
+                ctime=now,
+                mtime=now,
+                size=size,
+                blob=blob,
+            ),
+        )
+
+    file = models.File.objects.get(pk=file_pk)
+    (fake_root, _) = file.child_directory_set.get_or_create(
+        name='',
+        defaults=dict(
+            collection=file.collection,
+        ),
+    )
+    create_directory_children(fake_root, archive_listing_data)
 
 
 @shaorma
@@ -212,20 +257,25 @@ def digest(file_pk):
 def archive_walk(path):
     for thing in path.iterdir():
         if thing.is_dir():
-            yield from archive_walk(thing)
+            yield {
+                'type': 'directory',
+                'name': thing.name,
+                'children': list(archive_walk(thing)),
+            }
+
         else:
-            yield (thing, make_blob_from_file(thing).pk)
+            yield {
+                'type': 'file',
+                'name': thing.name,
+                'blob_pk': make_blob_from_file(thing).pk,
+            }
 
 
 @shaorma
 def unarchive(blob_pk):
     with tempfile.TemporaryDirectory() as temp_dir:
         call_7z(blob_storage.path(blob_pk), temp_dir)
-
-        listing = [
-            {"path": str(path.relative_to(temp_dir)), "blob_pk": pk}
-            for path, pk in archive_walk(Path(temp_dir))
-        ]
+        listing = list(archive_walk(Path(temp_dir)))
 
     with tempfile.NamedTemporaryFile() as f:
         f.write(json.dumps(listing).encode('utf-8'))

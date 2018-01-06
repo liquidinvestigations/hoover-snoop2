@@ -27,10 +27,13 @@ class Directory(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
     name = models.CharField(max_length=255, blank=True)
     parent_directory = models.ForeignKey('Directory', null=True, on_delete=models.DO_NOTHING, related_name='child_directory_set')
-    container_file = models.ForeignKey('File', null=True, on_delete=models.DO_NOTHING)
+    container_file = models.ForeignKey('File', null=True, on_delete=models.DO_NOTHING, related_name='child_directory_set')
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('parent_directory', 'name')
 
     def __str__(self):
         return f'{self.name}/'
