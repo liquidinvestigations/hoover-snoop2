@@ -5,6 +5,7 @@ from django.conf import settings
 from . import celery
 from . import models
 from .blobs import FlatBlobStorage
+from .magic import Magic
 
 logger = logging.getLogger(__name__)
 
@@ -61,15 +62,19 @@ def file_to_blob(directory_pk, name):
         'sha3_256': hashlib.sha3_256(),
     }
 
+    magic = Magic()
+
     with blob_storage.save() as b:
         with path.open('rb') as f:
             for block in chunks(f):
                 for h in hashes.values():
                     h.update(block)
-                #magic.update(block)
+                magic.update(block)
                 b.write(block)
 
+            magic.finish()
             digest = {name: hash.hexdigest() for name, hash in hashes.items()}
             b.set_filename(digest['sha3_256'])
 
     print(digest)
+    print("magic: {} {}".format(magic.mime_type, magic.mime_encoding))
