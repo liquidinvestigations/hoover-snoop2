@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 import subprocess
 import tempfile
 import logging
@@ -13,6 +14,54 @@ from .magic import Magic
 logger = logging.getLogger(__name__)
 
 blob_storage = FlatBlobStorage(settings.SNOOP_BLOB_STORAGE)
+
+shaormerie = {}
+
+
+@celery.app.task
+def laterz_shaorma(task_pk):
+    task = models.Task.objects.get(pk=task_pk)
+    print('here is my task: {}'.format(task))
+
+    args = json.loads(task.args)
+    kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
+
+    result = shaormerie[task.func](*args, **kwargs)
+
+    print('task {} is done; result={}'.format(task, result))
+    if result is not None:
+        assert isinstance(result, models.Blob)
+        task.result = result
+        task.save()
+
+    for next_dependency in task.next_set.all():
+        next = next_dependency.next
+        print('running next task: {}'.format(next))
+        laterz_shaorma.delay(next.pk)
+
+
+def shaorma(func):
+    def laterz(*args, depends_on={}):
+        task, _ = models.Task.objects.get_or_create(func=func.__name__, args=json.dumps(args, sort_keys=True))
+        if depends_on:
+            all_done = True
+            for name, dep in depends_on.items():
+                if dep.result is None:
+                    all_done = False
+                models.TaskDependency.objects.get_or_create(prev=dep, next=task, name=name)
+
+            if all_done:
+                print('all done, running: {}'.format(task))
+                laterz_shaorma.delay(task.pk)
+
+        else:
+            laterz_shaorma.delay(task.pk)
+
+        return task
+
+    func.laterz = laterz
+    shaormerie[func.__name__] = func
+    return func
 
 
 def directory_absolute_path(directory):
@@ -29,16 +78,16 @@ def directory_absolute_path(directory):
     return path
 
 
-@celery.app.task
+@shaorma
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
     for thing in path.iterdir():
         if thing.is_dir():
             (child_directory, _) = directory.child_directory_set.get_or_create(collection=directory.collection, name=thing.name)
-            walk.delay(child_directory.pk)
+            walk.laterz(child_directory.pk)
         else:
-            file_to_blob.delay(directory_pk, thing.name)
+            file_to_blob.laterz(directory_pk, thing.name)
 
 
 def chunks(file, blocksize=65536):
@@ -86,15 +135,25 @@ def make_blob_from_file(path):
     return blob
 
 
-@celery.app.task
+@shaorma
 def file_to_blob(directory_pk, name):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory) / name
-    #print('making blob', path)
-
     blob = make_blob_from_file(path)
 
-    digest.delay(blob.pk)
+    stat = path.stat()
+    file, _ = directory.child_file_set.get_or_create(
+        name=name,
+        defaults=dict(
+            collection=directory.collection,
+            ctime=datetime.utcfromtimestamp(stat.st_ctime),
+            mtime=datetime.utcfromtimestamp(stat.st_mtime),
+            size=stat.st_size,
+            blob=blob,
+        ),
+    )
+
+    digest.laterz(file.pk)
 
 
 SEVENZIP_KNOWN_TYPES = {
@@ -119,12 +178,20 @@ def call_7z(archive_path, output_dir):
     ], stderr=subprocess.STDOUT)
 
 
-@celery.app.task
-def digest(blob_pk):
-    blob = models.Blob.objects.get(pk=blob_pk)
+@shaorma
+def create_archive_files(file_pk, archive_listing):
+    print('create_archive_files: {}, {}'.format(file_pk, archive_listing))
+
+
+@shaorma
+def digest(file_pk):
+    file = models.File.objects.get(pk=file_pk)
+    blob = file.blob
 
     if blob.mime_type in SEVENZIP_KNOWN_TYPES:
-        unarchive.delay(blob_pk)
+        unarchive_task = unarchive.laterz(blob.pk)
+        create_archive_files.laterz(file.pk, depends_on={'archive_listing': unarchive_task})
+
 
 def archive_walk(path):
     for thing in path.iterdir():
@@ -133,7 +200,8 @@ def archive_walk(path):
         else:
             yield (thing, make_blob_from_file(thing).pk)
 
-@celery.app.task
+
+@shaorma
 def unarchive(blob_pk):
     with tempfile.TemporaryDirectory() as temp_dir:
         call_7z(blob_storage.path(blob_pk), temp_dir)
@@ -148,4 +216,4 @@ def unarchive(blob_pk):
         f.flush()
         listing_blob = make_blob_from_file(Path(f.name))
 
-    print("listing at " + listing_blob.pk)
+    return listing_blob
