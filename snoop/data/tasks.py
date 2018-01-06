@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tempfile
 import logging
@@ -137,6 +138,14 @@ def unarchive(blob_pk):
     with tempfile.TemporaryDirectory() as temp_dir:
         call_7z(blob_storage.path(blob_pk), temp_dir)
 
-        for path, id in archive_walk(Path(temp_dir)):
-            path = path.relative_to(temp_dir)
-            print(path, id)
+        listing = [
+            {"path": str(path.relative_to(temp_dir)), "blob_pk": pk}
+            for path, pk in archive_walk(Path(temp_dir))
+        ]
+
+    with tempfile.NamedTemporaryFile() as f:
+        f.write(json.dumps(listing).encode('utf-8'))
+        f.flush()
+        listing_blob = make_blob_from_file(Path(f.name))
+
+    print("listing at " + listing_blob.pk)
