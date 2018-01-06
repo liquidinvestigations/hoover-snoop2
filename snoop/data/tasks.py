@@ -60,6 +60,7 @@ def file_to_blob(directory_pk, name):
         'md5': hashlib.md5(),
         'sha1': hashlib.sha1(),
         'sha3_256': hashlib.sha3_256(),
+        'sha256': hashlib.sha256(),
     }
 
     magic = Magic()
@@ -76,5 +77,16 @@ def file_to_blob(directory_pk, name):
             digest = {name: hash.hexdigest() for name, hash in hashes.items()}
             b.set_filename(digest['sha3_256'])
 
-    print(digest)
-    print("magic: {} {}".format(magic.mime_type, magic.mime_encoding))
+    blob, blob_created = models.Blob.objects.get_or_create(
+        sha3_256=digest['sha3_256'],
+        defaults=dict(
+            sha1=digest['sha1'],
+            sha256=digest['sha256'],
+            md5=digest['md5'],
+            magic='',
+            mime_type=magic.mime_type,
+            mime_encoding=magic.mime_encoding,
+        )
+    )
+
+    print(blob)
