@@ -39,8 +39,11 @@ def collection(request, name):
 
 
 def feed(request, name):
+    collection = get_object_or_404(models.Collection.objects, name=name)
+    query = collection.digest_set.order_by('-date_modified')
+
     return JsonResponse({
-        'documents': [],
+        'documents': [document_data(d) for d in query],
     })
 
 
