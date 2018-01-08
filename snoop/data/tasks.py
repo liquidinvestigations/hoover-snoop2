@@ -21,14 +21,12 @@ shaormerie = {}
 @celery.app.task
 def laterz_shaorma(task_pk):
     task = models.Task.objects.get(pk=task_pk)
-    print('here is my task: {}'.format(task))
 
     args = json.loads(task.args)
     kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
 
     result = shaormerie[task.func](*args, **kwargs)
 
-    print('task {} is done; result={}'.format(task, result))
     if result is not None:
         assert isinstance(result, models.Blob)
         task.result = result
@@ -36,7 +34,6 @@ def laterz_shaorma(task_pk):
 
     for next_dependency in task.next_set.all():
         next = next_dependency.next
-        print('running next task: {}'.format(next))
         laterz_shaorma.delay(next.pk)
 
 
@@ -58,7 +55,6 @@ def shaorma(func):
                 )
 
             if all_done:
-                print('all done, running: {}'.format(task))
                 laterz_shaorma.delay(task.pk)
 
         else:
