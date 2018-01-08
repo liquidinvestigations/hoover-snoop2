@@ -5,6 +5,7 @@
 #    pip-compile --output-file requirements.txt requirements.in
 #
 amqp==2.2.2               # via kombu
+attrs==17.4.0             # via pytest
 billiard==3.5.0.3         # via celery
 celery==4.1.0
 click==6.7                # via pip-tools
@@ -12,6 +13,10 @@ django==2.0
 first==2.0.1              # via pip-tools
 kombu==4.1.0              # via celery
 pip-tools==1.11.0
+pluggy==0.6.0             # via pytest
+py==1.5.2                 # via pytest
+pytest-django==3.1.2
+pytest==3.3.2
 pytz==2017.3              # via celery, django
-six==1.11.0               # via pip-tools
+six==1.11.0               # via pip-tools, pytest
 vine==1.1.4               # via amqp

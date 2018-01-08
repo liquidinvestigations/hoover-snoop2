@@ -1,3 +1,5 @@
 pip-tools
 Django
 Celery
+pytest
+pytest-django
