@@ -43,7 +43,7 @@ Then start the dispatcher, which will periodically scan the directory, and
 launch analysis jobs for any new or modified files. You only need one
 dispatcher, it will scan all the collections registered in this snoop instance.
 ```shell
-./maange.py rundispatcher
+./manage.py rundispatcher
 ```
 
 You also need at least one worker to do the actual processing:
@@ -66,4 +66,4 @@ Run the local development server:
 ./manage.py runserver
 ```
 
-Then, open http://localhost:5000/ in your browser.
+Then, open http://localhost:8000/ in your browser.
