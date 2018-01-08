@@ -1,4 +1,8 @@
 from django.db import models
+from django.conf import settings
+from .blobs import FlatBlobStorage
+
+blob_storage = FlatBlobStorage(settings.SNOOP_BLOB_STORAGE)
 
 
 class Blob(models.Model):

@@ -5,15 +5,11 @@ import tempfile
 import logging
 import hashlib
 from pathlib import Path
-from django.conf import settings
 from . import celery
 from . import models
-from .blobs import FlatBlobStorage
 from .magic import Magic
 
 logger = logging.getLogger(__name__)
-
-blob_storage = FlatBlobStorage(settings.SNOOP_BLOB_STORAGE)
 
 shaormerie = {}
 
@@ -114,7 +110,7 @@ def make_blob_from_file(path):
 
     magic = Magic()
 
-    with blob_storage.save() as b:
+    with models.blob_storage.save() as b:
         with path.open('rb') as f:
             for block in chunks(f):
                 for h in hashes.values():
@@ -189,7 +185,7 @@ def call_7z(archive_path, output_dir):
 
 @shaorma
 def create_archive_files(file_pk, archive_listing):
-    with blob_storage.open(archive_listing.pk) as f:
+    with models.blob_storage.open(archive_listing.pk) as f:
         archive_listing_data = json.load(f)
 
     def create_directory_children(directory, children):
@@ -213,7 +209,7 @@ def create_archive_files(file_pk, archive_listing):
         create_directory_children(directory, children)
 
     def create_file(parent_directory, name, blob):
-        size = blob_storage.path(blob.pk).stat().st_size
+        size = models.blob_storage.path(blob.pk).stat().st_size
         now = datetime.utcnow()
 
         parent_directory.child_file_set.get_or_create(
@@ -270,7 +266,7 @@ def archive_walk(path):
 @shaorma
 def unarchive(blob_pk):
     with tempfile.TemporaryDirectory() as temp_dir:
-        call_7z(blob_storage.path(blob_pk), temp_dir)
+        call_7z(models.blob_storage.path(blob_pk), temp_dir)
         listing = list(archive_walk(Path(temp_dir)))
 
     with tempfile.NamedTemporaryFile() as f:
