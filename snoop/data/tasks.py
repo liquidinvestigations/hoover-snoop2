@@ -41,6 +41,7 @@ def shaorma(func):
         if depends_on:
             all_done = True
             for name, dep in depends_on.items():
+                dep = type(dep).objects.get(pk=dep.pk)  # make DEP grate again
                 if dep.result is None:
                     all_done = False
                 models.TaskDependency.objects.get_or_create(
