@@ -162,7 +162,7 @@ def file_to_blob(directory_pk, name):
         ),
     )
 
-    digest.laterz(file.pk)
+    handle_file.laterz(file.pk)
 
 
 SEVENZIP_KNOWN_TYPES = {
@@ -238,7 +238,7 @@ def create_archive_files(file_pk, archive_listing):
 
 
 @shaorma
-def digest(file_pk):
+def handle_file(file_pk):
     file = models.File.objects.get(pk=file_pk)
     blob = file.blob
 
