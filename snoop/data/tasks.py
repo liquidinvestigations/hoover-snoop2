@@ -43,6 +43,10 @@ def shaorma(func):
             func=func.__name__,
             args=json.dumps(args, sort_keys=True),
         )
+
+        if task.date_finished:
+            return task
+
         if depends_on:
             all_done = True
             for name, dep in depends_on.items():
