@@ -3,3 +3,4 @@ Django
 Celery
 pytest
 pytest-django
+psycopg2
