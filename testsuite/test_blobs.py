@@ -7,7 +7,7 @@ from snoop.data import tasks
 pytestmark = [pytest.mark.django_db]
 
 def test_make_blob_from_jpeg_file():
-    IMAGE = Path(settings.SNOOP_TESTDATA + "/disk-files/images/bikes.jpg")
+    IMAGE = Path(settings.SNOOP_TESTDATA + "/data/disk-files/images/bikes.jpg")
     image_blob = tasks.make_blob_from_file(IMAGE)
 
     assert image_blob.pk == '052257179718626e83b3f8efa7fcfb42ae4dec47efab6b53c133d7415c7b62f4'

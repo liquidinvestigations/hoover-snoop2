@@ -1,4 +1,5 @@
 from snoop.settings import *
+import os
 
 
 DATABASES = {
@@ -10,7 +11,8 @@ DATABASES = {
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'test_blobs')
 
-testdata_path = base_dir.parent / 'testdata' / 'data'
-assert testdata_path.is_dir()
+default_testdata_path = str(base_dir.parent / 'testdata')
+SNOOP_TESTDATA = os.getenv('SNOOP_TESTDATA', default_testdata_path)
 
-SNOOP_TESTDATA = str(testdata_path)
+assert os.path.isdir(SNOOP_TESTDATA)
+
