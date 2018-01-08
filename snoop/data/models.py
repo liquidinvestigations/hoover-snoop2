@@ -1,45 +1,43 @@
 from contextlib import contextmanager
 from pathlib import Path
 import tempfile
+import hashlib
 from django.db import models
 from django.conf import settings
+from .magic import Magic
+
+#blob_storage = FlatBlobStorage()
+BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
+BLOB_TMP = BLOB_ROOT / 'tmp'
 
 
 class BlobWriter:
 
     def __init__(self, file):
         self.file = file
+        self.hashes = {
+            'md5': hashlib.md5(),
+            'sha1': hashlib.sha1(),
+            'sha3_256': hashlib.sha3_256(),
+            'sha256': hashlib.sha256(),
+        }
+        self.magic = Magic()
 
-    def write(self, data):
-        self.file.write(data)
+    def write(self, chunk):
+        for h in self.hashes.values():
+            h.update(chunk)
+        self.magic.update(chunk)
+        self.file.write(chunk)
 
-    def set_filename(self, filename):
-        self.filename = filename
-
-
-class FlatBlobStorage:
-
-    def __init__(self, root):
-        self.root = Path(root)
-        self.tmp = self.root / 'tmp'
-
-    @contextmanager
-    def save(self):
-        self.root.mkdir(exist_ok=True)
-        self.tmp.mkdir(exist_ok=True)
-        with tempfile.NamedTemporaryFile(dir=self.tmp, delete=False) as f:
-            writer = BlobWriter(f)
-            yield writer
-        Path(f.name).rename(self.root / writer.filename)
-
-    def open(self, blob_id):
-        return self.path(blob_id).open('rb')
-
-    def path(self, blob_id):
-        return self.root / blob_id
-
-
-blob_storage = FlatBlobStorage(settings.SNOOP_BLOB_STORAGE)
+    def finish(self):
+        self.magic.finish()
+        fields = {
+            name: hash.hexdigest()
+            for name, hash in self.hashes.items()
+        }
+        fields['mime_type'] = self.magic.mime_type
+        fields['mime_encoding'] = self.magic.mime_encoding
+        return fields
 
 
 class Blob(models.Model):
@@ -54,6 +52,30 @@ class Blob(models.Model):
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
+
+    def path(self):
+        return BLOB_ROOT / self.pk
+
+    @classmethod
+    @contextmanager
+    def create(cls):
+        BLOB_ROOT.mkdir(exist_ok=True)
+        BLOB_TMP.mkdir(exist_ok=True)
+
+        with tempfile.NamedTemporaryFile(dir=BLOB_TMP, delete=False) as f:
+            writer = BlobWriter(f)
+            yield writer
+
+        fields = writer.finish()
+        pk = fields.pop('sha3_256')
+
+        Path(f.name).rename(BLOB_ROOT / pk)
+        (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
+        writer.blob = blob
+
+
+    def open(self):
+        return self.path().open('rb')
 
 
 class Collection(models.Model):

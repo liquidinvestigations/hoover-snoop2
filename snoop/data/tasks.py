@@ -3,12 +3,10 @@ from datetime import datetime
 import subprocess
 import tempfile
 import logging
-import hashlib
 from pathlib import Path
 from django.utils import timezone
 from . import celery
 from . import models
-from .magic import Magic
 
 logger = logging.getLogger(__name__)
 
@@ -106,43 +104,12 @@ def chunks(file, blocksize=65536):
 
 
 def make_blob_from_file(path):
-    hashes = {
-        'md5': hashlib.md5(),
-        'sha1': hashlib.sha1(),
-        'sha3_256': hashlib.sha3_256(),
-        'sha256': hashlib.sha256(),
-    }
-
-    magic = Magic()
-
-    with models.blob_storage.save() as b:
+    with models.Blob.create() as writer:
         with path.open('rb') as f:
             for block in chunks(f):
-                for h in hashes.values():
-                    h.update(block)
-                magic.update(block)
-                b.write(block)
+                writer.write(block)
 
-            magic.finish()
-            hexdigest = {
-                name: hash.hexdigest()
-                for name, hash in hashes.items()
-            }
-            b.set_filename(hexdigest['sha3_256'])
-
-    blob, blob_created = models.Blob.objects.get_or_create(
-        sha3_256=hexdigest['sha3_256'],
-        defaults=dict(
-            sha1=hexdigest['sha1'],
-            sha256=hexdigest['sha256'],
-            md5=hexdigest['md5'],
-            magic='',
-            mime_type=magic.mime_type,
-            mime_encoding=magic.mime_encoding,
-        )
-    )
-
-    return blob
+    return writer.blob
 
 
 @shaorma
@@ -190,7 +157,7 @@ def call_7z(archive_path, output_dir):
 
 @shaorma
 def create_archive_files(file_pk, archive_listing):
-    with models.blob_storage.open(archive_listing.pk) as f:
+    with archive_listing.open() as f:
         archive_listing_data = json.load(f)
 
     def create_directory_children(directory, children):
@@ -214,7 +181,7 @@ def create_archive_files(file_pk, archive_listing):
         create_directory_children(directory, children)
 
     def create_file(parent_directory, name, blob):
-        size = models.blob_storage.path(blob.pk).stat().st_size
+        size = blob.path().stat().st_size
         now = timezone.now()
 
         parent_directory.child_file_set.get_or_create(
@@ -271,7 +238,7 @@ def archive_walk(path):
 @shaorma
 def unarchive(blob_pk):
     with tempfile.TemporaryDirectory() as temp_dir:
-        call_7z(models.blob_storage.path(blob_pk), temp_dir)
+        call_7z(models.Blob.objects.get(pk=blob_pk).path(), temp_dir)
         listing = list(archive_walk(Path(temp_dir)))
 
     with tempfile.NamedTemporaryFile() as f:
