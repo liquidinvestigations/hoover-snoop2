@@ -161,9 +161,7 @@ def create_archive_files(file_pk, archive_listing):
         archive_listing_data = json.load(f)
 
     def create_directory_children(directory, children):
-        print(f'children: {children}')
         for item in children:
-            print(f'item: {item}')
             if item['type'] == 'file':
                 blob = models.Blob.objects.get(pk=item['blob_pk'])
                 create_file(directory, item['name'], blob)
