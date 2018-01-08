@@ -48,8 +48,8 @@ WSGI_APPLICATION = 'snoop.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': str(base_dir / 'db.sqlite3'),
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'snoop2',
     }
 }
 
