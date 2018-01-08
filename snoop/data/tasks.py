@@ -5,6 +5,7 @@ import tempfile
 import logging
 import hashlib
 from pathlib import Path
+from django.utils import timezone
 from . import celery
 from . import models
 from .magic import Magic
@@ -61,6 +62,10 @@ def shaorma(func):
     func.laterz = laterz
     shaormerie[func.__name__] = func
     return func
+
+
+def time_from_unix(t):
+    return timezone.utc.fromutc(datetime.utcfromtimestamp(t))
 
 
 def directory_absolute_path(directory):
@@ -151,8 +156,8 @@ def file_to_blob(directory_pk, name):
         name=name,
         defaults=dict(
             collection=directory.collection,
-            ctime=datetime.utcfromtimestamp(stat.st_ctime),
-            mtime=datetime.utcfromtimestamp(stat.st_mtime),
+            ctime=time_from_unix(stat.st_ctime),
+            mtime=time_from_unix(stat.st_mtime),
             size=stat.st_size,
             blob=blob,
         ),
@@ -210,7 +215,7 @@ def create_archive_files(file_pk, archive_listing):
 
     def create_file(parent_directory, name, blob):
         size = models.blob_storage.path(blob.pk).stat().st_size
-        now = datetime.utcnow()
+        now = timezone.now()
 
         parent_directory.child_file_set.get_or_create(
             name=name,
