@@ -4,6 +4,7 @@ import tempfile
 import hashlib
 from django.db import models
 from django.conf import settings
+from django.contrib.postgres.fields import JSONField
 from .magic import Magic
 
 #blob_storage = FlatBlobStorage()
@@ -156,7 +157,7 @@ class File(models.Model):
 
 class Task(models.Model):
     func = models.CharField(max_length=1024)
-    args = models.CharField(max_length=4096)
+    args = JSONField()
     result = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING)
 
     # these fields are used for logging and debugging, not for dispatching

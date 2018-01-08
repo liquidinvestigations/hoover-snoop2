@@ -17,7 +17,7 @@ shaormerie = {}
 def laterz_shaorma(task_pk):
     task = models.Task.objects.get(pk=task_pk)
 
-    args = json.loads(task.args)
+    args = task.args
     kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
 
     task.date_started = timezone.now()
@@ -41,7 +41,7 @@ def shaorma(func):
     def laterz(*args, depends_on={}):
         task, _ = models.Task.objects.get_or_create(
             func=func.__name__,
-            args=json.dumps(args, sort_keys=True),
+            args=args,
         )
 
         if task.date_finished:
