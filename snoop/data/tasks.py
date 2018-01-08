@@ -95,28 +95,12 @@ def walk(directory_pk):
             file_to_blob.laterz(directory_pk, thing.name)
 
 
-def chunks(file, blocksize=65536):
-    while True:
-        data = file.read(blocksize)
-        if not data:
-            return
-        yield data
-
-
-def make_blob_from_file(path):
-    with models.Blob.create() as writer:
-        with path.open('rb') as f:
-            for block in chunks(f):
-                writer.write(block)
-
-    return writer.blob
-
 
 @shaorma
 def file_to_blob(directory_pk, name):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory) / name
-    blob = make_blob_from_file(path)
+    blob = models.Blob.create_from_file(path)
 
     stat = path.stat()
     file, _ = directory.child_file_set.get_or_create(
@@ -246,7 +230,7 @@ def archive_walk(path):
             yield {
                 'type': 'file',
                 'name': thing.name,
-                'blob_pk': make_blob_from_file(thing).pk,
+                'blob_pk': models.Blob.create_from_file(thing).pk,
             }
 
 
@@ -259,7 +243,7 @@ def unarchive(blob_pk):
     with tempfile.NamedTemporaryFile() as f:
         f.write(json.dumps(listing).encode('utf-8'))
         f.flush()
-        listing_blob = make_blob_from_file(Path(f.name))
+        listing_blob = models.Blob.create_from_file(Path(f.name))
 
     return listing_blob
 

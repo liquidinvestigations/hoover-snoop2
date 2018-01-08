@@ -11,6 +11,14 @@ BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
 BLOB_TMP = BLOB_ROOT / 'tmp'
 
 
+def chunks(file, blocksize=65536):
+    while True:
+        data = file.read(blocksize)
+        if not data:
+            return
+        yield data
+
+
 class BlobWriter:
 
     def __init__(self, file):
@@ -73,6 +81,14 @@ class Blob(models.Model):
         (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
         writer.blob = blob
 
+    @classmethod
+    def create_from_file(cls, path):
+        with cls.create() as writer:
+            with open(path, 'rb') as f:
+                for block in chunks(f):
+                    writer.write(block)
+
+        return writer.blob
 
     def open(self):
         return self.path().open('rb')
