@@ -12,3 +12,9 @@ def collection(request, name):
         'feed': 'feed',
         'data_urls': '{id}/json',
     })
+
+
+def feed(request, name):
+    return JsonResponse({
+        'documents': [],
+    })
