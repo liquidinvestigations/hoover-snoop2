@@ -127,5 +127,8 @@ class Digest(models.Model):
         related_name='+',
     )
 
+    date_created = models.DateTimeField(auto_now_add=True)
+    date_modified = models.DateTimeField(auto_now=True)
+
     class Meta:
         unique_together = ('collection', 'blob')
