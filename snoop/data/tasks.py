@@ -20,12 +20,17 @@ def laterz_shaorma(task_pk):
     args = json.loads(task.args)
     kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
 
+    task.date_started = timezone.now()
+    task.save()
+
     result = shaormerie[task.func](*args, **kwargs)
+    task.date_finished = timezone.now()
 
     if result is not None:
         assert isinstance(result, models.Blob)
         task.result = result
-        task.save()
+
+    task.save()
 
     for next_dependency in task.next_set.all():
         next = next_dependency.next
