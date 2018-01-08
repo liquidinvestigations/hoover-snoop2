@@ -204,9 +204,21 @@ def create_archive_files(file_pk, archive_listing):
 
 
 @shaorma
+def extract_text(blob_pk):
+    blob = models.Blob.objects.get(pk=blob_pk)
+
+    with models.Blob.create() as output:
+        with blob.open() as src:
+            output.write(src.read())
+
+    return output.blob
+
+
+@shaorma
 def handle_file(file_pk):
     file = models.File.objects.get(pk=file_pk)
     blob = file.blob
+    depends_on = {}
 
     if blob.mime_type in SEVENZIP_KNOWN_TYPES:
         unarchive_task = unarchive.laterz(blob.pk)
@@ -214,6 +226,11 @@ def handle_file(file_pk):
             file.pk,
             depends_on={'archive_listing': unarchive_task},
         )
+
+    if blob.mime_type == 'text/plain':
+        depends_on['text'] = extract_text.laterz(blob.pk)
+
+    digest.laterz(file.collection.pk, blob.pk, depends_on=depends_on)
 
 
 def archive_walk(path):
@@ -245,3 +262,21 @@ def unarchive(blob_pk):
         listing_blob = make_blob_from_file(Path(f.name))
 
     return listing_blob
+
+
+@shaorma
+def digest(collection_pk, blob_pk, **depends_on):
+    collection = models.Collection.objects.get(pk=collection_pk)
+    blob = models.Blob.objects.get(pk=blob_pk)
+
+    rv = {}
+    text_blob = depends_on.get('text')
+    if text_blob:
+        with text_blob.open() as f:
+            text_bytes = f.read()
+        rv['text'] = text_bytes.decode(text_blob.mime_encoding)
+
+    with models.Blob.create() as writer:
+        writer.write(json.dumps(rv).encode('utf-8'))
+
+    collection.digest_set.get_or_create(blob=blob, result=writer.blob)
