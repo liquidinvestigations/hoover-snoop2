@@ -1,4 +1,6 @@
 *.pyc
+/.cache
 /db.sqlite3
 /blobs
 /snoop/localsettings.py
+/test_blobs

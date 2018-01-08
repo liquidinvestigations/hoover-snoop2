@@ -1,0 +1,16 @@
+language: python
+python:
+  - "3.6"
+
+install:
+  - pip install -r requirements.txt
+  - git clone https://github.com/hoover/testdata.git
+
+env:
+  - SNOOP_TESTDATA=testdata
+
+script:
+  - py.test
+
+notifications:
+  email: false
