@@ -4,6 +4,9 @@ python:
 addons:
   postgresql: "9.6"
 
+before_install:
+  - sudo apt-get -qq update
+  - sudo apt-get install -y p7zip
 install:
   - pip install -r requirements.txt
   - git clone https://github.com/hoover/testdata.git
