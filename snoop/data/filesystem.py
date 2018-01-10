@@ -4,7 +4,7 @@ from django.utils import timezone
 from datetime import datetime
 from . import models
 from .tasks import shaorma, extract_text
-from .tasks import SEVENZIP_KNOWN_TYPES, unarchive
+from .analyzers import archives
 
 
 def time_from_unix(t):
@@ -67,8 +67,8 @@ def handle_file(file_pk):
     blob = file.blob
     depends_on = {}
 
-    if blob.mime_type in SEVENZIP_KNOWN_TYPES:
-        unarchive_task = unarchive.laterz(blob.pk)
+    if blob.mime_type in archives.SEVENZIP_KNOWN_TYPES:
+        unarchive_task = archives.unarchive.laterz(blob.pk)
         create_archive_files.laterz(
             file.pk,
             depends_on={'archive_listing': unarchive_task},
