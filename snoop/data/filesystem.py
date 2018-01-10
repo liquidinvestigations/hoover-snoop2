@@ -108,7 +108,7 @@ def create_archive_files(file_pk, archive_listing):
         size = blob.path().stat().st_size
         now = timezone.now()
 
-        parent_directory.child_file_set.get_or_create(
+        (file, _) = parent_directory.child_file_set.get_or_create(
             name=name,
             defaults=dict(
                 collection=parent_directory.collection,
@@ -118,6 +118,8 @@ def create_archive_files(file_pk, archive_listing):
                 blob=blob,
             ),
         )
+
+        handle_file.laterz(file.pk)
 
     file = models.File.objects.get(pk=file_pk)
     (fake_root, _) = file.child_directory_set.get_or_create(
