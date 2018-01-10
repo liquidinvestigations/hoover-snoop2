@@ -1,7 +1,6 @@
-from time import sleep
 import logging
 from . import models
-from . import tasks
+from .filesystem import walk
 
 logger = logging.getLogger(__name__)
 
@@ -12,4 +11,4 @@ def run_dispatcher():
             parent_directory__isnull=True,
             container_file__isnull=True
         ).all()
-        tasks.walk.laterz(root.pk)
+        walk.laterz(root.pk)
