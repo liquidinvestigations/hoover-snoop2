@@ -29,7 +29,7 @@ def call_7z(archive_path, output_dir):
         ], stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError as e:
-        raise ShaormaError("7z extraction failed", e.output)
+        raise ShaormaError("7z extraction failed", e.output.decode('latin1'))
 
 
 @shaorma

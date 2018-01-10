@@ -156,6 +156,10 @@ class File(models.Model):
 
 
 class Task(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_SUCCESS = 'success'
+    STATUS_ERROR = 'error'
+
     func = models.CharField(max_length=1024)
     args = JSONField()
     result = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING)
@@ -166,6 +170,9 @@ class Task(models.Model):
     date_started = models.DateTimeField(null=True)
     date_finished = models.DateTimeField(null=True)
     worker = models.CharField(max_length=4096, blank=True)
+
+    status = models.CharField(max_length=16, default=STATUS_PENDING)
+    error = models.TextField(blank=True)
 
     class Meta:
         unique_together = ('func', 'args')

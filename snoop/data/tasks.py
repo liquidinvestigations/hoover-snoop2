@@ -1,4 +1,5 @@
 import logging
+import traceback
 from django.utils import timezone
 from . import celery
 from . import models
@@ -32,28 +33,36 @@ def laterz_shaorma(task_pk):
     args = task.args
     kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
 
+    task.status = models.Task.STATUS_PENDING
     task.date_started = timezone.now()
     task.save()
 
     try:
         result = shaormerie[task.func](*args, **kwargs)
 
-    except ShaormaError as e:
-        message = e.args[0]
-        logger.error("Shaorma %d failed: %r (%r)", task.pk, message, e.details)
-        raise
+        if result is not None:
+            assert isinstance(result, models.Blob)
+            task.result = result
+
+        task.status = models.Task.STATUS_SUCCESS
+
+    except Exception as e:
+        if isinstance(e, ShaormaError):
+            task.error = "{} ({})".format(e.args[0], e.details)
+
+        else:
+            task.error = message
+
+        task.status = models.Task.STATUS_ERROR
+        logger.error("Shaorma %d failed: %s", task_pk, task.error)
 
     task.date_finished = timezone.now()
-
-    if result is not None:
-        assert isinstance(result, models.Blob)
-        task.result = result
-
     task.save()
 
-    for next_dependency in task.next_set.all():
-        next = next_dependency.next
-        laterz_shaorma.delay(next.pk)
+    if task.status == models.Task.STATUS_SUCCESS:
+        for next_dependency in task.next_set.all():
+            next = next_dependency.next
+            laterz_shaorma.delay(next.pk)
 
 
 def shaorma(func):
