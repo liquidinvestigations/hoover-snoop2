@@ -2,7 +2,7 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
-from ..tasks import shaorma
+from ..tasks import shaorma, ShaormaError
 from .. import models
 
 
@@ -18,14 +18,18 @@ SEVENZIP_KNOWN_TYPES = {
 
 
 def call_7z(archive_path, output_dir):
-    subprocess.check_output([
-        '7z',
-        '-y',
-        '-pp',
-        'x',
-        str(archive_path),
-        '-o' + str(output_dir),
-    ], stderr=subprocess.STDOUT)
+    try:
+        subprocess.check_output([
+            '7z',
+            '-y',
+            '-pp',
+            'x',
+            str(archive_path),
+            '-o' + str(output_dir),
+        ], stderr=subprocess.STDOUT)
+
+    except subprocess.CalledProcessError as e:
+        raise ShaormaError("7z extraction failed", e.output)
 
 
 @shaorma

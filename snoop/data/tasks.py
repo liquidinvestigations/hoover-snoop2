@@ -9,6 +9,13 @@ logger = logging.getLogger(__name__)
 shaormerie = {}
 
 
+class ShaormaError(Exception):
+
+    def __init__(self, message, details):
+        super().__init__(message)
+        self.details = details
+
+
 @run_once
 def import_shaormas():
     from . import filesystem  # noqa
@@ -28,7 +35,14 @@ def laterz_shaorma(task_pk):
     task.date_started = timezone.now()
     task.save()
 
-    result = shaormerie[task.func](*args, **kwargs)
+    try:
+        result = shaormerie[task.func](*args, **kwargs)
+
+    except ShaormaError as e:
+        message = e.args[0]
+        logger.error("Shaorma %d failed: %r (%r)", task.pk, message, e.details)
+        raise
+
     task.date_finished = timezone.now()
 
     if result is not None:
