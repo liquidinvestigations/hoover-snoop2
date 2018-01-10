@@ -13,6 +13,7 @@ shaormerie = {}
 def import_shaormas():
     from . import filesystem  # noqa
     from .analyzers import archives  # noqa
+    from .analyzers import text  # noqa
 
 
 @celery.app.task
@@ -74,14 +75,3 @@ def shaorma(func):
     func.laterz = laterz
     shaormerie[func.__name__] = func
     return func
-
-
-@shaorma
-def extract_text(blob_pk):
-    blob = models.Blob.objects.get(pk=blob_pk)
-
-    with models.Blob.create() as output:
-        with blob.open() as src:
-            output.write(src.read())
-
-    return output.blob

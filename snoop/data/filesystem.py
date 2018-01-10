@@ -3,8 +3,9 @@ from pathlib import Path
 from django.utils import timezone
 from datetime import datetime
 from . import models
-from .tasks import shaorma, extract_text
+from .tasks import shaorma
 from .analyzers import archives
+from .analyzers import text
 
 
 def time_from_unix(t):
@@ -75,7 +76,7 @@ def handle_file(file_pk):
         )
 
     if blob.mime_type == 'text/plain':
-        depends_on['text'] = extract_text.laterz(blob.pk)
+        depends_on['text'] = text.extract_text.laterz(blob.pk)
 
     digest.laterz(file.collection.pk, blob.pk, depends_on=depends_on)
 
