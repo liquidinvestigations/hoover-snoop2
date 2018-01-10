@@ -3,6 +3,8 @@ A lean and mean rewrite of [snoop][], the Hoover collection analyzer.
 
 [snoop]: https://github.com/hoover/snoop
 
+[![Build Status](https://travis-ci.org/hoover/snoop2.svg?branch=master)](https://travis-ci.org/hoover/snoop2)
+
 ### Setup
 Snoop2 requires Python 3.6, and we recommend installing dependencies in a
 virtualenv.
