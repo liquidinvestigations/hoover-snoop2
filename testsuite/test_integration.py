@@ -46,4 +46,4 @@ def test_walk_and_api(client):
 
     # this file is only in a zip file, so if we find it, unzip works
     gold = docs[ID['gold']]
-    assert cheese['goldt']['text'].strip() == "gold!"
+    assert gold['content']['text'].strip() == "gold!"
