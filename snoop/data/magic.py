@@ -12,12 +12,15 @@ class Magic:
 
     def __init__(self):
         self.mime_process = subprocess.Popen(
-            ['file', '-', '--mime-type', '--mime-encoding', '-k'],
+            [
+                'file', '-', '--mime-type', '--mime-encoding', '-k',
+                '-m', str(MAGIC_FILE),
+            ],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
         self.magic_process = subprocess.Popen(
-            ['file', '-', '-k'],
+            ['file', '-', '-k', '-m', str(MAGIC_FILE)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
