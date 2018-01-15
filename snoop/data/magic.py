@@ -12,12 +12,12 @@ class Magic:
 
     def __init__(self):
         self.mime_process = subprocess.Popen(
-            ['file', '-', '--mime-type', '--mime-encoding'],
+            ['file', '-', '--mime-type', '--mime-encoding', '-k'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
         self.magic_process = subprocess.Popen(
-            ['file', '-'],
+            ['file', '-', '-k'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
@@ -32,6 +32,9 @@ class Magic:
                 output,
             )
             self.mime_type, self.mime_encoding = (m.group('mime_type'), m.group('mime_encoding'))
+            # file's -k option separates multiple findings with \012-
+            # Keep only the first finding
+            self.mime_type = self.mime_type.split(r'\012-')[0]
             assert self.mime_process.wait() == 0
             self.mime_process = None
 
@@ -39,11 +42,13 @@ class Magic:
         if self.magic_process:
             self.magic_process.stdin.close()
             output = self.magic_process.stdout.read().decode('latin1')
+            output = output.split(r'\012-')[0]
             m = re.match(
                 r'/dev/stdin: (?P<magic_output>.+)',
                 output,
             )
             self.magic_output = m.group('magic_output')
+
             assert self.magic_process.wait() == 0
             self.magic_process = None
 
