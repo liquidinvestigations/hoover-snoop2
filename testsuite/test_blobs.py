@@ -15,7 +15,7 @@ def test_make_blob_from_jpeg_file():
     assert image_blob.sha256 == '05755324b6476d2b31f2d88f1210782c3fdce880e4b6bfa9a5edb23d8be5bedb'
     assert image_blob.sha1 == '2b125736f64ff94ce423358edc5771d055cdfd7b'
     assert image_blob.md5 == '871666ee99b90e51c69af02f77f021aa'
-    assert image_blob.magic == ''
+    assert 'JPEG image data' in image_blob.magic
     assert image_blob.mime_type == 'image/jpeg'
     assert image_blob.mime_encoding == 'binary'
 

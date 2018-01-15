@@ -11,33 +11,58 @@ MAGIC_FILE = Path(__file__).resolve().parent.parent.parent / 'magic.mgc'
 class Magic:
 
     def __init__(self):
-        self.process = subprocess.Popen(
+        self.mime_process = subprocess.Popen(
             ['file', '-', '--mime-type', '--mime-encoding'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
         )
+        self.magic_process = subprocess.Popen(
+            ['file', '-'],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        )
 
-    def finish(self):
-        if self.process:
-            self.process.stdin.close()
-            output = self.process.stdout.read().decode('latin1')
+    def finish_mime(self):
+        if self.mime_process:
+            self.mime_process.stdin.close()
+            output = self.mime_process.stdout.read().decode('latin1')
             m = re.match(
                 r'/dev/stdin: (?P<mime_type>[^;].+); '
                 r'charset=(?P<mime_encoding>\S+)',
                 output,
             )
             self.mime_type, self.mime_encoding = (m.group('mime_type'), m.group('mime_encoding'))
-            assert self.process.wait() == 0
-            self.process = None
+            assert self.mime_process.wait() == 0
+            self.mime_process = None
+
+    def finish_magic(self):
+        if self.magic_process:
+            self.magic_process.stdin.close()
+            output = self.magic_process.stdout.read().decode('latin1')
+            m = re.match(
+                r'/dev/stdin: (?P<magic_output>.+)',
+                output,
+            )
+            self.magic_output = m.group('magic_output')
+            assert self.magic_process.wait() == 0
+            self.magic_process = None
+
+    def finish(self):
+        self.finish_mime()
+        self.finish_magic()
 
     def update(self, buffer):
-        if not self.process:
-            return
+        if self.mime_process:
+            try:
+                self.mime_process.stdin.write(buffer)
+            except IOError:
+                self.finish_mime()
 
-        try:
-            self.process.stdin.write(buffer)
-        except IOError:
-            self.finish()
+        if self.magic_process:
+            try:
+                self.magic_process.stdin.write(buffer)
+            except IOError:
+                self.finish_mime()
 
 
 def download_magic_definitions():
