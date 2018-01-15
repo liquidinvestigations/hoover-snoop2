@@ -51,7 +51,7 @@ def laterz_shaorma(task_pk):
             task.error = "{} ({})".format(e.args[0], e.details)
 
         else:
-            task.error = message
+            task.error = repr(e)
 
         task.status = models.Task.STATUS_ERROR
         logger.error("Shaorma %d failed: %s", task_pk, task.error)
