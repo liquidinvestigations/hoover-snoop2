@@ -13,6 +13,8 @@ ID = {
               '9b0d50791f7b4c06034b6f254436a3c3',
     'gold': '64f585e84c751408a4b8cebf35212cbe'
             '7e3f5ea6843fed0581be212705604448',
+    'easychair.docx': '36a12c77e4fd84e8d38542990f9bd657'
+                      'c6afb9768cae6703fc78b37cf64e88be',
 }
 
 
@@ -47,3 +49,7 @@ def test_walk_and_api(client):
     # this file is only in a zip file, so if we find it, unzip works
     gold = docs[ID['gold']]
     assert gold['content']['text'].strip() == "gold!"
+
+    # docx file; check that tika pulled out the text
+    easychair = docs[ID['easychair.docx']]
+    assert "at least 300dpi in resolution" in easychair['content']['text']
