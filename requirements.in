@@ -4,3 +4,4 @@ Celery
 pytest
 pytest-django
 psycopg2
+requests

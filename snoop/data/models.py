@@ -95,8 +95,12 @@ class Blob(models.Model):
 
         return writer.blob
 
-    def open(self):
-        return self.path().open('rb')
+    def open(self, encoding=None):
+        if encoding is not None:
+            mode = 'r'
+        else:
+            mode = 'rb'
+        return self.path().open(mode, encoding=encoding)
 
 
 class Collection(models.Model):

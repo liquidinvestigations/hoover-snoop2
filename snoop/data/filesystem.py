@@ -6,6 +6,7 @@ from . import models
 from .tasks import shaorma
 from .analyzers import archives
 from .analyzers import text
+from .analyzers import tika
 
 
 def time_from_unix(t):
@@ -78,6 +79,9 @@ def handle_file(file_pk):
     if blob.mime_type == 'text/plain':
         depends_on['text'] = text.extract_text.laterz(blob.pk)
 
+    if tika.can_process(blob):
+        depends_on['tika_rmeta'] = tika.rmeta.laterz(blob.pk)
+
     digest.laterz(file.collection.pk, blob.pk, depends_on=depends_on)
 
 
@@ -142,6 +146,12 @@ def digest(collection_pk, blob_pk, **depends_on):
         with text_blob.open() as f:
             text_bytes = f.read()
         rv['text'] = text_bytes.decode(text_blob.mime_encoding)
+
+    tika_rmeta_blob = depends_on.get('tika_rmeta')
+    if tika_rmeta_blob:
+        with tika_rmeta_blob.open(encoding='utf8') as f:
+            tika_rmeta = json.load(f)
+        rv['text'] = tika_rmeta[0]['X-TIKA:content']
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
