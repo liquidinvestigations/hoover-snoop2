@@ -25,7 +25,7 @@ cpanm --notest Email::Outlook::Message
 
 # tika
 mkdir /opt/tika
-wget http://archive.apache.org/dist/tika/tika-server-1.17.jar -o /opt/tika/tika-server.jar
+wget http://archive.apache.org/dist/tika/tika-server-1.17.jar -O /opt/tika/tika-server.jar
 
 # download testdata
 git clone https://github.com/hoover/testdata.git /opt/testdata
