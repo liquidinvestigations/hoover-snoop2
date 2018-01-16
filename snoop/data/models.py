@@ -4,6 +4,7 @@ import tempfile
 import hashlib
 from django.db import models
 from django.conf import settings
+from django.template.defaultfilters import truncatechars
 from django.contrib.postgres.fields import JSONField
 from .magic import Magic
 
@@ -152,7 +153,7 @@ class File(models.Model):
         unique_together = ('parent_directory', 'name')
 
     def __str__(self):
-        return self.name
+        return truncatechars(self.name, 80)
 
 
 class Task(models.Model):
