@@ -8,9 +8,12 @@ amqp==2.2.2               # via kombu
 attrs==17.4.0             # via pytest
 billiard==3.5.0.3         # via celery
 celery==4.1.0
+certifi==2017.11.5        # via requests
+chardet==3.0.4            # via requests
 click==6.7                # via pip-tools
 django==2.0
 first==2.0.1              # via pip-tools
+idna==2.6                 # via requests
 kombu==4.1.0              # via celery
 pip-tools==1.11.0
 pluggy==0.6.0             # via pytest
@@ -19,5 +22,7 @@ py==1.5.2                 # via pytest
 pytest-django==3.1.2
 pytest==3.3.2
 pytz==2017.3              # via celery, django
+requests==2.18.4
 six==1.11.0               # via pip-tools, pytest
+urllib3==1.22             # via requests
 vine==1.1.4               # via amqp
