@@ -46,17 +46,23 @@ def can_process(blob):
     return False
 
 
-@shaorma
-def rmeta(blob_pk):
-    blob = models.Blob.objects.get(pk=blob_pk)
-    url = urljoin(settings.SNOOP_TIKA_URL, '/rmeta/text')
-
-    with blob.open() as f:
-        resp = requests.put(url, data=f, stream=True)
+def call_tika_server(endpoint, data):
+    url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
+    resp = requests.put(url, data=data, stream=True)
 
     if (resp.status_code != 200 or
         resp.headers['Content-Type'] != 'application/json'):
         raise RuntimeError(f"Unexpected response from tika: {resp}")
+
+    return resp
+
+
+@shaorma
+def rmeta(blob_pk):
+    blob = models.Blob.objects.get(pk=blob_pk)
+
+    with blob.open() as f:
+        resp = call_tika_server('/rmeta/text', f)
 
     with models.Blob.create() as output:
         for chunk in resp.iter_content(chunk_size=262144):
