@@ -8,7 +8,6 @@ from django.template.defaultfilters import truncatechars
 from django.contrib.postgres.fields import JSONField
 from .magic import Magic
 
-#blob_storage = FlatBlobStorage()
 BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
 BLOB_TMP = BLOB_ROOT / 'tmp'
 
