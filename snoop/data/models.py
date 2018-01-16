@@ -46,6 +46,7 @@ class BlobWriter:
         }
         fields['mime_type'] = self.magic.mime_type
         fields['mime_encoding'] = self.magic.mime_encoding
+        fields['magic'] = self.magic.magic_output
         return fields
 
 
