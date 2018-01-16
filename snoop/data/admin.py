@@ -6,6 +6,16 @@ from . import models
 
 class FileAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'blob_link']
+    search_fields = [
+        'name',
+        'blob__sha3_256',
+        'blob__sha256',
+        'blob__sha1',
+        'blob__md5',
+        'blob__magic',
+        'blob__mime_type',
+        'blob__mime_encoding',
+    ]
 
     def blob_link(self, obj):
         url = reverse('admin:data_blob_change', args=[obj.blob.pk])
