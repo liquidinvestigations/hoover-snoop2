@@ -5,7 +5,7 @@ from . import models
 
 
 class FileAdmin(admin.ModelAdmin):
-    list_display = ['__str__', 'blob_link']
+    list_display = ['__str__', 'size', 'mime_type', 'blob_link']
     search_fields = [
         'name',
         'blob__sha3_256',
@@ -16,6 +16,9 @@ class FileAdmin(admin.ModelAdmin):
         'blob__mime_type',
         'blob__mime_encoding',
     ]
+
+    def mime_type(self, obj):
+        return obj.blob.mime_type
 
     def blob_link(self, obj):
         url = reverse('admin:data_blob_change', args=[obj.blob.pk])
