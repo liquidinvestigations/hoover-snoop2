@@ -16,6 +16,31 @@ SEVENZIP_KNOWN_TYPES = {
     'application/x-rar-compressed',
 }
 
+READPST_KNOWN_TYPES = {
+    'application/x-hoover-pst',
+}
+
+
+def is_archive(mime_type):
+    return mime_type in SEVENZIP_KNOWN_TYPES + READPST_KNOWN_TYPES
+
+
+def call_readpst(pst_path, output_dir):
+    try:
+        subprocess.check_output([
+            'readpst',
+            '-D',
+            '-M',
+            '-e',
+            '-o',
+            str(output_dir),
+            '-teajc',
+            str(pst_path),
+        ], stderr=subprocess.STDOUT)
+
+    except subprocess.CalledProcessError as e:
+        raise ShaormaError('readpst failed: ' + e.output.decode('latin1'))
+
 
 def call_7z(archive_path, output_dir):
     try:
@@ -35,7 +60,12 @@ def call_7z(archive_path, output_dir):
 @shaorma
 def unarchive(blob_pk):
     with tempfile.TemporaryDirectory() as temp_dir:
-        call_7z(models.Blob.objects.get(pk=blob_pk).path(), temp_dir)
+        blob = models.Blob.objects.get(pk=blob_pk)
+        if blob.mime_type in SEVENZIP_KNOWN_TYPES:
+            call_7z(blob.path(), temp_dir)
+        elif blob.mime_type in READPST_KNOWN_TYPES:
+            call_readpst(blob.path(), temp_dir)
+
         listing = list(archive_walk(Path(temp_dir)))
 
     with tempfile.NamedTemporaryFile() as f:

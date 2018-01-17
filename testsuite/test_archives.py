@@ -1,4 +1,3 @@
-from datetime import datetime
 import json
 import pytest
 from pathlib import Path
@@ -53,6 +52,7 @@ JERRY_DIR = {
 
 JERRY_ZIP = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/tom/jail/jerry.zip"
 ZIP_DOCX = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/zip-with-docx-and-doc.zip"
+JANE_DOE_PST = Path(settings.SNOOP_TESTDATA) / "data/pst/flags_jane_doe.pst"
 
 def test_unarchive_zip():
     zip_blob = models.Blob.create_from_file(JERRY_ZIP)
@@ -67,6 +67,24 @@ def test_unarchive_zip():
     assert PACKAGE_JSON in listing[0]['children']
     assert WHAT_DIR in listing[0]['children']
     assert MOUSE_DIR in listing[0]['children']
+
+
+def test_unarchive_pst():
+    pst_blob = models.Blob.create_from_file(JANE_DOE_PST)
+    listing_blob = archives.unarchive(pst_blob)
+    with listing_blob.open() as f:
+        listing = json.load(f)
+
+    EML_NUMBER_5 = {
+        "type": "file",
+        "name": "5.eml",
+        "blob_pk": "9c007ccf1720d6279fc64389321fd83e053c9c4abc885a1745e9bc6793d515c9"
+    }
+
+    [root_dir] = listing
+    assert root_dir['name'] == 'pst-test-2@aranetic.com'
+    assert root_dir['type'] == 'directory'
+    assert len(root_dir['children']) == 3
 
 
 def test_create_archive_files():
@@ -84,8 +102,8 @@ def test_create_archive_files():
         collection=col,
         name=JERRY_ZIP.name,
         parent_directory=zip_parent_dir,
-        ctime=datetime.now(),
-        mtime=datetime.now(),
+        ctime=filesystem.time_from_unix(0),
+        mtime=filesystem.time_from_unix(0),
         size=0,
         blob=zip_blob,
     )
