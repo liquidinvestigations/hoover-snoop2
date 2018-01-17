@@ -26,3 +26,11 @@ def test_make_blob_from_first_eml_file():
     assert eml_blob.sha256 == '173eb1bc20865d3a9d2b4ac91484b06b59fdea8bc25f6e18fdf837de1f6a80e9'
     assert eml_blob.mime_type == 'message/rfc822'
     assert eml_blob.mime_encoding == 'us-ascii'
+
+def test_make_blob_from_a_partial_emlx_file():
+    EMLX = settings.SNOOP_TESTDATA + "/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Messages/1498.partial.emlx"
+    emlx_blob = models.Blob.create_from_file(EMLX)
+
+    assert emlx_blob.sha256 == '1199ba0bab414a740428f604f08e4d2e1f8366a8bcc16478f82ab0e890d5de09'
+    assert emlx_blob.mime_type == 'message/x-emlx'
+    assert emlx_blob.mime_encoding == 'utf-8'

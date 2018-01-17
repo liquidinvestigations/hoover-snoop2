@@ -104,3 +104,11 @@ def looks_like_email(path):
     ])
 
     return len(headers_found.intersection(HEADER_SET)) >= HEADER_MIN_HIT_COUNT
+
+
+def looks_like_emlx_email(path):
+    with path.open('rb') as f:
+        content = read_exactly(f, 20).decode('latin-1')
+    first_line = content.splitlines()[0]
+
+    return first_line.strip().isdigit()
