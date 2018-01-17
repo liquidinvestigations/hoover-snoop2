@@ -22,11 +22,17 @@ def reconstruct(file):
         if part.get('X-Apple-Content-Length'):
             ext = f'.{ref}.emlxpart'
             part_name = re.sub(r'\.partial\.emlx$', ext, file.name)
-            part_file = (
-                file.parent_directory
-                .child_file_set
-                .get(name=part_name)
-            )
+
+            try:
+                part_file = (
+                    file.parent_directory
+                    .child_file_set
+                    .get(name=part_name)
+                )
+            except models.File.DoesNotExist:
+                # skip this part, it's missing
+                continue
+
             with part_file.blob.open() as f:
                 payload = f.read()
             part.set_payload(payload)
