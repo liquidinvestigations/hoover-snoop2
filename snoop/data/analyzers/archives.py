@@ -7,13 +7,15 @@ from .. import models
 
 
 SEVENZIP_KNOWN_TYPES = {
-    'application/zip',
-    'application/rar',
+    # these are known to work
     'application/x-7z-compressed',
+    'application/zip',
     'application/x-zip',
+    'application/x-rar',
+    # these might not work properly
     'application/x-gzip',
-    'application/x-zip-compressed',
-    'application/x-rar-compressed',
+    'application/x-bzip2',
+    'application/x-tar',
 }
 
 READPST_KNOWN_TYPES = {
