@@ -91,6 +91,9 @@ class Blob(models.Model):
                 else:
                     fields['mime_type'] = 'message/rfc822'
 
+        if fields['magic'].startswith('Microsoft Outlook email folder'):
+            fields['mime_type'] = 'application/x-hoover-pst'
+
         (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
         writer.blob = blob
 

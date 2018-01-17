@@ -105,9 +105,9 @@ def test_make_blob_from_first_eml_file():
     # .msg
     ("/data/no-extension/file_msg", "application/vnd.ms-outlook"),
     ("/data/msg-5-outlook/DISEARĂ-Te-așteptăm-la-discuția-despre-finanțarea-culturii.msg", "application/vnd.ms-outlook"),
-    # .pst TODO
-    ("/data/no-extension/file_pst", "application/octet-stream"),
-    ("/data/pst/flags_jane_doe.pst", "application/octet-stream"),
+    # .pst
+    ("/data/no-extension/file_pst", "application/x-hoover-pst"),
+    ("/data/pst/flags_jane_doe.pst", "application/x-hoover-pst"),
 ])
 def test_blob_mime_types(testdata_relative_path, expected_mime_type):
     file_path = settings.SNOOP_TESTDATA + testdata_relative_path
