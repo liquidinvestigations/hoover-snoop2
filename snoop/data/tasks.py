@@ -54,6 +54,7 @@ def laterz_shaorma(task_pk):
             task.error = repr(e)
 
         task.status = models.Task.STATUS_ERROR
+        task.traceback = traceback.format_exc()
         logger.error("Shaorma %d failed: %s", task_pk, task.error)
 
     task.date_finished = timezone.now()
