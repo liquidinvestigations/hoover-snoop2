@@ -53,13 +53,14 @@ JERRY_DIR = {
 JERRY_ZIP = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/tom/jail/jerry.zip"
 ZIP_DOCX = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/zip-with-docx-and-doc.zip"
 JANE_DOE_PST = Path(settings.SNOOP_TESTDATA) / "data/pst/flags_jane_doe.pst"
+TAR_GZ = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz"
+RAR = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/rar-with-pdf-doc-docx.rar"
 
 def test_unarchive_zip():
     zip_blob = models.Blob.create_from_file(JERRY_ZIP)
     listing_blob = archives.unarchive(zip_blob)
     with listing_blob.open() as f:
         listing = json.load(f)
-
 
     assert listing[0]['name'] == 'jerry'
     assert listing[0]['type'] == 'directory'
@@ -85,6 +86,40 @@ def test_unarchive_pst():
     assert root_dir['name'] == 'pst-test-2@aranetic.com'
     assert root_dir['type'] == 'directory'
     assert len(root_dir['children']) == 3
+
+
+def test_unarchive_tar_gz():
+    tar_gz_blob = models.Blob.create_from_file(TAR_GZ)
+    listing_blob = archives.unarchive(tar_gz_blob)
+    with listing_blob.open() as f:
+        listing = json.load(f)
+
+    [tar_file] = listing
+    assert tar_file['type'] == 'file'
+
+    tar_blob = models.Blob.objects.get(pk=tar_file['blob_pk'])
+    listing_blob = archives.unarchive(tar_blob)
+    with listing_blob.open() as f:
+        listing = json.load(f)
+
+    assert set(f['name'] for f in listing) == {
+        'sample (1).doc',
+        'Sample_BulletsAndNumberings.docx',
+        'cap33.pdf',
+    }
+
+
+def test_unarchive_rar():
+    rar = models.Blob.create_from_file(RAR)
+    listing_blob = archives.unarchive(rar)
+    with listing_blob.open() as f:
+        listing = json.load(f)
+
+    assert set(f['name'] for f in listing) == {
+        'sample (1).doc',
+        'Sample_BulletsAndNumberings.docx',
+        'cap33.pdf',
+    }
 
 
 def test_create_archive_files():
