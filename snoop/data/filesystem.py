@@ -8,6 +8,7 @@ from .analyzers import archives
 from .analyzers import text
 from .analyzers import tika
 from .analyzers import emlx
+from .analyzers import email
 
 
 def time_from_unix(t):
@@ -70,24 +71,31 @@ def file_to_blob(directory, name):
 @shaorma
 def handle_file(file_pk):
     file = models.File.objects.get(pk=file_pk)
-    blob = file.blob
     depends_on = {}
 
-    if archives.is_archive(blob.mime_type):
-        unarchive_task = archives.unarchive.laterz(blob.pk)
+    if archives.is_archive(file.blob.mime_type):
+        unarchive_task = archives.unarchive.laterz(file.blob.pk)
         create_archive_files.laterz(
             file.pk,
             depends_on={'archive_listing': unarchive_task},
         )
 
-    if file.blob.mime_type == 'message/x-emlx':
-        emlx_blob = emlx.reconstruct(file)
-        print(f"emlx_blob: {emlx_blob}")
+    elif file.blob.mime_type == 'message/x-emlx':
+        digest_blob = emlx.reconstruct(file)
+        depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
 
-    if tika.can_process(blob):
-        depends_on['tika_rmeta'] = tika.rmeta.laterz(blob.pk)
+    elif file.blob.mime_type == 'message/rfc822':
+        digest_blob = file.blob
+        depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
 
-    digest.laterz(file.collection.pk, blob.pk, depends_on=depends_on)
+    elif tika.can_process(file.blob):
+        digest_blob = file.blob
+        depends_on['tika_rmeta'] = tika.rmeta.laterz(digest_blob.pk)
+
+    else:
+        digest_blob = file.blob
+
+    digest.laterz(file.collection.pk, digest_blob.pk, depends_on=depends_on)
 
 
 @shaorma
@@ -162,6 +170,12 @@ def digest(collection_pk, blob_pk, **depends_on):
         with tika_rmeta_blob.open(encoding='utf8') as f:
             tika_rmeta = json.load(f)
         rv['text'] = tika_rmeta[0]['X-TIKA:content']
+
+    email_parse_blob = depends_on.get('email_parse')
+    if email_parse_blob:
+        with email_parse_blob.open(encoding='utf8') as f:
+            email_parse = json.load(f)
+        rv['_emailheaders'] = email_parse['headers']
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
