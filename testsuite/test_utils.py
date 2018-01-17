@@ -31,3 +31,25 @@ CONTENT = b'some random content that will get chopped up and put back together'
 def test_read_minimum(content, chunk_size, request_size):
     rv = utils.read_exactly(StingyFile(content, chunk_size), request_size)
     assert rv == content[:request_size]
+
+
+@pytest.mark.parametrize('rv', [
+    None,
+    {'a': 13},
+    'foo',
+    object(),
+])
+def test_call_once(rv):
+    call_count = 0
+
+    @utils.run_once
+    def func():
+        nonlocal call_count
+        call_count += 1
+        return rv
+
+    for _ in range(10):
+        call_rv = func()
+        assert call_rv is rv
+
+    assert call_count == 1
