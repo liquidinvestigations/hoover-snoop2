@@ -1,4 +1,5 @@
 from urllib.parse import urljoin
+import json
 from django.conf import settings
 import requests
 from ..tasks import shaorma
@@ -51,7 +52,7 @@ def can_process(blob):
 
 def call_tika_server(endpoint, data):
     url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
-    resp = requests.put(url, data=data, stream=True)
+    resp = requests.put(url, data=data)
 
     if (resp.status_code != 200 or
         resp.headers['Content-Type'] != 'application/json'):
@@ -67,8 +68,9 @@ def rmeta(blob_pk):
     with blob.open() as f:
         resp = call_tika_server('/rmeta/text', f)
 
+    data = json.dumps(resp.json(), indent=2).encode('utf8')
+
     with models.Blob.create() as output:
-        for chunk in resp.iter_content(chunk_size=262144):
-            output.write(chunk)
+        output.write(data)
 
     return output.blob
