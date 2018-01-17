@@ -7,6 +7,7 @@ from .tasks import shaorma
 from .analyzers import archives
 from .analyzers import text
 from .analyzers import tika
+from .analyzers import emlx
 
 
 def time_from_unix(t):
@@ -78,6 +79,10 @@ def handle_file(file_pk):
             file.pk,
             depends_on={'archive_listing': unarchive_task},
         )
+
+    if file.blob.mime_type == 'message/x-emlx':
+        emlx_blob = emlx.reconstruct(file)
+        print(f"emlx_blob: {emlx_blob}")
 
     if tika.can_process(blob):
         depends_on['tika_rmeta'] = tika.rmeta.laterz(blob.pk)
