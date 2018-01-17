@@ -3,6 +3,7 @@ import re
 from urllib.request import urlopen
 from contextlib import closing
 from pathlib import Path
+from .utils import read_exactly
 
 MAGIC_URL = 'https://github.com/hoover/magic-definitions/raw/master/magic.mgc'
 MAGIC_FILE = Path(__file__).resolve().parent.parent.parent / 'magic.mgc'
@@ -34,7 +35,8 @@ class Magic:
                 r'charset=(?P<mime_encoding>\S+)',
                 output,
             )
-            self.mime_type, self.mime_encoding = (m.group('mime_type'), m.group('mime_encoding'))
+            self.mime_type = m.group('mime_type')
+            self.mime_encoding = m.group('mime_encoding')
             # file's -k option separates multiple findings with \012-
             # Keep only the first finding
             self.mime_type = self.mime_type.split(r'\012-')[0]
@@ -82,3 +84,31 @@ def download_magic_definitions():
                 for chunk in chunks(resp):
                     f.write(chunk)
         print("ok")
+
+
+def looks_like_email(path):
+    HEADER_SET = {
+        "Relay-Version", "Return-Path", "From", "To",
+        "Received", "Message-Id", "Date", "In-Reply-To", "Subject",
+    }
+    HEADER_MIN_HIT_COUNT = 2
+    HEADER_READ_SIZE = 1024 * 64
+
+    with path.open('rb') as f:
+        content = read_exactly(f, HEADER_READ_SIZE).decode('latin-1')
+
+    headers_found = set([
+        s.split(':')[0].strip().title()
+        for s in content.splitlines()
+        if ':' in s
+    ])
+
+    return len(headers_found.intersection(HEADER_SET)) >= HEADER_MIN_HIT_COUNT
+
+
+def looks_like_emlx_email(path):
+    with path.open('rb') as f:
+        content = read_exactly(f, 20).decode('latin-1')
+    first_line = content.splitlines()[0]
+
+    return first_line.strip().isdigit()

@@ -6,7 +6,7 @@ from django.db import models
 from django.conf import settings
 from django.template.defaultfilters import truncatechars
 from django.contrib.postgres.fields import JSONField
-from .magic import Magic
+from .magic import Magic, looks_like_email, looks_like_emlx_email
 
 BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
 BLOB_TMP = BLOB_ROOT / 'tmp'
@@ -82,7 +82,19 @@ class Blob(models.Model):
         fields = writer.finish()
         pk = fields.pop('sha3_256')
 
-        Path(f.name).rename(BLOB_ROOT / pk)
+        blob_path = BLOB_ROOT / pk
+        Path(f.name).rename(blob_path)
+
+        if fields['mime_type'].startswith('text/'):
+            if looks_like_email(blob_path):
+                if looks_like_emlx_email(blob_path):
+                    fields['mime_type'] = 'message/x-emlx'
+                else:
+                    fields['mime_type'] = 'message/rfc822'
+
+        if fields['magic'].startswith('Microsoft Outlook email folder'):
+            fields['mime_type'] = 'application/x-hoover-pst'
+
         (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
         writer.blob = blob
 
