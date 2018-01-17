@@ -3,6 +3,7 @@ import re
 from urllib.request import urlopen
 from contextlib import closing
 from pathlib import Path
+from .utils import read_exactly
 
 MAGIC_URL = 'https://github.com/hoover/magic-definitions/raw/master/magic.mgc'
 MAGIC_FILE = Path(__file__).resolve().parent.parent.parent / 'magic.mgc'
@@ -94,7 +95,7 @@ def looks_like_email(path):
     HEADER_READ_SIZE = 1024 * 64
 
     with path.open('rb') as f:
-        content = f.read(HEADER_READ_SIZE).decode('latin-1')
+        content = read_exactly(f, HEADER_READ_SIZE).decode('latin-1')
 
     headers_found = set([
         s.split(':')[0].strip().title()
