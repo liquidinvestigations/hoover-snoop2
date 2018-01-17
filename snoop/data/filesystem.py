@@ -31,6 +31,7 @@ def directory_absolute_path(directory):
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
+    child_files = []
     for thing in path.iterdir():
         if thing.is_dir():
             (child_directory, _) = directory.child_directory_set.get_or_create(
@@ -39,12 +40,14 @@ def walk(directory_pk):
             )
             walk.laterz(child_directory.pk)
         else:
-            file_to_blob.laterz(directory_pk, thing.name)
+            file = file_to_blob(directory, thing.name)
+            child_files.append(file)
+
+    for file in child_files:
+        handle_file.laterz(file.pk)
 
 
-@shaorma
-def file_to_blob(directory_pk, name):
-    directory = models.Directory.objects.get(pk=directory_pk)
+def file_to_blob(directory, name):
     path = directory_absolute_path(directory) / name
     blob = models.Blob.create_from_file(path)
 
@@ -60,7 +63,7 @@ def file_to_blob(directory_pk, name):
         ),
     )
 
-    handle_file.laterz(file.pk)
+    return file
 
 
 @shaorma
@@ -88,13 +91,18 @@ def create_archive_files(file_pk, archive_listing):
         archive_listing_data = json.load(f)
 
     def create_directory_children(directory, children):
+        child_files = []
         for item in children:
             if item['type'] == 'file':
                 blob = models.Blob.objects.get(pk=item['blob_pk'])
-                create_file(directory, item['name'], blob)
+                file = create_file(directory, item['name'], blob)
+                child_files.append(file)
 
             if item['type'] == 'directory':
                 create_directory(directory, item['name'], item['children'])
+
+        for file in child_files:
+            handle_file.laterz(file.pk)
 
     def create_directory(parent_directory, name, children):
         (directory, _) = parent_directory.child_directory_set.get_or_create(
@@ -120,7 +128,7 @@ def create_archive_files(file_pk, archive_listing):
             ),
         )
 
-        handle_file.laterz(file.pk)
+        return file
 
     file = models.File.objects.get(pk=file_pk)
     (fake_root, _) = file.child_directory_set.get_or_create(
