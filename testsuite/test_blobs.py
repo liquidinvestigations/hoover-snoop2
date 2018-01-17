@@ -27,6 +27,31 @@ def test_make_blob_from_first_eml_file():
     assert eml_blob.mime_type == 'message/rfc822'
     assert eml_blob.mime_encoding == 'us-ascii'
 
+def test_all_eml_files_are_marked_as_rfc_822():
+    EML_LIST = [
+        "/data/no-extension/file_eml",
+        "/data/eml-2-attachment/message-without-subject.eml",
+        "/data/eml-2-attachment/Fwd: The American College of Thessaloniki - Greece - Tarek Kouatly <tarek@act.edu> - 2013-11-11 1622.eml",
+        "/data/eml-2-attachment/attachments-have-octet-stream-content-type.eml",
+        "/data/eml-2-attachment/FW: Invitation Fontys Open Day 2nd of February 2014 - Campus Venlo <campusvenlo@fontys.nl> - 2013-12-16 1700.eml",
+        "/data/eml-2-attachment/Urăsc canicula, e nașpa.eml",
+        "/data/eml-5-long-names/Attachments have long file names..eml",
+        "/data/eml-bom/with-bom.eml",
+        "/data/eml-1-promotional/Introducing Mapbox Android Services - Mapbox Team <newsletter@mapbox.com> - 2016-04-20 1603.eml",
+        "/data/eml-1-promotional/Machine Learning comes to CodinGame! - CodinGame Team <contact@codingame.com> - 2016-04-22 1731.eml",
+        "/data/eml-1-promotional/New on CodinGame: Check it out! - CodinGame <coders@codingame.com> - 2016-04-21 1034.eml",
+        "/data/eml-8-double-encoded/simple-encoding.eml",
+        "/data/eml-8-double-encoded/double-encoding.eml",
+        "/data/eml-3-uppercaseheaders/Fwd: The American College of Thessaloniki - Greece - Tarek Kouatly <tarek@act.edu> - 2013-11-11 1622.eml",
+        "/data/eml-9-pgp/encrypted-hushmail-knockoff.eml",
+        "/data/eml-9-pgp/encrypted-machine-learning-comes.eml",
+        "/data/eml-9-pgp/encrypted-hushmail-smashed-bytes.eml",
+    ]
+    for relative_path in EML_LIST:
+        file_path = settings.SNOOP_TESTDATA + relative_path
+        eml_blob = models.Blob.create_from_file(file_path)
+        assert eml_blob.mime_type == 'message/rfc822'
+
 def test_make_blob_from_a_partial_emlx_file():
     EMLX = settings.SNOOP_TESTDATA + "/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Messages/1498.partial.emlx"
     emlx_blob = models.Blob.create_from_file(EMLX)
