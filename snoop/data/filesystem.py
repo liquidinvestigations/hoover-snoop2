@@ -73,7 +73,7 @@ def handle_file(file_pk):
     blob = file.blob
     depends_on = {}
 
-    if blob.mime_type in archives.SEVENZIP_KNOWN_TYPES:
+    if archives.is_archive(blob.mime_type):
         unarchive_task = archives.unarchive.laterz(blob.pk)
         create_archive_files.laterz(
             file.pk,
