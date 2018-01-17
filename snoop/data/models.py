@@ -193,6 +193,7 @@ class Task(models.Model):
 
     status = models.CharField(max_length=16, default=STATUS_PENDING)
     error = models.TextField(blank=True)
+    traceback = models.TextField(blank=True)
 
     class Meta:
         unique_together = ('func', 'args')
