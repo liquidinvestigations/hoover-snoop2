@@ -7,12 +7,10 @@ from .. import models
 
 
 SEVENZIP_KNOWN_TYPES = {
-    # these are known to work
     'application/x-7z-compressed',
     'application/zip',
     'application/x-zip',
     'application/x-rar',
-    # these might not work properly
     'application/x-gzip',
     'application/x-bzip2',
     'application/x-tar',
@@ -22,9 +20,11 @@ READPST_KNOWN_TYPES = {
     'application/x-hoover-pst',
 }
 
+KNOWN_TYPES = SEVENZIP_KNOWN_TYPES.union(READPST_KNOWN_TYPES)
+
 
 def is_archive(mime_type):
-    return mime_type in SEVENZIP_KNOWN_TYPES + READPST_KNOWN_TYPES
+    return mime_type in KNOWN_TYPES
 
 
 def call_readpst(pst_path, output_dir):
