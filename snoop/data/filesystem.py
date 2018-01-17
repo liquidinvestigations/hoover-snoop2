@@ -76,9 +76,6 @@ def handle_file(file_pk):
             depends_on={'archive_listing': unarchive_task},
         )
 
-    if blob.mime_type == 'text/plain':
-        depends_on['text'] = text.extract_text.laterz(blob.pk)
-
     if tika.can_process(blob):
         depends_on['tika_rmeta'] = tika.rmeta.laterz(blob.pk)
 

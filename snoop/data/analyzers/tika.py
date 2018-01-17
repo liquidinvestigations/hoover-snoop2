@@ -5,6 +5,9 @@ from ..tasks import shaorma
 from .. import models
 
 TIKA_CONTENT_TYPES = [
+    'text/plain',
+    'text/html',
+
     'application/pdf',
 
     'application/msword',
