@@ -19,3 +19,10 @@ def test_make_blob_from_jpeg_file():
     assert image_blob.mime_type == 'image/jpeg'
     assert image_blob.mime_encoding == 'binary'
 
+def test_make_blob_from_first_eml_file():
+    EML = settings.SNOOP_TESTDATA + "/data/eml-8-double-encoded/simple-encoding.eml"
+    eml_blob = models.Blob.create_from_file(EML)
+
+    assert eml_blob.sha256 == '173eb1bc20865d3a9d2b4ac91484b06b59fdea8bc25f6e18fdf837de1f6a80e9'
+    assert eml_blob.mime_type == 'message/rfc822'
+    assert eml_blob.mime_encoding == 'us-ascii'
