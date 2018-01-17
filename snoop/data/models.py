@@ -82,11 +82,12 @@ class Blob(models.Model):
         fields = writer.finish()
         pk = fields.pop('sha3_256')
 
-        Path(f.name).rename(BLOB_ROOT / pk)
+        blob_path = BLOB_ROOT / pk
+        Path(f.name).rename(blob_path)
 
         if fields['mime_type'].startswith('text/'):
-            if looks_like_email(Path(BLOB_ROOT / pk)):
-                if looks_like_emlx_email(Path(BLOB_ROOT / pk)):
+            if looks_like_email(blob_path):
+                if looks_like_emlx_email(blob_path):
                     fields['mime_type'] = 'message/x-emlx'
                 else:
                     fields['mime_type'] = 'message/rfc822'
