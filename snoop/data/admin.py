@@ -33,10 +33,16 @@ class BlobAdmin(admin.ModelAdmin):
     search_fields = ['pk', 'mime_type', 'mime_encoding']
 
 
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ['pk', 'func', 'args', 'status']
+    list_filter = ['func', 'status']
+    search_fields = ['pk', 'func', 'args']
+
+
 admin.site.register(models.Collection)
 admin.site.register(models.Directory)
 admin.site.register(models.File, FileAdmin)
 admin.site.register(models.Blob, BlobAdmin)
-admin.site.register(models.Task)
+admin.site.register(models.Task, TaskAdmin)
 admin.site.register(models.TaskDependency)
 admin.site.register(models.Digest)
