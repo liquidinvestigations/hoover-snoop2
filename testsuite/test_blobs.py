@@ -54,6 +54,60 @@ def test_make_blob_from_first_eml_file():
     ("/data/words/usr-share-dict-words.txt", 'text/plain'),
     # .emlx: message/x-emlx
     ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Messages/1498.partial.emlx", 'message/x-emlx'),
+    # .pdf
+    ("/ocr/one/foo/bar/f/d/41b8f1fe19c151517b3cda2a615fa8.pdf", "application/pdf"),
+    ("/data/no-extension/file_pdf", "application/pdf"),
+    ("/data/disk-files/pdf-for-ocr/mof1_1992_233.pdf", "application/pdf"),
+    ("/data/disk-files/long-filenames/THIS_FILENAME_IS_LONGER_THAN_ANY_DECENT_MARGIN_AND_ITS_ONLY_ONE_WORD_WITHOUT_ANY_BREAKS_WHATSOEVER_THIS_IS_GETTING_BAD.pdf", "application/pdf"),
+    ("/data/disk-files/pdf-doc-txt/stanley.ec02.pdf", "application/pdf"),
+    ("/data/disk-files/duplicates/one.pdf", "application/pdf"),
+    ("/data/disk-files/duplicates/three.pdf", "application/pdf"),
+    ("/data/disk-files/duplicates/two.pdf", "application/pdf"),
+    ("/data/disk-files/duplicates/some/other/deep/path/five.pdf", "application/pdf"),
+    ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Attachments/1498/3/Legea-299-2015-informatiile-publice.pdf", "application/pdf"),
+    ("/data/eml-9-pgp/stuff/cleartext/adobe-acrobat-xi-create-form-or-template-tutorial_ue.pdf", "application/pdf"),
+
+    # .doc
+    ("/data/no-extension/file_doc", "application/msword"),
+    ("/data/disk-files/long-filenames/This filename is just really long long long long long long long long long long long long long long long long.doc", "application/msword"),
+    ("/data/disk-files/pdf-doc-txt/sample (1).doc", "application/msword"),
+    ("/data/eml-9-pgp/stuff/cleartext/wd-spectools-word-sample-04.doc", "application/msword"),
+    # .odt
+    ("/data/no-extension/file_odt", "application/vnd.oasis.opendocument.text"),
+    ("/data/disk-files/pdf-doc-txt/easychair.odt", "application/vnd.oasis.opendocument.text"),
+    ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Attachments/1498/2/Legea-299-2015-informatiile-publice.odt", "application/vnd.oasis.opendocument.text"),
+    # .html
+    ("/data/no-extension/file_html", "text/html"),
+    ("/data/disk-files/bad-html/alert.html", "text/html"),
+    ("/data/disk-files/html-encodings/meta_encoding_latin1.html", "text/html"),
+    ("/data/disk-files/html-encodings/xml_declaration_latin1.html", "text/xml"),
+    # .docx
+    ("/data/no-extension/file_docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ("/data/disk-files/pdf-doc-txt/easychair.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    # .zip
+    ("/data/no-extension/file_zip", "application/zip"),
+    ("/data/disk-files/archives/zip-with-docx-and-doc.zip", "application/zip"),
+    ("/data/disk-files/archives/zip-with-some-smashed-bytes.zip", "application/zip"),
+    ("/data/disk-files/archives/tim-and-merry/archives.zip", "application/zip"),
+    ("/data/disk-files/archives/zip-with-password.zip", "application/zip"),
+    ("/data/disk-files/archives/box.zip", "application/zip"),
+    ("/data/disk-files/archives/tom/jail/jerry.zip", "application/zip"),
+    ("/data/msg-5-outlook/archive-with-msg.zip", "application/zip"),
+    # .7z
+    ("/data/no-extension/file_7z", "application/x-7z-compressed"),
+    ("/data/disk-files/archives/jerry/etc/jerry.7z", "application/x-7z-compressed"),
+    ("/data/eml-7-recursive/d.7z", "application/x-7z-compressed"),
+    # .rar
+    ("/data/disk-files/archives/rar-with-pdf-doc-docx.rar", "application/x-rar"),
+    # .tar.gz
+    ("/data/no-extension/file_tar_gz", "application/x-gzip"),
+    ("/data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz", "application/x-gzip"),
+    # .msg
+    ("/data/no-extension/file_msg", "application/vnd.ms-outlook"),
+    ("/data/msg-5-outlook/DISEARĂ-Te-așteptăm-la-discuția-despre-finanțarea-culturii.msg", "application/vnd.ms-outlook"),
+    # .pst TODO
+    ("/data/no-extension/file_pst", "application/octet-stream"),
+    ("/data/pst/flags_jane_doe.pst", "application/octet-stream"),
 ])
 def test_blob_mime_types(testdata_relative_path, expected_mime_type):
     file_path = settings.SNOOP_TESTDATA + testdata_relative_path
