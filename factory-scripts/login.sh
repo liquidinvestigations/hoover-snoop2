@@ -7,4 +7,4 @@ if [ ! -d factory ]; then
 fi
 
 echo "Running interactive shell"
-factory/factory login --share ..:/opt/snoop2
+factory/factory login --tcp 8000:8000 --share ..:/opt/snoop2
