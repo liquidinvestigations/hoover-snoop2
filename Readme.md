@@ -21,9 +21,13 @@ sudo apt install rabbitmq-server
 ```
 
 ### Configuration
-To override the default settings, create a file `snoop/localsettings.py`, and
-set the environment variable `DJANGO_SETTINGS_MODULE=snoop.localsettings`
-before running Django.
+To override the default settings, create a file `snoop/localsettings.py`,
+import the default settings, and override any values:
+
+```python
+from .defaultsettings import *
+ALLOWED_HOSTS = ['localhost']
+```
 
 ### Analyzing a collection
 Snoop's job is to scan a directory from disk and analyze the files inside. For

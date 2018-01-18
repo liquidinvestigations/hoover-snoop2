@@ -6,6 +6,6 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "snoop.settings")
 application = get_wsgi_application()
 
 from django.conf import settings
-from . import settings as default_settings
-if not settings.DEBUG and settings.SECRET_KEY == default_settings.SECRET_KEY:
+from . import defaultsettings
+if not settings.DEBUG and settings.SECRET_KEY == defaultsettings.SECRET_KEY:
     raise RuntimeError("Please change the default SECRET_KEY setting")
