@@ -96,7 +96,7 @@ def handle_file(file_pk):
     else:
         digest_blob = file.blob
 
-    digest.laterz(file.collection.pk, digest_blob.pk, depends_on=depends_on)
+    digest.laterz(digest_blob.pk, file.collection.pk, depends_on=depends_on)
 
 
 @shaorma('filesystem.create_archive_files')
@@ -155,7 +155,7 @@ def create_archive_files(file_pk, archive_listing):
 
 
 @shaorma('filesystem.digest')
-def digest(collection_pk, blob_pk, **depends_on):
+def digest(blob_pk, collection_pk, **depends_on):
     collection = models.Collection.objects.get(pk=collection_pk)
     blob = models.Blob.objects.get(pk=blob_pk)
 
