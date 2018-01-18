@@ -23,6 +23,7 @@ def document_data(digest):
             'md5': digest.blob.md5,
             'sha1': digest.blob.sha1,
             'size': digest.blob.path().stat().st_size,
+            '_emailheaders': digest_data.get('_emailheaders'),
         },
     }
 

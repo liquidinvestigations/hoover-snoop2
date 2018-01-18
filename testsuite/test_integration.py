@@ -15,6 +15,8 @@ ID = {
             '7e3f5ea6843fed0581be212705604448',
     'easychair.docx': '36a12c77e4fd84e8d38542990f9bd657'
                       'c6afb9768cae6703fc78b37cf64e88be',
+    'partialemlx': 'ed41bf32d79bc1a654b72443b73fd57f'
+                   '01839ca40e4f2cfc25fddb83beb56b18',
 }
 
 
@@ -53,3 +55,8 @@ def test_walk_and_api(client):
     # docx file; check that tika pulled out the text
     easychair = docs[ID['easychair.docx']]
     assert "at least 300dpi in resolution" in easychair['content']['text']
+
+    # .partial.emlx
+    partialemlx = docs[ID['partialemlx']]
+    headers = partialemlx['content']['_emailheaders']
+    assert headers['Subject'] == ["Re: promulgare lege"]
