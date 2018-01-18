@@ -85,6 +85,13 @@ def download_magic_definitions():
                     f.write(chunk)
         print("ok")
 
+    which_file = subprocess.check_output(['which', 'file']).decode('latin1')
+    version_file = subprocess.check_output([
+        'file', '--version',
+         '-m', str(MAGIC_FILE),
+    ]).decode('latin1')
+    print(f"Using {which_file} with version info: \n{version_file}")
+
 
 def looks_like_email(path):
     HEADER_SET = {
