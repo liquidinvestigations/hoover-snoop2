@@ -24,8 +24,7 @@ def get_headers(message):
 
 
 @shaorma('email.parse')
-def parse(blob_pk):
-    blob = models.Blob.objects.get(pk=blob_pk)
+def parse(blob):
     with blob.open() as f:
         message = email.message_from_bytes(f.read())
 

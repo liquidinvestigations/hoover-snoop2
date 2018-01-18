@@ -32,7 +32,8 @@ def laterz_shaorma(task_pk):
 
     args = task.args
     if task.blob_arg:
-        args = [task.blob_arg] + args
+        assert args[0] == task.blob_arg.pk
+        args = [task.blob_arg] + args[1:]
 
     kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
 
@@ -74,7 +75,7 @@ def shaorma(name):
         def laterz(*args, depends_on={}):
             if args and isinstance(args[0], models.Blob):
                 blob_arg = args[0]
-                args = args[1:]
+                args = (blob_arg.pk,) + args[1:]
 
             else:
                 blob_arg = None

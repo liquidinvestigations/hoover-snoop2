@@ -62,9 +62,7 @@ def call_tika_server(endpoint, data):
 
 
 @shaorma('tika.rmeta')
-def rmeta(blob_pk):
-    blob = models.Blob.objects.get(pk=blob_pk)
-
+def rmeta(blob):
     with blob.open() as f:
         resp = call_tika_server('/rmeta/text', f)
 

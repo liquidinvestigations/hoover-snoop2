@@ -60,9 +60,8 @@ def call_7z(archive_path, output_dir):
 
 
 @shaorma('archives.unarchive')
-def unarchive(blob_pk):
+def unarchive(blob):
     with tempfile.TemporaryDirectory() as temp_dir:
-        blob = models.Blob.objects.get(pk=blob_pk)
         if blob.mime_type in SEVENZIP_KNOWN_TYPES:
             call_7z(blob.path(), temp_dir)
         elif blob.mime_type in READPST_KNOWN_TYPES:
