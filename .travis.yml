@@ -9,7 +9,8 @@ before_install:
   - sudo apt-get install -y p7zip-full
   - sudo apt-get install -qq automake libtool make python zlib1g-dev
   - git clone https://github.com/hoover/magic-definitions.git
-  - ( cd magic-definitions && ./build.sh )
+  - ( cd magic-definitions && ./build.sh && cp magic.mgc .. )
+  - PATH=`pwd`/magic-definitions/file/bin:$PATH file -m magic.mgc --version
 
 install:
   - wget -nc http://archive.apache.org/dist/tika/tika-server-1.17.jar
@@ -24,8 +25,8 @@ before_script:
   - sleep 5
 
 script:
-  - PATH=`pwd`/magic-definitions/file/bin:$PATH file --version
   - ls `pwd`/magic-definitions/file/bin/file
+  - PATH=`pwd`/magic-definitions/file/bin:$PATH file -k -m magic.mgc magic-definitions/flie/bin/file
   - PATH=`pwd`/magic-definitions/file/bin:$PATH py.test
 
 notifications:
