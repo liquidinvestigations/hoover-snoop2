@@ -25,8 +25,9 @@ before_script:
   - sleep 5
 
 script:
-  - ls `pwd`/magic-definitions/file/bin/file
-  - PATH=`pwd`/magic-definitions/file/bin:$PATH file -k -m magic.mgc magic-definitions/flie/bin/file
+  - ls `pwd`/magic-definitions/file/bin/file  # delete me
+  - PATH=`pwd`/magic-definitions/file/bin:$PATH file -k -m magic.mgc magic-definitions/flie/bin/file  # delete me
+  - PATH=`pwd`/magic-definitions/file/bin:$PATH ./manage.py rundispatcher  # this will crash, delete me
   - PATH=`pwd`/magic-definitions/file/bin:$PATH py.test
 
 notifications:
