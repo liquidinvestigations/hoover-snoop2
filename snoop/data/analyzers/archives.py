@@ -41,7 +41,7 @@ def call_readpst(pst_path, output_dir):
         ], stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError as e:
-        raise ShaormaError('readpst failed: ' + e.output.decode('latin1'))
+        raise ShaormaError('readpst failed', e.output.decode('latin1'))
 
 
 def call_7z(archive_path, output_dir):
