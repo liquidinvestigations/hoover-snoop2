@@ -155,9 +155,8 @@ def create_archive_files(file_pk, archive_listing):
 
 
 @shaorma('filesystem.digest')
-def digest(blob_pk, collection_pk, **depends_on):
+def digest(blob, collection_pk, **depends_on):
     collection = models.Collection.objects.get(pk=collection_pk)
-    blob = models.Blob.objects.get(pk=blob_pk)
 
     rv = {}
     text_blob = depends_on.get('text')
