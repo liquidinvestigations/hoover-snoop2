@@ -1,8 +1,11 @@
 import json
+import subprocess
+import tempfile
+from pathlib import Path
 from collections import defaultdict
 import email
 from .. import models
-from ..tasks import shaorma
+from ..tasks import shaorma, ShaormaError
 
 
 def iter_parts(message, numbers=[]):
@@ -37,3 +40,22 @@ def parse(blob_pk):
         output.write(json.dumps(data, indent=2).encode('utf8'))
 
     return output.blob
+
+
+def msg_blob_to_eml(blob):
+    with tempfile.TemporaryDirectory() as temp_dir:
+        msg_path = Path(temp_dir) / 'email.msg'
+        msg_path.symlink_to(blob.path())
+        eml_path = msg_path.with_suffix('.eml')
+
+        try:
+            subprocess.check_output(
+                ['msgconvert', 'email.msg'],
+                cwd=temp_dir,
+                stderr=subprocess.STDOUT
+            )
+        except subprocess.CalledProcessError as e:
+            raise ShaormaError("msgconvert failed", e.output.decode('latin1'))
+
+        return models.Blob.create_from_file(eml_path)
+
