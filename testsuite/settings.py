@@ -1,4 +1,4 @@
-from snoop.settings import *
+from snoop.defaultsettings import *
 import os
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'test_blobs')
