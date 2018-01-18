@@ -39,6 +39,8 @@ def test_blob_arg():
         writer.write(b'hello')
 
     task = with_blob.laterz(writer.blob, 'world')
+    assert task.blob_arg == writer.blob
+
     task.refresh_from_db()
     with task.result.open() as f:
         assert f.read() == b'hello world'
