@@ -181,6 +181,8 @@ class Task(models.Model):
     STATUS_ERROR = 'error'
 
     func = models.CharField(max_length=1024)
+    blob_arg = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING,
+                                 related_name='+')
     args = JSONField()
     result = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING)
 
