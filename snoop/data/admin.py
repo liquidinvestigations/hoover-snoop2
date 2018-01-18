@@ -5,8 +5,9 @@ from django.template.defaultfilters import truncatechars
 from . import models
 
 
-def short(blob_pk):
-    return f"{blob_pk[:10]}...{blob_pk[-4:]}"
+def blob_link(blob_pk):
+    url = reverse('admin:data_blob_change', args=[blob_pk])
+    return mark_safe(f'<a href="{url}">{blob_pk[:10]}...{blob_pk[-4:]}</a>')
 
 
 class FileAdmin(admin.ModelAdmin):
@@ -26,8 +27,7 @@ class FileAdmin(admin.ModelAdmin):
         return obj.blob.mime_type
 
     def blob_link(self, obj):
-        url = reverse('admin:data_blob_change', args=[obj.blob.pk])
-        return mark_safe(f'<a href="{url}">{obj.blob.pk}</a>')
+        return blob_link(obj.blob.pk)
 
     blob_link.short_description = 'blob'
 
@@ -54,12 +54,10 @@ class DigestAdmin(admin.ModelAdmin):
         return obj.blob.mime_type
 
     def blob_link(self, obj):
-        url = reverse('admin:data_blob_change', args=[obj.blob.pk])
-        return mark_safe(f'<a href="{url}">{short(obj.blob.pk)}</a>')
+        return blob_link(obj.blob.pk)
 
     def result_link(self, obj):
-        url = reverse('admin:data_blob_change', args=[obj.result.pk])
-        return mark_safe(f'<a href="{url}">{short(obj.result.pk)}</a>')
+        return blob_link(obj.result.pk)
 
 
 admin.site.register(models.Collection)
