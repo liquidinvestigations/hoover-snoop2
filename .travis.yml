@@ -7,6 +7,9 @@ addons:
 before_install:
   - sudo apt-get -qq update
   - sudo apt-get install -y p7zip-full
+  - sudo apt-get install -qq automake libtool make python zlib1g-dev
+  - git clone https://github.com/hoover/magic-definitions.git
+  - ( cd magic-definitions && ./build.sh )
 
 install:
   - wget -nc http://archive.apache.org/dist/tika/tika-server-1.17.jar
@@ -21,7 +24,9 @@ before_script:
   - sleep 5
 
 script:
-  - py.test
+  - PATH=`pwd`/magic-definitions/file/bin:$PATH file --version
+  - ls `pwd`/magic-definitions/file/bin/file
+  - PATH=`pwd`/magic-definitions/file/bin:$PATH py.test
 
 notifications:
   email: false
