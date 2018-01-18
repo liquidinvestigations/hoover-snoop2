@@ -6,10 +6,11 @@ addons:
 
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get install -y p7zip-full
-  - sudo apt-get install -qq automake libtool make python zlib1g-dev
+  - sudo apt-get install -yqq p7zip-full p7zip-rar cpanminus pst-utils gnupg
+  - sudo cpanm --notest Email::Outlook::Message
+  - sudo apt-get install -yqq automake libtool make python zlib1g-dev
   - git clone https://github.com/hoover/magic-definitions.git
-  - ( cd magic-definitions && ./build.sh && cp magic.mgc .. )
+  - ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc .. )
   - PATH=`pwd`/magic-definitions/file/bin:$PATH file -m magic.mgc --version
 
 install:
@@ -25,9 +26,6 @@ before_script:
   - sleep 5
 
 script:
-  - ls `pwd`/magic-definitions/file/bin/file  # delete me
-  - PATH=`pwd`/magic-definitions/file/bin:$PATH file -k -m magic.mgc magic-definitions/flie/bin/file  # delete me
-  - PATH=`pwd`/magic-definitions/file/bin:$PATH ./manage.py rundispatcher  # this will crash, delete me
   - PATH=`pwd`/magic-definitions/file/bin:$PATH py.test
 
 notifications:
