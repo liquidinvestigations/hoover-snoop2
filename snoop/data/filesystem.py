@@ -80,6 +80,10 @@ def handle_file(file_pk):
             depends_on={'archive_listing': unarchive_task},
         )
 
+    elif file.blob.mime_type == "application/vnd.ms-outlook":
+        digest_blob = email.msg_blob_to_eml(file.blob)
+        depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
+
     elif file.blob.mime_type == 'message/x-emlx':
         digest_blob = emlx.reconstruct(file)
         depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
