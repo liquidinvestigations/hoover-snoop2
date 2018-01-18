@@ -74,6 +74,7 @@ def handle_file(file_pk):
     depends_on = {}
 
     if archives.is_archive(file.blob.mime_type):
+        digest_blob = file.blob
         unarchive_task = archives.unarchive.laterz(file.blob.pk)
         create_archive_files.laterz(
             file.pk,
