@@ -31,6 +31,9 @@ def laterz_shaorma(task_pk):
     task = models.Task.objects.get(pk=task_pk)
 
     args = task.args
+    if task.blob_arg:
+        args = [task.blob_arg] + args
+
     kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
 
     task.status = models.Task.STATUS_PENDING
@@ -69,9 +72,17 @@ def laterz_shaorma(task_pk):
 def shaorma(name):
     def decorator(func):
         def laterz(*args, depends_on={}):
+            if args and isinstance(args[0], models.Blob):
+                blob_arg = args[0]
+                args = args[1:]
+
+            else:
+                blob_arg = None
+
             task, _ = models.Task.objects.get_or_create(
                 func=name,
                 args=args,
+                blob_arg=blob_arg,
             )
 
             if task.date_finished:
