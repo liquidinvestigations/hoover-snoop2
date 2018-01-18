@@ -17,6 +17,9 @@ apt-get install -yqq postgresql libpq-dev postgresql-client
 # wabbit
 apt-get install -yqq rabbitmq-server
 
+# supervisor
+apt-get install -yqq supervisor
+
 # turn off wabbit so the VM shuts down without timing out
 systemctl stop rabbitmq-server
 
@@ -26,6 +29,16 @@ cpanm --notest Email::Outlook::Message
 # tika
 mkdir /opt/tika
 wget http://archive.apache.org/dist/tika/tika-server-1.17.jar -O /opt/tika/tika-server.jar
+
+cat > /etc/supervisor/conf.d/tika.conf <<EOF
+[program:tika]
+user = ubuntu
+command = java -jar /opt/tika/tika-server.jar
+redirect_stderr = true
+autostart = true
+startsecs = 5
+EOF
+supervisorctl update
 
 # download testdata
 git clone https://github.com/hoover/testdata.git /opt/testdata
