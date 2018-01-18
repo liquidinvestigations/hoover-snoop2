@@ -59,7 +59,7 @@ def call_7z(archive_path, output_dir):
         raise ShaormaError("7z extraction failed", e.output.decode('latin1'))
 
 
-@shaorma
+@shaorma('archives.unarchive')
 def unarchive(blob_pk):
     with tempfile.TemporaryDirectory() as temp_dir:
         blob = models.Blob.objects.get(pk=blob_pk)

@@ -2,7 +2,7 @@ from .. import models
 from ..tasks import shaorma
 
 
-@shaorma
+@shaorma('text.extract')
 def extract_text(blob_pk):
     blob = models.Blob.objects.get(pk=blob_pk)
 

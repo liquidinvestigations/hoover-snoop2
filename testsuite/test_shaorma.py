@@ -6,14 +6,14 @@ pytestmark = [pytest.mark.django_db]
 
 
 def test_dependent_task():
-    @shaorma
+    @shaorma('test_one')
     def one():
         with models.Blob.create() as writer:
             writer.write(b'foo')
 
         return writer.blob
 
-    @shaorma
+    @shaorma('test_two')
     def two(one_result):
         return one_result
 

@@ -61,7 +61,7 @@ def call_tika_server(endpoint, data):
     return resp
 
 
-@shaorma
+@shaorma('tika.rmeta')
 def rmeta(blob_pk):
     blob = models.Blob.objects.get(pk=blob_pk)
 

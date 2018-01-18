@@ -66,36 +66,39 @@ def laterz_shaorma(task_pk):
             laterz_shaorma.delay(next.pk)
 
 
-def shaorma(func):
-    def laterz(*args, depends_on={}):
-        task, _ = models.Task.objects.get_or_create(
-            func=func.__name__,
-            args=args,
-        )
+def shaorma(name):
+    def decorator(func):
+        def laterz(*args, depends_on={}):
+            task, _ = models.Task.objects.get_or_create(
+                func=name,
+                args=args,
+            )
 
-        if task.date_finished:
-            return task
+            if task.date_finished:
+                return task
 
-        if depends_on:
-            all_done = True
-            for name, dep in depends_on.items():
-                dep = type(dep).objects.get(pk=dep.pk)  # make DEP grate again
-                if dep.result is None:
-                    all_done = False
-                models.TaskDependency.objects.get_or_create(
-                    prev=dep,
-                    next=task,
-                    name=name,
-                )
+            if depends_on:
+                all_done = True
+                for dep_name, dep in depends_on.items():
+                    dep = type(dep).objects.get(pk=dep.pk)  # make DEP grate again
+                    if dep.result is None:
+                        all_done = False
+                    models.TaskDependency.objects.get_or_create(
+                        prev=dep,
+                        next=task,
+                        name=dep_name,
+                    )
 
-            if all_done:
+                if all_done:
+                    laterz_shaorma.delay(task.pk)
+
+            else:
                 laterz_shaorma.delay(task.pk)
 
-        else:
-            laterz_shaorma.delay(task.pk)
+            return task
 
-        return task
+        func.laterz = laterz
+        shaormerie[name] = func
+        return func
 
-    func.laterz = laterz
-    shaormerie[func.__name__] = func
-    return func
+    return decorator

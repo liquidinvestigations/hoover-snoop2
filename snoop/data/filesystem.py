@@ -29,7 +29,7 @@ def directory_absolute_path(directory):
     return path
 
 
-@shaorma
+@shaorma('filesystem.walk')
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
@@ -68,7 +68,7 @@ def file_to_blob(directory, name):
     return file
 
 
-@shaorma
+@shaorma('filesystem.handle_file')
 def handle_file(file_pk):
     file = models.File.objects.get(pk=file_pk)
     depends_on = {}
@@ -98,7 +98,7 @@ def handle_file(file_pk):
     digest.laterz(file.collection.pk, digest_blob.pk, depends_on=depends_on)
 
 
-@shaorma
+@shaorma('filesystem.create_archive_files')
 def create_archive_files(file_pk, archive_listing):
     with archive_listing.open() as f:
         archive_listing_data = json.load(f)
@@ -153,7 +153,7 @@ def create_archive_files(file_pk, archive_listing):
     create_directory_children(fake_root, archive_listing_data)
 
 
-@shaorma
+@shaorma('filesystem.digest')
 def digest(collection_pk, blob_pk, **depends_on):
     collection = models.Collection.objects.get(pk=collection_pk)
     blob = models.Blob.objects.get(pk=blob_pk)

@@ -23,7 +23,7 @@ def get_headers(message):
     return dict(rv)
 
 
-@shaorma
+@shaorma('email.parse')
 def parse(blob_pk):
     blob = models.Blob.objects.get(pk=blob_pk)
     with blob.open() as f:
