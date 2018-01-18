@@ -3,9 +3,7 @@ from ..tasks import shaorma
 
 
 @shaorma('text.extract')
-def extract_text(blob_pk):
-    blob = models.Blob.objects.get(pk=blob_pk)
-
+def extract_text(blob):
     with models.Blob.create() as output:
         with blob.open() as src:
             output.write(src.read())
