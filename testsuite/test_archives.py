@@ -4,6 +4,7 @@ from pathlib import Path
 from django.conf import settings
 from snoop.data import models, filesystem
 from snoop.data.analyzers import archives
+from snoop.data.utils import time_from_unix
 
 pytestmark = [pytest.mark.django_db]
 
@@ -137,8 +138,8 @@ def test_create_archive_files():
         collection=col,
         name=JERRY_ZIP.name,
         parent_directory=zip_parent_dir,
-        ctime=filesystem.time_from_unix(0),
-        mtime=filesystem.time_from_unix(0),
+        ctime=time_from_unix(0),
+        mtime=time_from_unix(0),
         size=0,
         original=zip_blob,
     )

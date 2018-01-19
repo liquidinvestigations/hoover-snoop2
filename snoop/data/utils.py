@@ -1,3 +1,7 @@
+from datetime import datetime
+from django.utils import timezone
+
+
 def run_once(func):
     not_run = object()
     rv = not_run
@@ -19,6 +23,10 @@ def read_exactly(f, size):
             break
         buffer += chunk
     return buffer
+
+
+def time_from_unix(t):
+    return timezone.utc.fromutc(datetime.utcfromtimestamp(t))
 
 
 def zulu(t):

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from django.utils import timezone
-from datetime import datetime
+from .utils import time_from_unix
 from . import models
 from .tasks import shaorma
 from .analyzers import archives
@@ -9,10 +9,6 @@ from .analyzers import tika
 from .analyzers import emlx
 from .analyzers import email
 from . import digests
-
-
-def time_from_unix(t):
-    return timezone.utc.fromutc(datetime.utcfromtimestamp(t))
 
 
 def directory_absolute_path(directory):
