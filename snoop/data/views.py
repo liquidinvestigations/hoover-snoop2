@@ -2,7 +2,7 @@ import json
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from . import models
-from . import filesystem
+from . import digests
 
 
 def zulu(t):
@@ -15,7 +15,7 @@ def document_data(digest):
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
 
-    first_file = filesystem.get_files(digest).first()
+    first_file = digests.get_files(digest).first()
     filename = path = first_file.name
 
     return {
