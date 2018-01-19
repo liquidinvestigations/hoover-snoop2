@@ -184,4 +184,9 @@ def digest(blob, collection_pk, **depends_on):
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
 
-    collection.digest_set.get_or_create(blob=blob, result=writer.blob)
+    collection.digest_set.update_or_create(
+        blob=blob,
+        defaults=dict(
+            result=writer.blob,
+        ),
+    )
