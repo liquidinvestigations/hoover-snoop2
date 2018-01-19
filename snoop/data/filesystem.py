@@ -74,7 +74,7 @@ def handle_file(file_pk):
     depends_on = {}
 
     if archives.is_archive(file.original.mime_type):
-        digest_blob = file.original
+        file.blob = file.original
         unarchive_task = archives.unarchive.laterz(file.original)
         create_archive_files.laterz(
             file.pk,
@@ -86,21 +86,23 @@ def handle_file(file_pk):
         depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
 
     elif file.original.mime_type == 'message/x-emlx':
-        digest_blob = emlx.reconstruct(file)
-        depends_on['email_parse'] = email.parse.laterz(digest_blob)
+        file.blob = emlx.reconstruct(file)
+        depends_on['email_parse'] = email.parse.laterz(file.blob)
 
     elif file.original.mime_type == 'message/rfc822':
-        digest_blob = file.original
-        depends_on['email_parse'] = email.parse.laterz(digest_blob)
+        file.blob = file.original
+        depends_on['email_parse'] = email.parse.laterz(file.blob)
 
     elif tika.can_process(file.original):
-        digest_blob = file.original
-        depends_on['tika_rmeta'] = tika.rmeta.laterz(digest_blob)
+        file.blob = file.original
+        depends_on['tika_rmeta'] = tika.rmeta.laterz(file.blob)
 
     else:
-        digest_blob = file.original
+        file.blob = file.original
 
-    digest.laterz(digest_blob, file.collection.pk, depends_on=depends_on)
+    file.save()
+
+    digest.laterz(file.blob, file.collection.pk, depends_on=depends_on)
 
 
 @shaorma('filesystem.create_archive_files')
