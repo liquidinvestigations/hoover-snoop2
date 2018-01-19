@@ -4,6 +4,7 @@ from . import models
 from .utils import zulu
 from .analyzers import email
 from .analyzers import tika
+from ._file_types import FILE_TYPES
 
 
 @shaorma('digests.launch')
@@ -53,6 +54,17 @@ def gather(blob, collection_pk, **depends_on):
     )
 
 
+def filetype(mime_type):
+    if mime_type in FILE_TYPES:
+        return FILE_TYPES[mime_type]
+
+    supertype = mime_type.split('/')[0]
+    if supertype in ['audio', 'video', 'image']:
+        return supertype
+
+    return None
+
+
 def get_document_data(digest):
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
@@ -65,6 +77,7 @@ def get_document_data(digest):
         'version': zulu(digest.date_modified),
         'content': {
             'content-type': digest.blob.mime_type,
+            'filetype': filetype(digest.blob.mime_type),
             'text': digest_data.get('text'),
             'md5': digest.blob.md5,
             'sha1': digest.blob.sha1,
