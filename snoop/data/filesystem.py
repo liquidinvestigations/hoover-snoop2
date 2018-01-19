@@ -75,15 +75,15 @@ def handle_file(file_pk):
 
     if archives.is_archive(file.original.mime_type):
         file.blob = file.original
-        unarchive_task = archives.unarchive.laterz(file.original)
+        unarchive_task = archives.unarchive.laterz(file.blob)
         create_archive_files.laterz(
             file.pk,
             depends_on={'archive_listing': unarchive_task},
         )
 
     elif file.original.mime_type == "application/vnd.ms-outlook":
-        digest_blob = email.msg_blob_to_eml(file.original)
-        depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
+        file.blob = email.msg_blob_to_eml(file.original)
+        depends_on['email_parse'] = email.parse.laterz(file.blob.pk)
 
     elif file.original.mime_type == 'message/x-emlx':
         file.blob = emlx.reconstruct(file)
