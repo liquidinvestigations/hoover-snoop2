@@ -9,3 +9,4 @@ SNOOP_TESTDATA = os.getenv('SNOOP_TESTDATA', default_testdata_path)
 assert os.path.isdir(SNOOP_TESTDATA)
 
 CELERY_TASK_ALWAYS_EAGER = True
+CELERY_EAGER_PROPAGATES_EXCEPTIONS = True
