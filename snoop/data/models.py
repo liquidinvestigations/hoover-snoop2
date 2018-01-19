@@ -165,6 +165,7 @@ class File(models.Model):
     size = models.IntegerField()
     original = models.ForeignKey(Blob, on_delete=models.DO_NOTHING,
                                  related_name='+')
+    blob = models.ForeignKey(Blob, on_delete=models.DO_NOTHING, null=True)
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)

@@ -21,4 +21,12 @@ class Migration(migrations.Migration):
             name='original',
             field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, related_name='+', to='data.Blob'),
         ),
+        migrations.RunSQL(
+            'ALTER INDEX data_file_blob_id_8cd0a4e2 rename TO data_file_original_id_8cd0a4e2',
+            'ALTER INDEX data_file_original_id_8cd0a4e2 rename TO data_file_blob_id_8cd0a4e2',
+        ),
+        migrations.RunSQL(
+            'ALTER INDEX data_file_blob_id_8cd0a4e2_like rename TO data_file_original_id_8cd0a4e2_like',
+            'ALTER INDEX data_file_original_id_8cd0a4e2_like rename TO data_file_blob_id_8cd0a4e2_like',
+        ),
     ]
