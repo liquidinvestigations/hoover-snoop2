@@ -1,6 +1,7 @@
 import json
 from .tasks import shaorma
 from . import models
+from .utils import zulu
 
 
 @shaorma('digests.compute')
@@ -37,5 +38,24 @@ def compute(blob, collection_pk, **depends_on):
     )
 
 
-def get_files(digest):
-    return digest.blob.file_set.order_by('pk')
+def get_document_data(digest):
+    with digest.result.open() as f:
+        digest_data = json.loads(f.read().decode('utf8'))
+
+    first_file = digest.blob.file_set.order_by('pk').first()
+    filename = path = first_file.name
+
+    return {
+        'id': digest.blob.pk,
+        'version': zulu(digest.date_modified),
+        'content': {
+            'content-type': digest.blob.mime_type,
+            'text': digest_data.get('text'),
+            'md5': digest.blob.md5,
+            'sha1': digest.blob.sha1,
+            'size': digest.blob.path().stat().st_size,
+            'filename': filename,
+            'path': path,
+            '_emailheaders': digest_data.get('_emailheaders'),
+        },
+    }

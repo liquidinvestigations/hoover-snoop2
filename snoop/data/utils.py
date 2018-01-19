@@ -19,3 +19,9 @@ def read_exactly(f, size):
             break
         buffer += chunk
     return buffer
+
+
+def zulu(t):
+    txt = t.isoformat()
+    assert txt.endswith('+00:00')
+    return txt.replace('+00:00', 'Z')
