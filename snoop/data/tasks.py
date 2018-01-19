@@ -61,6 +61,10 @@ def laterz_shaorma(task_pk):
         task.traceback = traceback.format_exc()
         logger.error("Shaorma %d failed: %s", task_pk, task.error)
 
+    else:
+        task.error = ''
+        task.traceback = ''
+
     task.date_finished = timezone.now()
     task.save()
 
@@ -114,3 +118,16 @@ def shaorma(name):
         return func
 
     return decorator
+
+
+def dispatch_pending_tasks():
+    for task in models.Task.objects.filter(status=models.Task.STATUS_PENDING):
+        deps_not_ready = (
+            task.prev_set
+            .exclude(prev__status=models.Task.STATUS_SUCCESS)
+            .exists()
+        )
+        if deps_not_ready:
+            continue
+        logger.debug("Dispatching %r", task)
+        laterz_shaorma.delay(task.pk)

@@ -48,7 +48,7 @@ class TaskAdmin(admin.ModelAdmin):
 
 class DigestAdmin(admin.ModelAdmin):
     list_display = ['pk', 'collection', 'blob__mime_type', 'blob_link',
-                    'result_link']
+                    'result_link', 'date_modified']
     list_filter = ['collection__name', 'blob__mime_type']
     search_fields = ['pk', 'collection__pk', 'blob__pk', 'result__pk']
 
