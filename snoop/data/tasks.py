@@ -31,6 +31,10 @@ def laterz_shaorma(task_pk):
     task = models.Task.objects.get(pk=task_pk)
 
     args = task.args
+    if task.blob_arg:
+        assert args[0] == task.blob_arg.pk
+        args = [task.blob_arg] + args[1:]
+
     kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
 
     task.status = models.Task.STATUS_PENDING
@@ -66,36 +70,47 @@ def laterz_shaorma(task_pk):
             laterz_shaorma.delay(next.pk)
 
 
-def shaorma(func):
-    def laterz(*args, depends_on={}):
-        task, _ = models.Task.objects.get_or_create(
-            func=func.__name__,
-            args=args,
-        )
+def shaorma(name):
+    def decorator(func):
+        def laterz(*args, depends_on={}):
+            if args and isinstance(args[0], models.Blob):
+                blob_arg = args[0]
+                args = (blob_arg.pk,) + args[1:]
 
-        if task.date_finished:
-            return task
+            else:
+                blob_arg = None
 
-        if depends_on:
-            all_done = True
-            for name, dep in depends_on.items():
-                dep = type(dep).objects.get(pk=dep.pk)  # make DEP grate again
-                if dep.result is None:
-                    all_done = False
-                models.TaskDependency.objects.get_or_create(
-                    prev=dep,
-                    next=task,
-                    name=name,
-                )
+            task, _ = models.Task.objects.get_or_create(
+                func=name,
+                args=args,
+                blob_arg=blob_arg,
+            )
 
-            if all_done:
+            if task.date_finished:
+                return task
+
+            if depends_on:
+                all_done = True
+                for dep_name, dep in depends_on.items():
+                    dep = type(dep).objects.get(pk=dep.pk)  # make DEP grate again
+                    if dep.result is None:
+                        all_done = False
+                    models.TaskDependency.objects.get_or_create(
+                        prev=dep,
+                        next=task,
+                        name=dep_name,
+                    )
+
+                if all_done:
+                    laterz_shaorma.delay(task.pk)
+
+            else:
                 laterz_shaorma.delay(task.pk)
 
-        else:
-            laterz_shaorma.delay(task.pk)
+            return task
 
-        return task
+        func.laterz = laterz
+        shaormerie[name] = func
+        return func
 
-    func.laterz = laterz
-    shaormerie[func.__name__] = func
-    return func
+    return decorator

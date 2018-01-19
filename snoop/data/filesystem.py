@@ -29,7 +29,7 @@ def directory_absolute_path(directory):
     return path
 
 
-@shaorma
+@shaorma('filesystem.walk')
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
@@ -68,13 +68,14 @@ def file_to_blob(directory, name):
     return file
 
 
-@shaorma
+@shaorma('filesystem.handle_file')
 def handle_file(file_pk):
     file = models.File.objects.get(pk=file_pk)
     depends_on = {}
 
     if archives.is_archive(file.blob.mime_type):
-        unarchive_task = archives.unarchive.laterz(file.blob.pk)
+        digest_blob = file.blob
+        unarchive_task = archives.unarchive.laterz(file.blob)
         create_archive_files.laterz(
             file.pk,
             depends_on={'archive_listing': unarchive_task},
@@ -86,23 +87,23 @@ def handle_file(file_pk):
 
     elif file.blob.mime_type == 'message/x-emlx':
         digest_blob = emlx.reconstruct(file)
-        depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
+        depends_on['email_parse'] = email.parse.laterz(digest_blob)
 
     elif file.blob.mime_type == 'message/rfc822':
         digest_blob = file.blob
-        depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
+        depends_on['email_parse'] = email.parse.laterz(digest_blob)
 
     elif tika.can_process(file.blob):
         digest_blob = file.blob
-        depends_on['tika_rmeta'] = tika.rmeta.laterz(digest_blob.pk)
+        depends_on['tika_rmeta'] = tika.rmeta.laterz(digest_blob)
 
     else:
         digest_blob = file.blob
 
-    digest.laterz(file.collection.pk, digest_blob.pk, depends_on=depends_on)
+    digest.laterz(digest_blob, file.collection.pk, depends_on=depends_on)
 
 
-@shaorma
+@shaorma('filesystem.create_archive_files')
 def create_archive_files(file_pk, archive_listing):
     with archive_listing.open() as f:
         archive_listing_data = json.load(f)
@@ -157,10 +158,9 @@ def create_archive_files(file_pk, archive_listing):
     create_directory_children(fake_root, archive_listing_data)
 
 
-@shaorma
-def digest(collection_pk, blob_pk, **depends_on):
+@shaorma('filesystem.digest')
+def digest(blob, collection_pk, **depends_on):
     collection = models.Collection.objects.get(pk=collection_pk)
-    blob = models.Blob.objects.get(pk=blob_pk)
 
     rv = {}
     text_blob = depends_on.get('text')

@@ -59,10 +59,9 @@ def call_7z(archive_path, output_dir):
         raise ShaormaError("7z extraction failed", e.output.decode('latin1'))
 
 
-@shaorma
-def unarchive(blob_pk):
+@shaorma('archives.unarchive')
+def unarchive(blob):
     with tempfile.TemporaryDirectory() as temp_dir:
-        blob = models.Blob.objects.get(pk=blob_pk)
         if blob.mime_type in SEVENZIP_KNOWN_TYPES:
             call_7z(blob.path(), temp_dir)
         elif blob.mime_type in READPST_KNOWN_TYPES:
