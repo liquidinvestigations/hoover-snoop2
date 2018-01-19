@@ -192,3 +192,7 @@ def digest(blob, collection_pk, **depends_on):
             result=writer.blob,
         ),
     )
+
+
+def get_files(digest):
+    return digest.blob.file_set.order_by('pk')
