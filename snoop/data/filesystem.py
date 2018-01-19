@@ -51,7 +51,7 @@ def walk(directory_pk):
 
 def file_to_blob(directory, name):
     path = directory_absolute_path(directory) / name
-    blob = models.Blob.create_from_file(path)
+    original = models.Blob.create_from_file(path)
 
     stat = path.stat()
     file, _ = directory.child_file_set.get_or_create(
@@ -61,7 +61,7 @@ def file_to_blob(directory, name):
             ctime=time_from_unix(stat.st_ctime),
             mtime=time_from_unix(stat.st_mtime),
             size=stat.st_size,
-            blob=blob,
+            original=original,
         ),
     )
 
@@ -73,34 +73,36 @@ def handle_file(file_pk):
     file = models.File.objects.get(pk=file_pk)
     depends_on = {}
 
-    if archives.is_archive(file.blob.mime_type):
-        digest_blob = file.blob
+    if archives.is_archive(file.original.mime_type):
+        file.blob = file.original
         unarchive_task = archives.unarchive.laterz(file.blob)
         create_archive_files.laterz(
             file.pk,
             depends_on={'archive_listing': unarchive_task},
         )
 
-    elif file.blob.mime_type == "application/vnd.ms-outlook":
-        digest_blob = email.msg_blob_to_eml(file.blob)
-        depends_on['email_parse'] = email.parse.laterz(digest_blob.pk)
+    elif file.original.mime_type == "application/vnd.ms-outlook":
+        file.blob = email.msg_blob_to_eml(file.original)
+        depends_on['email_parse'] = email.parse.laterz(file.blob.pk)
 
-    elif file.blob.mime_type == 'message/x-emlx':
-        digest_blob = emlx.reconstruct(file)
-        depends_on['email_parse'] = email.parse.laterz(digest_blob)
+    elif file.original.mime_type == 'message/x-emlx':
+        file.blob = emlx.reconstruct(file)
+        depends_on['email_parse'] = email.parse.laterz(file.blob)
 
-    elif file.blob.mime_type == 'message/rfc822':
-        digest_blob = file.blob
-        depends_on['email_parse'] = email.parse.laterz(digest_blob)
+    elif file.original.mime_type == 'message/rfc822':
+        file.blob = file.original
+        depends_on['email_parse'] = email.parse.laterz(file.blob)
 
-    elif tika.can_process(file.blob):
-        digest_blob = file.blob
-        depends_on['tika_rmeta'] = tika.rmeta.laterz(digest_blob)
+    elif tika.can_process(file.original):
+        file.blob = file.original
+        depends_on['tika_rmeta'] = tika.rmeta.laterz(file.blob)
 
     else:
-        digest_blob = file.blob
+        file.blob = file.original
 
-    digest.laterz(digest_blob, file.collection.pk, depends_on=depends_on)
+    file.save()
+
+    digest.laterz(file.blob, file.collection.pk, depends_on=depends_on)
 
 
 @shaorma('filesystem.create_archive_files')
@@ -112,8 +114,8 @@ def create_archive_files(file_pk, archive_listing):
         child_files = []
         for item in children:
             if item['type'] == 'file':
-                blob = models.Blob.objects.get(pk=item['blob_pk'])
-                file = create_file(directory, item['name'], blob)
+                child_original = models.Blob.objects.get(pk=item['blob_pk'])
+                file = create_file(directory, item['name'], child_original)
                 child_files.append(file)
 
             if item['type'] == 'directory':
@@ -131,8 +133,8 @@ def create_archive_files(file_pk, archive_listing):
         )
         create_directory_children(directory, children)
 
-    def create_file(parent_directory, name, blob):
-        size = blob.path().stat().st_size
+    def create_file(parent_directory, name, original):
+        size = original.path().stat().st_size
         now = timezone.now()
 
         (file, _) = parent_directory.child_file_set.get_or_create(
@@ -142,7 +144,7 @@ def create_archive_files(file_pk, archive_listing):
                 ctime=now,
                 mtime=now,
                 size=size,
-                blob=blob,
+                original=original,
             ),
         )
 
@@ -190,3 +192,7 @@ def digest(blob, collection_pk, **depends_on):
             result=writer.blob,
         ),
     )
+
+
+def get_files(digest):
+    return digest.blob.file_set.order_by('pk')

@@ -140,7 +140,7 @@ def test_create_archive_files():
         ctime=filesystem.time_from_unix(0),
         mtime=filesystem.time_from_unix(0),
         size=0,
-        blob=zip_blob,
+        original=zip_blob,
     )
 
     filesystem.create_archive_files(zip_file.pk, listing_blob)

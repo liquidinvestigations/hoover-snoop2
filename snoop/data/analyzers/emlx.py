@@ -5,7 +5,7 @@ from .email import iter_parts
 
 
 def reconstruct(file):
-    with file.blob.open() as f:
+    with file.original.open() as f:
         original_data = f.read()
 
     eml_data = re.sub(rb'^\d+\s+', b'', original_data, re.MULTILINE)
@@ -26,7 +26,7 @@ def reconstruct(file):
                 # skip this part, it's missing
                 continue
 
-            with part_file.blob.open() as f:
+            with part_file.original.open() as f:
                 payload = f.read()
             part.set_payload(payload)
 
