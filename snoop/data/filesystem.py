@@ -114,8 +114,8 @@ def create_archive_files(file_pk, archive_listing):
         child_files = []
         for item in children:
             if item['type'] == 'file':
-                original = models.Blob.objects.get(pk=item['blob_pk'])
-                file = create_file(directory, item['name'], original)
+                child_original = models.Blob.objects.get(pk=item['blob_pk'])
+                file = create_file(directory, item['name'], child_original)
                 child_files.append(file)
 
             if item['type'] == 'directory':
