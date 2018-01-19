@@ -2,10 +2,25 @@ import json
 from .tasks import shaorma
 from . import models
 from .utils import zulu
+from .analyzers import email
+from .analyzers import tika
 
 
-@shaorma('digests.compute')
-def compute(blob, collection_pk, **depends_on):
+@shaorma('digests.launch')
+def launch(blob, collection_pk):
+    depends_on = {}
+
+    if blob.mime_type == 'message/rfc822':
+        depends_on['email_parse'] = email.parse.laterz(blob)
+
+    if tika.can_process(blob):
+        depends_on['tika_rmeta'] = tika.rmeta.laterz(blob)
+
+    gather.laterz(blob, collection_pk, depends_on=depends_on)
+
+
+@shaorma('digests.gather')
+def gather(blob, collection_pk, **depends_on):
     collection = models.Collection.objects.get(pk=collection_pk)
 
     rv = {}

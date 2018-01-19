@@ -5,7 +5,6 @@ from .utils import time_from_unix
 from . import models
 from .tasks import shaorma
 from .analyzers import archives
-from .analyzers import tika
 from .analyzers import emlx
 from .analyzers import email
 from . import digests
@@ -67,10 +66,9 @@ def file_to_blob(directory, name):
 @shaorma('filesystem.handle_file')
 def handle_file(file_pk):
     file = models.File.objects.get(pk=file_pk)
-    depends_on = {}
+    file.blob = file.original
 
     if archives.is_archive(file.original.mime_type):
-        file.blob = file.original
         unarchive_task = archives.unarchive.laterz(file.blob)
         create_archive_files.laterz(
             file.pk,
@@ -79,30 +77,13 @@ def handle_file(file_pk):
 
     elif file.original.mime_type == "application/vnd.ms-outlook":
         file.blob = email.msg_blob_to_eml(file.original)
-        depends_on['email_parse'] = email.parse.laterz(file.blob.pk)
 
     elif file.original.mime_type == 'message/x-emlx':
         file.blob = emlx.reconstruct(file)
-        depends_on['email_parse'] = email.parse.laterz(file.blob)
-
-    elif file.original.mime_type == 'message/rfc822':
-        file.blob = file.original
-        depends_on['email_parse'] = email.parse.laterz(file.blob)
-
-    elif tika.can_process(file.original):
-        file.blob = file.original
-        depends_on['tika_rmeta'] = tika.rmeta.laterz(file.blob)
-
-    else:
-        file.blob = file.original
 
     file.save()
 
-    digests.compute.laterz(
-        file.blob,
-        file.collection.pk,
-        depends_on=depends_on,
-    )
+    digests.launch.laterz(file.blob, file.collection.pk)
 
 
 @shaorma('filesystem.create_archive_files')
