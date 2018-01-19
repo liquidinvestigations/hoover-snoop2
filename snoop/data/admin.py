@@ -35,7 +35,9 @@ class FileAdmin(admin.ModelAdmin):
 class BlobAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'mime_type', 'mime_encoding']
     list_filter = ['mime_type']
-    search_fields = ['pk', 'mime_type', 'mime_encoding']
+    search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
+                     'magic', 'mime_type', 'mime_encoding']
+    readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5']
 
 
 class TaskAdmin(admin.ModelAdmin):
