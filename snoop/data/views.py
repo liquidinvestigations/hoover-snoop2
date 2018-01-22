@@ -1,5 +1,5 @@
 import json
-from django.http import JsonResponse
+from django.http import JsonResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from . import models
 from . import digests
@@ -35,3 +35,14 @@ def document(request, name, hash):
     collection = get_object_or_404(models.Collection.objects, name=name)
     digest = get_object_or_404(collection.digest_set, blob__pk=hash)
     return JsonResponse(digests.get_document_data(digest))
+
+
+def document_download(request, name, hash, filename):
+    collection = get_object_or_404(models.Collection.objects, name=name)
+    digest = get_object_or_404(collection.digest_set, blob__pk=hash)
+    blob = digest.blob
+
+    if blob.mime_type == 'text/html':
+        raise NotImplementedError
+
+    return FileResponse(digest.blob.open(), content_type=blob.content_type)
