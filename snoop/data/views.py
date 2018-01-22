@@ -25,6 +25,12 @@ def feed(request, name):
     })
 
 
+def directory(request, name, pk):
+    collection = get_object_or_404(models.Collection.objects, name=name)
+    directory = get_object_or_404(collection.directory_set, pk=pk)
+    return JsonResponse(digests.get_directory_data(directory))
+
+
 def document(request, name, hash):
     collection = get_object_or_404(models.Collection.objects, name=name)
     digest = get_object_or_404(collection.digest_set, blob__pk=hash)

@@ -74,6 +74,22 @@ def full_path(file):
     return '/'.join(reversed(elements))
 
 
+def directory_id(directory):
+    return f'_directory_{directory.pk}'
+
+
+def parent_id(file):
+    parent = file.parent
+
+    if isinstance(parent, models.File):
+        return parent.blob.pk
+
+    if isinstance(parent, models.Directory):
+        return directory_id(parent)
+
+    return None
+
+
 def get_document_data(digest):
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
@@ -82,6 +98,7 @@ def get_document_data(digest):
 
     return {
         'id': digest.blob.pk,
+        'parent_id': parent_id(first_file),
         'version': zulu(digest.date_modified),
         'content': {
             'content-type': digest.blob.mime_type,
@@ -94,4 +111,38 @@ def get_document_data(digest):
             'path': full_path(first_file),
             '_emailheaders': digest_data.get('_emailheaders'),
         },
+    }
+
+
+def get_directory_data(directory):
+    def child_file(file):
+        blob = file.blob
+        return {
+            'id': blob.pk,
+            'content_type': blob.mime_type,
+            'filename': file.name,
+        }
+
+    def child_dir(directory):
+        return {
+            'id': directory_id(directory),
+            'content_type': 'application/x-directory',
+            'filename': directory.name,
+        }
+
+    children = (
+        [child_dir(d) for d in directory.child_directory_set.all()] +
+        [child_file(f) for f in directory.child_file_set.all()]
+    )
+
+    return {
+        'id': directory_id(directory),
+        'parent_id': parent_id(directory),
+        'content': {
+            'content-type': 'application/x-directory',
+            'filetype': 'folder',
+            'filename': directory.name,
+            'path': full_path(directory),
+        },
+        'children': children,
     }
