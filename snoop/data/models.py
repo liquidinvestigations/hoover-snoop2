@@ -66,6 +66,13 @@ class Blob(models.Model):
     def __str__(self):
         return self.pk
 
+    @property
+    def content_type(self):
+        if self.mime_type.startswith('text/'):
+            return f"{self.mime_type}; charset={self.mime_encoding}"
+
+        return self.mime_type
+
     def path(self):
         return BLOB_ROOT / self.pk
 
