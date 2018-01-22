@@ -62,5 +62,5 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
-
 SNOOP_TIKA_URL = 'http://localhost:9998'
+SNOOP_FEED_PAGE_SIZE = 100

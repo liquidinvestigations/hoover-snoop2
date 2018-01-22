@@ -1,6 +1,7 @@
 import json
 from django.http import JsonResponse, FileResponse
 from django.shortcuts import get_object_or_404
+from django.conf import settings
 from . import models
 from . import digests
 
@@ -18,10 +19,26 @@ def collection(request, name):
 
 def feed(request, name):
     collection = get_object_or_404(models.Collection.objects, name=name)
+
+    limit = settings.SNOOP_FEED_PAGE_SIZE
     query = collection.digest_set.order_by('-date_modified')
 
+    lt = request.GET.get('lt')
+    if lt:
+        query = query.filter(date_modified__lt=lt)
+
+    documents = [digests.get_document_data(d) for d in query[:limit]]
+
+    if len(documents) < limit:
+        next_page = None
+
+    else:
+        last_version = documents[-1]['version']
+        next_page = f'?lt={last_version}'
+
     return JsonResponse({
-        'documents': [digests.get_document_data(d) for d in query],
+        'documents': documents,
+        'next': next_page,
     })
 
 

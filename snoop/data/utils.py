@@ -1,5 +1,5 @@
 from datetime import datetime
-from django.utils import timezone
+from django.utils.timezone import utc
 
 
 def run_once(func):
@@ -26,10 +26,14 @@ def read_exactly(f, size):
 
 
 def time_from_unix(t):
-    return timezone.utc.fromutc(datetime.utcfromtimestamp(t))
+    return utc.fromutc(datetime.utcfromtimestamp(t))
 
 
 def zulu(t):
     txt = t.isoformat()
     assert txt.endswith('+00:00')
     return txt.replace('+00:00', 'Z')
+
+
+def parse_zulu(txt):
+    return utc.fromutc(datetime.strptime(txt, "%Y-%m-%dT%H:%M:%S.%fZ"))
