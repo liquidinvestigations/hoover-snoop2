@@ -151,6 +151,10 @@ class Directory(models.Model):
     def __str__(self):
         return f'{self.name}/'
 
+    @property
+    def parent(self):
+        return self.parent_directory or self.container_file
+
 
 class File(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
@@ -175,6 +179,10 @@ class File(models.Model):
 
     def __str__(self):
         return truncatechars(self.name, 80)
+
+    @property
+    def parent(self):
+        return self.parent_directory
 
 
 class Task(models.Model):

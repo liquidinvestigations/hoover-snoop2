@@ -65,12 +65,20 @@ def filetype(mime_type):
     return None
 
 
+def full_path(file):
+    node = file
+    elements = [file.name]
+    while node.parent:
+        node = node.parent
+        elements.append(node.name)
+    return '/'.join(reversed(elements))
+
+
 def get_document_data(digest):
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
 
     first_file = digest.blob.file_set.order_by('pk').first()
-    filename = path = first_file.name
 
     return {
         'id': digest.blob.pk,
@@ -82,8 +90,8 @@ def get_document_data(digest):
             'md5': digest.blob.md5,
             'sha1': digest.blob.sha1,
             'size': digest.blob.path().stat().st_size,
-            'filename': filename,
-            'path': path,
+            'filename': first_file.name,
+            'path': full_path(first_file),
             '_emailheaders': digest_data.get('_emailheaders'),
         },
     }
