@@ -6,6 +6,7 @@ from collections import defaultdict
 import email
 from .. import models
 from ..tasks import shaorma, ShaormaError
+from . import tika
 
 
 def iter_parts(message, numbers=[]):
@@ -26,14 +27,40 @@ def get_headers(message):
     return dict(rv)
 
 
+def dump_part(message):
+    rv = {'headers': get_headers(message)}
+
+    content_type = message.get_content_type()
+    if content_type == 'text/plain':
+        payload_bytes = message.get_payload(decode=True)
+        charset = message.get_content_charset() or 'latin1'
+        rv['text'] = payload_bytes.decode(charset, errors='replace')
+
+    if content_type == 'text/html':
+        payload_bytes = message.get_payload(decode=True)
+        with models.Blob.create() as writer:
+            writer.write(payload_bytes)
+        rmeta_blob = tika.rmeta(writer.blob)
+        with rmeta_blob.open(encoding='utf8') as f:
+            rmeta_data = json.load(f)
+        rv['text'] = rmeta_data[0]['X-TIKA:content']
+
+    if message.is_multipart():
+        rv['parts'] = [dump_part(part) for part in message.get_payload()]
+
+    return rv
+
+
 @shaorma('email.parse')
 def parse(blob):
     with blob.open() as f:
-        message = email.message_from_bytes(f.read())
+        message_bytes = f.read()
 
-    data = {
-        'headers': get_headers(message),
-    }
+    if message_bytes[:3] == b'\xef\xbb\xbf':
+        message_bytes = message_bytes[3:]
+
+    message = email.message_from_bytes(message_bytes)
+    data = dump_part(message)
 
     with models.Blob.create() as output:
         output.write(json.dumps(data, indent=2).encode('utf8'))

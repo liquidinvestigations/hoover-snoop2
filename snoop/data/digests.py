@@ -41,7 +41,7 @@ def gather(blob, collection_pk, **depends_on):
     if email_parse_blob:
         with email_parse_blob.open(encoding='utf8') as f:
             email_parse = json.load(f)
-        rv['_emailheaders'] = email_parse['headers']
+        rv['email'] = email_parse
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -90,27 +90,59 @@ def parent_id(file):
     return None
 
 
+def email_meta(digest_data):
+    def iter_parts(email_data):
+        yield email_data
+        for part in email_data.get('parts') or []:
+            yield from iter_parts(part)
+
+    email_data = digest_data['email']
+    headers = email_data['headers']
+
+    text_bits = []
+    for part in iter_parts(email_data):
+        part_text = part.get('text')
+        if part_text:
+            text_bits.append(part_text)
+
+    headers_to = []
+    for header in ['To', 'Cc', 'Bcc', 'Resent-To', 'Recent-Cc', 'Reply-To']:
+        headers_to += headers.get(header, [])
+
+    return {
+        'from': headers.get('From', [''])[0],
+        'to': headers_to,
+        'subject': headers.get('Subject', [''])[0],
+        'text': '\n\n'.join(text_bits).strip(),
+    }
+
+
 def get_document_data(digest):
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
 
-    first_file = digest.blob.file_set.order_by('pk').first()
+    blob = digest.blob
+    first_file = blob.file_set.order_by('pk').first()
+    content = {
+        'content-type': blob.mime_type,
+        'filetype': filetype(blob.mime_type),
+        'text': digest_data.get('text'),
+        'md5': blob.md5,
+        'sha1': blob.sha1,
+        'size': blob.path().stat().st_size,
+        'filename': first_file.name,
+        'path': full_path(first_file),
+        '_emailheaders': digest_data.get('_emailheaders'),
+    }
+
+    if blob.mime_type == 'message/rfc822':
+        content.update(email_meta(digest_data))
 
     return {
-        'id': digest.blob.pk,
+        'id': blob.pk,
         'parent_id': parent_id(first_file),
         'version': zulu(digest.date_modified),
-        'content': {
-            'content-type': digest.blob.mime_type,
-            'filetype': filetype(digest.blob.mime_type),
-            'text': digest_data.get('text'),
-            'md5': digest.blob.md5,
-            'sha1': digest.blob.sha1,
-            'size': digest.blob.path().stat().st_size,
-            'filename': first_file.name,
-            'path': full_path(first_file),
-            '_emailheaders': digest_data.get('_emailheaders'),
-        },
+        'content': content,
     }
 
 
