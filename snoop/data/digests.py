@@ -135,33 +135,44 @@ def get_document_data(digest):
         '_emailheaders': digest_data.get('_emailheaders'),
     }
 
-    if blob.mime_type == 'message/rfc822':
-        content.update(email_meta(digest_data))
-
-    return {
+    rv = {
         'id': blob.pk,
         'parent_id': parent_id(first_file),
         'version': zulu(digest.date_modified),
         'content': content,
     }
 
+    if blob.mime_type == 'message/rfc822':
+        rv['content'].update(email_meta(digest_data))
+
+        attachments = first_file.child_directory_set.first()
+        if attachments:
+            rv['children'] = [
+                child_file(f)
+                for f in attachments.child_file_set.order_by('pk').all()
+            ]
+
+    return rv
+
+
+def child_file(file):
+    blob = file.blob
+    return {
+        'id': blob.pk,
+        'content_type': blob.mime_type,
+        'filename': file.name,
+    }
+
+
+def child_dir(directory):
+    return {
+        'id': directory_id(directory),
+        'content_type': 'application/x-directory',
+        'filename': directory.name,
+    }
+
 
 def get_directory_data(directory):
-    def child_file(file):
-        blob = file.blob
-        return {
-            'id': blob.pk,
-            'content_type': blob.mime_type,
-            'filename': file.name,
-        }
-
-    def child_dir(directory):
-        return {
-            'id': directory_id(directory),
-            'content_type': 'application/x-directory',
-            'filename': directory.name,
-        }
-
     children = (
         [child_dir(d) for d in directory.child_directory_set.all()] +
         [child_file(f) for f in directory.child_file_set.all()]

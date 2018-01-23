@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.conf import settings
 from snoop.data.analyzers import email
 from snoop.data import models
+from snoop.data import filesystem
 from snoop.data import digests
 
 pytestmark = [pytest.mark.django_db]
@@ -43,15 +44,17 @@ def test_email_header_parsing():
     assert content['headers']['Subject'] == ['Attachments have long file names.']
 
 
-def parse_email(path):
+def add_email_to_collection(path):
     [collection] = models.Collection.objects.all()
     [root] = collection.directory_set.filter(
         parent_directory__isnull=True,
         container_file__isnull=True
     ).all()
     blob = models.Blob.create_from_file(path)
+    assert blob.mime_type == 'message/rfc822'
     now = timezone.now()
-    collection.file_set.create(
+
+    return collection.file_set.create(
         parent_directory=root,
         original=blob,
         blob=blob,
@@ -60,9 +63,13 @@ def parse_email(path):
         ctime=now,
         mtime=now,
     )
-    assert blob.mime_type == 'message/rfc822'
-    digests.launch(blob, collection.pk)
-    [digest] = blob.digest_set.all()
+
+
+def parse_email(path):
+    file = add_email_to_collection(path)
+    filesystem.handle_file(file.pk)
+    digests.launch(file.blob, file.collection.pk)
+    [digest] = file.blob.digest_set.all()
     return digests.get_document_data(digest)
 
 
@@ -108,3 +115,50 @@ def test_email_with_byte_order_mark():
     assert content['subject'] == "xxxxxxxxxx"
     assert content['from'] == 'yyy <yyyyyyyyyyyyyyy@gmail.com>'
     assert 'YYYYYY YYYYY <xxxxxxxxxxxxxxx@gmail.com>' in content['to']
+
+
+def test_attachment_children():
+    file = add_email_to_collection(OCTET_STREAM_CONTENT_TYPE)
+    filesystem.handle_file(file.pk)
+
+    attachments_dir = file.child_directory_set.get()
+    children = attachments_dir.child_file_set.order_by('pk').all()
+
+    assert len(children) == 3
+    assert children[0].name == 'letterlegal5.doc'
+    assert children[1].name == 'zip-with-pdf.zip'
+    assert children[2].name == 'length.png'
+
+
+def test_normal_attachments():
+    data = parse_email(CAMPUS)
+    children = data['children']
+
+    assert len(children) == 2
+
+
+def test_attachment_with_long_filename():
+    data = parse_email(LONG_FILENAMES)
+    children = data['children']
+
+    assert len(children) == 3
+
+
+def test_double_decoding_of_attachment_filenames():
+    data = parse_email(DOUBLE_DECODE_ATTACHMENT_FILENAME)
+    without_encoding = "atașament_pârș.jpg"
+    simple_encoding = "=?utf-8?b?YXRhyJlhbWVudF9ww6JyyJkuanBn?="
+    double_encoding = "=?utf-8?b?PT91dGYtOD9iP1lYUmh5S" \
+                      "mxoYldWdWRGOXd3Nkp5eUprdWFuQm4/PQ==?="
+
+    filenames = [at['filename'] for at in data.get('children')]
+    assert double_encoding not in filenames
+    assert {simple_encoding, without_encoding} == set(filenames)
+
+
+def test_attachment_with_octet_stream_content_type():
+    data = parse_email(OCTET_STREAM_CONTENT_TYPE)
+
+    assert data['children'][0]['content_type'] == 'application/msword'
+    assert data['children'][1]['content_type'] == 'application/zip'
+    assert data['children'][2]['content_type'] == 'image/png'
