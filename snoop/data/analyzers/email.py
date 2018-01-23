@@ -48,6 +48,22 @@ def dump_part(message):
     if message.is_multipart():
         rv['parts'] = [dump_part(part) for part in message.get_payload()]
 
+    if message.get_content_disposition():
+        raw_filename = message.get_filename()
+        if raw_filename:
+            filename = str(email.header.make_header(
+                email.header.decode_header(raw_filename)
+            ))
+            attachment_content = message.get_payload(decode=True)
+
+            with models.Blob.create() as writer:
+                writer.write(attachment_content)
+
+            rv['attachment'] = {
+                'name': filename,
+                'blob_pk': writer.blob.pk,
+            }
+
     return rv
 
 

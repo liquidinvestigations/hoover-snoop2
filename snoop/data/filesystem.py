@@ -81,6 +81,13 @@ def handle_file(file_pk):
     elif file.original.mime_type == 'message/x-emlx':
         file.blob = emlx.reconstruct(file)
 
+    if file.blob.mime_type == 'message/rfc822':
+        email_parse_task = email.parse.laterz(file.blob)
+        create_attachment_files.laterz(
+            file.pk,
+            depends_on={'email_parse': email_parse_task},
+        )
+
     file.save()
 
     digests.launch.laterz(file.blob, file.collection.pk)
@@ -139,3 +146,47 @@ def create_archive_files(file_pk, archive_listing):
         ),
     )
     create_directory_children(fake_root, archive_listing_data)
+
+
+@shaorma('filesystem.create_attachment_files')
+def create_attachment_files(file_pk, email_parse):
+    def iter_parts(email_data):
+        yield email_data
+        for part in email_data.get('parts') or []:
+            yield from iter_parts(part)
+
+    with email_parse.open() as f:
+        email_data = json.load(f)
+
+    attachments = []
+    for part in iter_parts(email_data):
+        part_attachment = part.get('attachment')
+        if part_attachment:
+            attachments.append(part_attachment)
+
+    if attachments:
+        now = timezone.now()
+        file = models.File.objects.get(pk=file_pk)
+        (attachments_dir, _) = file.child_directory_set.get_or_create(
+            name='',
+            defaults=dict(
+                collection=file.collection,
+            ),
+        )
+        for attachment in attachments:
+            original = models.Blob.objects.get(pk=attachment['blob_pk'])
+            size = original.path().stat().st_size
+            now = timezone.now()
+
+            (file, _) = attachments_dir.child_file_set.get_or_create(
+                name=attachment['name'],
+                defaults=dict(
+                    collection=file.collection,
+                    ctime=now,
+                    mtime=now,
+                    size=size,
+                    original=original,
+                ),
+            )
+
+            handle_file.laterz(file.pk)
