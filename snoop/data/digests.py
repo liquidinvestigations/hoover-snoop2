@@ -132,7 +132,6 @@ def get_document_data(digest):
         'size': blob.path().stat().st_size,
         'filename': first_file.name,
         'path': full_path(first_file),
-        '_emailheaders': digest_data.get('_emailheaders'),
     }
 
     rv = {
