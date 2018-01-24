@@ -18,6 +18,13 @@ class ShaormaError(Exception):
         self.details = details
 
 
+class MissingDependency(Exception):
+
+    def __init__(self, name, task):
+        self.name = name
+        self.task = task
+
+
 @run_once
 def import_shaormas():
     from . import filesystem  # noqa
@@ -54,6 +61,14 @@ def laterz_shaorma(task_pk):
                 task.result = result
 
             task.status = models.Task.STATUS_SUCCESS
+
+        except MissingDependency as dep:
+            task.status = models.Task.STATUS_DEFERRED
+            models.TaskDependency.objects.get_or_create(
+                prev=dep.task,
+                next=task,
+                name=dep.name,
+            )
 
         except Exception as e:
             if isinstance(e, ShaormaError):

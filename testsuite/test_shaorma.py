@@ -1,5 +1,5 @@
 import pytest
-from snoop.data.tasks import shaorma
+from snoop.data.tasks import shaorma, MissingDependency
 from snoop.data import models
 
 pytestmark = [pytest.mark.django_db]
@@ -49,3 +49,27 @@ def test_blob_arg(taskmanager):
     task.refresh_from_db()
     with task.result.open() as f:
         assert f.read() == b'hello world'
+
+
+def test_missing_dependency(taskmanager):
+    @shaorma('test_one')
+    def one(message):
+        with models.Blob.create() as writer:
+            writer.write(message.encode('utf8'))
+
+        return writer.blob
+
+    @shaorma('test_two')
+    def two(foo=None):
+        if foo is None:
+            raise MissingDependency('foo', one.laterz('hello'))
+
+        return foo
+
+    two_task = two.laterz()
+
+    taskmanager.run()
+
+    two_task.refresh_from_db()
+    with two_task.result.open() as f:
+        assert f.read() == b'hello'
