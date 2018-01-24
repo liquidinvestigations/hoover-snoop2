@@ -65,21 +65,22 @@ def add_email_to_collection(path):
     )
 
 
-def parse_email(path):
+def parse_email(path, taskmanager):
     file = add_email_to_collection(path)
     filesystem.handle_file(file.pk)
     digests.launch(file.blob, file.collection.pk)
+    taskmanager.run()
     [digest] = file.blob.digest_set.all()
     return digests.get_document_data(digest)
 
 
-def test_subject():
-    content = parse_email(MAPBOX)['content']
+def test_subject(taskmanager):
+    content = parse_email(MAPBOX, taskmanager)['content']
     assert content['subject'] == "Introducing Mapbox Android Services"
 
 
-def test_no_subject_or_text():
-    content = parse_email(NO_SUBJECT)['content']
+def test_no_subject_or_text(taskmanager):
+    content = parse_email(NO_SUBJECT, taskmanager)['content']
 
     assert 'subject' in content
     assert len(content['subject']) == 0
@@ -90,16 +91,16 @@ def test_no_subject_or_text():
     assert len(text) <= 2
 
 
-def test_text():
-    data_codin = parse_email(CODINGAME)['content']
+def test_text(taskmanager):
+    data_codin = parse_email(CODINGAME, taskmanager)['content']
     assert data_codin['text'].startswith("New on CodinGame: Check it out!")
 
-    data_mapbox = parse_email(MAPBOX)['content']
+    data_mapbox = parse_email(MAPBOX, taskmanager)['content']
     assert "Android Services includes RxJava" in data_mapbox['text']
 
 
-def test_people():
-    content = parse_email(MAPBOX)['content']
+def test_people(taskmanager):
+    content = parse_email(MAPBOX, taskmanager)['content']
 
     assert type(content['to']) is list
     assert len(content['to']) == 1
@@ -109,16 +110,17 @@ def test_people():
     assert "newsletter@mapbox.com" in content['from']
 
 
-def test_email_with_byte_order_mark():
-    content = parse_email(BYTE_ORDER_MARK)['content']
+def test_email_with_byte_order_mark(taskmanager):
+    content = parse_email(BYTE_ORDER_MARK, taskmanager)['content']
 
     assert content['subject'] == "xxxxxxxxxx"
     assert content['from'] == 'yyy <yyyyyyyyyyyyyyy@gmail.com>'
 
 
-def test_attachment_children():
+def test_attachment_children(taskmanager):
     file = add_email_to_collection(OCTET_STREAM_CONTENT_TYPE)
     filesystem.handle_file(file.pk)
+    taskmanager.run()
 
     attachments_dir = file.child_directory_set.get()
     children = attachments_dir.child_file_set.order_by('pk').all()
@@ -129,22 +131,22 @@ def test_attachment_children():
     assert children[2].name == 'length.png'
 
 
-def test_normal_attachments():
-    data = parse_email(CAMPUS)
+def test_normal_attachments(taskmanager):
+    data = parse_email(CAMPUS, taskmanager)
     children = data['children']
 
     assert len(children) == 2
 
 
-def test_attachment_with_long_filename():
-    data = parse_email(LONG_FILENAMES)
+def test_attachment_with_long_filename(taskmanager):
+    data = parse_email(LONG_FILENAMES, taskmanager)
     children = data['children']
 
     assert len(children) == 3
 
 
-def test_double_decoding_of_attachment_filenames():
-    data = parse_email(DOUBLE_DECODE_ATTACHMENT_FILENAME)
+def test_double_decoding_of_attachment_filenames(taskmanager):
+    data = parse_email(DOUBLE_DECODE_ATTACHMENT_FILENAME, taskmanager)
     without_encoding = "atașament_pârș.jpg"
     simple_encoding = "=?utf-8?b?YXRhyJlhbWVudF9ww6JyyJkuanBn?="
     double_encoding = "=?utf-8?b?PT91dGYtOD9iP1lYUmh5S" \
@@ -155,8 +157,8 @@ def test_double_decoding_of_attachment_filenames():
     assert {simple_encoding, without_encoding} == set(filenames)
 
 
-def test_attachment_with_octet_stream_content_type():
-    data = parse_email(OCTET_STREAM_CONTENT_TYPE)
+def test_attachment_with_octet_stream_content_type(taskmanager):
+    data = parse_email(OCTET_STREAM_CONTENT_TYPE, taskmanager)
 
     assert data['children'][0]['content_type'] == 'application/msword'
     assert data['children'][1]['content_type'] == 'application/zip'

@@ -20,7 +20,7 @@ ID = {
 }
 
 
-def test_walk_and_api(client):
+def test_walk_and_api(client, taskmanager):
     col = models.Collection.objects.create(
         name='testdata',
         root=Path(settings.SNOOP_TESTDATA) / 'data',
@@ -28,6 +28,7 @@ def test_walk_and_api(client):
     root = col.directory_set.create()
 
     dispatcher.run_dispatcher()
+    taskmanager.run(limit=10000)
 
     col_url = '/collections/testdata/json'
     col = client.get(col_url).json()

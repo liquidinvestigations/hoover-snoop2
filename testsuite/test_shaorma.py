@@ -5,7 +5,7 @@ from snoop.data import models
 pytestmark = [pytest.mark.django_db]
 
 
-def test_dependent_task():
+def test_dependent_task(taskmanager):
     @shaorma('test_one')
     def one():
         with models.Blob.create() as writer:
@@ -19,12 +19,15 @@ def test_dependent_task():
 
     one_task = one.laterz()
     two_task = two.laterz(depends_on={'one_result': one_task})
+
+    taskmanager.run()
+
     two_task.refresh_from_db()
     with two_task.result.open() as f:
         assert f.read() == b'foo'
 
 
-def test_blob_arg():
+def test_blob_arg(taskmanager):
     @shaorma('test_with_blob')
     def with_blob(blob, a):
         with blob.open(encoding='utf8') as src:
@@ -40,6 +43,8 @@ def test_blob_arg():
 
     task = with_blob.laterz(writer.blob, 'world')
     assert task.blob_arg == writer.blob
+
+    taskmanager.run()
 
     task.refresh_from_db()
     with task.result.open() as f:
