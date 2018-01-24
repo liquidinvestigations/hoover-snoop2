@@ -58,5 +58,4 @@ def test_walk_and_api(client):
 
     # .partial.emlx
     partialemlx = docs[ID['partialemlx']]
-    headers = partialemlx['content']['_emailheaders']
-    assert headers['Subject'] == ["Re: promulgare lege"]
+    assert partialemlx['content']['subject'] == "Re: promulgare lege"
