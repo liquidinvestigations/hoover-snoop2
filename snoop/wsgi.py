@@ -4,6 +4,9 @@ set_django_settings()
 from django.core.wsgi import get_wsgi_application
 application = get_wsgi_application()
 
+from whitenoise.django import DjangoWhiteNoise
+application = DjangoWhiteNoise(application)
+
 from django.conf import settings
 from . import defaultsettings
 if not settings.DEBUG and settings.SECRET_KEY == defaultsettings.SECRET_KEY:
