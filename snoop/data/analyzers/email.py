@@ -94,6 +94,7 @@ def parse(blob, **depends_on):
     return output.blob
 
 
+@shaorma('email.msg_to_eml')
 def msg_to_eml(blob):
     with tempfile.TemporaryDirectory() as temp_dir:
         msg_path = Path(temp_dir) / 'email.msg'
