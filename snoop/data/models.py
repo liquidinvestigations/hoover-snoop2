@@ -144,13 +144,13 @@ class Directory(models.Model):
     name = models.CharField(max_length=255, blank=True)
     parent_directory = models.ForeignKey(
         'Directory',
-        null=True,
+        null=True, blank=True,
         on_delete=models.DO_NOTHING,
         related_name='child_directory_set',
     )
     container_file = models.ForeignKey(
         'File',
-        null=True,
+        null=True, blank=True,
         on_delete=models.DO_NOTHING,
         related_name='child_directory_set',
     )
@@ -182,7 +182,8 @@ class File(models.Model):
     size = models.IntegerField()
     original = models.ForeignKey(Blob, on_delete=models.DO_NOTHING,
                                  related_name='+')
-    blob = models.ForeignKey(Blob, on_delete=models.DO_NOTHING, null=True)
+    blob = models.ForeignKey(Blob, null=True, blank=True,
+                             on_delete=models.DO_NOTHING)
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
@@ -205,16 +206,18 @@ class Task(models.Model):
     STATUS_DEFERRED = 'deferred'
 
     func = models.CharField(max_length=1024)
-    blob_arg = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING,
+    blob_arg = models.ForeignKey(Blob, null=True, blank=True,
+                                 on_delete=models.DO_NOTHING,
                                  related_name='+')
     args = JSONField()
-    result = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING)
+    result = models.ForeignKey(Blob, null=True, blank=True,
+                               on_delete=models.DO_NOTHING)
 
     # these fields are used for logging and debugging, not for dispatching
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
-    date_started = models.DateTimeField(null=True)
-    date_finished = models.DateTimeField(null=True)
+    date_started = models.DateTimeField(null=True, blank=True)
+    date_finished = models.DateTimeField(null=True, blank=True)
     worker = models.CharField(max_length=4096, blank=True)
 
     status = models.CharField(max_length=16, default=STATUS_PENDING)
