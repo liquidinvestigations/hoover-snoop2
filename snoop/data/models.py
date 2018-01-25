@@ -12,6 +12,10 @@ BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
 BLOB_TMP = BLOB_ROOT / 'tmp'
 
 
+def blob_repo_path(sha3_256):
+    return BLOB_ROOT / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
+
+
 def chunks(file, blocksize=65536):
     while True:
         data = file.read(blocksize)
@@ -74,13 +78,12 @@ class Blob(models.Model):
         return self.mime_type
 
     def path(self):
-        return BLOB_ROOT / self.pk
+        return blob_repo_path(self.pk)
 
     @classmethod
     @contextmanager
     def create(cls):
-        BLOB_ROOT.mkdir(exist_ok=True)
-        BLOB_TMP.mkdir(exist_ok=True)
+        BLOB_TMP.mkdir(exist_ok=True, parents=True)
 
         with tempfile.NamedTemporaryFile(dir=BLOB_TMP, delete=False) as f:
             writer = BlobWriter(f)
@@ -89,7 +92,8 @@ class Blob(models.Model):
         fields = writer.finish()
         pk = fields.pop('sha3_256')
 
-        blob_path = BLOB_ROOT / pk
+        blob_path = blob_repo_path(pk)
+        blob_path.parent.mkdir(exist_ok=True, parents=True)
         Path(f.name).rename(blob_path)
 
         if fields['mime_type'].startswith('text/'):
