@@ -83,7 +83,11 @@ def handle_file(file_pk, **depends_on):
         file.blob = eml
 
     elif file.original.mime_type == 'message/x-emlx':
-        file.blob = emlx.reconstruct(file)
+        eml = depends_on.get('emlx_reconstruct')
+        if not eml:
+            task = emlx.reconstruct.laterz(file.pk)
+            raise MissingDependency('emlx_reconstruct', task)
+        file.blob = eml
 
     if file.blob.mime_type == 'message/rfc822':
         email_parse_task = email.parse.laterz(file.blob)
