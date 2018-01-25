@@ -94,7 +94,9 @@ class Blob(models.Model):
 
         blob_path = blob_repo_path(pk)
         blob_path.parent.mkdir(exist_ok=True, parents=True)
-        Path(f.name).rename(blob_path)
+        temp_blob_path = Path(f.name)
+        temp_blob_path.chmod(0o444)
+        temp_blob_path.rename(blob_path)
 
         if fields['mime_type'].startswith('text/'):
             if looks_like_email(blob_path):
