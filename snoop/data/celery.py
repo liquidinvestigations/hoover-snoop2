@@ -1,7 +1,9 @@
 import os
 from celery import Celery
+from snoop import set_django_settings
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'snoop.settings')
+set_django_settings()
+
 app = Celery('snoop')
 app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
