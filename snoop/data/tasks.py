@@ -26,7 +26,7 @@ class MissingDependency(Exception):
 
 
 def queue_task(task):
-    laterz_shaorma.delay(task.pk)
+    transaction.on_commit(lambda: laterz_shaorma.delay(task.pk))
 
 
 @run_once
