@@ -25,6 +25,10 @@ class MissingDependency(Exception):
         self.task = task
 
 
+def queue_task(task):
+    laterz_shaorma.delay(task.pk)
+
+
 @run_once
 def import_shaormas():
     from . import filesystem  # noqa
@@ -91,7 +95,7 @@ def laterz_shaorma(task_pk):
     if task.status == models.Task.STATUS_SUCCESS:
         for next_dependency in task.next_set.all():
             next = next_dependency.next
-            laterz_shaorma.delay(next.pk)
+            queue_task(next)
 
 
 def shaorma(name):
@@ -126,10 +130,10 @@ def shaorma(name):
                     )
 
                 if all_done:
-                    laterz_shaorma.delay(task.pk)
+                    queue_task(task)
 
             else:
-                laterz_shaorma.delay(task.pk)
+                queue_task(task)
 
             return task
 
@@ -158,4 +162,4 @@ def dispatch_pending_tasks():
         if deps_not_ready:
             continue
         logger.debug("Dispatching %r", task)
-        laterz_shaorma.delay(task.pk)
+        queue_task(task)
