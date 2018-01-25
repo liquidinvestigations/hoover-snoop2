@@ -51,14 +51,20 @@ def laterz_shaorma(task_pk):
             assert args[0] == task.blob_arg.pk
             args = [task.blob_arg] + args[1:]
 
-        kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
+        depends_on = {}
+        for dep in task.prev_set.all():
+            prev_task = dep.prev
+            if prev_task.status != models.Task.STATUS_SUCCESS:
+                msg = f"Dependency {prev_task} for task {task} not ready"
+                raise RuntimeError(msg)
+            depends_on[dep.name] = prev_task.result
 
         task.status = models.Task.STATUS_PENDING
         task.date_started = timezone.now()
         task.save()
 
         try:
-            result = shaormerie[task.func](*args, **kwargs)
+            result = shaormerie[task.func](*args, **depends_on)
 
             if result is not None:
                 assert isinstance(result, models.Blob)
