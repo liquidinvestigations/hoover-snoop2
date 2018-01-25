@@ -31,7 +31,7 @@ def mock_collection():
 
 def test_convert_msg_to_eml():
     msg_blob = models.Blob.create_from_file(MSG)
-    eml_blob = email.msg_blob_to_eml(msg_blob)
+    eml_blob = email.msg_to_eml(msg_blob)
 
     assert eml_blob.mime_type == 'message/rfc822'
 

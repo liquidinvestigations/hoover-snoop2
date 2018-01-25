@@ -94,7 +94,7 @@ def parse(blob, **depends_on):
     return output.blob
 
 
-def msg_blob_to_eml(blob):
+def msg_to_eml(blob):
     with tempfile.TemporaryDirectory() as temp_dir:
         msg_path = Path(temp_dir) / 'email.msg'
         msg_path.symlink_to(blob.path())
@@ -110,4 +110,3 @@ def msg_blob_to_eml(blob):
             raise ShaormaError("msgconvert failed", e.output.decode('latin1'))
 
         return models.Blob.create_from_file(eml_path)
-

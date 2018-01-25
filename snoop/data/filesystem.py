@@ -76,7 +76,7 @@ def handle_file(file_pk):
         )
 
     elif file.original.mime_type == "application/vnd.ms-outlook":
-        file.blob = email.msg_blob_to_eml(file.original)
+        file.blob = email.msg_to_eml(file.original)
 
     elif file.original.mime_type == 'message/x-emlx':
         file.blob = emlx.reconstruct(file)
