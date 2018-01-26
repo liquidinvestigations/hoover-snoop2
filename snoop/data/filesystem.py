@@ -123,14 +123,13 @@ def create_archive_files(file_pk, archive_listing):
 
     def create_file(parent_directory, name, original):
         size = original.path().stat().st_size
-        now = timezone.now()
 
         (file, _) = parent_directory.child_file_set.get_or_create(
             name=name,
             defaults=dict(
                 collection=parent_directory.collection,
-                ctime=now,
-                mtime=now,
+                ctime=archive.ctime,
+                mtime=archive.mtime,
                 size=size,
                 original=original,
             ),
@@ -138,11 +137,11 @@ def create_archive_files(file_pk, archive_listing):
 
         return file
 
-    file = models.File.objects.get(pk=file_pk)
-    (fake_root, _) = file.child_directory_set.get_or_create(
+    archive = models.File.objects.get(pk=file_pk)
+    (fake_root, _) = archive.child_directory_set.get_or_create(
         name='',
         defaults=dict(
-            collection=file.collection,
+            collection=archive.collection,
         ),
     )
     create_directory_children(fake_root, archive_listing_data)
@@ -165,25 +164,23 @@ def create_attachment_files(file_pk, email_parse):
             attachments.append(part_attachment)
 
     if attachments:
-        now = timezone.now()
-        file = models.File.objects.get(pk=file_pk)
-        (attachments_dir, _) = file.child_directory_set.get_or_create(
+        email_file = models.File.objects.get(pk=file_pk)
+        (attachments_dir, _) = email_file.child_directory_set.get_or_create(
             name='',
             defaults=dict(
-                collection=file.collection,
+                collection=email_file.collection,
             ),
         )
         for attachment in attachments:
             original = models.Blob.objects.get(pk=attachment['blob_pk'])
             size = original.path().stat().st_size
-            now = timezone.now()
 
             (file, _) = attachments_dir.child_file_set.get_or_create(
                 name=attachment['name'],
                 defaults=dict(
-                    collection=file.collection,
-                    ctime=now,
-                    mtime=now,
+                    collection=email_file.collection,
+                    ctime=email_file.ctime,
+                    mtime=email_file.mtime,
                     size=size,
                     original=original,
                 ),
