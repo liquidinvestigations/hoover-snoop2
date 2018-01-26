@@ -8,6 +8,8 @@ from .. import models
 from ..tasks import shaorma, ShaormaError
 from . import tika
 
+BYTE_ORDER_MARK = b'\xef\xbb\xbf'
+
 
 def iter_parts(message, numbers=[]):
     if message.is_multipart():
@@ -72,7 +74,7 @@ def parse(blob):
     with blob.open() as f:
         message_bytes = f.read()
 
-    if message_bytes[:3] == b'\xef\xbb\xbf':
+    if message_bytes[:3] == BYTE_ORDER_MARK:
         message_bytes = message_bytes[3:]
 
     message = email.message_from_bytes(message_bytes)
