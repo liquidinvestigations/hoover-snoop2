@@ -2,6 +2,8 @@ from django.urls import reverse
 from django.contrib import admin
 from django.utils.safestring import mark_safe
 from django.template.defaultfilters import truncatechars
+from django.urls import path
+from django.shortcuts import render
 from . import models
 from . import tasks
 
@@ -85,10 +87,28 @@ class DigestAdmin(admin.ModelAdmin):
         return blob_link(obj.result.pk)
 
 
-admin.site.register(models.Collection)
-admin.site.register(models.Directory)
-admin.site.register(models.File, FileAdmin)
-admin.site.register(models.Blob, BlobAdmin)
-admin.site.register(models.Task, TaskAdmin)
-admin.site.register(models.TaskDependency)
-admin.site.register(models.Digest, DigestAdmin)
+class SnoopAminSite(admin.AdminSite):
+
+    site_header = "Snoop Mk2"
+
+    index_template = 'snoop/admin_index.html'
+
+    def get_urls(self):
+        return super().get_urls() + [
+            path('shaorma', self.shaorma),
+        ]
+
+    def shaorma(self, request):
+        return render(request, 'snoop/admin_shaorma.html')
+
+
+site = SnoopAminSite(name='snoopadmin')
+
+
+site.register(models.Collection)
+site.register(models.Directory)
+site.register(models.File, FileAdmin)
+site.register(models.Blob, BlobAdmin)
+site.register(models.Task, TaskAdmin)
+site.register(models.TaskDependency)
+site.register(models.Digest, DigestAdmin)
