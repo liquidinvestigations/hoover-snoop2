@@ -173,3 +173,9 @@ def dispatch_pending_tasks():
             continue
         logger.debug("Dispatching %r", task)
         queue_task(task)
+
+
+def retry_tasks(queryset):
+    queryset.update(status=models.Task.STATUS_PENDING)
+    for task in queryset:
+        queue_task(task)

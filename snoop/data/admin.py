@@ -3,6 +3,7 @@ from django.contrib import admin
 from django.utils.safestring import mark_safe
 from django.template.defaultfilters import truncatechars
 from . import models
+from . import tasks
 
 
 def blob_link(blob_pk):
@@ -44,6 +45,7 @@ class TaskAdmin(admin.ModelAdmin):
     list_display = ['pk', 'func', 'args', 'status', 'deps']
     list_filter = ['func', 'status']
     search_fields = ['pk', 'func', 'args']
+    actions = ['retry_selected_tasks']
 
     LINK_STYLE = {
         'pending': '',
@@ -61,6 +63,10 @@ class TaskAdmin(admin.ModelAdmin):
 
         dep_list = [link(dep) for dep in obj.prev_set.order_by('name')]
         return mark_safe(', '.join(dep_list))
+
+    def retry_selected_tasks(self, request, queryset):
+        tasks.retry_tasks(queryset)
+        self.message_user(request, f"requeued {queryset.count()} tasks")
 
 
 class DigestAdmin(admin.ModelAdmin):
