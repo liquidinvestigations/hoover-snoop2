@@ -114,7 +114,6 @@ def test_email_with_byte_order_mark():
 
     assert content['subject'] == "xxxxxxxxxx"
     assert content['from'] == 'yyy <yyyyyyyyyyyyyyy@gmail.com>'
-    assert 'YYYYYY YYYYY <xxxxxxxxxxxxxxx@gmail.com>' in content['to']
 
 
 def test_attachment_children():
