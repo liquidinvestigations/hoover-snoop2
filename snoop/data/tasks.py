@@ -25,6 +25,18 @@ class MissingDependency(Exception):
         self.task = task
 
 
+def queue_task(task):
+    def send_to_celery():
+        laterz_shaorma.apply_async((task.pk,), queue=task.func)
+
+    transaction.on_commit(send_to_celery)
+
+
+def queue_next_tasks(task):
+    for next_dependency in task.next_set.all():
+        queue_task(next_dependency.next)
+
+
 @run_once
 def import_shaormas():
     from . import filesystem  # noqa
@@ -40,6 +52,7 @@ def laterz_shaorma(task_pk):
         task = models.Task.objects.select_for_update().get(pk=task_pk)
 
         if task.status == models.Task.STATUS_SUCCESS:
+            queue_next_tasks(task)
             return
 
         args = task.args
@@ -47,20 +60,23 @@ def laterz_shaorma(task_pk):
             assert args[0] == task.blob_arg.pk
             args = [task.blob_arg] + args[1:]
 
-        kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
+        depends_on = {}
+        for dep in task.prev_set.all():
+            prev_task = dep.prev
+            if prev_task.status != models.Task.STATUS_SUCCESS:
+                return
+            depends_on[dep.name] = prev_task.result
 
         task.status = models.Task.STATUS_PENDING
         task.date_started = timezone.now()
         task.save()
 
         try:
-            result = shaormerie[task.func](*args, **kwargs)
+            result = shaormerie[task.func](*args, **depends_on)
 
             if result is not None:
                 assert isinstance(result, models.Blob)
                 task.result = result
-
-            task.status = models.Task.STATUS_SUCCESS
 
         except MissingDependency as dep:
             task.status = models.Task.STATUS_DEFERRED
@@ -69,6 +85,7 @@ def laterz_shaorma(task_pk):
                 next=task,
                 name=dep.name,
             )
+            queue_task(task)
 
         except Exception as e:
             if isinstance(e, ShaormaError):
@@ -84,14 +101,13 @@ def laterz_shaorma(task_pk):
         else:
             task.error = ''
             task.traceback = ''
+            task.status = models.Task.STATUS_SUCCESS
 
         task.date_finished = timezone.now()
         task.save()
 
     if task.status == models.Task.STATUS_SUCCESS:
-        for next_dependency in task.next_set.all():
-            next = next_dependency.next
-            laterz_shaorma.delay(next.pk)
+        queue_next_tasks(task)
 
 
 def shaorma(name):
@@ -114,22 +130,14 @@ def shaorma(name):
                 return task
 
             if depends_on:
-                all_done = True
                 for dep_name, dep in depends_on.items():
-                    dep = type(dep).objects.get(pk=dep.pk)  # make DEP grate again
-                    if dep.result is None:
-                        all_done = False
                     models.TaskDependency.objects.get_or_create(
                         prev=dep,
                         next=task,
                         name=dep_name,
                     )
 
-                if all_done:
-                    laterz_shaorma.delay(task.pk)
-
-            else:
-                laterz_shaorma.delay(task.pk)
+            queue_task(task)
 
             return task
 
@@ -158,4 +166,4 @@ def dispatch_pending_tasks():
         if deps_not_ready:
             continue
         logger.debug("Dispatching %r", task)
-        laterz_shaorma.delay(task.pk)
+        queue_task(task)

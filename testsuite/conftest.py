@@ -13,8 +13,8 @@ class TaskManager:
     def __init__(self):
         self.queue = deque()
 
-    def add(self, task_pk):
-        self.queue.append(task_pk)
+    def add(self, task):
+        self.queue.append(task.pk)
 
     def run(self, limit=100):
         count = 0
@@ -32,5 +32,5 @@ class TaskManager:
 @pytest.fixture
 def taskmanager(monkeypatch):
     taskmanager = TaskManager()
-    monkeypatch.setattr(tasks.laterz_shaorma, 'delay', taskmanager.add)
+    monkeypatch.setattr(tasks, 'queue_task', taskmanager.add)
     return taskmanager
