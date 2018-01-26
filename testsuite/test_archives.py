@@ -57,7 +57,7 @@ JANE_DOE_PST = Path(settings.SNOOP_TESTDATA) / "data/pst/flags_jane_doe.pst"
 TAR_GZ = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz"
 RAR = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/rar-with-pdf-doc-docx.rar"
 
-def test_unarchive_zip():
+def test_unarchive_zip(taskmanager):
     zip_blob = models.Blob.create_from_file(JERRY_ZIP)
     listing_blob = archives.unarchive(zip_blob)
     with listing_blob.open() as f:
@@ -71,7 +71,7 @@ def test_unarchive_zip():
     assert MOUSE_DIR in listing[0]['children']
 
 
-def test_unarchive_pst():
+def test_unarchive_pst(taskmanager):
     pst_blob = models.Blob.create_from_file(JANE_DOE_PST)
     listing_blob = archives.unarchive(pst_blob)
     with listing_blob.open() as f:
@@ -89,7 +89,7 @@ def test_unarchive_pst():
     assert len(root_dir['children']) == 3
 
 
-def test_unarchive_tar_gz():
+def test_unarchive_tar_gz(taskmanager):
     tar_gz_blob = models.Blob.create_from_file(TAR_GZ)
     listing_blob = archives.unarchive(tar_gz_blob)
     with listing_blob.open() as f:
@@ -110,7 +110,7 @@ def test_unarchive_tar_gz():
     }
 
 
-def test_unarchive_rar():
+def test_unarchive_rar(taskmanager):
     rar = models.Blob.create_from_file(RAR)
     listing_blob = archives.unarchive(rar)
     with listing_blob.open() as f:
@@ -123,7 +123,7 @@ def test_unarchive_rar():
     }
 
 
-def test_create_archive_files():
+def test_create_archive_files(taskmanager):
     zip_blob = models.Blob.create_from_file(ZIP_DOCX)
     listing_blob = archives.unarchive(zip_blob)
 

@@ -196,6 +196,7 @@ class Task(models.Model):
     STATUS_PENDING = 'pending'
     STATUS_SUCCESS = 'success'
     STATUS_ERROR = 'error'
+    STATUS_DEFERRED = 'deferred'
 
     func = models.CharField(max_length=1024)
     blob_arg = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING,

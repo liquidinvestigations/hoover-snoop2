@@ -1,6 +1,7 @@
 import logging
 import traceback
 from django.utils import timezone
+from django.db import transaction
 from . import celery
 from . import models
 from .utils import run_once
@@ -17,6 +18,13 @@ class ShaormaError(Exception):
         self.details = details
 
 
+class MissingDependency(Exception):
+
+    def __init__(self, name, task):
+        self.name = name
+        self.task = task
+
+
 @run_once
 def import_shaormas():
     from . import filesystem  # noqa
@@ -28,45 +36,57 @@ def import_shaormas():
 def laterz_shaorma(task_pk):
     import_shaormas()
 
-    task = models.Task.objects.get(pk=task_pk)
+    with transaction.atomic():
+        task = models.Task.objects.select_for_update().get(pk=task_pk)
 
-    args = task.args
-    if task.blob_arg:
-        assert args[0] == task.blob_arg.pk
-        args = [task.blob_arg] + args[1:]
+        if task.status == models.Task.STATUS_SUCCESS:
+            return
 
-    kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
+        args = task.args
+        if task.blob_arg:
+            assert args[0] == task.blob_arg.pk
+            args = [task.blob_arg] + args[1:]
 
-    task.status = models.Task.STATUS_PENDING
-    task.date_started = timezone.now()
-    task.save()
+        kwargs = {dep.name: dep.prev.result for dep in task.prev_set.all()}
 
-    try:
-        result = shaormerie[task.func](*args, **kwargs)
+        task.status = models.Task.STATUS_PENDING
+        task.date_started = timezone.now()
+        task.save()
 
-        if result is not None:
-            assert isinstance(result, models.Blob)
-            task.result = result
+        try:
+            result = shaormerie[task.func](*args, **kwargs)
 
-        task.status = models.Task.STATUS_SUCCESS
+            if result is not None:
+                assert isinstance(result, models.Blob)
+                task.result = result
 
-    except Exception as e:
-        if isinstance(e, ShaormaError):
-            task.error = "{} ({})".format(e.args[0], e.details)
+            task.status = models.Task.STATUS_SUCCESS
+
+        except MissingDependency as dep:
+            task.status = models.Task.STATUS_DEFERRED
+            models.TaskDependency.objects.get_or_create(
+                prev=dep.task,
+                next=task,
+                name=dep.name,
+            )
+
+        except Exception as e:
+            if isinstance(e, ShaormaError):
+                task.error = "{} ({})".format(e.args[0], e.details)
+
+            else:
+                task.error = repr(e)
+
+            task.status = models.Task.STATUS_ERROR
+            task.traceback = traceback.format_exc()
+            logger.error("Shaorma %d failed: %s", task_pk, task.error)
 
         else:
-            task.error = repr(e)
+            task.error = ''
+            task.traceback = ''
 
-        task.status = models.Task.STATUS_ERROR
-        task.traceback = traceback.format_exc()
-        logger.error("Shaorma %d failed: %s", task_pk, task.error)
-
-    else:
-        task.error = ''
-        task.traceback = ''
-
-    task.date_finished = timezone.now()
-    task.save()
+        task.date_finished = timezone.now()
+        task.save()
 
     if task.status == models.Task.STATUS_SUCCESS:
         for next_dependency in task.next_set.all():

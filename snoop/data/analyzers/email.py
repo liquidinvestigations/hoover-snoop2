@@ -5,7 +5,7 @@ from pathlib import Path
 from collections import defaultdict
 import email
 from .. import models
-from ..tasks import shaorma, ShaormaError
+from ..tasks import shaorma, ShaormaError, MissingDependency
 from . import tika
 
 BYTE_ORDER_MARK = b'\xef\xbb\xbf'
@@ -29,7 +29,7 @@ def get_headers(message):
     return dict(rv)
 
 
-def dump_part(message):
+def dump_part(message, depends_on):
     rv = {'headers': get_headers(message)}
 
     content_type = message.get_content_type()
@@ -42,13 +42,21 @@ def dump_part(message):
         payload_bytes = message.get_payload(decode=True)
         with models.Blob.create() as writer:
             writer.write(payload_bytes)
-        rmeta_blob = tika.rmeta(writer.blob)
+
+        tika_key = f'tika-html-{writer.blob.pk}'
+        rmeta_blob = depends_on.get(tika_key)
+        if not rmeta_blob:
+            raise MissingDependency(tika_key, tika.rmeta.laterz(writer.blob))
+
         with rmeta_blob.open(encoding='utf8') as f:
             rmeta_data = json.load(f)
         rv['text'] = rmeta_data[0]['X-TIKA:content']
 
     if message.is_multipart():
-        rv['parts'] = [dump_part(part) for part in message.get_payload()]
+        rv['parts'] = [
+            dump_part(part, depends_on)
+            for part in message.get_payload()
+        ]
 
     if message.get_content_disposition():
         raw_filename = message.get_filename()
@@ -70,7 +78,7 @@ def dump_part(message):
 
 
 @shaorma('email.parse')
-def parse(blob):
+def parse(blob, **depends_on):
     with blob.open() as f:
         message_bytes = f.read()
 
@@ -78,7 +86,7 @@ def parse(blob):
         message_bytes = message_bytes[3:]
 
     message = email.message_from_bytes(message_bytes)
-    data = dump_part(message)
+    data = dump_part(message, depends_on)
 
     with models.Blob.create() as output:
         output.write(json.dumps(data, indent=2).encode('utf8'))
@@ -86,7 +94,8 @@ def parse(blob):
     return output.blob
 
 
-def msg_blob_to_eml(blob):
+@shaorma('email.msg_to_eml')
+def msg_to_eml(blob):
     with tempfile.TemporaryDirectory() as temp_dir:
         msg_path = Path(temp_dir) / 'email.msg'
         msg_path.symlink_to(blob.path())
@@ -102,4 +111,3 @@ def msg_blob_to_eml(blob):
             raise ShaormaError("msgconvert failed", e.output.decode('latin1'))
 
         return models.Blob.create_from_file(eml_path)
-

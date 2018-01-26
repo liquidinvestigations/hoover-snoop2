@@ -3,7 +3,7 @@ from pathlib import Path
 from django.utils import timezone
 from .utils import time_from_unix
 from . import models
-from .tasks import shaorma
+from .tasks import shaorma, MissingDependency
 from .analyzers import archives
 from .analyzers import emlx
 from .analyzers import email
@@ -64,7 +64,7 @@ def file_to_blob(directory, name):
 
 
 @shaorma('filesystem.handle_file')
-def handle_file(file_pk):
+def handle_file(file_pk, **depends_on):
     file = models.File.objects.get(pk=file_pk)
     file.blob = file.original
 
@@ -76,10 +76,18 @@ def handle_file(file_pk):
         )
 
     elif file.original.mime_type == "application/vnd.ms-outlook":
-        file.blob = email.msg_blob_to_eml(file.original)
+        eml = depends_on.get('msg_to_eml')
+        if not eml:
+            task = email.msg_to_eml.laterz(file.original)
+            raise MissingDependency('msg_to_eml', task)
+        file.blob = eml
 
     elif file.original.mime_type == 'message/x-emlx':
-        file.blob = emlx.reconstruct(file)
+        eml = depends_on.get('emlx_reconstruct')
+        if not eml:
+            task = emlx.reconstruct.laterz(file.pk)
+            raise MissingDependency('emlx_reconstruct', task)
+        file.blob = eml
 
     if file.blob.mime_type == 'message/rfc822':
         email_parse_task = email.parse.laterz(file.blob)

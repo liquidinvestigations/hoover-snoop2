@@ -1,10 +1,13 @@
 import re
 import email
 from .. import models
+from ..tasks import shaorma
 from .email import iter_parts
 
 
-def reconstruct(file):
+@shaorma('emlx.reconstruct')
+def reconstruct(file_pk):
+    file = models.File.objects.get(pk=file_pk)
     with file.original.open() as f:
         original_data = f.read()
 
