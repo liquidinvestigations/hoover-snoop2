@@ -105,13 +105,13 @@ def email_meta(digest_data):
         if part_text:
             text_bits.append(part_text)
 
-    headers_to = []
-    for header in ['To', 'Cc', 'Bcc', 'Resent-To', 'Recent-Cc', 'Reply-To']:
-        headers_to += headers.get(header, [])
+    headers_to = set()
+    for header in ['To', 'Cc', 'Bcc', 'Resent-To', 'Recent-Cc']:
+        headers_to.update(headers.get(header, []))
 
     return {
         'from': headers.get('From', [''])[0],
-        'to': headers_to,
+        'to': list(headers_to),
         'subject': headers.get('Subject', [''])[0],
         'text': '\n\n'.join(text_bits).strip(),
     }
