@@ -29,6 +29,11 @@ def queue_task(task):
     transaction.on_commit(lambda: laterz_shaorma.delay(task.pk))
 
 
+def queue_next_tasks(task):
+    for next_dependency in task.next_set.all():
+        queue_task(next_dependency.next)
+
+
 @run_once
 def import_shaormas():
     from . import filesystem  # noqa
@@ -44,6 +49,7 @@ def laterz_shaorma(task_pk):
         task = models.Task.objects.select_for_update().get(pk=task_pk)
 
         if task.status == models.Task.STATUS_SUCCESS:
+            queue_next_tasks(task)
             return
 
         args = task.args
@@ -55,8 +61,7 @@ def laterz_shaorma(task_pk):
         for dep in task.prev_set.all():
             prev_task = dep.prev
             if prev_task.status != models.Task.STATUS_SUCCESS:
-                msg = f"Dependency {prev_task} for task {task} not ready"
-                raise RuntimeError(msg)
+                return
             depends_on[dep.name] = prev_task.result
 
         task.status = models.Task.STATUS_PENDING
@@ -70,8 +75,6 @@ def laterz_shaorma(task_pk):
                 assert isinstance(result, models.Blob)
                 task.result = result
 
-            task.status = models.Task.STATUS_SUCCESS
-
         except MissingDependency as dep:
             task.status = models.Task.STATUS_DEFERRED
             models.TaskDependency.objects.get_or_create(
@@ -79,6 +82,7 @@ def laterz_shaorma(task_pk):
                 next=task,
                 name=dep.name,
             )
+            queue_task(task)
 
         except Exception as e:
             if isinstance(e, ShaormaError):
@@ -94,14 +98,13 @@ def laterz_shaorma(task_pk):
         else:
             task.error = ''
             task.traceback = ''
+            task.status = models.Task.STATUS_SUCCESS
 
         task.date_finished = timezone.now()
         task.save()
 
     if task.status == models.Task.STATUS_SUCCESS:
-        for next_dependency in task.next_set.all():
-            next = next_dependency.next
-            queue_task(next)
+        queue_next_tasks(task)
 
 
 def shaorma(name):
@@ -124,22 +127,14 @@ def shaorma(name):
                 return task
 
             if depends_on:
-                all_done = True
                 for dep_name, dep in depends_on.items():
-                    dep = type(dep).objects.get(pk=dep.pk)  # make DEP grate again
-                    if dep.result is None:
-                        all_done = False
                     models.TaskDependency.objects.get_or_create(
                         prev=dep,
                         next=task,
                         name=dep_name,
                     )
 
-                if all_done:
-                    queue_task(task)
-
-            else:
-                queue_task(task)
+            queue_task(task)
 
             return task
 
