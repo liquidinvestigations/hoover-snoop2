@@ -1,9 +1,12 @@
+from datetime import timedelta
 from django.urls import reverse
 from django.contrib import admin
 from django.utils.safestring import mark_safe
+from django.utils import timezone
 from django.template.defaultfilters import truncatechars
 from django.urls import path
 from django.shortcuts import render
+from django.db.models import Sum
 from . import models
 from . import tasks
 
@@ -11,6 +14,32 @@ from . import tasks
 def blob_link(blob_pk):
     url = reverse('admin:data_blob_change', args=[blob_pk])
     return mark_safe(f'<a href="{url}">{blob_pk[:10]}...{blob_pk[-4:]}</a>')
+
+
+def get_stats():
+    one_minute_ago = timezone.now() - timedelta(minutes=1)
+
+    tasks = models.Task.objects
+
+    tasks_pending = tasks.filter(status=models.Task.STATUS_PENDING)
+    tasks_success = tasks.filter(status=models.Task.STATUS_SUCCESS)
+    tasks_error = tasks.filter(status=models.Task.STATUS_ERROR)
+    tasks_1m = tasks.filter(date_finished__gt=one_minute_ago)
+
+    blobs = models.Blob.objects
+
+    return {
+        'tasks': {
+            'pending': tasks_pending.count(),
+            'success': tasks_success.count(),
+            'error': tasks_error.count(),
+            '1m': tasks_1m.count(),
+        },
+        'blobs': {
+            'count': blobs.count(),
+            'size': blobs.aggregate(Sum('size'))['size__sum'],
+        },
+    }
 
 
 class FileAdmin(admin.ModelAdmin):
@@ -99,7 +128,7 @@ class SnoopAminSite(admin.AdminSite):
         ]
 
     def shaorma(self, request):
-        return render(request, 'snoop/admin_shaorma.html')
+        return render(request, 'snoop/admin_shaorma.html', get_stats())
 
 
 site = SnoopAminSite(name='snoopadmin')
