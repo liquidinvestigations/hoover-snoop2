@@ -35,12 +35,14 @@ class BlobWriter:
             'sha256': hashlib.sha256(),
         }
         self.magic = Magic()
+        self.size = 0
 
     def write(self, chunk):
         for h in self.hashes.values():
             h.update(chunk)
         self.magic.update(chunk)
         self.file.write(chunk)
+        self.size += len(chunk)
 
     def finish(self):
         self.magic.finish()
@@ -51,6 +53,7 @@ class BlobWriter:
         fields['mime_type'] = self.magic.mime_type
         fields['mime_encoding'] = self.magic.mime_encoding
         fields['magic'] = self.magic.magic_output
+        fields['size'] = self.size
         return fields
 
 
@@ -60,6 +63,7 @@ class Blob(models.Model):
     sha1 = models.CharField(max_length=40, db_index=True)
     md5 = models.CharField(max_length=32, db_index=True)
 
+    size = models.BigIntegerField()
     magic = models.CharField(max_length=4096)
     mime_type = models.CharField(max_length=1024)
     mime_encoding = models.CharField(max_length=1024)
@@ -179,7 +183,7 @@ class File(models.Model):
     )
     ctime = models.DateTimeField()
     mtime = models.DateTimeField()
-    size = models.IntegerField()
+    size = models.BigIntegerField()
     original = models.ForeignKey(Blob, on_delete=models.DO_NOTHING,
                                  related_name='+')
     blob = models.ForeignKey(Blob, null=True, blank=True,
