@@ -147,14 +147,14 @@ def get_document_data(digest):
         attachments = first_file.child_directory_set.first()
         if attachments:
             rv['children'] = [
-                child_file(f)
+                child_file_to_dict(f)
                 for f in attachments.child_file_set.order_by('pk').all()
             ]
 
     return rv
 
 
-def child_file(file):
+def child_file_to_dict(file):
     blob = file.blob
     return {
         'id': blob.pk,
@@ -163,7 +163,7 @@ def child_file(file):
     }
 
 
-def child_dir(directory):
+def child_dir_to_dict(directory):
     return {
         'id': directory_id(directory),
         'content_type': 'application/x-directory',
@@ -173,8 +173,8 @@ def child_dir(directory):
 
 def get_directory_data(directory):
     children = (
-        [child_dir(d) for d in directory.child_directory_set.all()] +
-        [child_file(f) for f in directory.child_file_set.all()]
+        [child_dir_to_dict(d) for d in directory.child_directory_set.all()] +
+        [child_file_to_dict(f) for f in directory.child_file_set.all()]
     )
 
     return {
