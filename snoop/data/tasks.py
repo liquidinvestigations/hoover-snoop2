@@ -26,7 +26,10 @@ class MissingDependency(Exception):
 
 
 def queue_task(task):
-    transaction.on_commit(lambda: laterz_shaorma.delay(task.pk))
+    def send_to_celery():
+        laterz_shaorma.apply_async((task.pk,), queue=task.func)
+
+    transaction.on_commit(send_to_celery)
 
 
 def queue_next_tasks(task):
