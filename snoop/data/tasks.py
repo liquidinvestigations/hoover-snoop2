@@ -141,7 +141,15 @@ def shaorma(name):
 
 
 def dispatch_pending_tasks():
-    for task in models.Task.objects.filter(status=models.Task.STATUS_PENDING):
+    task_query = (
+        models.Task.objects
+        .filter(status__in=[
+            models.Task.STATUS_PENDING,
+            models.Task.STATUS_DEFERRED,
+        ])
+    )
+
+    for task in task_query:
         deps_not_ready = (
             task.prev_set
             .exclude(prev__status=models.Task.STATUS_SUCCESS)

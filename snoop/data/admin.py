@@ -41,9 +41,26 @@ class BlobAdmin(admin.ModelAdmin):
 
 
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ['pk', 'func', 'args', 'status']
+    list_display = ['pk', 'func', 'args', 'status', 'deps']
     list_filter = ['func', 'status']
     search_fields = ['pk', 'func', 'args']
+
+    LINK_STYLE = {
+        'pending': '',
+        'success': 'color: green',
+        'error': 'color: red',
+        'deferred': 'color: grey',
+    }
+
+    def deps(self, obj):
+        def link(dep):
+            task = dep.prev
+            url = reverse('admin:data_task_change', args=[task.pk])
+            style = self.LINK_STYLE[task.status]
+            return f'<a href="{url}" style="{style}">{dep.name}</a>'
+
+        dep_list = [link(dep) for dep in obj.prev_set.order_by('name')]
+        return mark_safe(', '.join(dep_list))
 
 
 class DigestAdmin(admin.ModelAdmin):

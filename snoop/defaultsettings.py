@@ -60,6 +60,7 @@ USE_L10N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
+STATIC_ROOT = str(base_dir / 'static')
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
 SNOOP_TIKA_URL = 'http://localhost:9998'

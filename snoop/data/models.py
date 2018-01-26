@@ -12,6 +12,10 @@ BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
 BLOB_TMP = BLOB_ROOT / 'tmp'
 
 
+def blob_repo_path(sha3_256):
+    return BLOB_ROOT / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
+
+
 def chunks(file, blocksize=65536):
     while True:
         data = file.read(blocksize)
@@ -31,12 +35,14 @@ class BlobWriter:
             'sha256': hashlib.sha256(),
         }
         self.magic = Magic()
+        self.size = 0
 
     def write(self, chunk):
         for h in self.hashes.values():
             h.update(chunk)
         self.magic.update(chunk)
         self.file.write(chunk)
+        self.size += len(chunk)
 
     def finish(self):
         self.magic.finish()
@@ -47,6 +53,7 @@ class BlobWriter:
         fields['mime_type'] = self.magic.mime_type
         fields['mime_encoding'] = self.magic.mime_encoding
         fields['magic'] = self.magic.magic_output
+        fields['size'] = self.size
         return fields
 
 
@@ -56,6 +63,7 @@ class Blob(models.Model):
     sha1 = models.CharField(max_length=40, db_index=True)
     md5 = models.CharField(max_length=32, db_index=True)
 
+    size = models.BigIntegerField()
     magic = models.CharField(max_length=4096)
     mime_type = models.CharField(max_length=1024)
     mime_encoding = models.CharField(max_length=1024)
@@ -74,13 +82,12 @@ class Blob(models.Model):
         return self.mime_type
 
     def path(self):
-        return BLOB_ROOT / self.pk
+        return blob_repo_path(self.pk)
 
     @classmethod
     @contextmanager
     def create(cls):
-        BLOB_ROOT.mkdir(exist_ok=True)
-        BLOB_TMP.mkdir(exist_ok=True)
+        BLOB_TMP.mkdir(exist_ok=True, parents=True)
 
         with tempfile.NamedTemporaryFile(dir=BLOB_TMP, delete=False) as f:
             writer = BlobWriter(f)
@@ -89,8 +96,11 @@ class Blob(models.Model):
         fields = writer.finish()
         pk = fields.pop('sha3_256')
 
-        blob_path = BLOB_ROOT / pk
-        Path(f.name).rename(blob_path)
+        blob_path = blob_repo_path(pk)
+        blob_path.parent.mkdir(exist_ok=True, parents=True)
+        temp_blob_path = Path(f.name)
+        temp_blob_path.chmod(0o444)
+        temp_blob_path.rename(blob_path)
 
         if fields['mime_type'].startswith('text/'):
             if looks_like_email(blob_path):
@@ -138,13 +148,13 @@ class Directory(models.Model):
     name = models.CharField(max_length=255, blank=True)
     parent_directory = models.ForeignKey(
         'Directory',
-        null=True,
+        null=True, blank=True,
         on_delete=models.DO_NOTHING,
         related_name='child_directory_set',
     )
     container_file = models.ForeignKey(
         'File',
-        null=True,
+        null=True, blank=True,
         on_delete=models.DO_NOTHING,
         related_name='child_directory_set',
     )
@@ -173,10 +183,11 @@ class File(models.Model):
     )
     ctime = models.DateTimeField()
     mtime = models.DateTimeField()
-    size = models.IntegerField()
+    size = models.BigIntegerField()
     original = models.ForeignKey(Blob, on_delete=models.DO_NOTHING,
                                  related_name='+')
-    blob = models.ForeignKey(Blob, on_delete=models.DO_NOTHING, null=True)
+    blob = models.ForeignKey(Blob, null=True, blank=True,
+                             on_delete=models.DO_NOTHING)
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
@@ -199,16 +210,18 @@ class Task(models.Model):
     STATUS_DEFERRED = 'deferred'
 
     func = models.CharField(max_length=1024)
-    blob_arg = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING,
+    blob_arg = models.ForeignKey(Blob, null=True, blank=True,
+                                 on_delete=models.DO_NOTHING,
                                  related_name='+')
     args = JSONField()
-    result = models.ForeignKey(Blob, null=True, on_delete=models.DO_NOTHING)
+    result = models.ForeignKey(Blob, null=True, blank=True,
+                               on_delete=models.DO_NOTHING)
 
     # these fields are used for logging and debugging, not for dispatching
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
-    date_started = models.DateTimeField(null=True)
-    date_finished = models.DateTimeField(null=True)
+    date_started = models.DateTimeField(null=True, blank=True)
+    date_finished = models.DateTimeField(null=True, blank=True)
     worker = models.CharField(max_length=4096, blank=True)
 
     status = models.CharField(max_length=16, default=STATUS_PENDING)

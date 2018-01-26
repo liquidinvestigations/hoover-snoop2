@@ -1,9 +1,11 @@
-import os
+from snoop import set_django_settings
+set_django_settings()
+
 from django.core.wsgi import get_wsgi_application
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "snoop.settings")
-
 application = get_wsgi_application()
+
+from whitenoise.django import DjangoWhiteNoise
+application = DjangoWhiteNoise(application)
 
 from django.conf import settings
 from . import defaultsettings
