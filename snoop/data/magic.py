@@ -28,7 +28,10 @@ class Magic:
 
     def finish_mime(self):
         if self.mime_process:
-            self.mime_process.stdin.close()
+            try:
+                self.mime_process.stdin.close()
+            except IOError:
+                pass
             output = self.mime_process.stdout.read().decode('latin1')
             m = re.match(
                 r'/dev/stdin: (?P<mime_type>[^;].+); '
@@ -45,7 +48,10 @@ class Magic:
 
     def finish_magic(self):
         if self.magic_process:
-            self.magic_process.stdin.close()
+            try:
+                self.magic_process.stdin.close()
+            except IOError:
+                pass
             output = self.magic_process.stdout.read().decode('latin1')
             output = output.split(r'\012-')[0]
             m = re.match(
