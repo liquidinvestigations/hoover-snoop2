@@ -7,6 +7,7 @@ from django.template.defaultfilters import truncatechars
 from django.urls import path
 from django.shortcuts import render
 from django.db.models import Sum
+from django.contrib.humanize.templatetags.humanize import naturaltime
 from . import models
 from . import tasks
 
@@ -73,7 +74,8 @@ class BlobAdmin(admin.ModelAdmin):
 
 
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ['pk', 'func', 'args', 'status', 'deps']
+    list_display = ['pk', 'func', 'args', 'status', 'created', 'finished',
+                    'deps']
     list_filter = ['func', 'status']
     search_fields = ['pk', 'func', 'args']
     actions = ['retry_selected_tasks']
@@ -84,6 +86,16 @@ class TaskAdmin(admin.ModelAdmin):
         'error': 'color: red',
         'deferred': 'color: grey',
     }
+
+    def created(self, obj):
+        return naturaltime(obj.date_created)
+
+    created.admin_order_field = 'date_created'
+
+    def finished(self, obj):
+        return naturaltime(obj.date_finished)
+
+    finished.admin_order_field = 'date_finished'
 
     def deps(self, obj):
         def link(dep):
