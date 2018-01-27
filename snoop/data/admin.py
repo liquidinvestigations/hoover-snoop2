@@ -7,6 +7,7 @@ from django.template.defaultfilters import truncatechars
 from django.urls import path
 from django.shortcuts import render
 from django.db.models import Sum
+from django.db import connection
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from . import models
 from . import tasks
@@ -15,6 +16,12 @@ from . import tasks
 def blob_link(blob_pk):
     url = reverse('admin:data_blob_change', args=[blob_pk])
     return mark_safe(f'<a href="{url}">{blob_pk[:10]}...{blob_pk[-4:]}</a>')
+
+
+def raw_sql(query):
+    with connection.cursor() as cursor:
+        cursor.execute(query)
+        return cursor.fetchall()
 
 
 def get_stats():
@@ -29,6 +36,8 @@ def get_stats():
 
     blobs = models.Blob.objects
 
+    [[db_size]] = raw_sql("select pg_database_size(current_database())")
+
     return {
         'tasks': {
             'pending': tasks_pending.count(),
@@ -39,6 +48,13 @@ def get_stats():
         'blobs': {
             'count': blobs.count(),
             'size': blobs.aggregate(Sum('size'))['size__sum'],
+        },
+        'collections': {
+            'files': models.File.objects.count(),
+            'directories': models.Directory.objects.count(),
+        },
+        'database': {
+            'size': db_size,
         },
     }
 

@@ -3,14 +3,19 @@
 
 {% block content %}
 
-<h3>Tasks</h3>
-pending: {{ tasks.pending }}<br>
-success: {{ tasks.success }}<br>
-error: {{ tasks.error }}<br>
-1m: {{ tasks.1m }}<br>
+<h2>Tasks</h2>
+<strong>{{ tasks.pending }}</strong> pending<br>
+<strong>{{ tasks.success }}</strong> success<br>
+<strong>{{ tasks.error }}</strong> error<br>
+<strong>{{ tasks.1m }}</strong> 1m<br>
 
-<h3>Blobs</h3>
-count: {{ blobs.count }}<br>
-size: {{ blobs.size|pretty_size }}<br>
+<h2>Collections</h2>
+<strong>{{ collections.files }}</strong> files<br>
+<strong>{{ collections.directories }}</strong> directories<br>
+
+<h2>Storage</h2>
+<strong>{{ blobs.count }}</strong> blobs<br>
+<strong>{{ blobs.size|pretty_size }}</strong> in blob storage<br>
+<strong>{{ database.size|pretty_size }}</strong> in database<br>
 
 {% endblock %}
