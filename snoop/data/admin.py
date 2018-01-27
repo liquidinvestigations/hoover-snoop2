@@ -80,10 +80,10 @@ class BlobAdmin(admin.ModelAdmin):
 
 class TaskAdmin(admin.ModelAdmin):
     raw_id_fields = ['blob_arg', 'result']
-    list_display = ['pk', 'func', 'args', 'status', 'created', 'finished',
-                    'deps']
+    list_display = ['pk', 'func', 'args', 'created', 'finished',
+                    'status', 'details']
     list_filter = ['func', 'status']
-    search_fields = ['pk', 'func', 'args']
+    search_fields = ['pk', 'func', 'args', 'error', 'traceback']
     actions = ['retry_selected_tasks']
 
     LINK_STYLE = {
@@ -103,7 +103,13 @@ class TaskAdmin(admin.ModelAdmin):
 
     finished.admin_order_field = 'date_finished'
 
-    def deps(self, obj):
+    def details(self, obj):
+        if obj.status == models.Task.STATUS_SUCCESS:
+            return "✔"
+
+        if obj.status == models.Task.STATUS_ERROR:
+            return obj.error
+
         def link(dep):
             task = dep.prev
             url = reverse('admin:data_task_change', args=[task.pk])
