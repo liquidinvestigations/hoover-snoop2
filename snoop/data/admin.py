@@ -1,4 +1,5 @@
 from datetime import timedelta
+from collections import defaultdict
 from django.urls import reverse
 from django.contrib import admin
 from django.utils.safestring import mark_safe
@@ -6,7 +7,7 @@ from django.utils import timezone
 from django.template.defaultfilters import truncatechars
 from django.urls import path
 from django.shortcuts import render
-from django.db.models import Sum
+from django.db.models import Sum, Count
 from django.db import connection
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from . import models
@@ -25,26 +26,32 @@ def raw_sql(query):
 
 
 def get_stats():
+    task_matrix = defaultdict(dict)
+
+    task_buckets_query = (
+        models.Task.objects
+        .values('func', 'status')
+        .annotate(count=Count('*'))
+    )
+    for bucket in task_buckets_query:
+        task_matrix[bucket['func']][bucket['status']] = bucket['count']
+
     one_minute_ago = timezone.now() - timedelta(minutes=1)
-
-    tasks = models.Task.objects
-
-    tasks_pending = tasks.filter(status=models.Task.STATUS_PENDING)
-    tasks_success = tasks.filter(status=models.Task.STATUS_SUCCESS)
-    tasks_error = tasks.filter(status=models.Task.STATUS_ERROR)
-    tasks_1m = tasks.filter(date_finished__gt=one_minute_ago)
+    task_1m_query = (
+        models.Task.objects
+        .filter(date_finished__gt=one_minute_ago)
+        .values('func')
+        .annotate(count=Count('*'))
+    )
+    for bucket in task_1m_query:
+        task_matrix[bucket['func']]['1m'] = bucket['count']
 
     blobs = models.Blob.objects
 
     [[db_size]] = raw_sql("select pg_database_size(current_database())")
 
     return {
-        'tasks': {
-            'pending': tasks_pending.count(),
-            'success': tasks_success.count(),
-            'error': tasks_error.count(),
-            '1m': tasks_1m.count(),
-        },
+        'task_matrix': dict(task_matrix),
         'blobs': {
             'count': blobs.count(),
             'size': blobs.aggregate(Sum('size'))['size__sum'],

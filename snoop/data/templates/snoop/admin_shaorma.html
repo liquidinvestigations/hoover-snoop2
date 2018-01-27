@@ -4,10 +4,27 @@
 {% block content %}
 
 <h2>Tasks</h2>
-<strong>{{ tasks.pending }}</strong> pending<br>
-<strong>{{ tasks.success }}</strong> success<br>
-<strong>{{ tasks.error }}</strong> error<br>
-<strong>{{ tasks.1m }}</strong> 1m<br>
+<table>
+  <thead>
+    <th>func</th>
+    <th>pending</th>
+    <th>success</th>
+    <th>error</th>
+    <th>1m</th>
+  </thead>
+
+  <tbody>
+    {% for func, row in task_matrix.items %}
+    <tr>
+      <th>{{ func }}</th>
+      <td>{{ row.pending }}</td>
+      <td>{{ row.success }}</td>
+      <td>{{ row.error }}</td>
+      <td>{{ row.1m }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 
 <h2>Collections</h2>
 <strong>{{ collections.files }}</strong> files<br>
