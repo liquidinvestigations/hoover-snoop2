@@ -43,7 +43,12 @@ def get_stats():
     }
 
 
+class DirectoryAdmin(admin.ModelAdmin):
+    raw_id_fields = ['parent_directory', 'container_file']
+
+
 class FileAdmin(admin.ModelAdmin):
+    raw_id_fields = ['parent_directory', 'original', 'blob']
     list_display = ['__str__', 'size', 'mime_type', 'blob_link']
     search_fields = [
         'name',
@@ -74,6 +79,7 @@ class BlobAdmin(admin.ModelAdmin):
 
 
 class TaskAdmin(admin.ModelAdmin):
+    raw_id_fields = ['blob_arg', 'result']
     list_display = ['pk', 'func', 'args', 'status', 'created', 'finished',
                     'deps']
     list_filter = ['func', 'status']
@@ -112,7 +118,12 @@ class TaskAdmin(admin.ModelAdmin):
         self.message_user(request, f"requeued {queryset.count()} tasks")
 
 
+class TaskDependencyAdmin(admin.ModelAdmin):
+    raw_id_fields = ['prev', 'next']
+
+
 class DigestAdmin(admin.ModelAdmin):
+    raw_id_fields = ['blob', 'result']
     list_display = ['pk', 'collection', 'blob__mime_type', 'blob_link',
                     'result_link', 'date_modified']
     list_filter = ['collection__name', 'blob__mime_type']
@@ -147,9 +158,9 @@ site = SnoopAminSite(name='snoopadmin')
 
 
 site.register(models.Collection)
-site.register(models.Directory)
+site.register(models.Directory, DirectoryAdmin)
 site.register(models.File, FileAdmin)
 site.register(models.Blob, BlobAdmin)
 site.register(models.Task, TaskAdmin)
-site.register(models.TaskDependency)
+site.register(models.TaskDependency, TaskDependencyAdmin)
 site.register(models.Digest, DigestAdmin)
