@@ -164,6 +164,7 @@ class Directory(models.Model):
 
     class Meta:
         unique_together = ('parent_directory', 'name')
+        verbose_name_plural = 'directories'
 
     def __str__(self):
         return f'{self.name}/'
@@ -257,6 +258,7 @@ class TaskDependency(models.Model):
 
     class Meta:
         unique_together = ('prev', 'next', 'name')
+        verbose_name_plural = 'task dependencies'
 
     def __str__(self):
         return f'{self.prev} -> {self.next}'
