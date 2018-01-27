@@ -49,7 +49,7 @@ class DirectoryAdmin(admin.ModelAdmin):
 
 class FileAdmin(admin.ModelAdmin):
     raw_id_fields = ['parent_directory', 'original', 'blob']
-    list_display = ['__str__', 'size', 'mime_type', 'blob_link']
+    list_display = ['__str__', 'size', 'mime_type', 'original_blob_link']
     search_fields = [
         'name',
         'blob__sha3_256',
@@ -62,12 +62,12 @@ class FileAdmin(admin.ModelAdmin):
     ]
 
     def mime_type(self, obj):
-        return obj.blob.mime_type
+        return obj.original.mime_type
 
-    def blob_link(self, obj):
-        return blob_link(obj.blob.pk)
+    def original_blob_link(self, obj):
+        return blob_link(obj.original.pk)
 
-    blob_link.short_description = 'blob'
+    original_blob_link.short_description = 'blob'
 
 
 class BlobAdmin(admin.ModelAdmin):
