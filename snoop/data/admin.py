@@ -51,7 +51,7 @@ def get_stats():
     [[db_size]] = raw_sql("select pg_database_size(current_database())")
 
     return {
-        'task_matrix': dict(task_matrix),
+        'task_matrix': sorted(task_matrix.items()),
         'blobs': {
             'count': blobs.count(),
             'size': blobs.aggregate(Sum('size'))['size__sum'],
