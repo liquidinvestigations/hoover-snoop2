@@ -43,7 +43,12 @@ class Magic:
             # file's -k option separates multiple findings with \012-
             # Keep only the first finding
             self.mime_type = self.mime_type.split(r'\012-')[0]
-            assert self.mime_process.wait() == 0
+
+            exit_code = self.mime_process.wait()
+            if exit_code != 0:
+                msg = f"`file` exited with {exit_code}: {output}"
+                raise RuntimeError(msg)
+
             self.mime_process = None
 
     def finish_magic(self):
@@ -60,7 +65,11 @@ class Magic:
             )
             self.magic_output = m.group('magic_output')
 
-            assert self.magic_process.wait() == 0
+            exit_code = self.magic_process.wait()
+            if exit_code != 0:
+                msg = f"`file` exited with {exit_code}: {self.magic_output}"
+                raise RuntimeError(msg)
+
             self.magic_process = None
 
     def finish(self):
