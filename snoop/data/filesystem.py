@@ -28,7 +28,7 @@ def directory_absolute_path(directory):
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
-    child_files = []
+
     for thing in path.iterdir():
         if thing.is_dir():
             (child_directory, _) = directory.child_directory_set.get_or_create(
@@ -36,15 +36,14 @@ def walk(directory_pk):
                 name=thing.name,
             )
             walk.laterz(child_directory.pk)
+
         else:
-            file = file_to_blob(directory, thing.name)
-            child_files.append(file)
-
-    for file in child_files:
-        handle_file.laterz(file.pk)
+            walk_file.laterz(directory.pk, thing.name)
 
 
-def file_to_blob(directory, name):
+@shaorma('filesystem.walk_file')
+def walk_file(directory_pk, name):
+    directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory) / name
     original = models.Blob.create_from_file(path)
 
@@ -60,7 +59,7 @@ def file_to_blob(directory, name):
         ),
     )
 
-    return file
+    handle_file.laterz(file.pk)
 
 
 @shaorma('filesystem.handle_file')
