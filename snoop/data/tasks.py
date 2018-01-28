@@ -51,7 +51,7 @@ def import_shaormas():
 
 
 @celery.app.task
-def laterz_shaorma(task_pk):
+def laterz_shaorma(task_pk, raise_exceptions=False):
     import_shaormas()
 
     with transaction.atomic():
@@ -85,6 +85,11 @@ def laterz_shaorma(task_pk):
                 task.result = result
 
         except MissingDependency as dep:
+            logger.info(
+                "Shaorma %d requests an extra dependency: %r",
+                task_pk, dep,
+            )
+
             task.status = models.Task.STATUS_DEFERRED
             models.TaskDependency.objects.get_or_create(
                 prev=dep.task,
@@ -94,6 +99,9 @@ def laterz_shaorma(task_pk):
             queue_task(task)
 
         except Exception as e:
+            if raise_exceptions:
+                raise
+
             if isinstance(e, ShaormaError):
                 task.error = "{} ({})".format(e.args[0], e.details)
 
