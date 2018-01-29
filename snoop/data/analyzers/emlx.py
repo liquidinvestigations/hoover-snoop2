@@ -1,12 +1,14 @@
 import re
 import email
 from .. import models
-from ..tasks import shaorma
+from ..tasks import shaorma, require_dependency
 from .email import iter_parts
 
 
 @shaorma('emlx.reconstruct')
-def reconstruct(file_pk):
+def reconstruct(file_pk, **depends_on):
+    from .. import filesystem
+
     file = models.File.objects.get(pk=file_pk)
     with file.original.open() as f:
         original_data = f.read()
@@ -18,13 +20,21 @@ def reconstruct(file_pk):
         if part.get('X-Apple-Content-Length'):
             ext = f'.{ref}.emlxpart'
             part_name = re.sub(r'\.partial\.emlx$', ext, file.name)
+            parent = file.parent_directory
+
+            require_dependency(
+                f'walk-{parent.pk}', depends_on,
+                lambda: filesystem.walk.laterz(parent.pk),
+            )
+
+            require_dependency(
+                f'walk_file-{parent.pk}-part-{ext}', depends_on,
+                lambda: filesystem.walk_file.laterz(parent.pk, part_name),
+            )
 
             try:
-                part_file = (
-                    file.parent_directory
-                    .child_file_set
-                    .get(name=part_name)
-                )
+                part_file = parent.child_file_set.get(name=part_name)
+
             except models.File.DoesNotExist:
                 # skip this part, it's missing
                 continue
