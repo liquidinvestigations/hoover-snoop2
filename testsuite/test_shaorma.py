@@ -1,5 +1,5 @@
 import pytest
-from snoop.data.tasks import shaorma, MissingDependency
+from snoop.data.tasks import shaorma, require_dependency
 from snoop.data import models
 
 pytestmark = [pytest.mark.django_db]
@@ -60,11 +60,11 @@ def test_missing_dependency(taskmanager):
         return writer.blob
 
     @shaorma('test_two')
-    def two(foo=None):
-        if foo is None:
-            raise MissingDependency('foo', one.laterz('hello'))
-
-        return foo
+    def two(**depends_on):
+        return require_dependency(
+            'foo', depends_on,
+            lambda: one.laterz('hello'),
+        )
 
     two_task = two.laterz()
 

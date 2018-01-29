@@ -3,7 +3,7 @@ from pathlib import Path
 from django.utils import timezone
 from .utils import time_from_unix
 from . import models
-from .tasks import shaorma, MissingDependency
+from .tasks import shaorma, require_dependency
 from .analyzers import archives
 from .analyzers import emlx
 from .analyzers import email
@@ -75,18 +75,16 @@ def handle_file(file_pk, **depends_on):
         )
 
     elif file.original.mime_type == "application/vnd.ms-outlook":
-        eml = depends_on.get('msg_to_eml')
-        if not eml:
-            task = email.msg_to_eml.laterz(file.original)
-            raise MissingDependency('msg_to_eml', task)
-        file.blob = eml
+        file.blob = require_dependency(
+            'msg_to_eml', depends_on,
+            lambda: email.msg_to_eml.laterz(file.original),
+        )
 
     elif file.original.mime_type == 'message/x-emlx':
-        eml = depends_on.get('emlx_reconstruct')
-        if not eml:
-            task = emlx.reconstruct.laterz(file.pk)
-            raise MissingDependency('emlx_reconstruct', task)
-        file.blob = eml
+        file.blob = require_dependency(
+            'emlx_reconstruct', depends_on,
+            lambda: emlx.reconstruct.laterz(file.pk),
+        )
 
     if file.blob.mime_type == 'message/rfc822':
         email_parse_task = email.parse.laterz(file.blob)

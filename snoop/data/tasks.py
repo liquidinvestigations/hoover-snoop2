@@ -182,3 +182,11 @@ def retry_tasks(queryset):
         for task in queryset.iterator():
             queue_task(task)
         queryset.update(status=models.Task.STATUS_PENDING)
+
+
+def require_dependency(name, depends_on, callback):
+    if name in depends_on:
+        return depends_on[name]
+
+    task = callback()
+    raise MissingDependency(name, task)

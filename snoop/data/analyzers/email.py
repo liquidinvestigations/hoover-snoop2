@@ -5,7 +5,7 @@ from pathlib import Path
 from collections import defaultdict
 import email
 from .. import models
-from ..tasks import shaorma, ShaormaError, MissingDependency
+from ..tasks import shaorma, ShaormaError, require_dependency
 from . import tika
 
 BYTE_ORDER_MARK = b'\xef\xbb\xbf'
@@ -53,10 +53,10 @@ def dump_part(message, depends_on):
         with models.Blob.create() as writer:
             writer.write(payload_bytes)
 
-        tika_key = f'tika-html-{writer.blob.pk}'
-        rmeta_blob = depends_on.get(tika_key)
-        if not rmeta_blob:
-            raise MissingDependency(tika_key, tika.rmeta.laterz(writer.blob))
+        rmeta_blob = require_dependency(
+            f'tika-html-{writer.blob.pk}', depends_on,
+            lambda: tika.rmeta.laterz(writer.blob),
+        )
 
         with rmeta_blob.open(encoding='utf8') as f:
             rmeta_data = json.load(f)
