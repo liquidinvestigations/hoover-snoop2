@@ -2,6 +2,8 @@ from datetime import timedelta
 from collections import defaultdict
 from django.urls import reverse
 from django.contrib import admin
+from django.contrib.admin.views.decorators import staff_member_required
+from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
 from django.utils import timezone
 from django.template.defaultfilters import truncatechars
@@ -179,6 +181,7 @@ class SnoopAminSite(admin.AdminSite):
             path('stats', self.stats),
         ]
 
+    @method_decorator(staff_member_required)
     def stats(self, request):
         return render(request, 'snoop/admin_stats.html', get_stats())
 
