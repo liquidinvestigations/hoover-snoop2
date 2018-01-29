@@ -152,21 +152,24 @@ def create_archive_files(file_pk, archive_listing):
     create_directory_children(fake_root, archive_listing_data)
 
 
-@shaorma('filesystem.create_attachment_files')
-def create_attachment_files(file_pk, email_parse):
+def get_email_attachments(parsed_email):
     def iter_parts(email_data):
         yield email_data
         for part in email_data.get('parts') or []:
             yield from iter_parts(part)
 
-    with email_parse.open() as f:
+    with parsed_email.open() as f:
         email_data = json.load(f)
 
-    attachments = []
     for part in iter_parts(email_data):
         part_attachment = part.get('attachment')
         if part_attachment:
-            attachments.append(part_attachment)
+            yield part_attachment
+
+
+@shaorma('filesystem.create_attachment_files')
+def create_attachment_files(file_pk, email_parse):
+    attachments = list(get_email_attachments(email_parse))
 
     if attachments:
         email_file = models.File.objects.get(pk=file_pk)
