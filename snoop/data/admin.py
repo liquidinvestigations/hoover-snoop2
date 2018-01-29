@@ -176,11 +176,11 @@ class SnoopAminSite(admin.AdminSite):
 
     def get_urls(self):
         return super().get_urls() + [
-            path('shaorma', self.shaorma),
+            path('stats', self.stats),
         ]
 
-    def shaorma(self, request):
-        return render(request, 'snoop/admin_shaorma.html', get_stats())
+    def stats(self, request):
+        return render(request, 'snoop/admin_stats.html', get_stats())
 
 
 site = SnoopAminSite(name='snoopadmin')
