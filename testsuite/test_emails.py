@@ -8,6 +8,7 @@ from snoop.data.analyzers import emlx
 from snoop.data import models
 from snoop.data import filesystem
 from snoop.data import digests
+from conftest import mkdir, mkfile
 
 pytestmark = [pytest.mark.django_db]
 
@@ -187,25 +188,6 @@ def test_emlx_reconstruction_with_missing_dependency(taskmanager):
     collection.root = Path(settings.SNOOP_TESTDATA) / "data"
     collection.save()
 
-    def mkdir(parent, name):
-        return models.Directory.objects.create(
-            collection=parent.collection,
-            parent_directory=parent,
-            name=name,
-        )
-
-    def mkfile(parent, name, original):
-        now = timezone.now()
-        return models.File.objects.create(
-            collection=parent.collection,
-            parent_directory=parent,
-            name=name,
-            ctime=now,
-            mtime=now,
-            size=0,
-            original=original,
-        )
-
     d1 = mkdir(root, 'lists.mbox')
     d2 = mkdir(d1, 'F2D0D67E-7B19-4C30-B2E9-B58FE4789D51')
     d3 = mkdir(d2, 'Data')
@@ -249,25 +231,6 @@ def test_emlx_reconstruction_with_missing_file(taskmanager):
     ).all()
     collection.root = Path(settings.SNOOP_TESTDATA) / "data"
     collection.save()
-
-    def mkdir(parent, name):
-        return models.Directory.objects.create(
-            collection=parent.collection,
-            parent_directory=parent,
-            name=name,
-        )
-
-    def mkfile(parent, name, original):
-        now = timezone.now()
-        return models.File.objects.create(
-            collection=parent.collection,
-            parent_directory=parent,
-            name=name,
-            ctime=now,
-            mtime=now,
-            size=0,
-            original=original,
-        )
 
     d1 = mkdir(root, 'emlx-4-missing-part')
     emlx_filename = '1498.partial.emlx'

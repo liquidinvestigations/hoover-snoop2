@@ -1,6 +1,7 @@
 import logging
 from collections import deque
 import pytest
+from django.utils import timezone
 from snoop.data import tasks
 from snoop.data import models
 
@@ -34,3 +35,24 @@ def taskmanager(monkeypatch):
     taskmanager = TaskManager()
     monkeypatch.setattr(tasks, 'queue_task', taskmanager.add)
     return taskmanager
+
+
+def mkdir(parent, name):
+    return models.Directory.objects.create(
+        collection=parent.collection,
+        parent_directory=parent,
+        name=name,
+    )
+
+
+def mkfile(parent, name, original):
+    now = timezone.now()
+    return models.File.objects.create(
+        collection=parent.collection,
+        parent_directory=parent,
+        name=name,
+        ctime=now,
+        mtime=now,
+        size=0,
+        original=original,
+    )
