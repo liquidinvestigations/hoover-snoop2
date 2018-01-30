@@ -1,7 +1,7 @@
 import re
 import email
 from .. import models
-from ..tasks import shaorma, require_dependency
+from ..tasks import shaorma, require_dependency, ShaormaBroken
 from .email import iter_parts
 
 
@@ -27,17 +27,19 @@ def reconstruct(file_pk, **depends_on):
                 lambda: filesystem.walk.laterz(parent.pk),
             )
 
-            require_dependency(
-                f'walk_file-{parent.pk}-part-{ext}', depends_on,
-                lambda: filesystem.walk_file.laterz(parent.pk, part_name),
-            )
-
             try:
-                part_file = parent.child_file_set.get(name=part_name)
+                require_dependency(
+                    f'walk_file-{parent.pk}-part-{ext}', depends_on,
+                    lambda: filesystem.walk_file.laterz(parent.pk, part_name),
+                )
 
-            except models.File.DoesNotExist:
-                # skip this part, it's missing
-                continue
+            except ShaormaBroken as e:
+                if e.reason == 'file_missing':
+                    continue
+
+                raise
+
+            part_file = parent.child_file_set.get(name=part_name)
 
             with part_file.original.open() as f:
                 payload = f.read()

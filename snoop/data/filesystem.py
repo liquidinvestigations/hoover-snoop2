@@ -3,7 +3,7 @@ from pathlib import Path
 from django.utils import timezone
 from .utils import time_from_unix
 from . import models
-from .tasks import shaorma, require_dependency
+from .tasks import shaorma, require_dependency, ShaormaBroken
 from .analyzers import archives
 from .analyzers import emlx
 from .analyzers import email
@@ -45,9 +45,14 @@ def walk(directory_pk):
 def walk_file(directory_pk, name):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory) / name
+
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        raise ShaormaBroken(f"File {path} not found", reason='file_missing')
+
     original = models.Blob.create_from_file(path)
 
-    stat = path.stat()
     file, _ = directory.child_file_set.get_or_create(
         name=name,
         defaults=dict(
