@@ -1,5 +1,5 @@
 import pytest
-from snoop.data.tasks import shaorma, require_dependency
+from snoop.data.tasks import shaorma, require_dependency, ShaormaBroken
 from snoop.data import models
 
 pytestmark = [pytest.mark.django_db]
@@ -73,3 +73,36 @@ def test_missing_dependency(taskmanager):
     two_task.refresh_from_db()
     with two_task.result.open() as f:
         assert f.read() == b'hello'
+
+
+def test_broken_dependency(taskmanager):
+    @shaorma('test_one')
+    def one(message):
+        raise ShaormaBroken(message, 'justbecause')
+
+    @shaorma('test_two')
+    def two(**depends_on):
+        try:
+            require_dependency(
+                'foo', depends_on,
+                lambda: one.laterz('hello'),
+            )
+
+        except ShaormaBroken as e:
+            assert 'hello' in e.args[0]
+            assert e.reason == 'justbecause'
+
+            with models.Blob.create() as writer:
+                writer.write(b'it did fail')
+
+            return writer.blob
+
+        raise AssertionError('it did not fail!')
+
+    two_task = two.laterz()
+
+    taskmanager.run()
+
+    two_task.refresh_from_db()
+    with two_task.result.open() as f:
+        assert f.read() == b'it did fail'
