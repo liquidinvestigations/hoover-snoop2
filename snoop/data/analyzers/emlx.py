@@ -29,7 +29,7 @@ def reconstruct(file_pk, **depends_on):
 
             try:
                 require_dependency(
-                    f'walk_file-{parent.pk}-part-{ext}', depends_on,
+                    f'walk_file-{parent.pk}-emlxpart-{ref}', depends_on,
                     lambda: filesystem.walk_file.laterz(parent.pk, part_name),
                 )
 
