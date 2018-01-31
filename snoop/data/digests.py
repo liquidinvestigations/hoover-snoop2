@@ -35,7 +35,7 @@ def gather(blob, collection_pk, **depends_on):
     if tika_rmeta_blob:
         with tika_rmeta_blob.open(encoding='utf8') as f:
             tika_rmeta = json.load(f)
-        rv['text'] = tika_rmeta[0]['X-TIKA:content']
+        rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")
 
     email_parse_blob = depends_on.get('email_parse')
     if email_parse_blob:
