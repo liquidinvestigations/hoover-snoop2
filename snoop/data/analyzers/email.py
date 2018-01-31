@@ -24,7 +24,7 @@ def get_headers(message):
 
     for key in message.keys():
         for header in message.get_all(key):
-            rv[key.title()].append(header)
+            rv[key.title()].append(str(header))
 
     return dict(rv)
 
@@ -61,9 +61,7 @@ def dump_part(message, depends_on):
     if message.get_content_disposition():
         raw_filename = message.get_filename()
         if raw_filename:
-            filename = str(email.header.make_header(
-                email.header.decode_header(raw_filename)
-            ))
+            filename = str(raw_filename)
             attachment_content = message.get_payload(decode=True)
 
             with models.Blob.create() as writer:

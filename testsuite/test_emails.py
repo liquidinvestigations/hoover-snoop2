@@ -163,3 +163,15 @@ def test_attachment_with_octet_stream_content_type(taskmanager):
     assert data['children'][0]['content_type'] == 'application/msword'
     assert data['children'][1]['content_type'] == 'application/zip'
     assert data['children'][2]['content_type'] == 'image/png'
+
+
+def test_broken_header():
+    eml = DATA / 'eml-10-broken-header/broken-subject.eml'
+    blob = models.Blob.create_from_file(eml)
+    result = email.parse(blob)
+    with result.open(encoding='utf8') as f:
+        data = json.load(f)
+    assert data['headers']['Subject'] == [(
+        "A\ufffd\ufffda crap\ufffd\ufffd "
+        "headerul fle\ufffd\ufffdc\ufffd\ufffdit"
+    )]
