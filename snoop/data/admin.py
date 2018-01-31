@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from collections import defaultdict
 from django.urls import reverse
@@ -101,6 +102,36 @@ class BlobAdmin(admin.ModelAdmin):
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
                      'magic', 'mime_type', 'mime_encoding']
     readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5']
+
+    change_form_template = 'snoop/admin_blob_change_form.html'
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+
+        if object_id:
+            blob = models.Blob.objects.get(pk=object_id)
+            if blob.mime_type in ['text/plain', 'application/json']:
+                extra_context['preview'] = True
+
+                if request.GET.get('preview'):
+                    content = self.get_preview_content(blob)
+                    extra_context['preview_content'] = content
+
+        return super().change_view(
+            request, object_id, form_url, extra_context=extra_context,
+        )
+
+    def get_preview_content(self, blob):
+        if blob.mime_type == 'text/plain':
+            with blob.open(encoding=blob.mime_encoding) as f:
+                return f.read()
+
+        elif blob.mime_type == 'application/json':
+            with blob.open(encoding='utf8') as f:
+                return json.dumps(json.load(f), indent=2, sort_keys=True)
+
+        else:
+            return ''
 
 
 class TaskAdmin(admin.ModelAdmin):
