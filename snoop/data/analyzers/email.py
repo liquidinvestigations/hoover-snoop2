@@ -50,7 +50,7 @@ def dump_part(message, depends_on):
 
         with rmeta_blob.open(encoding='utf8') as f:
             rmeta_data = json.load(f)
-        rv['text'] = rmeta_data[0]['X-TIKA:content']
+        rv['text'] = rmeta_data[0].get('X-TIKA:content', "")
 
     if message.is_multipart():
         rv['parts'] = [
