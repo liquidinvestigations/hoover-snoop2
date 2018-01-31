@@ -1,0 +1,12 @@
+{% extends "admin/change_form.html" %}
+
+{% block content %}
+  {% if change %}{% if not is_popup %}
+
+    {% if task_dependency_links %}
+      depends on: {{ task_dependency_links }}
+    {% endif %}
+
+  {% endif %}{% endif %}
+  {{ block.super }}
+{% endblock %}

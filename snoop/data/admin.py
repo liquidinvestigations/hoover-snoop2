@@ -111,12 +111,25 @@ class TaskAdmin(admin.ModelAdmin):
     search_fields = ['pk', 'func', 'args', 'error', 'traceback']
     actions = ['retry_selected_tasks']
 
+    change_form_template = 'snoop/admin_task_change_form.html'
+
     LINK_STYLE = {
         'pending': '',
         'success': 'color: green',
         'error': 'color: red',
         'deferred': 'color: grey',
     }
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        extra_context = extra_context or {}
+
+        if object_id:
+            obj = models.Task.objects.get(pk=object_id)
+            extra_context['task_dependency_links'] = self.dependency_links(obj)
+
+        return super().change_view(
+            request, object_id, form_url, extra_context=extra_context,
+        )
 
     def created(self, obj):
         return naturaltime(obj.date_created)
@@ -128,13 +141,7 @@ class TaskAdmin(admin.ModelAdmin):
 
     finished.admin_order_field = 'date_finished'
 
-    def details(self, obj):
-        if obj.status == models.Task.STATUS_SUCCESS:
-            return "✔"
-
-        if obj.status == models.Task.STATUS_ERROR:
-            return obj.error
-
+    def dependency_links(self, obj):
         def link(dep):
             task = dep.prev
             url = reverse('admin:data_task_change', args=[task.pk])
@@ -143,6 +150,16 @@ class TaskAdmin(admin.ModelAdmin):
 
         dep_list = [link(dep) for dep in obj.prev_set.order_by('name')]
         return mark_safe(', '.join(dep_list))
+
+
+    def details(self, obj):
+        if obj.status == models.Task.STATUS_SUCCESS:
+            return "✔"
+
+        if obj.status == models.Task.STATUS_ERROR:
+            return obj.error
+
+        return self.dependency_links()
 
     def retry_selected_tasks(self, request, queryset):
         tasks.retry_tasks(queryset)
