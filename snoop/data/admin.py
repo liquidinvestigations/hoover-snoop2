@@ -190,7 +190,7 @@ class TaskAdmin(admin.ModelAdmin):
         if obj.status == models.Task.STATUS_ERROR:
             return obj.error
 
-        return self.dependency_links()
+        return self.dependency_links(obj)
 
     def retry_selected_tasks(self, request, queryset):
         tasks.retry_tasks(queryset)
