@@ -37,12 +37,6 @@ def queue_next_tasks(task):
         queue_task(next_dependency.next)
 
 
-def queue_next_tasks(task):
-    for next_dependency in task.next_set.all():
-        next = next_dependency.next
-        queue_task(next)
-
-
 @run_once
 def import_shaormas():
     from . import filesystem  # noqa
