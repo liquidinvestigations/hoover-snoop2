@@ -200,7 +200,9 @@ class SnoopAminSite(admin.AdminSite):
 
     @method_decorator(staff_member_required)
     def stats(self, request):
-        return render(request, 'snoop/admin_stats.html', get_stats())
+        context = dict(self.each_context(request))
+        context.update(get_stats())
+        return render(request, 'snoop/admin_stats.html', context)
 
 
 site = SnoopAminSite(name='snoopadmin')
