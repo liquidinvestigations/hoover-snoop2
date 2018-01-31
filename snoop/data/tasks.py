@@ -179,5 +179,5 @@ def dispatch_pending_tasks():
 
 def retry_tasks(queryset):
     queryset.update(status=models.Task.STATUS_PENDING)
-    for task in queryset:
+    for task in queryset.iterator():
         queue_task(task)
