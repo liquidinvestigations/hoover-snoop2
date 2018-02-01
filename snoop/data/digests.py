@@ -134,17 +134,13 @@ def get_document_data(digest):
         'path': full_path(first_file),
     }
 
-    children = None
-
     if blob.mime_type == 'message/rfc822':
         content.update(email_meta(digest_data))
 
-        attachments = first_file.child_directory_set.first()
-        if attachments:
-            children = [
-                child_file_to_dict(f)
-                for f in attachments.child_file_set.order_by('pk').all()
-            ]
+    children = None
+    child_directory = first_file.child_directory_set.first()
+    if child_directory:
+        children = get_directory_children(child_directory)
 
     text = content.get('text') or ""
     content['word-count'] = len(text.strip().split())
@@ -191,12 +187,14 @@ def child_dir_to_dict(directory):
     }
 
 
-def get_directory_data(directory):
-    children = (
+def get_directory_children(directory):
+    return (
         [child_dir_to_dict(d) for d in directory.child_directory_set.all()] +
         [child_file_to_dict(f) for f in directory.child_file_set.all()]
     )
 
+
+def get_directory_data(directory):
     return {
         'id': directory_id(directory),
         'parent_id': parent_id(directory),
@@ -206,5 +204,5 @@ def get_directory_data(directory):
             'filename': directory.name,
             'path': full_path(directory),
         },
-        'children': children,
+        'children': get_directory_children(directory),
     }
