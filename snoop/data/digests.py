@@ -134,22 +134,25 @@ def get_document_data(digest):
         'path': full_path(first_file),
     }
 
+    children = None
+
+    if blob.mime_type == 'message/rfc822':
+        content.update(email_meta(digest_data))
+
+        attachments = first_file.child_directory_set.first()
+        if attachments:
+            children = [
+                child_file_to_dict(f)
+                for f in attachments.child_file_set.order_by('pk').all()
+            ]
+
     rv = {
         'id': blob.pk,
         'parent_id': parent_id(first_file),
         'version': zulu(digest.date_modified),
         'content': content,
+        'children': children,
     }
-
-    if blob.mime_type == 'message/rfc822':
-        rv['content'].update(email_meta(digest_data))
-
-        attachments = first_file.child_directory_set.first()
-        if attachments:
-            rv['children'] = [
-                child_file_to_dict(f)
-                for f in attachments.child_file_set.order_by('pk').all()
-            ]
 
     return rv
 
