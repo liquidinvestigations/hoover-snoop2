@@ -146,6 +146,9 @@ def get_document_data(digest):
                 for f in attachments.child_file_set.order_by('pk').all()
             ]
 
+    text = content.get('text') or ""
+    content['word-count'] = len(text.strip().split())
+
     rv = {
         'id': blob.pk,
         'parent_id': parent_id(first_file),
