@@ -160,6 +160,19 @@ def get_document_data(digest):
     return rv
 
 
+def get_document_locations(digest):
+    def location(file):
+        parent = file.parent_directory
+        return {
+            'filename': file.name,
+            'parent_id': directory_id(parent),
+            'parent_path': full_path(parent),
+        }
+
+    queryset = digest.blob.file_set.order_by('pk')
+    return [location(file) for file in queryset]
+
+
 def child_file_to_dict(file):
     blob = file.blob
     return {
