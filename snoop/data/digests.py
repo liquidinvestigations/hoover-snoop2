@@ -152,6 +152,7 @@ def get_document_data(digest):
     rv = {
         'id': blob.pk,
         'parent_id': parent_id(first_file),
+        'has_locations': True,
         'version': zulu(digest.date_modified),
         'content': content,
         'children': children,
