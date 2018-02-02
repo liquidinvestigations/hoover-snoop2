@@ -116,6 +116,13 @@ class Blob(models.Model):
         writer.blob = blob
 
     @classmethod
+    def create_from_bytes(cls, data):
+        with cls.create() as writer:
+            writer.write(data)
+
+        return writer.blob
+
+    @classmethod
     def create_from_file(cls, path):
         with cls.create() as writer:
             with open(path, 'rb') as f:
