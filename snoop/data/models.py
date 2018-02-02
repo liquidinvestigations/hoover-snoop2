@@ -142,6 +142,13 @@ class Collection(models.Model):
     def __str__(self):
         return self.name
 
+    @property
+    def root_directory(self):
+        return self.directory_set.filter(
+            parent_directory__isnull=True,
+            container_file__isnull=True
+        ).first()
+
 
 class Directory(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
