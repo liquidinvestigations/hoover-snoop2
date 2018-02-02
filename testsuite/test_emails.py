@@ -4,9 +4,11 @@ import pytest
 from django.utils import timezone
 from django.conf import settings
 from snoop.data.analyzers import email
+from snoop.data.analyzers import emlx
 from snoop.data import models
 from snoop.data import filesystem
 from snoop.data import digests
+from conftest import mkdir, mkfile
 
 pytestmark = [pytest.mark.django_db]
 
@@ -175,3 +177,83 @@ def test_broken_header():
         "A\ufffd\ufffda crap\ufffd\ufffd "
         "headerul fle\ufffd\ufffdc\ufffd\ufffdit"
     )]
+
+
+def test_emlx_reconstruction_with_missing_dependency(taskmanager):
+    [collection] = models.Collection.objects.all()
+    [root] = collection.directory_set.filter(
+        parent_directory__isnull=True,
+        container_file__isnull=True
+    ).all()
+    collection.root = Path(settings.SNOOP_TESTDATA) / "data"
+    collection.save()
+
+    d1 = mkdir(root, 'lists.mbox')
+    d2 = mkdir(d1, 'F2D0D67E-7B19-4C30-B2E9-B58FE4789D51')
+    d3 = mkdir(d2, 'Data')
+    d4 = mkdir(d3, '1')
+    d5 = mkdir(d4, 'Messages')
+    emlx_filename = '1498.partial.emlx'
+    emlx_path = (
+        Path(collection.root)
+        / d1.name / d2.name / d3.name
+        / d4.name / d5.name / emlx_filename
+    )
+    emlx_blob = models.Blob.create_from_file(emlx_path)
+    emlx_file = mkfile(d5, emlx_filename, emlx_blob)
+
+    emlx_task = emlx.reconstruct.laterz(emlx_file.pk)
+    taskmanager.run()
+    emlx_task.refresh_from_db()
+    emlx_file.blob = emlx_task.result
+    emlx_file.save()
+
+    eml_task = email.parse.laterz(emlx_file.blob)
+    taskmanager.run()
+    eml_task.refresh_from_db()
+
+    attachments = list(filesystem.get_email_attachments(eml_task.result))
+
+    size = {
+        a['name']: models.Blob.objects.get(pk=a['blob_pk']).size
+        for a in attachments
+    }
+
+    assert size['Legea-299-2015-informatiile-publice.odt'] == 28195
+    assert size['Legea-299-2015-informatiile-publice.pdf'] == 55904
+
+
+def test_emlx_reconstruction_with_missing_file(taskmanager):
+    [collection] = models.Collection.objects.all()
+    [root] = collection.directory_set.filter(
+        parent_directory__isnull=True,
+        container_file__isnull=True
+    ).all()
+    collection.root = Path(settings.SNOOP_TESTDATA) / "data"
+    collection.save()
+
+    d1 = mkdir(root, 'emlx-4-missing-part')
+    emlx_filename = '1498.partial.emlx'
+    emlx_path = Path(collection.root) / d1.name / emlx_filename
+    emlx_blob = models.Blob.create_from_file(emlx_path)
+    emlx_file = mkfile(d1, emlx_filename, emlx_blob)
+
+    emlx_task = emlx.reconstruct.laterz(emlx_file.pk)
+    taskmanager.run()
+    emlx_task.refresh_from_db()
+    emlx_file.blob = emlx_task.result
+    emlx_file.save()
+
+    eml_task = email.parse.laterz(emlx_file.blob)
+    taskmanager.run()
+    eml_task.refresh_from_db()
+
+    attachments = list(filesystem.get_email_attachments(eml_task.result))
+
+    size = {
+        a['name']: models.Blob.objects.get(pk=a['blob_pk']).size
+        for a in attachments
+    }
+
+    assert size['Legea-299-2015-informatiile-publice.odt'] == 28195
+    assert size['Legea-299-2015-informatiile-publice.pdf'] == 0

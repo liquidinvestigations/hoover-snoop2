@@ -209,6 +209,7 @@ class Task(models.Model):
     STATUS_SUCCESS = 'success'
     STATUS_ERROR = 'error'
     STATUS_DEFERRED = 'deferred'
+    STATUS_BROKEN = 'broken'
 
     func = models.CharField(max_length=1024)
     blob_arg = models.ForeignKey(Blob, null=True, blank=True,
@@ -228,6 +229,7 @@ class Task(models.Model):
     status = models.CharField(max_length=16, default=STATUS_PENDING)
     error = models.TextField(blank=True)
     traceback = models.TextField(blank=True)
+    broken_reason = models.CharField(max_length=128, default='', blank=True)
 
     class Meta:
         unique_together = ('func', 'args')

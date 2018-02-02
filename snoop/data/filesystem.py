@@ -3,7 +3,7 @@ from pathlib import Path
 from django.utils import timezone
 from .utils import time_from_unix
 from . import models
-from .tasks import shaorma, MissingDependency
+from .tasks import shaorma, require_dependency, ShaormaBroken
 from .analyzers import archives
 from .analyzers import emlx
 from .analyzers import email
@@ -28,7 +28,7 @@ def directory_absolute_path(directory):
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
-    child_files = []
+
     for thing in path.iterdir():
         if thing.is_dir():
             (child_directory, _) = directory.child_directory_set.get_or_create(
@@ -36,19 +36,23 @@ def walk(directory_pk):
                 name=thing.name,
             )
             walk.laterz(child_directory.pk)
+
         else:
-            file = file_to_blob(directory, thing.name)
-            child_files.append(file)
-
-    for file in child_files:
-        handle_file.laterz(file.pk)
+            walk_file.laterz(directory.pk, thing.name)
 
 
-def file_to_blob(directory, name):
+@shaorma('filesystem.walk_file')
+def walk_file(directory_pk, name):
+    directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory) / name
+
+    try:
+        stat = path.stat()
+    except FileNotFoundError:
+        raise ShaormaBroken(f"File {path} not found", reason='file_missing')
+
     original = models.Blob.create_from_file(path)
 
-    stat = path.stat()
     file, _ = directory.child_file_set.get_or_create(
         name=name,
         defaults=dict(
@@ -60,7 +64,7 @@ def file_to_blob(directory, name):
         ),
     )
 
-    return file
+    handle_file.laterz(file.pk)
 
 
 @shaorma('filesystem.handle_file')
@@ -76,18 +80,16 @@ def handle_file(file_pk, **depends_on):
         )
 
     elif file.original.mime_type == "application/vnd.ms-outlook":
-        eml = depends_on.get('msg_to_eml')
-        if not eml:
-            task = email.msg_to_eml.laterz(file.original)
-            raise MissingDependency('msg_to_eml', task)
-        file.blob = eml
+        file.blob = require_dependency(
+            'msg_to_eml', depends_on,
+            lambda: email.msg_to_eml.laterz(file.original),
+        )
 
     elif file.original.mime_type == 'message/x-emlx':
-        eml = depends_on.get('emlx_reconstruct')
-        if not eml:
-            task = emlx.reconstruct.laterz(file.pk)
-            raise MissingDependency('emlx_reconstruct', task)
-        file.blob = eml
+        file.blob = require_dependency(
+            'emlx_reconstruct', depends_on,
+            lambda: emlx.reconstruct.laterz(file.pk),
+        )
 
     if file.blob.mime_type == 'message/rfc822':
         email_parse_task = email.parse.laterz(file.blob)
@@ -155,21 +157,24 @@ def create_archive_files(file_pk, archive_listing):
     create_directory_children(fake_root, archive_listing_data)
 
 
-@shaorma('filesystem.create_attachment_files')
-def create_attachment_files(file_pk, email_parse):
+def get_email_attachments(parsed_email):
     def iter_parts(email_data):
         yield email_data
         for part in email_data.get('parts') or []:
             yield from iter_parts(part)
 
-    with email_parse.open() as f:
+    with parsed_email.open() as f:
         email_data = json.load(f)
 
-    attachments = []
     for part in iter_parts(email_data):
         part_attachment = part.get('attachment')
         if part_attachment:
-            attachments.append(part_attachment)
+            yield part_attachment
+
+
+@shaorma('filesystem.create_attachment_files')
+def create_attachment_files(file_pk, email_parse):
+    attachments = list(get_email_attachments(email_parse))
 
     if attachments:
         email_file = models.File.objects.get(pk=file_pk)

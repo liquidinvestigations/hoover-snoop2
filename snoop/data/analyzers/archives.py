@@ -2,7 +2,7 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
-from ..tasks import shaorma, ShaormaError
+from ..tasks import shaorma, ShaormaBroken
 from .. import models
 
 
@@ -41,7 +41,7 @@ def call_readpst(pst_path, output_dir):
         ], stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError as e:
-        raise ShaormaError('readpst failed', e.output.decode('latin1'))
+        raise ShaormaBroken('readpst failed', 'readpst_error')
 
 
 def call_7z(archive_path, output_dir):
@@ -56,7 +56,7 @@ def call_7z(archive_path, output_dir):
         ], stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError as e:
-        raise ShaormaError("7z extraction failed", e.output.decode('latin1'))
+        raise ShaormaBroken("7z extraction failed", '7z_error')
 
 
 @shaorma('archives.unarchive')

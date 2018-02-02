@@ -147,6 +147,7 @@ class TaskAdmin(admin.ModelAdmin):
     LINK_STYLE = {
         'pending': '',
         'success': 'color: green',
+        'broken': 'color: orange',
         'error': 'color: red',
         'deferred': 'color: grey',
     }

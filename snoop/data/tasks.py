@@ -18,6 +18,12 @@ class ShaormaError(Exception):
         self.details = details
 
 
+class ShaormaBroken(Exception):
+    def __init__(self, message, reason):
+        super().__init__(message)
+        self.reason = reason
+
+
 class MissingDependency(Exception):
 
     def __init__(self, name, task):
@@ -44,6 +50,11 @@ def import_shaormas():
     from .analyzers import text  # noqa
 
 
+def is_competed(task):
+    COMPLETED = [models.Task.STATUS_SUCCESS,  models.Task.STATUS_BROKEN]
+    return task.status in COMPLETED
+
+
 @celery.app.task
 def laterz_shaorma(task_pk, raise_exceptions=False):
     import_shaormas()
@@ -51,7 +62,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
     with transaction.atomic():
         task = models.Task.objects.select_for_update().get(pk=task_pk)
 
-        if task.status == models.Task.STATUS_SUCCESS:
+        if is_competed(task):
             queue_next_tasks(task)
             return
 
@@ -63,9 +74,20 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         depends_on = {}
         for dep in task.prev_set.all():
             prev_task = dep.prev
-            if prev_task.status != models.Task.STATUS_SUCCESS:
+            if not is_competed(prev_task):
                 return
-            depends_on[dep.name] = prev_task.result
+
+            if prev_task.status == models.Task.STATUS_SUCCESS:
+                prev_result = prev_task.result
+            elif prev_task.status == models.Task.STATUS_BROKEN:
+                prev_result = ShaormaBroken(
+                    prev_task.error,
+                    prev_task.broken_reason
+                )
+            else:
+                raise RuntimeError(f"Unexpected status {prev_task.status}")
+
+            depends_on[dep.name] = prev_result
 
         task.status = models.Task.STATUS_PENDING
         task.date_started = timezone.now()
@@ -92,6 +114,12 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
             )
             queue_task(task)
 
+        except ShaormaBroken as e:
+            task.error = "{}: {}".format(e.reason, e.args[0])
+            task.status = models.Task.STATUS_BROKEN
+            task.broken_reason = e.reason
+            logger.error("Shaorma %d broken: %s", task_pk, task.error)
+
         except Exception as e:
             if raise_exceptions:
                 raise
@@ -109,12 +137,13 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         else:
             task.error = ''
             task.traceback = ''
+            task.broken_reason = ''
             task.status = models.Task.STATUS_SUCCESS
 
         task.date_finished = timezone.now()
         task.save()
 
-    if task.status == models.Task.STATUS_SUCCESS:
+    if is_competed(task):
         queue_next_tasks(task)
 
 
@@ -182,3 +211,14 @@ def retry_tasks(queryset):
         for task in queryset.iterator():
             queue_task(task)
         queryset.update(status=models.Task.STATUS_PENDING)
+
+
+def require_dependency(name, depends_on, callback):
+    if name in depends_on:
+        result = depends_on[name]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    task = callback()
+    raise MissingDependency(name, task)
