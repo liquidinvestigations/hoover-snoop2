@@ -134,24 +134,40 @@ def get_document_data(digest):
         'path': full_path(first_file),
     }
 
+    if blob.mime_type == 'message/rfc822':
+        content.update(email_meta(digest_data))
+
+    children = None
+    child_directory = first_file.child_directory_set.first()
+    if child_directory:
+        children = get_directory_children(child_directory)
+
+    text = content.get('text') or ""
+    content['word-count'] = len(text.strip().split())
+
     rv = {
         'id': blob.pk,
         'parent_id': parent_id(first_file),
+        'has_locations': True,
         'version': zulu(digest.date_modified),
         'content': content,
+        'children': children,
     }
 
-    if blob.mime_type == 'message/rfc822':
-        rv['content'].update(email_meta(digest_data))
-
-        attachments = first_file.child_directory_set.first()
-        if attachments:
-            rv['children'] = [
-                child_file_to_dict(f)
-                for f in attachments.child_file_set.order_by('pk').all()
-            ]
-
     return rv
+
+
+def get_document_locations(digest):
+    def location(file):
+        parent = file.parent_directory
+        return {
+            'filename': file.name,
+            'parent_id': directory_id(parent),
+            'parent_path': full_path(parent),
+        }
+
+    queryset = digest.blob.file_set.order_by('pk')
+    return [location(file) for file in queryset]
 
 
 def child_file_to_dict(file):
@@ -171,12 +187,16 @@ def child_dir_to_dict(directory):
     }
 
 
-def get_directory_data(directory):
-    children = (
-        [child_dir_to_dict(d) for d in directory.child_directory_set.all()] +
-        [child_file_to_dict(f) for f in directory.child_file_set.all()]
+def get_directory_children(directory):
+    child_directory_queryset = directory.child_directory_set.order_by('name')
+    child_file_queryset = directory.child_file_set.order_by('name')
+    return (
+        [child_dir_to_dict(d) for d in child_directory_queryset] +
+        [child_file_to_dict(f) for f in child_file_queryset]
     )
 
+
+def get_directory_data(directory):
     return {
         'id': directory_id(directory),
         'parent_id': parent_id(directory),
@@ -186,5 +206,5 @@ def get_directory_data(directory):
             'filename': directory.name,
             'path': full_path(directory),
         },
-        'children': children,
+        'children': get_directory_children(directory),
     }

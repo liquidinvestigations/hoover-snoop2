@@ -116,6 +116,13 @@ class Blob(models.Model):
         writer.blob = blob
 
     @classmethod
+    def create_from_bytes(cls, data):
+        with cls.create() as writer:
+            writer.write(data)
+
+        return writer.blob
+
+    @classmethod
     def create_from_file(cls, path):
         with cls.create() as writer:
             with open(path, 'rb') as f:
@@ -141,6 +148,13 @@ class Collection(models.Model):
 
     def __str__(self):
         return self.name
+
+    @property
+    def root_directory(self):
+        return self.directory_set.filter(
+            parent_directory__isnull=True,
+            container_file__isnull=True
+        ).first()
 
 
 class Directory(models.Model):

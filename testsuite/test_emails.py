@@ -162,9 +162,9 @@ def test_double_decoding_of_attachment_filenames(taskmanager):
 def test_attachment_with_octet_stream_content_type(taskmanager):
     data = parse_email(OCTET_STREAM_CONTENT_TYPE, taskmanager)
 
-    assert data['children'][0]['content_type'] == 'application/msword'
-    assert data['children'][1]['content_type'] == 'application/zip'
-    assert data['children'][2]['content_type'] == 'image/png'
+    assert data['children'][0]['content_type'] == 'image/png'
+    assert data['children'][1]['content_type'] == 'application/msword'
+    assert data['children'][2]['content_type'] == 'application/zip'
 
 
 def test_broken_header():

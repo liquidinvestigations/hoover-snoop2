@@ -9,11 +9,7 @@ logger = logging.getLogger(__name__)
 
 def dispatch_walk_tasks():
     for collection in models.Collection.objects.all():
-        [root] = collection.directory_set.filter(
-            parent_directory__isnull=True,
-            container_file__isnull=True
-        ).all()
-        walk.laterz(root.pk)
+        walk.laterz(collection.root_directory.pk)
 
 
 def run_dispatcher():

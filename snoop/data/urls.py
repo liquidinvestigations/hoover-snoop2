@@ -8,4 +8,5 @@ urlpatterns = [
     path('<name>/_directory_<int:pk>/json', views.directory),
     path('<name>/<hash>/json', views.document),
     path('<name>/<hash>/raw/<filename>', views.document_download),
+    path('<name>/<hash>/locations', views.document_locations),
 ]

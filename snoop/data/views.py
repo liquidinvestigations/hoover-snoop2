@@ -1,9 +1,10 @@
 import json
-from django.http import JsonResponse, FileResponse
+from django.http import HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from . import models
 from . import digests
+from .analyzers import html
 
 
 def collection(request, name):
@@ -59,7 +60,15 @@ def document_download(request, name, hash, filename):
     digest = get_object_or_404(collection.digest_set, blob__pk=hash)
     blob = digest.blob
 
-    if blob.mime_type == 'text/html':
-        raise NotImplementedError
+    if html.is_html(blob):
+        clean_html = html.clean(blob)
+        return HttpResponse(clean_html, content_type='text/html')
 
     return FileResponse(digest.blob.open(), content_type=blob.content_type)
+
+
+def document_locations(request, name, hash):
+    collection = get_object_or_404(models.Collection.objects, name=name)
+    digest = get_object_or_404(collection.digest_set, blob__pk=hash)
+    locations = digests.get_document_locations(digest)
+    return JsonResponse({'locations': locations})
