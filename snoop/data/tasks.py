@@ -222,3 +222,8 @@ def require_dependency(name, depends_on, callback):
 
     task = callback()
     raise MissingDependency(name, task)
+
+
+@shaorma('do_nothing')
+def do_nothing(name):
+    pass
