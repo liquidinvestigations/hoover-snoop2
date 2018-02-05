@@ -54,7 +54,7 @@ dispatcher, it will scan all the collections registered in this snoop instance.
 
 You also need at least one worker to do the actual processing:
 ```shell
-celery -A snoop.data worker --loglevel=info -Q archives.unarchive,tika.rmeta,email.parse,email.msg_to_eml,emlx.reconstruct,digests.launch,digests.gather,filesystem.walk,filesystem.walk_file,filesystem.handle_file,filesystem.create_archive_files,filesystem.create_attachment_files,text.extract
+./manage.py runworker
 ```
 
 
