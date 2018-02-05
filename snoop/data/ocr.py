@@ -6,8 +6,8 @@ from .tasks import shaorma, require_dependency
 from .analyzers import tika
 
 
-def create_ocr_source(name, path):
-    models.OcrSource.objects.create(name=name, root=path)
+def create_ocr_source(name, root):
+    models.OcrSource.objects.create(name=name, root=root)
 
 
 def dispatch_ocr_tasks():
