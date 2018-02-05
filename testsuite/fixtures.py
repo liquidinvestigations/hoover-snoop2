@@ -1,6 +1,10 @@
+from pathlib import Path
 from django.utils import timezone
+from django.conf import settings
 from snoop.data import models
 from snoop.data import filesystem
+
+TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 
 
 class FakeData:

@@ -4,6 +4,7 @@ from django.shortcuts import get_object_or_404
 from django.conf import settings
 from . import models
 from . import digests
+from . import ocr
 from .analyzers import html
 
 
@@ -64,7 +65,19 @@ def document_download(request, name, hash, filename):
         clean_html = html.clean(blob)
         return HttpResponse(clean_html, content_type='text/html')
 
-    return FileResponse(digest.blob.open(), content_type=blob.content_type)
+    return FileResponse(blob.open(), content_type=blob.content_type)
+
+
+def document_ocr(request, name, hash, ocrname):
+    collection = get_object_or_404(models.Collection.objects, name=name)
+    digest = get_object_or_404(collection.digest_set, blob__pk=hash)
+
+    ocr_source = get_object_or_404(models.OcrSource, name=ocrname)
+    ocr_queryset = ocr.ocr_documents_for_blob(digest.blob)
+    ocr_document = get_object_or_404(ocr_queryset, source=ocr_source)
+
+    blob = ocr_document.ocr
+    return FileResponse(blob.open(), content_type=blob.content_type)
 
 
 def document_locations(request, name, hash):

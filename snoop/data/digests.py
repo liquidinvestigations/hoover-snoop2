@@ -5,6 +5,7 @@ from .utils import zulu
 from .analyzers import email
 from .analyzers import tika
 from ._file_types import FILE_TYPES
+from . import ocr
 
 
 @shaorma('digests.launch')
