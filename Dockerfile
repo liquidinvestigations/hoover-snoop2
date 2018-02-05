@@ -27,7 +27,7 @@ RUN ./manage.py downloadmagic
 RUN set -e \
  && curl https://raw.githubusercontent.com/vishnubob/wait-for-it/8ed92e8c/wait-for-it.sh -o /wait-for-it \
  && echo '#!/bin/bash -e' > /runserver \
- && echo 'waitress-serve --port 80 snoop.site.wsgi:application' >> /runserver \
+ && echo 'waitress-serve --port 80 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver /wait-for-it
 
 CMD /runserver
