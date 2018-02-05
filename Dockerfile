@@ -1,10 +1,10 @@
-FROM python:3
+FROM python:3-stretch
 ENV PYTHONUNBUFFERED 1
 
 RUN set -e \
- && echo 'deb http://deb.debian.org/debian jessie non-free' >> /etc/apt/sources.list \
- && echo 'deb http://deb.debian.org/debian jessie-updates non-free' >> /etc/apt/sources.list \
- && echo 'deb http://security.debian.org jessie/updates non-free' >> /etc/apt/sources.list \
+ && echo 'deb http://deb.debian.org/debian stretch non-free' >> /etc/apt/sources.list \
+ && echo 'deb http://deb.debian.org/debian stretch-updates non-free' >> /etc/apt/sources.list \
+ && echo 'deb http://security.debian.org stretch/updates non-free' >> /etc/apt/sources.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
      p7zip-full p7zip-rar \
