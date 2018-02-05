@@ -44,6 +44,14 @@ def gather(blob, collection_pk, **depends_on):
             email_parse = json.load(f)
         rv['email'] = email_parse
 
+    ocr_results = dict(ocr.ocr_texts_for_blob(blob))
+    if ocr_results:
+        rv['ocr'] = ocr_results
+        text = rv.get('text', "")
+        for _, ocr_text in sorted(ocr_results.items()):
+            text += ' ' + ocr_text
+        rv['text'] = text
+
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
 

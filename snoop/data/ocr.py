@@ -19,6 +19,13 @@ def ocr_documents_for_blob(original):
     return models.OcrDocument.objects.filter(original_hash=original.md5)
 
 
+def ocr_texts_for_blob(original):
+    for ocr_document in ocr_documents_for_blob(original):
+        with ocr_document.text.open(encoding='utf8') as f:
+            text = f.read()
+        yield (ocr_document.source.name, text)
+
+
 @shaorma('ocr.walk_source')
 def walk_source(ocr_source_pk):
     def traverse(directory):
@@ -45,7 +52,13 @@ def walk_file(ocr_source_pk, item_path, **depends_on):
 
     ocr_blob = models.Blob.create_from_file(path)
 
-    text = ""
+    rmeta_blob = require_dependency(
+        f'tika', depends_on,
+        lambda: tika.rmeta.laterz(ocr_blob),
+    )
+    with rmeta_blob.open(encoding='utf8') as f:
+        rmeta_data = json.load(f)
+    text = rmeta_data[0].get('X-TIKA:content', "")
     text_blob = models.Blob.create_from_bytes(text.encode('utf8'))
 
     ocr_source.ocrdocument_set.get_or_create(

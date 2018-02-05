@@ -53,5 +53,8 @@ class CollectionApiClient:
         assert resp.status_code == 200
         return resp.json()
 
+    def get_digest(self, blob_hash):
+        return self.get(f'/{blob_hash}/json')
+
     def get_locations(self, blob_hash):
         return self.get(f'/{blob_hash}/locations')
