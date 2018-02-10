@@ -207,10 +207,8 @@ def dispatch_pending_tasks():
 
 
 def retry_tasks(queryset):
-    with transaction.atomic():
-        for task in queryset.iterator():
-            queue_task(task)
-        queryset.update(status=models.Task.STATUS_PENDING)
+    for task in queryset.iterator():
+        queue_task(task)
 
 
 def require_dependency(name, depends_on, callback):
