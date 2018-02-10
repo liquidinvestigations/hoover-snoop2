@@ -3,6 +3,8 @@ from datetime import timedelta
 from collections import defaultdict
 from django.urls import reverse
 from django.contrib import admin
+from django.contrib.auth import models as auth_models
+from django.contrib.auth import admin as auth_admin
 from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
@@ -239,6 +241,9 @@ class SnoopAminSite(admin.AdminSite):
 
 site = SnoopAminSite(name='snoopadmin')
 
+
+site.register(auth_models.User, auth_admin.UserAdmin)
+site.register(auth_models.Group, auth_admin.GroupAdmin)
 
 site.register(models.Collection)
 site.register(models.Directory, DirectoryAdmin)
