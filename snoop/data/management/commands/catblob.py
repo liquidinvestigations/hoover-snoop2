@@ -1,0 +1,21 @@
+import sys
+from time import time
+from django.core.management.base import BaseCommand
+from ...logs import logging_for_management_command
+from ... import models
+from ...tasks import do_nothing
+
+
+class Command(BaseCommand):
+    help = "Write blobs to stdout."
+
+    def add_arguments(self, parser):
+        parser.add_argument('blob_id', type=str)
+
+    def handle(self, *args, **options):
+        logging_for_management_command()
+
+        if options['blob_id']:
+            with models.Blob.objects.get(pk=options['blob_id']).open() as f:
+                sys.stdout.buffer.write(f.read())
+                sys.stdout.flush()
