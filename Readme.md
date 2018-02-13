@@ -54,7 +54,7 @@ dispatcher, it will scan all the collections registered in this snoop instance.
 
 You also need at least one worker to do the actual processing:
 ```shell
-./manage.py runworker
+./manage.py runworkers
 ```
 
 
