@@ -294,3 +294,19 @@ class Digest(models.Model):
 
     class Meta:
         unique_together = ('collection', 'blob')
+
+
+class OcrSource(models.Model):
+    name = models.CharField(max_length=1024)
+    root = models.CharField(max_length=4096)
+
+
+class OcrDocument(models.Model):
+    source = models.ForeignKey(OcrSource, on_delete=models.DO_NOTHING)
+    original_hash = models.CharField(max_length=64, db_index=True)
+    ocr = models.ForeignKey(Blob, on_delete=models.DO_NOTHING)
+    text = models.ForeignKey(Blob, on_delete=models.DO_NOTHING,
+                             related_name='+')
+
+    class Meta:
+        unique_together = ('source', 'original_hash')

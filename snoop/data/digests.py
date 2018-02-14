@@ -5,6 +5,7 @@ from .utils import zulu
 from .analyzers import email
 from .analyzers import tika
 from ._file_types import FILE_TYPES
+from . import ocr
 
 
 @shaorma('digests.launch')
@@ -42,6 +43,15 @@ def gather(blob, collection_pk, **depends_on):
         with email_parse_blob.open(encoding='utf8') as f:
             email_parse = json.load(f)
         rv['email'] = email_parse
+
+    ocr_results = dict(ocr.ocr_texts_for_blob(blob))
+    if ocr_results:
+        text = rv.get('text', "")
+        for _, ocr_text in sorted(ocr_results.items()):
+            text += ' ' + ocr_text
+        rv['text'] = text
+        rv['ocr'] = True
+        rv['ocrtext'] = ocr_results
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -127,6 +137,8 @@ def get_document_data(digest):
         'content-type': blob.mime_type,
         'filetype': filetype(blob.mime_type),
         'text': digest_data.get('text'),
+        'ocr': digest_data.get('ocr'),
+        'ocrtext': digest_data.get('ocrtext'),
         'md5': blob.md5,
         'sha1': blob.sha1,
         'size': blob.path().stat().st_size,
