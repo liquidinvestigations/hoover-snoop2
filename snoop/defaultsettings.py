@@ -65,3 +65,5 @@ STATIC_ROOT = str(base_dir / 'static')
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
 SNOOP_TIKA_URL = 'http://localhost:9998'
 SNOOP_FEED_PAGE_SIZE = 100
+SNOOP_ELASTICSEARCH_URL = 'http://localhost:9200'
+SNOOP_ELASTICSEARCH_INDEX = 'snoop2'
