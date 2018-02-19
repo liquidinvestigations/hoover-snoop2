@@ -43,6 +43,9 @@ supervisorctl update
 # download testdata
 git clone https://github.com/hoover/testdata.git /opt/testdata
 
+# download magic file
+wget https://github.com/hoover/magic-definitions/raw/master/magic.mgc -O /opt/snoop2/magic.mgc
+
 # set up snoop's virtualenv
 virtualenv -p python3 /opt/snoop2-venv
 /opt/snoop2-venv/bin/pip install -r /opt/snoop2/requirements.txt
@@ -50,6 +53,24 @@ virtualenv -p python3 /opt/snoop2-venv
 # create snoop's database
 sudo -u postgres createuser --superuser ubuntu
 sudo -u postgres createdb -O ubuntu snoop2
+
+# migrate databases
+sudo -u ubuntu PYTHONDONTWRITEBYTECODE=yesgoddamnit /opt/snoop2-venv/bin/python /opt/snoop2/manage.py migrate
+
+# collect static files
+sudo -u ubuntu PYTHONDONTWRITEBYTECODE=yesgoddamnit /opt/snoop2-venv/bin/python /opt/snoop2/manage.py collectstatic --noinput
+
+# create superuser
+sudo -u ubuntu PYTHONDONTWRITEBYTECODE=yesgoddamnit /opt/snoop2-venv/bin/python /opt/snoop2/manage.py shell <<EOF
+from django.contrib.auth.models import User
+user = User.objects.create_user('admin', password='password')
+user.is_superuser=True
+user.is_staff=True
+user.save()
+EOF
+
+# create testdata collection
+sudo -u ubuntu PYTHONDONTWRITEBYTECODE=yesgoddamnit /opt/snoop2-venv/bin/python /opt/snoop2/manage.py createcollection testdata /opt/testdata/
 
 # turn off postgresql so the VM shuts down without timing out
 systemctl stop postgresql
