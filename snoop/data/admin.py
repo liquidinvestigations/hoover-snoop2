@@ -99,11 +99,11 @@ class FileAdmin(admin.ModelAdmin):
 
 
 class BlobAdmin(admin.ModelAdmin):
-    list_display = ['__str__', 'mime_type', 'mime_encoding']
+    list_display = ['__str__', 'mime_type', 'mime_encoding', 'created']
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
                      'magic', 'mime_type', 'mime_encoding']
-    readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5']
+    readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5', 'created']
 
     change_form_template = 'snoop/admin_blob_change_form.html'
 
@@ -122,6 +122,9 @@ class BlobAdmin(admin.ModelAdmin):
         return super().change_view(
             request, object_id, form_url, extra_context=extra_context,
         )
+
+    def created(self, obj):
+        return naturaltime(obj.date_created)
 
     def get_preview_content(self, blob):
         if blob.mime_type == 'text/plain':
