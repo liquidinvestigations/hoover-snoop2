@@ -1,43 +1,61 @@
 import json
 import logging
 from datetime import datetime
-from django.forms.models import model_to_dict
+from itertools import chain
 from django.conf import settings
 import requests
-from . import models
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
 ES_URL = settings.SNOOP_ELASTICSEARCH_URL
-ES_INDEX = settings.SNOOP_ELASTICSEARCH_INDEX
+ES_INDEX_PREFIX = settings.SNOOP_ELASTICSEARCH_INDEX_PREFIX
 ES_MAPPINGS = {
     'task': {
         'properties': {
             'func': {'type': 'string', 'index': 'not_analyzed'},
             #'args': {'type': 'keyword'},  # TODO needs ES5
             'args': {'type': 'string', 'index': 'not_analyzed'},
+            'date_created': {'type': 'date', 'index': 'not_analyzed'},
+            'date_modified': {'type': 'date', 'index': 'not_analyzed'},
             'date_started': {'type': 'date', 'index': 'not_analyzed'},
             'date_finished': {'type': 'date', 'index': 'not_analyzed'},
+        },
+    },
+    'blob': {
+        'properties': {
+            'mime_type': {'type': 'string', 'index': 'not_analyzed'},
+            'mime_encoding': {'type': 'string', 'index': 'not_analyzed'},
+            'date_created': {'type': 'date', 'index': 'not_analyzed'},
+            'date_modified': {'type': 'date', 'index': 'not_analyzed'},
         },
     },
 }
 
 
+def is_enabled():
+    return bool(ES_URL and ES_INDEX_PREFIX)
+
+
 def reset():
-    url = f'{ES_URL}/{ES_INDEX}'
+    for document_type in ['task', 'blob']:
+        index = ES_INDEX_PREFIX + document_type
+        url = f'{ES_URL}/{index}'
 
-    delete_resp = requests.delete(url)
-    log.info('Elasticsearch DELETE: %r', delete_resp)
+        delete_resp = requests.delete(url)
+        log.info('%s Elasticsearch DELETE: %r', document_type, delete_resp)
 
-    config = {'mappings': ES_MAPPINGS}
-    put_resp = requests.put(url, data=json.dumps(config))
-    log.info('Elasticsearch PUT: %r', put_resp)
-    log.info('Elasticsearch PUT: %r', put_resp.text)
+        config = {'mappings': ES_MAPPINGS}
+        put_resp = requests.put(url, data=json.dumps(config))
+        log.info('%s Elasticsearch PUT: %r', document_type, put_resp)
+        log.info('%s Elasticsearch PUT: %r', document_type, put_resp.text)
 
 
 def dump(row):
-    data = model_to_dict(row)
+    meta = row._meta
+    data = {}
+    for f in chain(meta.concrete_fields, meta.private_fields, meta.many_to_many):
+        data[f.name] = f.value_from_object(row)
 
     for k in data:
         if isinstance(data[k], datetime):
@@ -61,9 +79,10 @@ def paginate(iterator, size):
 
 
 def bulk_index(row_iter, document_type):
+    index = ES_INDEX_PREFIX + document_type
     for row in row_iter:
         address = {
-            '_index': ES_INDEX,
+            '_index': index,
             '_type': document_type,
             '_id': row.pk,
         }
@@ -71,19 +90,45 @@ def bulk_index(row_iter, document_type):
         yield dump(row)
 
 
+def add_record(row, document_type):
+    log.debug('Sending %s %r', document_type, row)
+    index = ES_INDEX_PREFIX + document_type
+    print(json.dumps(dump(row)))
+    resp = requests.put(
+        f'{ES_URL}/{index}/{document_type}/{row.pk}',
+        data=json.dumps(dump(row)),
+    )
+
+    if not (200 <= resp.status_code < 300):
+        log.error('Response: %r', resp)
+        log.error('Response text:\n%s', resp.text)
+        raise RuntimeError('Put request failed: %r' % resp)
+
+    print(resp)
+    print(resp.text)
+
+
 def update():
-    queryset = models.Task.objects.all()
-    for n, task_list in enumerate(paginate(queryset.iterator(), 1000)):
-        log.info('Sending page %d', n + 1)
-        lines = (
-            json.dumps(m).encode('utf8') + b'\n'
-            for m in bulk_index(task_list, 'task')
-        )
-        resp = requests.post(f'{ES_URL}/_bulk', data=lines)
+    from . import models
 
-        if resp.status_code != 200 or resp.json()['errors']:
-            log.error('Response: %r', resp)
-            log.error('Response text:\n%s', resp.text)
-            raise RuntimeError('Bulk request failed: %r' % resp)
+    if not is_enabled():
+        raise RuntimeError("SNOOP_ELASTICSEARCH_URL or "
+                           "SNOOP_ELASTICSEARCH_INDEX_PREFIX is not set")
 
-    log.info('done')
+    for document_type, model in [('task', models.Task), ('blob', models.Blob)]:
+        log.info('Importing table %r ...', document_type)
+        queryset = model.objects.all()
+        for n, task_list in enumerate(paginate(queryset.iterator(), 1000)):
+            log.info('Sending page %d', n + 1)
+            lines = (
+                json.dumps(m).encode('utf8') + b'\n'
+                for m in bulk_index(task_list, document_type)
+            )
+            resp = requests.post(f'{ES_URL}/_bulk', data=lines)
+
+            if resp.status_code != 200 or resp.json()['errors']:
+                log.error('Response: %r', resp)
+                log.error('Response text:\n%s', resp.text)
+                raise RuntimeError('Bulk request failed: %r' % resp)
+
+        log.info('Done')
