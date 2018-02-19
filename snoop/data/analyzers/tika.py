@@ -2,7 +2,7 @@ from urllib.parse import urljoin
 import json
 from django.conf import settings
 import requests
-from ..tasks import shaorma
+from ..tasks import shaorma, ShaormaBroken
 from .. import models
 
 TIKA_CONTENT_TYPES = [
@@ -53,6 +53,9 @@ def can_process(blob):
 def call_tika_server(endpoint, data):
     url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
     resp = requests.put(url, data=data)
+
+    if resp.status_code == 422:
+        raise ShaormaBroken("tika returned http 422, corrupt?", "tika_http_422")
 
     if (resp.status_code != 200 or
         resp.headers['Content-Type'] != 'application/json'):
