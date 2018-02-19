@@ -6,6 +6,7 @@ from django.db import models
 from django.conf import settings
 from django.template.defaultfilters import truncatechars
 from django.contrib.postgres.fields import JSONField
+from django.core.exceptions import ObjectDoesNotExist
 from .magic import Magic, looks_like_email, looks_like_emlx_email
 
 BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
@@ -117,19 +118,35 @@ class Blob(models.Model):
 
     @classmethod
     def create_from_bytes(cls, data):
-        with cls.create() as writer:
-            writer.write(data)
+        sha3_256 = hashlib.sha3_256()
+        sha3_256.update(data)
 
-        return writer.blob
+        try:
+            return Blob.objects.get(pk=sha3_256.hexdigest())
+
+        except ObjectDoesNotExist:
+            with cls.create() as writer:
+                writer.write(data)
+
+            return writer.blob
 
     @classmethod
     def create_from_file(cls, path):
-        with cls.create() as writer:
-            with open(path, 'rb') as f:
-                for block in chunks(f):
-                    writer.write(block)
+        file_sha3_256 = hashlib.sha3_256()
+        with open(path, 'rb') as f:
+            for block in chunks(f):
+                file_sha3_256.update(block)
 
-        return writer.blob
+        try:
+            return Blob.objects.get(pk=file_sha3_256.hexdigest())
+
+        except ObjectDoesNotExist:
+            with cls.create() as writer:
+                with open(path, 'rb') as f:
+                    for block in chunks(f):
+                        writer.write(block)
+
+            return writer.blob
 
     def open(self, encoding=None):
         if encoding is not None:
