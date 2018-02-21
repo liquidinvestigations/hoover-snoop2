@@ -50,13 +50,13 @@ def dump_part(message, depends_on):
         return rv
 
     content_type = message.get_content_type()
+    payload_bytes = message.get_payload(decode=True)
+
     if content_type == 'text/plain':
-        payload_bytes = message.get_payload(decode=True)
         charset = message.get_content_charset() or 'latin1'
         rv['text'] = payload_bytes.decode(charset, errors='replace')
 
     if content_type == 'text/html':
-        payload_bytes = message.get_payload(decode=True)
         with models.Blob.create() as writer:
             writer.write(payload_bytes)
 
@@ -73,10 +73,9 @@ def dump_part(message, depends_on):
         raw_filename = message.get_filename()
         if raw_filename:
             filename = read_header(raw_filename)
-            attachment_content = message.get_payload(decode=True)
 
             with models.Blob.create() as writer:
-                writer.write(attachment_content)
+                writer.write(payload_bytes)
 
             rv['attachment'] = {
                 'name': filename,
