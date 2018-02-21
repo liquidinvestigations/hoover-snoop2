@@ -42,6 +42,13 @@ def get_headers(message):
 def dump_part(message, depends_on):
     rv = {'headers': get_headers(message)}
 
+    if message.is_multipart():
+        rv['parts'] = [
+            dump_part(part, depends_on)
+            for part in message.get_payload()
+        ]
+        return rv
+
     content_type = message.get_content_type()
     if content_type == 'text/plain':
         payload_bytes = message.get_payload(decode=True)
@@ -61,12 +68,6 @@ def dump_part(message, depends_on):
         with rmeta_blob.open(encoding='utf8') as f:
             rmeta_data = json.load(f)
         rv['text'] = rmeta_data[0].get('X-TIKA:content', "")
-
-    if message.is_multipart():
-        rv['parts'] = [
-            dump_part(part, depends_on)
-            for part in message.get_payload()
-        ]
 
     if message.get_content_disposition():
         raw_filename = message.get_filename()
