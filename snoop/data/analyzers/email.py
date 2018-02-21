@@ -7,6 +7,7 @@ import email
 from .. import models
 from ..tasks import shaorma, ShaormaError, require_dependency
 from . import tika
+from . import pgp
 
 BYTE_ORDER_MARK = b'\xef\xbb\xbf'
 
@@ -51,6 +52,10 @@ def dump_part(message, depends_on):
 
     content_type = message.get_content_type()
     payload_bytes = message.get_payload(decode=True)
+
+    if pgp.is_encrypted(payload_bytes):
+        payload_bytes = pgp.decrypt(payload_bytes)
+        rv['pgp'] = True
 
     if content_type == 'text/plain':
         charset = message.get_content_charset() or 'latin1'
