@@ -110,10 +110,14 @@ def email_meta(digest_data):
     headers = email_data['headers']
 
     text_bits = []
+    pgp = False
     for part in iter_parts(email_data):
         part_text = part.get('text')
         if part_text:
             text_bits.append(part_text)
+
+        if part.get('pgp'):
+            pgp = True
 
     headers_to = set()
     for header in ['To', 'Cc', 'Bcc', 'Resent-To', 'Recent-Cc']:
@@ -124,6 +128,7 @@ def email_meta(digest_data):
         'to': list(headers_to),
         'subject': headers.get('Subject', [''])[0],
         'text': '\n\n'.join(text_bits).strip(),
+        'pgp': pgp,
     }
 
 
@@ -137,6 +142,7 @@ def get_document_data(digest):
         'content-type': blob.mime_type,
         'filetype': filetype(blob.mime_type),
         'text': digest_data.get('text'),
+        'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
         'ocrtext': digest_data.get('ocrtext'),
         'md5': blob.md5,

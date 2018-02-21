@@ -7,6 +7,7 @@ from snoop.data import models
 from snoop.data import tasks
 from snoop.data.analyzers import email
 from snoop.data.analyzers import pgp
+from fixtures import TESTDATA, CollectionApiClient
 
 PATH_HUSH_MAIL = 'eml-9-pgp/encrypted-hushmail-knockoff.eml'
 HEIN_PRIVATE_KEY = 'eml-9-pgp/keys/hein-priv.gpg'
@@ -18,7 +19,7 @@ pytestmark = [pytest.mark.django_db]
 def configure_gpg(monkeypatch):
     with tempfile.TemporaryDirectory() as tmp:
         monkeypatch.setattr(settings, 'SNOOP_GNUPG_HOME', tmp)
-        path = Path(settings.SNOOP_TESTDATA) / 'data' / HEIN_PRIVATE_KEY
+        path = TESTDATA / HEIN_PRIVATE_KEY
         with path.open('rb') as f:
             pgp.import_keys(f.read())
 
@@ -49,6 +50,17 @@ def test_decrypted_data(gpg_blob, configure_gpg):
     word_doc_pk = data['parts'][3]['attachment']['blob_pk']
     word_doc = models.Blob.objects.get(pk=word_doc_pk)
     assert word_doc.mime_type == 'application/msword'
+
+
+def test_gpg_digest(gpg_blob, configure_gpg, client, fakedata, taskmanager):
+    collection = fakedata.collection()
+    fakedata.file(collection.root_directory, 'email', gpg_blob)
+
+    taskmanager.run()
+
+    api = CollectionApiClient(collection, client)
+    digest = api.get_digest(gpg_blob.pk)['content']
+    assert digest['pgp']
 
 
 def test_broken_if_no_gpg_home(gpg_blob):
