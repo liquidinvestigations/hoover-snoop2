@@ -6,6 +6,7 @@ from collections import defaultdict
 import email
 from .. import models
 from ..tasks import shaorma, ShaormaError, require_dependency
+from ..tasks import returns_json_blob
 from . import tika
 
 BYTE_ORDER_MARK = b'\xef\xbb\xbf'
@@ -86,6 +87,7 @@ def dump_part(message, depends_on):
 
 
 @shaorma('email.parse')
+@returns_json_blob
 def parse(blob, **depends_on):
     with blob.open() as f:
         message_bytes = f.read()
@@ -96,10 +98,7 @@ def parse(blob, **depends_on):
     message = email.message_from_bytes(message_bytes)
     data = dump_part(message, depends_on)
 
-    with models.Blob.create() as output:
-        output.write(json.dumps(data, indent=2).encode('utf8'))
-
-    return output.blob
+    return data
 
 
 @shaorma('email.msg_to_eml')

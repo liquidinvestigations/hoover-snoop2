@@ -2,7 +2,7 @@ from urllib.parse import urljoin
 import json
 from django.conf import settings
 import requests
-from ..tasks import shaorma, ShaormaBroken
+from ..tasks import shaorma, ShaormaBroken, returns_json_blob
 from .. import models
 
 TIKA_CONTENT_TYPES = [
@@ -65,13 +65,9 @@ def call_tika_server(endpoint, data):
 
 
 @shaorma('tika.rmeta')
+@returns_json_blob
 def rmeta(blob):
     with blob.open() as f:
         resp = call_tika_server('/rmeta/text', f)
 
-    data = json.dumps(resp.json(), indent=2).encode('utf8')
-
-    with models.Blob.create() as output:
-        output.write(data)
-
-    return output.blob
+    return resp.json()

@@ -2,7 +2,7 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
-from ..tasks import shaorma, ShaormaBroken
+from ..tasks import shaorma, ShaormaBroken, returns_json_blob
 from .. import models
 
 
@@ -60,6 +60,7 @@ def call_7z(archive_path, output_dir):
 
 
 @shaorma('archives.unarchive')
+@returns_json_blob
 def unarchive(blob):
     with tempfile.TemporaryDirectory() as temp_dir:
         if blob.mime_type in SEVENZIP_KNOWN_TYPES:
@@ -69,12 +70,7 @@ def unarchive(blob):
 
         listing = list(archive_walk(Path(temp_dir)))
 
-    with tempfile.NamedTemporaryFile() as f:
-        f.write(json.dumps(listing).encode('utf-8'))
-        f.flush()
-        listing_blob = models.Blob.create_from_file(Path(f.name))
-
-    return listing_blob
+    return listing
 
 
 def archive_walk(path):

@@ -1,3 +1,4 @@
+import json
 import logging
 import traceback
 from django.utils import timezone
@@ -225,3 +226,16 @@ def require_dependency(name, depends_on, callback):
 @shaorma('do_nothing')
 def do_nothing(name):
     pass
+
+
+def returns_json_blob(func):
+    def wrapper(*args, **kwargs):
+        rv = func(*args, **kwargs)
+
+        data = json.dumps(rv, indent=2).encode('utf8')
+        with models.Blob.create() as output:
+            output.write(data)
+
+        return output.blob
+
+    return wrapper
