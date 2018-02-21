@@ -4,6 +4,7 @@ from . import models
 from .utils import zulu
 from .analyzers import email
 from .analyzers import tika
+from .analyzers import exif
 from ._file_types import FILE_TYPES
 from . import ocr
 
@@ -17,6 +18,9 @@ def launch(blob, collection_pk):
 
     if tika.can_process(blob):
         depends_on['tika_rmeta'] = tika.rmeta.laterz(blob)
+
+    if exif.can_extract(blob):
+        depends_on['exif_data'] = exif.extract.laterz(blob)
 
     gather.laterz(blob, collection_pk, depends_on=depends_on)
 
@@ -52,6 +56,13 @@ def gather(blob, collection_pk, **depends_on):
         rv['text'] = text
         rv['ocr'] = True
         rv['ocrtext'] = ocr_results
+
+    exif_data_blob = depends_on.get('exif_data')
+    if exif_data_blob:
+        with exif_data_blob.open(encoding='utf8') as f:
+            exif_data = json.load(f)
+        rv['location'] = exif_data['location']
+        rv['date-created'] = exif_data['date-created']
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -145,6 +156,7 @@ def get_document_data(digest):
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
         'ocrtext': digest_data.get('ocrtext'),
+        'date-created': digest_data.get('date-created'),
         'md5': blob.md5,
         'sha1': blob.sha1,
         'size': blob.path().stat().st_size,
@@ -154,6 +166,9 @@ def get_document_data(digest):
 
     if blob.mime_type == 'message/rfc822':
         content.update(email_meta(digest_data))
+
+    if 'location' in digest_data:
+        content['location'] = digest_data['location']
 
     children = None
     child_directory = first_file.child_directory_set.first()
