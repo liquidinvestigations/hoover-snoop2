@@ -1,8 +1,11 @@
+import logging
 import pytest
 from fixtures import TESTDATA, CollectionApiClient
 
 pytestmark = [pytest.mark.django_db]
 PATH_IMAGE = 'disk-files/images/bikes.jpg'
+
+logging.getLogger('exifread').setLevel(logging.INFO)
 
 
 def test_digest_image_exif(client, fakedata, taskmanager):
