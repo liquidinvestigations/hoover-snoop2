@@ -19,5 +19,5 @@ def test_digest_image_exif(client, fakedata, taskmanager):
     api = CollectionApiClient(collection, client)
     digest = api.get_digest(blob.pk)['content']
 
-    assert digest['date-created'] == '2006-02-11T11:06:37'
+    assert digest['date-created'] == '2006-02-11T11:06:37Z'
     assert digest['location'] == '33.87546081542969, -116.3016196017795'

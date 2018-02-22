@@ -1,6 +1,8 @@
 from datetime import datetime
+from django.utils.timezone import utc
 import exifread
 from ..tasks import shaorma, returns_json_blob
+from ..utils import zulu
 
 
 def can_extract(blob):
@@ -41,7 +43,7 @@ def convert_exif_date(str):
         date = datetime.strptime(str, "%Y:%m:%d %H:%M:%S")
     except ValueError:
         return None
-    return date.isoformat()
+    return zulu(utc.fromutc(date))
 
 
 @shaorma('exif.extract')
