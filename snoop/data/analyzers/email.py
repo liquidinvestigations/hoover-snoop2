@@ -8,6 +8,7 @@ from .. import models
 from ..tasks import shaorma, ShaormaError, require_dependency
 from ..tasks import returns_json_blob
 from . import tika
+from . import pgp
 
 BYTE_ORDER_MARK = b'\xef\xbb\xbf'
 
@@ -43,14 +44,25 @@ def get_headers(message):
 def dump_part(message, depends_on):
     rv = {'headers': get_headers(message)}
 
+    if message.is_multipart():
+        rv['parts'] = [
+            dump_part(part, depends_on)
+            for part in message.get_payload()
+        ]
+        return rv
+
     content_type = message.get_content_type()
+    payload_bytes = message.get_payload(decode=True)
+
+    if pgp.is_encrypted(payload_bytes):
+        payload_bytes = pgp.decrypt(payload_bytes)
+        rv['pgp'] = True
+
     if content_type == 'text/plain':
-        payload_bytes = message.get_payload(decode=True)
         charset = message.get_content_charset() or 'latin1'
         rv['text'] = payload_bytes.decode(charset, errors='replace')
 
     if content_type == 'text/html':
-        payload_bytes = message.get_payload(decode=True)
         with models.Blob.create() as writer:
             writer.write(payload_bytes)
 
@@ -63,20 +75,13 @@ def dump_part(message, depends_on):
             rmeta_data = json.load(f)
         rv['text'] = rmeta_data[0].get('X-TIKA:content', "")
 
-    if message.is_multipart():
-        rv['parts'] = [
-            dump_part(part, depends_on)
-            for part in message.get_payload()
-        ]
-
     if message.get_content_disposition():
         raw_filename = message.get_filename()
         if raw_filename:
             filename = read_header(raw_filename)
-            attachment_content = message.get_payload(decode=True)
 
             with models.Blob.create() as writer:
-                writer.write(attachment_content)
+                writer.write(payload_bytes)
 
             rv['attachment'] = {
                 'name': filename,
