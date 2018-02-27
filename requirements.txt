@@ -13,6 +13,7 @@ certifi==2017.11.5        # via requests
 chardet==3.0.4            # via requests
 click==6.7                # via pip-tools
 django==2.0
+exifread==2.1.2
 first==2.0.1              # via pip-tools
 html5lib==1.0.1           # via bleach
 idna==2.6                 # via requests

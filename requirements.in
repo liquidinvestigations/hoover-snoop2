@@ -8,3 +8,4 @@ requests
 waitress
 whitenoise
 bleach
+exifread
