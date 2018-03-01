@@ -266,6 +266,10 @@ class Task(models.Model):
 
     class Meta:
         unique_together = ('func', 'args')
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['func', 'status']),
+        ]
 
     def __str__(self):
         deps = ''
@@ -313,6 +317,9 @@ class Digest(models.Model):
 
     class Meta:
         unique_together = ('collection', 'blob')
+        indexes = [
+            models.Index(fields=['date_modified']),
+        ]
 
 
 class OcrSource(models.Model):
