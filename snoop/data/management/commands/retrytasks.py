@@ -10,7 +10,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--func', help="Filter by task function")
         parser.add_argument('--status', help="Filter by task status")
-        parser.add_argument('-n', action='store_true',
+        parser.add_argument('--dry-run', action='store_true',
                             help="Don't run, just print number of tasks")
 
     def handle(self, **options):
@@ -26,8 +26,8 @@ class Command(BaseCommand):
         if status:
             queryset = queryset.filter(status=status)
 
-        if options.get('n'):
-            print(queryset.count())
+        if options.get('dry_run'):
+            print("Tasks to retry:", queryset.count())
 
         else:
             tasks.retry_tasks(queryset)
