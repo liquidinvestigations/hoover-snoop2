@@ -13,21 +13,21 @@ ES_INDEX_PREFIX = settings.SNOOP_ELASTICSEARCH_INDEX_PREFIX
 ES_MAPPINGS = {
     'task': {
         'properties': {
-            'func': {'type': 'string', 'index': 'not_analyzed'},
+            'func': {'type': 'text', 'index': False},
             #'args': {'type': 'keyword'},  # TODO needs ES5
-            'args': {'type': 'string', 'index': 'not_analyzed'},
-            'date_created': {'type': 'date', 'index': 'not_analyzed'},
-            'date_modified': {'type': 'date', 'index': 'not_analyzed'},
-            'date_started': {'type': 'date', 'index': 'not_analyzed'},
-            'date_finished': {'type': 'date', 'index': 'not_analyzed'},
+            'args': {'type': 'text', 'index': False},
+            'date_created': {'type': 'date', 'index': False},
+            'date_modified': {'type': 'date', 'index': False},
+            'date_started': {'type': 'date', 'index': False},
+            'date_finished': {'type': 'date', 'index': False},
         },
     },
     'blob': {
         'properties': {
-            'mime_type': {'type': 'string', 'index': 'not_analyzed'},
-            'mime_encoding': {'type': 'string', 'index': 'not_analyzed'},
-            'date_created': {'type': 'date', 'index': 'not_analyzed'},
-            'date_modified': {'type': 'date', 'index': 'not_analyzed'},
+            'mime_type': {'type': 'text', 'index': False},
+            'mime_encoding': {'type': 'text', 'index': False},
+            'date_created': {'type': 'date', 'index': False},
+            'date_modified': {'type': 'date', 'index': False},
         },
     },
 }
@@ -45,8 +45,9 @@ def reset():
         delete_resp = requests.delete(url)
         log.info('%s Elasticsearch DELETE: %r', document_type, delete_resp)
 
-        config = {'mappings': ES_MAPPINGS}
-        put_resp = requests.put(url, data=json.dumps(config))
+        config = {'mappings': {document_type: ES_MAPPINGS[document_type]}}
+        put_resp = requests.put(url, data=json.dumps(config),
+            headers={'Content-Type': 'application/json'})
         log.info('%s Elasticsearch PUT: %r', document_type, put_resp)
         log.info('%s Elasticsearch PUT: %r', document_type, put_resp.text)
 
@@ -97,6 +98,7 @@ def add_record(row, document_type):
     resp = requests.put(
         f'{ES_URL}/{index}/{document_type}/{row.pk}',
         data=json.dumps(dump(row)),
+        headers={'Content-Type': 'application/json'},
     )
 
     if not (200 <= resp.status_code < 300):
@@ -124,7 +126,8 @@ def update():
                 json.dumps(m).encode('utf8') + b'\n'
                 for m in bulk_index(task_list, document_type)
             )
-            resp = requests.post(f'{ES_URL}/_bulk', data=lines)
+            resp = requests.post(f'{ES_URL}/_bulk', data=lines,
+                headers={'Content-Type': 'application/json'})
 
             if resp.status_code != 200 or resp.json()['errors']:
                 log.error('Response: %r', resp)
