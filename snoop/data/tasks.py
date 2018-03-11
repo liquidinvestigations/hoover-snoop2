@@ -223,6 +223,14 @@ def dispatch_pending_tasks():
 
 def retry_tasks(queryset):
     for task in queryset.iterator():
+        task.update(
+            status=models.Task.STATUS_PENDING,
+            error='',
+            traceback='',
+            broken_reason='',
+        )
+        logger.info("Retrying task %d", task.pk)
+        task.save()
         queue_task(task)
 
 
