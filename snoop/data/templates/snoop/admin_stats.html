@@ -39,4 +39,23 @@
 <strong>{{ blobs.size|pretty_size }}</strong> in blob storage<br>
 <strong>{{ database.size|pretty_size }}</strong> in database<br>
 
+<h2>Task errors</h2>
+<table>
+  <thead>
+    <th>func</th>
+    <th>error_type</th>
+    <th>count</th>
+  </thead>
+
+  <tbody>
+    {% for row in error_counts %}
+    <tr>
+      <th>{{ row.func }}</th>
+      <td>{{ row.error_type }}</td>
+      <td>{{ row.count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
 {% endblock %}

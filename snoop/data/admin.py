@@ -30,6 +30,17 @@ def raw_sql(query):
         return cursor.fetchall()
 
 
+ERROR_STATS_QUERY = (
+    "SELECT "
+        "func, "
+        "SUBSTRING(error FOR position('(' IN error) - 1) AS error_type, "
+        "COUNT(*) "
+    "FROM data_task "
+    "WHERE status = 'error' "
+    "GROUP BY func, error_type "
+    "ORDER BY count DESC;"
+)
+
 def get_stats():
     task_matrix = defaultdict(dict)
 
@@ -55,6 +66,16 @@ def get_stats():
 
     [[db_size]] = raw_sql("select pg_database_size(current_database())")
 
+    def get_error_counts():
+        with connection.cursor() as cursor:
+            cursor.execute(ERROR_STATS_QUERY)
+            for row in cursor.fetchall():
+                yield {
+                    'func': row[0],
+                    'error_type': row[1],
+                    'count': row[2],
+                }
+
     return {
         'task_matrix': sorted(task_matrix.items()),
         'blobs': {
@@ -68,6 +89,7 @@ def get_stats():
         'database': {
             'size': db_size,
         },
+        'error_counts': list(get_error_counts()),
     }
 
 
