@@ -107,7 +107,12 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 task_pk, dep,
             )
 
-            task.status = models.Task.STATUS_DEFERRED
+            task.update(
+                status=models.Task.STATUS_DEFERRED,
+                error='',
+                traceback='',
+                broken_reason='',
+            )
             models.TaskDependency.objects.get_or_create(
                 prev=dep.task,
                 next=task,
@@ -116,9 +121,12 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
             queue_task(task)
 
         except ShaormaBroken as e:
-            task.error = "{}: {}".format(e.reason, e.args[0])
-            task.status = models.Task.STATUS_BROKEN
-            task.broken_reason = e.reason
+            task.update(
+                status=models.Task.STATUS_BROKEN,
+                error="{}: {}".format(e.reason, e.args[0]),
+                traceback='',
+                broken_reason=e.reason,
+            )
             logger.error("Shaorma %d broken: %s", task_pk, task.error)
 
         except Exception as e:
@@ -126,20 +134,26 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 raise
 
             if isinstance(e, ShaormaError):
-                task.error = "{} ({})".format(e.args[0], e.details)
-
+                error = "{} ({})".format(e.args[0], e.details)
             else:
-                task.error = repr(e)
+                error = repr(e)
 
-            task.status = models.Task.STATUS_ERROR
-            task.traceback = traceback.format_exc()
+            task.update(
+                status=models.Task.STATUS_ERROR,
+                error=error,
+                traceback=traceback.format_exc(),
+                broken_reason='',
+            )
             logger.error("Shaorma %d failed: %s", task_pk, task.error)
 
         else:
-            task.error = ''
-            task.traceback = ''
-            task.broken_reason = ''
-            task.status = models.Task.STATUS_SUCCESS
+            task.update(
+                status=models.Task.STATUS_SUCCESS,
+                error='',
+                traceback='',
+                broken_reason='',
+            )
+            logger.debug("Shaorma %d succeeded", task_pk)
 
         task.date_finished = timezone.now()
         task.save()
@@ -209,6 +223,14 @@ def dispatch_pending_tasks():
 
 def retry_tasks(queryset):
     for task in queryset.iterator():
+        task.update(
+            status=models.Task.STATUS_PENDING,
+            error='',
+            traceback='',
+            broken_reason='',
+        )
+        logger.info("Retrying task %d", task.pk)
+        task.save()
         queue_task(task)
 
 

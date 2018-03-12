@@ -281,6 +281,12 @@ class Task(models.Model):
             )
         return f'{self.func}({self.args}{deps})'
 
+    def update(self, status, error, traceback, broken_reason):
+        self.status = status
+        self.error = error
+        self.traceback = traceback
+        self.broken_reason = broken_reason
+
 
 class TaskDependency(models.Model):
     prev = models.ForeignKey(
