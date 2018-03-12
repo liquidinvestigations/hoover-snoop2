@@ -5,7 +5,7 @@ from snoop.data import ocr
 pytestmark = [pytest.mark.django_db]
 
 
-def test_ocr(fakedata, taskmanager, client):
+def test_pdf_ocr(fakedata, taskmanager, client):
     ocr1_path = TESTDATA.parent / 'ocr/one'
     ocr.create_ocr_source('ocr1', ocr1_path)
     ocr.dispatch_ocr_tasks()
@@ -29,3 +29,17 @@ def test_ocr(fakedata, taskmanager, client):
     resp = client.get(f'/collections/testdata/{blob.pk}/ocr/ocr1/')
     assert b''.join(resp.streaming_content) == ocr_pdf_data
     assert resp['Content-Type'] == 'application/pdf'
+
+
+def test_txt_ocr(fakedata, taskmanager, client):
+    ocr2_path = TESTDATA.parent / 'ocr/two'
+    ocr.create_ocr_source('ocr2', ocr2_path)
+    ocr.dispatch_ocr_tasks()
+    taskmanager.run()
+
+    mof1_1992_233 = TESTDATA / 'disk-files/pdf-for-ocr/mof1_1992_233.pdf'
+    with mof1_1992_233.open('rb') as f:
+        blob = fakedata.blob(f.read())
+
+    [(source, ocrtext)] = ocr.ocr_texts_for_blob(blob)
+    assert "totally different" in ocrtext
