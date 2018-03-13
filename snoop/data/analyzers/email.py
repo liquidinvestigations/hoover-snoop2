@@ -1,3 +1,4 @@
+import logging
 import json
 import subprocess
 import tempfile
@@ -5,12 +6,14 @@ from pathlib import Path
 from collections import defaultdict
 import email
 from .. import models
-from ..tasks import shaorma, ShaormaError, require_dependency
+from ..tasks import shaorma, ShaormaError, ShaormaBroken, require_dependency
 from ..tasks import returns_json_blob
 from . import tika
 from . import pgp
 
 BYTE_ORDER_MARK = b'\xef\xbb\xbf'
+
+log= logging.getLogger(__name__)
 
 
 def iter_parts(message, numbers=[]):
@@ -52,7 +55,12 @@ def dump_part(message, depends_on):
         return rv
 
     content_type = message.get_content_type()
-    payload_bytes = message.get_payload(decode=True)
+
+    try:
+        payload_bytes = message.get_payload(decode=True)
+    except:
+        log.exception("Error getting email payload")
+        raise ShaormaBroken("Error getting payload", "email_get_payload")
 
     if pgp.is_encrypted(payload_bytes):
         payload_bytes = pgp.decrypt(payload_bytes)
