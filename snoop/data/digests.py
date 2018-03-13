@@ -160,7 +160,7 @@ def email_meta(digest_data):
     message_date = None
     message_raw_date = headers.get('Date', [None])[0]
     if message_raw_date:
-        message_date = email.parse_date(message_raw_date).isoformat()
+        message_date = zulu(email.parse_date(message_raw_date))
 
     return {
         'from': headers.get('From', [''])[0],

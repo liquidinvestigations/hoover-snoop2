@@ -79,7 +79,7 @@ def parse_email(path, taskmanager):
 def test_subject_and_date(taskmanager):
     content = parse_email(MAPBOX, taskmanager)['content']
     assert content['subject'] == "Introducing Mapbox Android Services"
-    assert content['date'] == '2016-04-20T13:03:20+00:00'
+    assert content['date'] == '2016-04-20T13:03:20Z'
 
 
 def test_no_subject_or_text(taskmanager):
