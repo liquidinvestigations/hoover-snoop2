@@ -135,7 +135,10 @@ def email_meta(digest_data):
         for part in email_data.get('parts') or []:
             yield from iter_parts(part)
 
-    email_data = digest_data['email']
+    email_data = digest_data.get('email')
+    if not email_data:
+        return {}
+
     headers = email_data['headers']
 
     text_bits = []
