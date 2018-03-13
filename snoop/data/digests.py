@@ -43,7 +43,7 @@ def gather(blob, collection_pk, **depends_on):
     if tika_rmeta_blob:
         if isinstance(tika_rmeta_blob, ShaormaBroken):
             rv['broken'].append(tika_rmeta_blob.reason)
-            log.warn("tika_rmeta task is broken; skipping")
+            log.debug("tika_rmeta task is broken; skipping")
 
         else:
             with tika_rmeta_blob.open(encoding='utf8') as f:
@@ -54,7 +54,7 @@ def gather(blob, collection_pk, **depends_on):
     if email_parse_blob:
         if isinstance(email_parse_blob, ShaormaBroken):
             rv['broken'].append(email_parse_blob.reason)
-            log.warn("email_parse task is broken; skipping")
+            log.debug("email_parse task is broken; skipping")
 
         else:
             with email_parse_blob.open(encoding='utf8') as f:
@@ -74,7 +74,7 @@ def gather(blob, collection_pk, **depends_on):
     if exif_data_blob:
         if isinstance(exif_data_blob, ShaormaBroken):
             rv['broken'].append(exif_data_blob.reason)
-            log.warn("exif_data task is broken; skipping")
+            log.debug("exif_data task is broken; skipping")
 
         else:
             with exif_data_blob.open(encoding='utf8') as f:
