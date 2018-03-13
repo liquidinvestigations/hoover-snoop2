@@ -24,9 +24,10 @@ psycopg2==2.7.3.2
 py==1.5.2                 # via pytest
 pytest-django==3.1.2
 pytest==3.3.2
+python-dateutil==2.7.0
 pytz==2017.3              # via celery, django
 requests==2.18.4
-six==1.11.0               # via bleach, html5lib, pip-tools, pytest
+six==1.11.0               # via bleach, html5lib, pip-tools, pytest, python-dateutil
 urllib3==1.22             # via requests
 vine==1.1.4               # via amqp
 waitress==1.1.0
