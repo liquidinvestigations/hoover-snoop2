@@ -4,6 +4,7 @@ from datetime import datetime
 from itertools import chain
 from django.conf import settings
 import requests
+from .utils import zulu
 
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
@@ -60,7 +61,7 @@ def dump(row):
 
     for k in data:
         if isinstance(data[k], datetime):
-            data[k] = data[k].isoformat()
+            data[k] = zulu(data[k])
 
     return data
 
