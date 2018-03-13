@@ -61,8 +61,8 @@ def gather(blob, collection_pk, **depends_on):
     if exif_data_blob:
         with exif_data_blob.open(encoding='utf8') as f:
             exif_data = json.load(f)
-        rv['location'] = exif_data['location']
-        rv['date-created'] = exif_data['date-created']
+        rv['location'] = exif_data.get('location')
+        rv['date-created'] = exif_data.get('date-created')
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
