@@ -185,7 +185,7 @@ def get_document_data(digest):
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
         'ocrtext': digest_data.get('ocrtext'),
-        'date': digest_data.get('date-created'),
+        'date': digest_data.get('date'),
         'date-created': digest_data.get('date-created'),
         'md5': blob.md5,
         'sha1': blob.sha1,
