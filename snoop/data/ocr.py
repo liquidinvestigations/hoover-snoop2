@@ -7,7 +7,9 @@ from .analyzers import tika
 
 
 def create_ocr_source(name, root):
-    models.OcrSource.objects.create(name=name, root=root)
+    ocr_source = models.OcrSource.objects.create(name=name, root=root)
+    walk_source.laterz(ocr_source.pk)
+    return ocr_source
 
 
 def dispatch_ocr_tasks():

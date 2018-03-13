@@ -8,7 +8,6 @@ pytestmark = [pytest.mark.django_db]
 def test_pdf_ocr(fakedata, taskmanager, client):
     ocr1_path = TESTDATA.parent / 'ocr/one'
     ocr.create_ocr_source('ocr1', ocr1_path)
-    ocr.dispatch_ocr_tasks()
 
     collection = fakedata.collection()
     mof1_1992_233 = TESTDATA / 'disk-files/pdf-for-ocr/mof1_1992_233.pdf'
