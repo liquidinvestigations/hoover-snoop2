@@ -212,9 +212,6 @@ class TaskAdmin(admin.ModelAdmin):
 
 
     def details(self, obj):
-        if obj.status == models.Task.STATUS_SUCCESS:
-            return "✔"
-
         if obj.status == models.Task.STATUS_ERROR:
             return obj.error
 
