@@ -46,20 +46,25 @@ def walk_file(ocr_source_pk, item_path, **depends_on):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
     path = Path(item_path)
 
-    joined_path = ''.join(path.parent.parts + (path.stem,))
+    filebasename = path.name.split('.')[0]
+    joined_path = ''.join(path.parent.parts + (filebasename,))
     original_hash = joined_path[-32:].lower()
     assert re.match(r'^[0-9a-f]{32}$', original_hash)
 
     ocr_blob = models.Blob.create_from_file(path)
 
-    rmeta_blob = require_dependency(
-        f'tika', depends_on,
-        lambda: tika.rmeta.laterz(ocr_blob),
-    )
-    with rmeta_blob.open(encoding='utf8') as f:
-        rmeta_data = json.load(f)
-    text = rmeta_data[0].get('X-TIKA:content', "")
-    text_blob = models.Blob.create_from_bytes(text.encode('utf8'))
+    if path.suffix == '.txt':
+        text_blob = ocr_blob
+
+    else:
+        rmeta_blob = require_dependency(
+            f'tika', depends_on,
+            lambda: tika.rmeta.laterz(ocr_blob),
+        )
+        with rmeta_blob.open(encoding='utf8') as f:
+            rmeta_data = json.load(f)
+        text = rmeta_data[0].get('X-TIKA:content', "")
+        text_blob = models.Blob.create_from_bytes(text.encode('utf8'))
 
     ocr_source.ocrdocument_set.get_or_create(
         original_hash=original_hash,
