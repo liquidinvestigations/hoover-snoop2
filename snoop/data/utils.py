@@ -30,7 +30,7 @@ def time_from_unix(t):
 
 
 def zulu(t):
-    txt = t.isoformat()
+    txt = t.astimezone(utc).isoformat()
     assert txt.endswith('+00:00')
     return txt.replace('+00:00', 'Z')
 

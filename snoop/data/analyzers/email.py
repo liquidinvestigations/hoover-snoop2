@@ -131,3 +131,7 @@ def msg_to_eml(blob):
             raise ShaormaError("msgconvert failed", e.output.decode('latin1'))
 
         return models.Blob.create_from_file(eml_path)
+
+
+def parse_date(raw_date):
+    return email.utils.parsedate_to_datetime(raw_date)

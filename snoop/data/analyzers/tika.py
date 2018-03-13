@@ -2,8 +2,10 @@ from urllib.parse import urljoin
 import json
 from django.conf import settings
 import requests
+from dateutil import parser
 from ..tasks import shaorma, ShaormaBroken, returns_json_blob
 from .. import models
+from ..utils import zulu
 
 TIKA_CONTENT_TYPES = [
     'text/plain',
@@ -71,3 +73,22 @@ def rmeta(blob):
         resp = call_tika_server('/rmeta/text', f)
 
     return resp.json()
+
+
+def get_date_created(rmeta):
+    FIELDS_CREATED = ['Creation-Date', 'dcterms:created', 'meta:created',
+                      'created']
+
+    for field in FIELDS_CREATED:
+        value = rmeta[0].get(field)
+        if value:
+            return zulu(parser.parse(value))
+
+def get_date_modified(rmeta):
+    FIELDS_MODIFIED = ['Last-Modified', 'Last-Saved-Date', 'dcterms:modified',
+                       'meta:modified', 'created']
+
+    for field in FIELDS_MODIFIED:
+        value = rmeta[0].get(field)
+        if value:
+            return zulu(parser.parse(value))

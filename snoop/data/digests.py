@@ -49,6 +49,8 @@ def gather(blob, collection_pk, **depends_on):
             with tika_rmeta_blob.open(encoding='utf8') as f:
                 tika_rmeta = json.load(f)
             rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")
+            rv['date'] = tika.get_date_modified(tika_rmeta)
+            rv['date-created'] = tika.get_date_created(tika_rmeta)
 
     email_parse_blob = depends_on.get('email_parse')
     if email_parse_blob:
@@ -155,12 +157,18 @@ def email_meta(digest_data):
     for header in ['To', 'Cc', 'Bcc', 'Resent-To', 'Recent-Cc']:
         headers_to.update(headers.get(header, []))
 
+    message_date = None
+    message_raw_date = headers.get('Date', [None])[0]
+    if message_raw_date:
+        message_date = zulu(email.parse_date(message_raw_date))
+
     return {
         'from': headers.get('From', [''])[0],
         'to': list(headers_to),
         'subject': headers.get('Subject', [''])[0],
         'text': '\n\n'.join(text_bits).strip(),
         'pgp': pgp,
+        'date': message_date,
     }
 
 
@@ -177,6 +185,7 @@ def get_document_data(digest):
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
         'ocrtext': digest_data.get('ocrtext'),
+        'date': digest_data.get('date'),
         'date-created': digest_data.get('date-created'),
         'md5': blob.md5,
         'sha1': blob.sha1,
