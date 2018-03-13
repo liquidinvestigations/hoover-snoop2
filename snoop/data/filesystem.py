@@ -1,3 +1,4 @@
+import logging
 import json
 from pathlib import Path
 from django.utils import timezone
@@ -8,6 +9,8 @@ from .analyzers import archives
 from .analyzers import emlx
 from .analyzers import email
 from . import digests
+
+log = logging.getLogger(__name__)
 
 
 def directory_absolute_path(directory):
@@ -105,6 +108,10 @@ def handle_file(file_pk, **depends_on):
 
 @shaorma('filesystem.create_archive_files')
 def create_archive_files(file_pk, archive_listing):
+    if isinstance(archive_listing, ShaormaBroken):
+        log.warn("Unarchive task is broken; returning without doing anything")
+        return
+
     with archive_listing.open() as f:
         archive_listing_data = json.load(f)
 
@@ -158,6 +165,10 @@ def create_archive_files(file_pk, archive_listing):
 
 
 def get_email_attachments(parsed_email):
+    if isinstance(parsed_email, ShaormaBroken):
+        log.warn("Email task is broken; returning without doing anything")
+        return
+
     def iter_parts(email_data):
         yield email_data
         for part in email_data.get('parts') or []:
