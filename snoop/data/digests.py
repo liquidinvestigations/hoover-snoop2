@@ -1,5 +1,6 @@
+import logging
 import json
-from .tasks import shaorma
+from .tasks import shaorma, ShaormaBroken
 from . import models
 from .utils import zulu
 from .analyzers import email
@@ -7,6 +8,8 @@ from .analyzers import tika
 from .analyzers import exif
 from ._file_types import FILE_TYPES
 from . import ocr
+
+log = logging.getLogger(__name__)
 
 
 @shaorma('digests.launch')
@@ -38,15 +41,23 @@ def gather(blob, collection_pk, **depends_on):
 
     tika_rmeta_blob = depends_on.get('tika_rmeta')
     if tika_rmeta_blob:
-        with tika_rmeta_blob.open(encoding='utf8') as f:
-            tika_rmeta = json.load(f)
-        rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")
+        if isinstance(tika_rmeta_blob, ShaormaBroken):
+            log.warn("tika_rmeta task is broken; skipping")
+
+        else:
+            with tika_rmeta_blob.open(encoding='utf8') as f:
+                tika_rmeta = json.load(f)
+            rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")
 
     email_parse_blob = depends_on.get('email_parse')
     if email_parse_blob:
-        with email_parse_blob.open(encoding='utf8') as f:
-            email_parse = json.load(f)
-        rv['email'] = email_parse
+        if isinstance(email_parse_blob, ShaormaBroken):
+            log.warn("email_parse task is broken; skipping")
+
+        else:
+            with email_parse_blob.open(encoding='utf8') as f:
+                email_parse = json.load(f)
+            rv['email'] = email_parse
 
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
     if ocr_results:
@@ -59,10 +70,14 @@ def gather(blob, collection_pk, **depends_on):
 
     exif_data_blob = depends_on.get('exif_data')
     if exif_data_blob:
-        with exif_data_blob.open(encoding='utf8') as f:
-            exif_data = json.load(f)
-        rv['location'] = exif_data.get('location')
-        rv['date-created'] = exif_data.get('date-created')
+        if isinstance(exif_data_blob, ShaormaBroken):
+            log.warn("exif_data task is broken; skipping")
+
+        else:
+            with exif_data_blob.open(encoding='utf8') as f:
+                exif_data = json.load(f)
+            rv['location'] = exif_data.get('location')
+            rv['date-created'] = exif_data.get('date-created')
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
