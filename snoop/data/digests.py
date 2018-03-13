@@ -32,7 +32,7 @@ def launch(blob, collection_pk):
 def gather(blob, collection_pk, **depends_on):
     collection = models.Collection.objects.get(pk=collection_pk)
 
-    rv = {}
+    rv = {'broken': []}
     text_blob = depends_on.get('text')
     if text_blob:
         with text_blob.open() as f:
@@ -42,6 +42,7 @@ def gather(blob, collection_pk, **depends_on):
     tika_rmeta_blob = depends_on.get('tika_rmeta')
     if tika_rmeta_blob:
         if isinstance(tika_rmeta_blob, ShaormaBroken):
+            rv['broken'].append(tika_rmeta_blob.reason)
             log.warn("tika_rmeta task is broken; skipping")
 
         else:
@@ -52,6 +53,7 @@ def gather(blob, collection_pk, **depends_on):
     email_parse_blob = depends_on.get('email_parse')
     if email_parse_blob:
         if isinstance(email_parse_blob, ShaormaBroken):
+            rv['broken'].append(email_parse_blob.reason)
             log.warn("email_parse task is broken; skipping")
 
         else:
@@ -71,6 +73,7 @@ def gather(blob, collection_pk, **depends_on):
     exif_data_blob = depends_on.get('exif_data')
     if exif_data_blob:
         if isinstance(exif_data_blob, ShaormaBroken):
+            rv['broken'].append(exif_data_blob.reason)
             log.warn("exif_data task is broken; skipping")
 
         else:
@@ -177,6 +180,7 @@ def get_document_data(digest):
         'size': blob.path().stat().st_size,
         'filename': first_file.name,
         'path': full_path(first_file),
+        'broken': digest_data.get('broken'),
     }
 
     if blob.mime_type == 'message/rfc822':

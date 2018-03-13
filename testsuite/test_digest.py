@@ -20,3 +20,4 @@ def test_digest_with_broken_dependency(fakedata, taskmanager, client):
     assert digest['md5'] == 'f6e0d13c5c3aaab75b4febced3e72ae0'
     assert digest['size'] == 1000
     assert digest['text'] is None
+    assert digest['broken'] == ['tika_http_422']
