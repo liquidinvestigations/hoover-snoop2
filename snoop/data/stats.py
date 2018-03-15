@@ -9,8 +9,8 @@ from .utils import zulu
 log = logging.getLogger(__name__)
 log.setLevel(logging.DEBUG)
 
-ES_URL = settings.SNOOP_ELASTICSEARCH_URL
-ES_INDEX_PREFIX = settings.SNOOP_ELASTICSEARCH_INDEX_PREFIX
+ES_URL = settings.SNOOP_STATS_ELASTICSEARCH_URL
+ES_INDEX_PREFIX = settings.SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX
 ES_MAPPINGS = {
     'task': {
         'properties': {
@@ -115,8 +115,8 @@ def update():
     from . import models
 
     if not is_enabled():
-        raise RuntimeError("SNOOP_ELASTICSEARCH_URL or "
-                           "SNOOP_ELASTICSEARCH_INDEX_PREFIX is not set")
+        raise RuntimeError("SNOOP_STATS_ELASTICSEARCH_URL or "
+                           "SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX is not set")
 
     for document_type, model in [('task', models.Task), ('blob', models.Blob)]:
         log.info('Importing table %r ...', document_type)

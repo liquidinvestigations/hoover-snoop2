@@ -11,5 +11,9 @@ class Command(BaseCommand):
         parser.add_argument('root', type=Path)
 
     def handle(self, *args, **options):
-        col = Collection.objects.create(name=options['name'], root=options['root'])
+        col = Collection.objects.create(
+            name=options['name'],
+            root=options['root'],
+            es_index=options['name'],
+        )
         root = col.directory_set.create()
