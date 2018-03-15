@@ -161,7 +161,6 @@ class Blob(models.Model):
 class Collection(models.Model):
     name = models.CharField(max_length=128, unique=True)
     root = models.CharField(max_length=4096)
-    es_index = models.CharField(max_length=4096)
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)

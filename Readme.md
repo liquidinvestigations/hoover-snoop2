@@ -45,6 +45,12 @@ First tell snoop about this new collection:
 ./manage.py createcollection testdata /tmp/testdata/data
 ```
 
+The snoop code will need an ElasticSearch index to send data to. Create one
+with the following command:
+```shell
+./manage.py resetcollectionindex testdata
+```
+
 Then start the dispatcher, which will periodically scan the directory, and
 launch analysis jobs for any new or modified files. You only need one
 dispatcher, it will scan all the collections registered in this snoop instance.

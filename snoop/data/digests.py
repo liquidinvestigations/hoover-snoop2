@@ -8,6 +8,7 @@ from .analyzers import tika
 from .analyzers import exif
 from ._file_types import FILE_TYPES
 from . import ocr
+from . import indexing
 
 log = logging.getLogger(__name__)
 
@@ -87,11 +88,25 @@ def gather(blob, collection_pk, **depends_on):
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
 
-    collection.digest_set.update_or_create(
+    digest, _ = collection.digest_set.update_or_create(
         blob=blob,
         defaults=dict(
             result=writer.blob,
         ),
+    )
+
+    index.laterz(digest.pk)
+
+@shaorma('digests.index')
+def index(digest_pk):
+    digest = models.Digest.objects.get(pk=digest_pk)
+    content = _get_document_content(digest)
+    version = _get_document_version(digest)
+    body = dict(content, _hoover={'version': version})
+    indexing.index(
+        digest.collection.name,
+        digest.blob.pk,
+        body,
     )
 
 
@@ -172,49 +187,59 @@ def email_meta(digest_data):
     }
 
 
-def get_document_data(digest):
+def _get_document_content(digest):
+    first_file = digest.blob.file_set.order_by('pk').first()
+
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
 
-    blob = digest.blob
-    first_file = blob.file_set.order_by('pk').first()
     content = {
-        'content-type': blob.mime_type,
-        'filetype': filetype(blob.mime_type),
+        'content-type': digest.blob.mime_type,
+        'filetype': filetype(digest.blob.mime_type),
         'text': digest_data.get('text'),
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
         'ocrtext': digest_data.get('ocrtext'),
         'date': digest_data.get('date'),
         'date-created': digest_data.get('date-created'),
-        'md5': blob.md5,
-        'sha1': blob.sha1,
-        'size': blob.path().stat().st_size,
+        'md5': digest.blob.md5,
+        'sha1': digest.blob.sha1,
+        'size': digest.blob.size,
         'filename': first_file.name,
         'path': full_path(first_file),
         'broken': digest_data.get('broken'),
     }
 
-    if blob.mime_type == 'message/rfc822':
+    if digest.blob.mime_type == 'message/rfc822':
         content.update(email_meta(digest_data))
 
     if 'location' in digest_data:
         content['location'] = digest_data['location']
+
+    text = content.get('text') or ""
+    content['word-count'] = len(text.strip().split())
+
+    return content
+
+
+def _get_document_version(digest):
+    return zulu(digest.date_modified)
+
+
+def get_document_data(digest):
+    first_file = digest.blob.file_set.order_by('pk').first()
 
     children = None
     child_directory = first_file.child_directory_set.first()
     if child_directory:
         children = get_directory_children(child_directory)
 
-    text = content.get('text') or ""
-    content['word-count'] = len(text.strip().split())
-
     rv = {
-        'id': blob.pk,
+        'id': digest.blob.pk,
         'parent_id': parent_id(first_file),
         'has_locations': True,
-        'version': zulu(digest.date_modified),
-        'content': content,
+        'version': _get_document_version(digest),
+        'content': _get_document_content(digest),
         'children': children,
     }
 
