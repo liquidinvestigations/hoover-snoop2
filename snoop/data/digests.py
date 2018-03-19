@@ -26,7 +26,8 @@ def launch(blob, collection_pk):
     if exif.can_extract(blob):
         depends_on['exif_data'] = exif.extract.laterz(blob)
 
-    gather.laterz(blob, collection_pk, depends_on=depends_on)
+    gather_task = gather.laterz(blob, collection_pk, depends_on=depends_on)
+    index.laterz(blob, collection_pk, depends_on={'digests_gather': gather_task})
 
 
 @shaorma('digests.gather')
@@ -95,11 +96,11 @@ def gather(blob, collection_pk, **depends_on):
         ),
     )
 
-    index.laterz(digest.pk)
+    return writer.blob
 
 @shaorma('digests.index')
-def index(digest_pk):
-    digest = models.Digest.objects.get(pk=digest_pk)
+def index(blob, collection_pk, digests_gather):
+    digest = models.Digest.objects.get(blob=blob, collection__pk=collection_pk)
     content = _get_document_content(digest)
     version = _get_document_version(digest)
     body = dict(content, _hoover={'version': version})
