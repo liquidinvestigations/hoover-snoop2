@@ -8,9 +8,9 @@ RUN set -e \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
      p7zip-full p7zip-rar \
-     pst-utils \
      cpanminus \
      poppler-utils \
+     libgsf-1-dev \
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -22,8 +22,17 @@ RUN pip install -r requirements.txt
 
 RUN git clone https://github.com/hoover/magic-definitions.git \
   && ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc .. )
-
 ENV PATH="/opt/hoover/snoop/magic-definitions/file/bin:${PATH}"
+
+RUN wget http://www.five-ten-sg.com/libpst/packages/libpst-0.6.71.tar.gz \
+  && tar zxvf libpst-0.6.71.tar.gz \
+  && rm -f libpst-0.6.71.tar.gz \
+  && mv libpst-0.6.71 libpst \
+  && cd libpst \
+  && ./configure --disable-python --prefix="`pwd`" \
+  && make \
+  && make install
+ENV PATH="/opt/hoover/snoop/libpst/bin:${PATH}"
 
 COPY . .
 
