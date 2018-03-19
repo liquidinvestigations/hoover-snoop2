@@ -1,138 +1,70 @@
 import json
 import logging
-from datetime import datetime
-from itertools import chain
-from django.conf import settings
 import requests
-from .utils import zulu
+from django.conf import settings
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+DOCUMENT_TYPE = 'doc'
 
-ES_URL = settings.SNOOP_ELASTICSEARCH_URL
-ES_INDEX_PREFIX = settings.SNOOP_ELASTICSEARCH_INDEX_PREFIX
-ES_MAPPINGS = {
-    'task': {
-        'properties': {
-            'func': {'type': 'text', 'index': False},
-            #'args': {'type': 'keyword'},  # TODO needs ES5
-            'args': {'type': 'text', 'index': False},
-            'date_created': {'type': 'date', 'index': False},
-            'date_modified': {'type': 'date', 'index': False},
-            'date_started': {'type': 'date', 'index': False},
-            'date_finished': {'type': 'date', 'index': False},
-        },
-    },
-    'blob': {
-        'properties': {
-            'mime_type': {'type': 'text', 'index': False},
-            'mime_encoding': {'type': 'text', 'index': False},
-            'date_created': {'type': 'date', 'index': False},
-            'date_modified': {'type': 'date', 'index': False},
-        },
-    },
+MAPPINGS = {
+    "doc": {
+        "properties": {
+            "id": {"type": "string", "index": "not_analyzed"},
+            "path": {"type": "string", "index": "not_analyzed"},
+            "suffix": {"type": "string", "index": "not_analyzed"},
+            "md5": {"type": "string", "index": "not_analyzed"},
+            "sha1": {"type": "string", "index": "not_analyzed"},
+            "filetype": {"type": "string", "index": "not_analyzed"},
+            "lang": {"type": "string", "index": "not_analyzed"},
+            "date": {"type": "date", "index": "not_analyzed"},
+            "date-created": {"type": "date", "index": "not_analyzed"},
+            "attachments": {"type": "boolean"},
+            "message-id": {"type": "string", "index": "not_analyzed"},
+            "in-reply-to": {"type": "string", "index": "not_analyzed"},
+            "thread-index": {"type": "string", "index": "not_analyzed"},
+            "references": {"type": "string", "index": "not_analyzed"},
+            "message": {"type": "string", "index": "not_analyzed"},
+            "word-count": {"type": "integer"},
+            "rev": {"type": "integer"},
+            "content-type": {"type": "string", "index": "not_analyzed"},
+            "size": {"type": "integer"},
+        }
+    }
 }
 
-
-def is_enabled():
-    return bool(ES_URL and ES_INDEX_PREFIX)
-
-
-def reset():
-    for document_type in ['task', 'blob']:
-        index = ES_INDEX_PREFIX + document_type
-        url = f'{ES_URL}/{index}'
-
-        delete_resp = requests.delete(url)
-        log.info('%s Elasticsearch DELETE: %r', document_type, delete_resp)
-
-        config = {'mappings': {document_type: ES_MAPPINGS[document_type]}}
-        put_resp = requests.put(url, data=json.dumps(config),
-            headers={'Content-Type': 'application/json'})
-        log.info('%s Elasticsearch PUT: %r', document_type, put_resp)
-        log.info('%s Elasticsearch PUT: %r', document_type, put_resp.text)
-
-
-def dump(row):
-    meta = row._meta
-    data = {}
-    for f in chain(meta.concrete_fields, meta.private_fields, meta.many_to_many):
-        data[f.name] = f.value_from_object(row)
-
-    for k in data:
-        if isinstance(data[k], datetime):
-            data[k] = zulu(data[k])
-
-    return data
-
-
-def paginate(iterator, size):
-    buffer = []
-
-    for value in iterator:
-        buffer.append(value)
-
-        if len(buffer) >= size:
-            yield buffer
-            buffer = []
-
-    if buffer:
-        yield buffer
-
-
-def bulk_index(row_iter, document_type):
-    index = ES_INDEX_PREFIX + document_type
-    for row in row_iter:
-        address = {
-            '_index': index,
-            '_type': document_type,
-            '_id': row.pk,
+SETTINGS = {
+    "analysis": {
+        "analyzer": {
+            "default": {
+                "tokenizer": "standard",
+                "filter": ["standard", "lowercase", "asciifolding"],
+            }
         }
-        yield {'index': address}
-        yield dump(row)
+    }
+}
+
+CONFIG = {'mappings': MAPPINGS, 'settings': SETTINGS}
 
 
-def add_record(row, document_type):
-    log.debug('Sending %s %r', document_type, row)
-    index = ES_INDEX_PREFIX + document_type
-    print(json.dumps(dump(row)))
+def index(index, id, data):
     resp = requests.put(
-        f'{ES_URL}/{index}/{document_type}/{row.pk}',
-        data=json.dumps(dump(row)),
+        f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}/{DOCUMENT_TYPE}/{id}',
+        data=json.dumps(data),
         headers={'Content-Type': 'application/json'},
     )
-
     if not (200 <= resp.status_code < 300):
         log.error('Response: %r', resp)
         log.error('Response text:\n%s', resp.text)
         raise RuntimeError('Put request failed: %r' % resp)
 
-    print(resp)
-    print(resp.text)
 
+def resetindex(index):
+        url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
 
-def update():
-    from . import models
+        delete_resp = requests.delete(url)
+        log.info('%s Elasticsearch DELETE: %r', DOCUMENT_TYPE, delete_resp)
 
-    if not is_enabled():
-        raise RuntimeError("SNOOP_ELASTICSEARCH_URL or "
-                           "SNOOP_ELASTICSEARCH_INDEX_PREFIX is not set")
-
-    for document_type, model in [('task', models.Task), ('blob', models.Blob)]:
-        log.info('Importing table %r ...', document_type)
-        queryset = model.objects.all()
-        for n, task_list in enumerate(paginate(queryset.iterator(), 1000)):
-            log.info('Sending page %d', n + 1)
-            lines = (
-                json.dumps(m).encode('utf8') + b'\n'
-                for m in bulk_index(task_list, document_type)
-            )
-            resp = requests.post(f'{ES_URL}/_bulk', data=lines,
-                headers={'Content-Type': 'application/json'})
-
-            if resp.status_code != 200 or resp.json()['errors']:
-                log.error('Response: %r', resp)
-                log.error('Response text:\n%s', resp.text)
-                raise RuntimeError('Bulk request failed: %r' % resp)
-
-        log.info('Done')
+        put_resp = requests.put(url, data=json.dumps(CONFIG),
+            headers={'Content-Type': 'application/json'})
+        log.info('%s Elasticsearch PUT: %r', DOCUMENT_TYPE, put_resp)
+        log.info('%s Elasticsearch PUT: %r', DOCUMENT_TYPE, put_resp.text)

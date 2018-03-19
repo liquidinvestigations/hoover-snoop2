@@ -1,32 +1,19 @@
-language: python
-python:
-  - "3.6"
-addons:
-  postgresql: "9.6"
-
-before_install:
-  - sudo apt-get -qq update
-  - sudo apt-get install -yqq p7zip-full p7zip-rar cpanminus pst-utils gnupg
-  - sudo cpanm --notest Email::Outlook::Message
-  - sudo apt-get install -yqq automake libtool make python zlib1g-dev
-  - git clone https://github.com/hoover/magic-definitions.git
-  - ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc .. )
-  - PATH=`pwd`/magic-definitions/file/bin:$PATH file -m magic.mgc --version
+services:
+  - docker
 
 install:
-  - wget -nc http://archive.apache.org/dist/tika/tika-server-1.17.jar
-  - pip install -r requirements.txt
-  - git clone https://github.com/hoover/testdata.git
-
-env:
-  - SNOOP_TESTDATA=testdata
-
-before_script:
-  - java -jar tika-server-1.17.jar &
-  - sleep 5
+  - git clone https://github.com/hoover/docker-setup.git
+  - cd docker-setup
+  - mkdir volumes volumes/metrics volumes/metrics/users collections
+  - docker build .. --tag snoop2-testing
+  - cp ../testsuite/docker-compose.override.travis-snoop2.yml docker-compose.override.yml
+  - cp snoop.testing.env snoop.env
+  - cp search.testing.env search.env
+  - docker-compose up -d
+  - git clone https://github.com/hoover/testdata collections/testdata
 
 script:
-  - PATH=`pwd`/magic-definitions/file/bin:$PATH py.test
+  - docker-compose run --rm snoop bash -c 'sleep 15 && py.test -k "not test_unarchive_pst"'
 
 notifications:
   email: false

@@ -1,5 +1,6 @@
 import json
 import tempfile
+import shutil
 from pathlib import Path
 import pytest
 from django.conf import settings
@@ -17,13 +18,14 @@ pytestmark = [pytest.mark.django_db]
 
 @pytest.fixture()
 def configure_gpg(monkeypatch):
-    with tempfile.TemporaryDirectory() as tmp:
-        monkeypatch.setattr(settings, 'SNOOP_GNUPG_HOME', tmp)
-        path = TESTDATA / HEIN_PRIVATE_KEY
-        with path.open('rb') as f:
-            pgp.import_keys(f.read())
+    tmp = tempfile.mkdtemp()  # tempfile.TemporaryDirectory cleanup() fails
 
-        yield
+    monkeypatch.setattr(settings, 'SNOOP_GNUPG_HOME', tmp)
+    path = TESTDATA / HEIN_PRIVATE_KEY
+    with path.open('rb') as f:
+        pgp.import_keys(f.read())
+
+    yield
 
 
 @pytest.fixture()

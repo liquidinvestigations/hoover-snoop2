@@ -9,7 +9,7 @@ from django.template.defaultfilters import truncatechars
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ObjectDoesNotExist
 from .magic import Magic, looks_like_email, looks_like_emlx_email
-from . import indexing
+from . import stats
 
 BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
 BLOB_TMP = BLOB_ROOT / 'tmp'
@@ -345,13 +345,13 @@ class OcrDocument(models.Model):
 
 
 def on_save_task(sender, instance, **kwargs):
-    indexing.add_record(instance, 'task')
+    stats.add_record(instance, 'task')
 
 
 def on_save_blob(sender, instance, **kwargs):
-    indexing.add_record(instance, 'blob')
+    stats.add_record(instance, 'blob')
 
 
-if indexing.is_enabled():
+if stats.is_enabled():
     post_save.connect(on_save_task, sender=Task, dispatch_uid='index_tasks')
     post_save.connect(on_save_blob, sender=Blob, dispatch_uid='index_blobs')

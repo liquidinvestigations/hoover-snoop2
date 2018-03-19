@@ -1,10 +1,12 @@
 from pathlib import Path
 from urllib.parse import urljoin
+import requests
 import pytest
 from django.conf import settings
 from snoop.data.tasks import shaorma
 from snoop.data import models
 from snoop.data import dispatcher
+from snoop.data import indexing
 
 pytestmark = [pytest.mark.django_db]
 
@@ -26,6 +28,7 @@ def test_walk_and_api(client, taskmanager):
         root=Path(settings.SNOOP_TESTDATA) / 'data',
     )
     root = col.directory_set.create()
+    indexing.resetindex(col.name)
 
     dispatcher.run_dispatcher()
     taskmanager.run(limit=10000)
@@ -60,3 +63,15 @@ def test_walk_and_api(client, taskmanager):
     # .partial.emlx
     partialemlx = docs[ID['partialemlx']]
     assert partialemlx['content']['subject'] == "Re: promulgare lege"
+
+    # check that all successful digests.index tasks made it into es
+    es_count_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/testdata/_count'
+    es_count_resp = requests.get(es_count_url)
+    es_count = es_count_resp.json()['count']
+    db_count = models.Task.objects.filter(func='digests.index', status='success').count()
+    assert es_count > 0
+    assert es_count == db_count
+
+    # check that all index ops were successful
+    db_failed_count = models.Task.objects.filter(func='digests.index').exclude(status='success').count()
+    assert db_failed_count == 0

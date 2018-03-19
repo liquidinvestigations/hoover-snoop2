@@ -1,0 +1,8 @@
+version: "2"
+
+services:
+  snoop:
+    image: snoop2-testing
+
+  snoop-worker:
+    image: snoop2-testing

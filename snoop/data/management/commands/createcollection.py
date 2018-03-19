@@ -1,5 +1,6 @@
 from pathlib import Path
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from ...models import Collection
 
 
@@ -11,5 +12,9 @@ class Command(BaseCommand):
         parser.add_argument('root', type=Path)
 
     def handle(self, *args, **options):
-        col = Collection.objects.create(name=options['name'], root=options['root'])
-        root = col.directory_set.create()
+        with transaction.atomic():
+            col = Collection.objects.create(
+                name=options['name'],
+                root=options['root'],
+            )
+            root = col.directory_set.create()

@@ -3,6 +3,7 @@ from django.utils import timezone
 from django.conf import settings
 from snoop.data import models
 from snoop.data import filesystem
+from snoop.data import indexing
 
 TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 
@@ -10,8 +11,12 @@ TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 class FakeData:
 
     def collection(self, name='testdata'):
-        collection = models.Collection.objects.create(name=name, root='')
+        collection = models.Collection.objects.create(
+            name=name,
+            root='',
+        )
         collection.directory_set.create()
+        indexing.resetindex(collection.name)
         return collection
 
     def blob(self, data):
