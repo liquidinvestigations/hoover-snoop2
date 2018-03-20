@@ -95,7 +95,6 @@ def bulk_index(row_iter, document_type):
 def add_record(row, document_type):
     log.debug('Sending %s %r', document_type, row)
     index = ES_INDEX_PREFIX + document_type
-    print(json.dumps(dump(row)))
     resp = requests.put(
         f'{ES_URL}/{index}/{document_type}/{row.pk}',
         data=json.dumps(dump(row)),
@@ -106,9 +105,6 @@ def add_record(row, document_type):
         log.error('Response: %r', resp)
         log.error('Response text:\n%s', resp.text)
         raise RuntimeError('Put request failed: %r' % resp)
-
-    print(resp)
-    print(resp.text)
 
 
 def update():
