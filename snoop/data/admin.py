@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.template.defaultfilters import truncatechars
 from django.urls import path
 from django.shortcuts import render
-from django.db.models import Sum, Count
+from django.db.models import Sum, Count, Avg, F
 from django.db import connection
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from . import models
@@ -58,9 +58,20 @@ def get_stats():
         .filter(date_finished__gt=one_minute_ago)
         .values('func')
         .annotate(count=Count('*'))
+        .annotate(avg_duration=Avg(F('date_finished') - F('date_started')))
     )
     for bucket in task_1m_query:
-        task_matrix[bucket['func']]['1m'] = bucket['count']
+        row = task_matrix[bucket['func']]
+        pending = row.get('pending', 0)
+        count = bucket['count']
+        avg_duration = bucket['avg_duration'].total_seconds()
+        rate = (count / 60)
+        fill =  avg_duration * rate * 100
+        row['1m'] = count
+        row['1m_duration'] = avg_duration
+        row['1m_fill'] = f'{fill:.02f}%'
+        if pending and rate > 0:
+            row['eta'] = timedelta(seconds=int(pending / rate))
 
     blobs = models.Blob.objects
 
