@@ -2,7 +2,7 @@ import re
 import json
 from pathlib import Path
 from . import models
-from .tasks import shaorma, require_dependency
+from .tasks import shaorma, require_dependency, retry_tasks
 from .analyzers import tika
 
 
@@ -75,3 +75,9 @@ def walk_file(ocr_source_pk, item_path, **depends_on):
             'text': text_blob,
         },
     )
+
+    for blob in models.Blob.objects.filter(md5=original_hash):
+        retry_tasks(models.Task.objects.filter(
+            func='digests.gather',
+            blob_arg=blob,
+        ))
