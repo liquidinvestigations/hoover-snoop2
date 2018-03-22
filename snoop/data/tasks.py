@@ -39,9 +39,18 @@ def queue_task(task):
     transaction.on_commit(send_to_celery)
 
 
-def queue_next_tasks(task):
+def queue_next_tasks(task, reset=False):
     for next_dependency in task.next_set.all():
-        queue_task(next_dependency.next)
+        next_task = next_dependency.next
+        if reset:
+            next_task.update(
+                status=models.Task.STATUS_PENDING,
+                error='',
+                traceback='',
+                broken_reason='',
+            )
+            next_task.save()
+        queue_task(next_task)
 
 
 @run_once
@@ -159,7 +168,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         task.save()
 
     if is_competed(task):
-        queue_next_tasks(task)
+        queue_next_tasks(task, reset=True)
 
 
 def shaorma(name):
