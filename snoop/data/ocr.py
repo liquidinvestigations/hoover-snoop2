@@ -1,9 +1,14 @@
 import re
 import json
 from pathlib import Path
+import logging
+import string
 from . import models
 from .tasks import shaorma, require_dependency, retry_tasks
 from .analyzers import tika
+
+
+log = logging.getLogger(__name__)
 
 
 def create_ocr_source(name, root):
@@ -29,24 +34,25 @@ def ocr_texts_for_blob(original):
 
 
 @shaorma('ocr.walk_source')
-def walk_source(ocr_source_pk):
-    def traverse(directory):
-        for item in directory.iterdir():
-            if item.is_dir():
-                yield from traverse(item)
-
-            else:
-                yield item
-
+def walk_source(ocr_source_pk, dir_path=''):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    for item in traverse(Path(ocr_source.root)):
-        walk_file.laterz(ocr_source.pk, str(item))
+    for item in (Path(ocr_source.root) / dir_path).iterdir():
+        if not all(ch in string.printable for ch in item.name):
+            log.warn("Skipping non-printable filename %r in %s:%s",
+                     item.name, ocr_source_pk, dir_path)
+            continue
+
+        if item.is_dir():
+            walk_source.laterz(ocr_source.pk, f'{dir_path}{item.name}/')
+
+        else:
+            walk_file.laterz(ocr_source.pk, f'{dir_path}{item.name}')
 
 
 @shaorma('ocr.walk_file')
-def walk_file(ocr_source_pk, item_path, **depends_on):
+def walk_file(ocr_source_pk, file_path, **depends_on):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    path = Path(item_path)
+    path = Path(ocr_source.root) / file_path
 
     filebasename = path.name.split('.')[0]
     joined_path = ''.join(path.parent.parts + (filebasename,))
