@@ -136,7 +136,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 traceback='',
                 broken_reason=e.reason,
             )
-            logger.error("Shaorma %d broken: %s", task_pk, task.error)
+            logger.exception("Shaorma %d broken: %s", task_pk, task.error)
 
         except Exception as e:
             if raise_exceptions:
@@ -153,7 +153,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 traceback=traceback.format_exc(),
                 broken_reason='',
             )
-            logger.error("Shaorma %d failed: %s", task_pk, task.error)
+            logger.exception("Shaorma %d failed: %s", task_pk, task.error)
 
         else:
             task.update(
