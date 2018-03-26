@@ -29,18 +29,14 @@ def ocr_texts_for_blob(original):
 
 
 @shaorma('ocr.walk_source')
-def walk_source(ocr_source_pk):
-    def traverse(directory):
-        for item in directory.iterdir():
-            if item.is_dir():
-                yield from traverse(item)
-
-            else:
-                yield item
-
+def walk_source(ocr_source_pk, path=''):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    for item in traverse(Path(ocr_source.root)):
-        walk_file.laterz(ocr_source.pk, str(item))
+    for item in Path(ocr_source.root + path).iterdir():
+        if item.is_dir():
+            walk_source.laterz(ocr_source.pk, f'{path}/{item.name}')
+
+        else:
+            walk_file.laterz(ocr_source.pk, str(item))
 
 
 @shaorma('ocr.walk_file')
