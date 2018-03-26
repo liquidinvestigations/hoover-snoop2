@@ -29,20 +29,20 @@ def ocr_texts_for_blob(original):
 
 
 @shaorma('ocr.walk_source')
-def walk_source(ocr_source_pk, path=''):
+def walk_source(ocr_source_pk, dir_path=''):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    for item in Path(ocr_source.root + path).iterdir():
+    for item in (Path(ocr_source.root) / dir_path).iterdir():
         if item.is_dir():
-            walk_source.laterz(ocr_source.pk, f'{path}/{item.name}')
+            walk_source.laterz(ocr_source.pk, f'{dir_path}{item.name}/')
 
         else:
-            walk_file.laterz(ocr_source.pk, str(item))
+            walk_file.laterz(ocr_source.pk, f'{dir_path}{item.name}')
 
 
 @shaorma('ocr.walk_file')
-def walk_file(ocr_source_pk, item_path, **depends_on):
+def walk_file(ocr_source_pk, file_path, **depends_on):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    path = Path(item_path)
+    path = Path(ocr_source.root) / file_path
 
     filebasename = path.name.split('.')[0]
     joined_path = ''.join(path.parent.parts + (filebasename,))
