@@ -18,7 +18,9 @@ RUN mkdir -p /opt/hoover/snoop
 WORKDIR /opt/hoover/snoop
 
 ADD requirements.txt ./
-RUN pip install -r requirements.txt
+RUN set -e \
+  && pip install -r requirements.txt \
+  && ./manage.py collectstatic --noinput
 
 RUN git clone https://github.com/hoover/magic-definitions.git \
   && ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc .. )
