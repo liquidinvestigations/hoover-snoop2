@@ -18,9 +18,7 @@ RUN mkdir -p /opt/hoover/snoop
 WORKDIR /opt/hoover/snoop
 
 ADD requirements.txt ./
-RUN set -e \
-  && pip install -r requirements.txt \
-  && ./manage.py collectstatic --noinput
+RUN pip install -r requirements.txt
 
 RUN git clone https://github.com/hoover/magic-definitions.git \
   && ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc .. )
@@ -43,5 +41,7 @@ RUN set -e \
  && echo '#!/bin/bash -e' > /runserver \
  && echo 'waitress-serve --port 80 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver /wait-for-it
+
+RUN ./manage.py collectstatic --noinput
 
 CMD /runserver
