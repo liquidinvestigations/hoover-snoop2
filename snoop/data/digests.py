@@ -111,7 +111,7 @@ def index(blob, collection_pk, digests_gather):
     )
 
 
-def filetype(mime_type):
+def get_filetype(mime_type):
     if mime_type in FILE_TYPES:
         return FILE_TYPES[mime_type]
 
@@ -194,9 +194,15 @@ def _get_document_content(digest):
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
 
+    attachments = None
+    filetype = get_filetype(digest.blob.mime_type)
+    if filetype == 'email':
+        if first_file.child_directory_set.count() > 0:
+            attachments = True
+
     content = {
         'content-type': digest.blob.mime_type,
-        'filetype': filetype(digest.blob.mime_type),
+        'filetype': filetype,
         'text': digest_data.get('text'),
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
@@ -209,6 +215,7 @@ def _get_document_content(digest):
         'filename': first_file.name,
         'path': full_path(first_file),
         'broken': digest_data.get('broken'),
+        'attachments': attachments,
     }
 
     if digest.blob.mime_type == 'message/rfc822':
