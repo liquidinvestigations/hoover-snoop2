@@ -189,7 +189,13 @@ def email_meta(digest_data):
 
 
 def _get_document_content(digest):
-    first_file = digest.blob.file_set.order_by('pk').first()
+    first_file = (
+        digest.blob
+        .file_set
+        .filter(collection=digest.collection)
+        .order_by('pk')
+        .first()
+    )
 
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
@@ -235,7 +241,13 @@ def _get_document_version(digest):
 
 
 def get_document_data(digest):
-    first_file = digest.blob.file_set.order_by('pk').first()
+    first_file = (
+        digest.blob
+        .file_set
+        .filter(collection=digest.collection)
+        .order_by('pk')
+        .first()
+    )
 
     children = None
     child_directory = first_file.child_directory_set.first()
