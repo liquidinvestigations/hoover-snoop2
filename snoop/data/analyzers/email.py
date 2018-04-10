@@ -13,7 +13,12 @@ from . import pgp
 
 BYTE_ORDER_MARK = b'\xef\xbb\xbf'
 
-log= logging.getLogger(__name__)
+OUTLOOK_POSSIBLE_MIME_TYPES = [
+    'application/vnd.ms-outlook',
+    'application/vnd.ms-office',
+]
+
+log = logging.getLogger(__name__)
 
 
 def iter_parts(message, numbers=[]):
