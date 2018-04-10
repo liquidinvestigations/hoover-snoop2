@@ -8,7 +8,8 @@ from django.conf import settings
 from django.template.defaultfilters import truncatechars
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ObjectDoesNotExist
-from .magic import Magic, looks_like_email, looks_like_emlx_email
+from .magic import Magic, looks_like_email, looks_like_emlx_email, \
+    looks_like_mbox
 from . import stats
 
 BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
@@ -109,6 +110,8 @@ class Blob(models.Model):
             if looks_like_email(blob_path):
                 if looks_like_emlx_email(blob_path):
                     fields['mime_type'] = 'message/x-emlx'
+                elif looks_like_mbox(blob_path):
+                    fields['mime_type'] = 'application/mbox'
                 else:
                     fields['mime_type'] = 'message/rfc822'
 

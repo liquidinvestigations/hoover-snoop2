@@ -48,12 +48,19 @@ def test_make_blob_from_first_eml_file():
     ("/data/eml-9-pgp/encrypted-hushmail-knockoff.eml", 'message/rfc822'),
     ("/data/eml-9-pgp/encrypted-machine-learning-comes.eml", 'message/rfc822'),
     ("/data/eml-9-pgp/encrypted-hushmail-smashed-bytes.eml", 'message/rfc822'),
+
     # text/plain
     ("/data/disk-files/long-filenames/Sample text file with a long filename Sample text file with a long filename Sample text file with a long filename .txt", 'text/plain'),
     ("/data/disk-files/pdf-doc-txt/easychair.txt", 'text/plain'),
     ("/data/words/usr-share-dict-words.txt", 'text/plain'),
+
     # .emlx: message/x-emlx
     ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Messages/1498.partial.emlx", 'message/x-emlx'),
+
+    # .mbox: application/mbox
+    ("/data/mbox/2018-March.txt", "application/mbox"),
+    ("/data/mbox/shapelib.mbox", "application/mbox"),
+
     # .pdf
     ("/ocr/one/foo/bar/f/d/41b8f1fe19c151517b3cda2a615fa8.pdf", "application/pdf"),
     ("/data/no-extension/file_pdf", "application/pdf"),
