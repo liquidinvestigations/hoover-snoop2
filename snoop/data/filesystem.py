@@ -82,11 +82,14 @@ def handle_file(file_pk, **depends_on):
             depends_on={'archive_listing': unarchive_task},
         )
 
-    elif file.original.mime_type == "application/vnd.ms-outlook":
-        file.blob = require_dependency(
-            'msg_to_eml', depends_on,
-            lambda: email.msg_to_eml.laterz(file.original),
-        )
+    elif file.original.mime_type in email.OUTLOOK_POSSIBLE_MIME_TYPES:
+        try:
+            file.blob = require_dependency(
+                'msg_to_eml', depends_on,
+                lambda: email.msg_to_eml.laterz(file.original),
+            )
+        except ShaormaBroken:
+            pass
 
     elif file.original.mime_type == 'message/x-emlx':
         file.blob = require_dependency(
