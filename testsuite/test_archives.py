@@ -162,20 +162,11 @@ def test_unarchive_mbox(taskmanager):
     with listing_blob.open() as f:
         listing = json.load(f)
 
-    assert len(listing) == 240
+    assert len(listing) == 28
     assert listing[0] == {
-        'children': [
-            {'blob_pk': 'ef36873c10e6037f5ae889ecef319a0f4458fbf3ad35a34bf73d74b203a0ebc0',
-             'name': '0026476a20bfbd08714155bb66f0b4feb2d25c1c.eml',
-             'type': 'file'},
-            {'blob_pk': '6ed1e68b8167272461a1fd019a0320e662d71e2276d59b963ea0fee94d09e8db',
-             'name': '008451a05e1e7aa32c75119df950d405265e0904.eml',
-             'type': 'file'},
-            {'blob_pk': 'a4b9a0d122cdd3c4f8a2e7749485d6f6d0cbf443557b6c02b227b9c5e7e2352b',
-             'name': '00a8a5c3f7bac086c6df1a59b7da7e26eee029a1.eml',
-             'type': 'file'},
-            {'blob_pk': 'abeebc643dfd95ca4d97de177dc20ca508d030ee970281e073ecd74b983a3df4',
-             'name': '00f7eea0d077127d2045e251487cfe61189614c7.eml',
+         'children': [
+            {'blob_pk': '7779d128a2cd425eba06693b56e1fc7351c1d66c2ee78c96dd4bd5649307f636',
+             'name': '0716d9708d321ffb6a00818614779e779925365c.eml',
              'type': 'file'}],
-        'name': '00',
-        'type': 'directory'}
+         'name': '07',
+         'type': 'directory'}
