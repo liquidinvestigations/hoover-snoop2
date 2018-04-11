@@ -199,12 +199,17 @@ class Directory(models.Model):
         unique_together = ('parent_directory', 'name')
         verbose_name_plural = 'directories'
 
-    def __str__(self):
-        return f'{self.name}/'
-
     @property
     def parent(self):
         return self.parent_directory or self.container_file
+
+    def ancestry(item):
+        while item:
+            yield item
+            item = item.parent
+
+    def __str__(self):
+        return ''.join(reversed([f'{item.name}/' for item in self.ancestry()]))
 
 
 class File(models.Model):
