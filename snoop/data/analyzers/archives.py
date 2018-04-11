@@ -107,7 +107,10 @@ def unarchive(blob):
         elif blob.mime_type in MBOX_KNOWN_TYPES:
             unpack_mbox(blob.path(), temp_dir)
 
-        listing = list(archive_walk(Path(temp_dir)))
+        listing = sorted(
+            list(archive_walk(Path(temp_dir))),
+            key=lambda c: c['name'],
+        )
 
     return listing
 
@@ -118,7 +121,10 @@ def archive_walk(path):
             yield {
                 'type': 'directory',
                 'name': thing.name,
-                'children': list(archive_walk(thing)),
+                'children': sorted(
+                    list(archive_walk(thing)),
+                    key=lambda c: c['name'],
+                ),
             }
 
         else:

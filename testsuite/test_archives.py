@@ -165,14 +165,17 @@ def test_unarchive_mbox(taskmanager):
     assert len(listing) == 240
     assert listing[0] == {
         'children': [
-            {'blob_pk': '7a566b80440269c6e3fba95c34ee98cab4c60f9f61811ccfc972c0d7592bb5f0',
-             'name': '3c26dffc8a2e8804dfe2c8a1195cfaa5ef6d0014.eml',
+            {'blob_pk': 'ef36873c10e6037f5ae889ecef319a0f4458fbf3ad35a34bf73d74b203a0ebc0',
+             'name': '0026476a20bfbd08714155bb66f0b4feb2d25c1c.eml',
              'type': 'file'},
-            {'blob_pk': 'c068d9ebf2d4e581e4a78dfdbbfad4e9d578ff5e4e3c7770e2ab4882962a52d7',
-             'name': '3c331613a26f366446dd2bb9297a8b4104e340d5.eml',
+            {'blob_pk': '6ed1e68b8167272461a1fd019a0320e662d71e2276d59b963ea0fee94d09e8db',
+             'name': '008451a05e1e7aa32c75119df950d405265e0904.eml',
              'type': 'file'},
-            {'blob_pk': 'bccfe374a016909979be93c8fe7f551435d0ee06912cd29cda97234bbbca281a',
-             'name': '3cc5149977a9d4beaf5387b67b4d30c41fdf32e0.eml',
+            {'blob_pk': 'a4b9a0d122cdd3c4f8a2e7749485d6f6d0cbf443557b6c02b227b9c5e7e2352b',
+             'name': '00a8a5c3f7bac086c6df1a59b7da7e26eee029a1.eml',
+             'type': 'file'},
+            {'blob_pk': 'abeebc643dfd95ca4d97de177dc20ca508d030ee970281e073ecd74b983a3df4',
+             'name': '00f7eea0d077127d2045e251487cfe61189614c7.eml',
              'type': 'file'}],
-        'name': '3c',
+        'name': '00',
         'type': 'directory'}
