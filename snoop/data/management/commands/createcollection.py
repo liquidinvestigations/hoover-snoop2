@@ -1,7 +1,7 @@
 from pathlib import Path
 from django.core.management.base import BaseCommand
-from django.db import transaction
-from ...models import Collection
+from ...logs import logging_for_management_command
+from ... import collections
 
 
 class Command(BaseCommand):
@@ -12,9 +12,5 @@ class Command(BaseCommand):
         parser.add_argument('root', type=Path)
 
     def handle(self, *args, **options):
-        with transaction.atomic():
-            col = Collection.objects.create(
-                name=options['name'],
-                root=options['root'],
-            )
-            root = col.directory_set.create()
+        logging_for_management_command(options['verbosity'])
+        collections.create_collection(options['name'], options['root'])
