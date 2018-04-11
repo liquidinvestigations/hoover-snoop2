@@ -1,4 +1,5 @@
 import json
+from time import time
 import logging
 import traceback
 from django.utils import timezone
@@ -8,6 +9,7 @@ from . import models
 from .utils import run_once
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 shaormerie = {}
 
@@ -50,6 +52,7 @@ def queue_next_tasks(task, reset=False):
                 broken_reason='',
             )
             next_task.save()
+        logger.info("Queueing %r after %r", next_task, task)
         queue_task(next_task)
 
 
@@ -73,6 +76,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         task = models.Task.objects.select_for_update().get(pk=task_pk)
 
         if is_competed(task):
+            logger.info("%r already completed", task)
             queue_next_tasks(task)
             return
 
@@ -103,6 +107,8 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         task.date_started = timezone.now()
         task.save()
 
+        logger.info("Running %r", task)
+        t0 = time()
         try:
             result = shaormerie[task.func](*args, **depends_on)
 
@@ -112,8 +118,8 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
 
         except MissingDependency as dep:
             logger.info(
-                "Shaorma %d requests an extra dependency: %r",
-                task_pk, dep,
+                "%r requests an extra dependency: %r [%.03f s]",
+                task, dep, time() - t0,
             )
 
             task.update(
@@ -136,7 +142,10 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 traceback='',
                 broken_reason=e.reason,
             )
-            logger.exception("Shaorma %d broken: %s", task_pk, task.error)
+            logger.exception(
+                "%r broken: %s [%.03f s]",
+                task, task.error, time() - t0,
+            )
 
         except Exception as e:
             if raise_exceptions:
@@ -153,7 +162,10 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 traceback=traceback.format_exc(),
                 broken_reason='',
             )
-            logger.exception("Shaorma %d failed: %s", task_pk, task.error)
+            logger.exception(
+                "%r failed: %s [%.03f s]",
+                task, task.error, time() - t0,
+            )
 
         else:
             task.update(
@@ -162,7 +174,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 traceback='',
                 broken_reason='',
             )
-            logger.debug("Shaorma %d succeeded", task_pk)
+            logger.info("%r succeeded [%.03f s]", task, time() - t0)
 
         task.date_finished = timezone.now()
         task.save()
@@ -226,7 +238,7 @@ def dispatch_pending_tasks():
         )
         if deps_not_ready:
             continue
-        logger.debug("Dispatching %r", task)
+        logger.info("Dispatching %r", task)
         queue_task(task)
 
 
@@ -238,7 +250,7 @@ def retry_tasks(queryset):
             traceback='',
             broken_reason='',
         )
-        logger.info("Retrying task %d", task.pk)
+        logger.info("Retrying %r", task)
         task.save()
         queue_task(task)
 

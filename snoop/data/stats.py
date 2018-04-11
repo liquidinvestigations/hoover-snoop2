@@ -7,7 +7,7 @@ import requests
 from .utils import zulu
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.INFO)
 
 ES_URL = settings.SNOOP_STATS_ELASTICSEARCH_URL
 ES_INDEX_PREFIX = settings.SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX

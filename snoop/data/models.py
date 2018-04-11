@@ -284,7 +284,7 @@ class Task(models.Model):
                 '; depends on ' +
                 ', '.join(str(t.prev.pk) for t in prev_set)
             )
-        return f'{self.func}({self.args}{deps})'
+        return f'#{self.pk} {self.func}({self.args}{deps}) [{self.status}]'
 
     def update(self, status, error, traceback, broken_reason):
         self.status = status
