@@ -13,7 +13,7 @@ install:
   - git clone https://github.com/hoover/testdata collections/testdata
 
 script:
-  - docker-compose run --rm snoop bash -c 'sleep 15 && py.test'
+  - docker-compose run --rm snoop bash -c 'sleep 15 && py.test -v'
 
 notifications:
   email: false
