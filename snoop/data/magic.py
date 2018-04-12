@@ -134,3 +134,34 @@ def looks_like_emlx_email(path):
     first_line = content.splitlines()[0]
 
     return first_line.strip().isdigit()
+
+
+MBOX_PATTERNS = {
+    r'^From ',
+    r'^From: ',
+    r'^Date: ',
+    r'^Subject: ',
+    r'^$',
+}
+
+MBOX_MINIMUM_EMAILS = 3
+
+def looks_like_mbox(path):
+    emails = 0
+    pending = set(MBOX_PATTERNS)
+
+    with path.open('r', encoding='latin1') as f:
+        for line in f:
+            for pattern in pending:
+                if re.match(pattern, line):
+                    pending.remove(pattern)
+                    break
+
+            if not pending:
+                pending = set(MBOX_PATTERNS)
+                emails += 1
+
+                if emails >= MBOX_MINIMUM_EMAILS:
+                    return True
+
+    return False

@@ -54,6 +54,7 @@ JERRY_DIR = {
 JERRY_ZIP = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/tom/jail/jerry.zip"
 ZIP_DOCX = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/zip-with-docx-and-doc.zip"
 JANE_DOE_PST = Path(settings.SNOOP_TESTDATA) / "data/pst/flags_jane_doe.pst"
+SHAPELIB_MBOX = Path(settings.SNOOP_TESTDATA) / "data/mbox/shapelib.mbox"
 TAR_GZ = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz"
 RAR = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/rar-with-pdf-doc-docx.rar"
 
@@ -153,3 +154,19 @@ def test_create_archive_files(taskmanager):
     assert file_names == {'jerry.zip', 'AppBody-Sample-English.docx', 'sample.doc'}
 
     assert models.Directory.objects.get(container_file__isnull=False).container_file == zip_file
+
+
+def test_unarchive_mbox(taskmanager):
+    mbox_blob = models.Blob.create_from_file(SHAPELIB_MBOX)
+    listing_blob = archives.unarchive(mbox_blob)
+    with listing_blob.open() as f:
+        listing = json.load(f)
+
+    assert len(listing) == 28
+    assert listing[0] == {
+         'children': [
+            {'blob_pk': '7779d128a2cd425eba06693b56e1fc7351c1d66c2ee78c96dd4bd5649307f636',
+             'name': '0716d9708d321ffb6a00818614779e779925365c.eml',
+             'type': 'file'}],
+         'name': '07',
+         'type': 'directory'}

@@ -2,6 +2,8 @@ import json
 import subprocess
 import tempfile
 from pathlib import Path
+from hashlib import sha1
+import re
 from ..tasks import shaorma, ShaormaBroken, returns_json_blob
 from .. import models
 
@@ -20,7 +22,15 @@ READPST_KNOWN_TYPES = {
     'application/x-hoover-pst',
 }
 
-KNOWN_TYPES = SEVENZIP_KNOWN_TYPES.union(READPST_KNOWN_TYPES)
+MBOX_KNOWN_TYPES = {
+    'application/mbox',
+}
+
+KNOWN_TYPES = (
+    SEVENZIP_KNOWN_TYPES
+    .union(READPST_KNOWN_TYPES)
+    .union(MBOX_KNOWN_TYPES)
+)
 
 
 def is_archive(mime_type):
@@ -59,6 +69,33 @@ def call_7z(archive_path, output_dir):
         raise ShaormaBroken("7z extraction failed", '7z_error')
 
 
+def unpack_mbox(mbox_path, output_dir):
+    def slice(stream):
+        last = b''
+        while True:
+            buffer = stream.read(1024 * 64)
+            if not buffer:
+                break
+            window = last + buffer
+            while True:
+                m = re.search(br'\n\r?\n(From )', window)
+                if not m:
+                    break
+                offset = m.start(1)
+                yield window[:offset]
+                window = window[offset:]
+            last = window
+        yield last
+
+    with open(mbox_path, 'rb') as f:
+        for n, message in enumerate(slice(f), 1):
+            hash = sha1(str(n).encode('utf-8')).hexdigest()
+            eml_path = Path(output_dir) / hash[:2] / '{}.eml'.format(hash)
+            eml_path.parent.mkdir(parents=True, exist_ok=True)
+            with eml_path.open('wb') as f:
+                f.write(message)
+
+
 @shaorma('archives.unarchive')
 @returns_json_blob
 def unarchive(blob):
@@ -67,8 +104,13 @@ def unarchive(blob):
             call_7z(blob.path(), temp_dir)
         elif blob.mime_type in READPST_KNOWN_TYPES:
             call_readpst(blob.path(), temp_dir)
+        elif blob.mime_type in MBOX_KNOWN_TYPES:
+            unpack_mbox(blob.path(), temp_dir)
 
-        listing = list(archive_walk(Path(temp_dir)))
+        listing = sorted(
+            list(archive_walk(Path(temp_dir))),
+            key=lambda c: c['name'],
+        )
 
     return listing
 
@@ -79,7 +121,10 @@ def archive_walk(path):
             yield {
                 'type': 'directory',
                 'name': thing.name,
-                'children': list(archive_walk(thing)),
+                'children': sorted(
+                    list(archive_walk(thing)),
+                    key=lambda c: c['name'],
+                ),
             }
 
         else:
