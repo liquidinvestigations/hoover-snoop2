@@ -89,6 +89,14 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         for dep in task.prev_set.all():
             prev_task = dep.prev
             if not is_competed(prev_task):
+                task.update(
+                    status=models.Task.STATUS_DEFERRED,
+                    error='',
+                    traceback='',
+                    broken_reason='',
+                )
+                task.save()
+                logger.info("%r missing dependency %r", task, prev_task)
                 return
 
             if prev_task.status == models.Task.STATUS_SUCCESS:
