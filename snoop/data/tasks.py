@@ -193,7 +193,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
 
 def shaorma(name):
     def decorator(func):
-        def laterz(*args, depends_on={}):
+        def laterz(*args, depends_on={}, retry=False):
             if args and isinstance(args[0], models.Blob):
                 blob_arg = args[0]
                 args = (blob_arg.pk,) + args[1:]
@@ -208,6 +208,8 @@ def shaorma(name):
             )
 
             if task.date_finished:
+                if retry:
+                    retry_task(task)
                 return task
 
             if depends_on:
@@ -250,17 +252,21 @@ def dispatch_pending_tasks():
         queue_task(task)
 
 
+def retry_task(task):
+    task.update(
+        status=models.Task.STATUS_PENDING,
+        error='',
+        traceback='',
+        broken_reason='',
+    )
+    logger.info("Retrying %r", task)
+    task.save()
+    queue_task(task)
+
+
 def retry_tasks(queryset):
     for task in queryset.iterator():
-        task.update(
-            status=models.Task.STATUS_PENDING,
-            error='',
-            traceback='',
-            broken_reason='',
-        )
-        logger.info("Retrying %r", task)
-        task.save()
-        queue_task(task)
+        retry_task(task)
 
 
 def require_dependency(name, depends_on, callback):
