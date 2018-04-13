@@ -8,3 +8,4 @@
 /docker-setup
 /.pytest_cache
 /.idea
+/venv
