@@ -1,8 +1,10 @@
 *.pyc
 /.cache
+/.idea
 /blobs
 /snoop/localsettings.py
 /test_blobs
 /magic.mgc
 /static
 /docker-setup
+/venv
