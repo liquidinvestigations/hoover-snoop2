@@ -74,11 +74,12 @@ def shaorma_log_handler(level=logging.DEBUG):
     stream = StringIO()
     handler = logging.StreamHandler(stream)
     handler.setLevel(level)
-    logger.addHandler(handler)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
     try:
         yield handler
     finally:
-        logger.removeHandler(handler)
+        root_logger.removeHandler(handler)
 
 
 @celery.app.task
