@@ -177,7 +177,7 @@ class TaskAdmin(admin.ModelAdmin):
     list_display = ['pk', 'func', 'args', 'created', 'finished',
                     'status', 'details']
     list_filter = ['func', 'status']
-    search_fields = ['pk', 'func', 'args', 'error', 'traceback']
+    search_fields = ['pk', 'func', 'args', 'error', 'log']
     actions = ['retry_selected_tasks']
 
     change_form_template = 'snoop/admin_task_change_form.html'

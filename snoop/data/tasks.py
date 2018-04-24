@@ -1,7 +1,6 @@
 import json
 from time import time
 import logging
-import traceback
 from io import StringIO
 from contextlib import contextmanager
 from django.utils import timezone
@@ -50,7 +49,6 @@ def queue_next_tasks(task, reset=False):
             next_task.update(
                 status=models.Task.STATUS_PENDING,
                 error='',
-                traceback='',
                 broken_reason='',
                 log='',
             )
@@ -107,7 +105,6 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 task.update(
                     status=models.Task.STATUS_DEFERRED,
                     error='',
-                    traceback='',
                     broken_reason='',
                     log=handler.stream.getvalue(),
                 )
@@ -149,7 +146,6 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
             task.update(
                 status=models.Task.STATUS_DEFERRED,
                 error='',
-                traceback='',
                 broken_reason='',
                 log=handler.stream.getvalue(),
             )
@@ -161,16 +157,15 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
             queue_task(task)
 
         except ShaormaBroken as e:
-            task.update(
-                status=models.Task.STATUS_BROKEN,
-                error="{}: {}".format(e.reason, e.args[0]),
-                traceback='',
-                broken_reason=e.reason,
-                log=handler.stream.getvalue(),
-            )
             logger.exception(
                 "%r broken: %s [%.03f s]",
                 task, task.error, time() - t0,
+            )
+            task.update(
+                status=models.Task.STATUS_BROKEN,
+                error="{}: {}".format(e.reason, e.args[0]),
+                broken_reason=e.reason,
+                log=handler.stream.getvalue(),
             )
 
         except Exception as e:
@@ -182,27 +177,25 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
             else:
                 error = repr(e)
 
-            task.update(
-                status=models.Task.STATUS_ERROR,
-                error=error,
-                traceback=traceback.format_exc(),
-                broken_reason='',
-                log=handler.stream.getvalue(),
-            )
             logger.exception(
                 "%r failed: %s [%.03f s]",
                 task, task.error, time() - t0,
             )
-
-        else:
             task.update(
-                status=models.Task.STATUS_SUCCESS,
-                error='',
-                traceback='',
+                status=models.Task.STATUS_ERROR,
+                error=error,
                 broken_reason='',
                 log=handler.stream.getvalue(),
             )
+
+        else:
             logger.info("%r succeeded [%.03f s]", task, time() - t0)
+            task.update(
+                status=models.Task.STATUS_SUCCESS,
+                error='',
+                broken_reason='',
+                log=handler.stream.getvalue(),
+            )
 
         task.date_finished = timezone.now()
         task.save()
@@ -276,7 +269,6 @@ def retry_task(task):
     task.update(
         status=models.Task.STATUS_PENDING,
         error='',
-        traceback='',
         broken_reason='',
         log='',
     )

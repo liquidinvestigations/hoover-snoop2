@@ -269,7 +269,6 @@ class Task(models.Model):
 
     status = models.CharField(max_length=16, default=STATUS_PENDING)
     error = models.TextField(blank=True)
-    traceback = models.TextField(blank=True)
     broken_reason = models.CharField(max_length=128, default='', blank=True)
     log = models.TextField(blank=True)
 
@@ -290,10 +289,9 @@ class Task(models.Model):
             )
         return f'#{self.pk} {self.func}({self.args}{deps}) [{self.status}]'
 
-    def update(self, status, error, traceback, broken_reason, log):
+    def update(self, status, error, broken_reason, log):
         self.status = status
         self.error = error
-        self.traceback = traceback
         self.broken_reason = broken_reason
         self.log = log
 
