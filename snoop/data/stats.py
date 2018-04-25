@@ -93,6 +93,9 @@ def bulk_index(row_iter, document_type):
 
 
 def add_record(row, document_type):
+    if not is_enabled():
+        return
+
     log.debug('Sending %s %r', document_type, row)
     index = ES_INDEX_PREFIX + document_type
     resp = requests.put(
