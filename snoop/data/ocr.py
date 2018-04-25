@@ -54,9 +54,7 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
     path = Path(ocr_source.root) / file_path
 
-    filebasename = path.name.split('.')[0]
-    joined_path = ''.join(path.parent.parts + (filebasename,))
-    original_hash = joined_path[-32:].lower()
+    original_hash = path.name[:32].lower()
     assert re.match(r'^[0-9a-f]{32}$', original_hash)
 
     ocr_blob = models.Blob.create_from_file(path)
