@@ -16,6 +16,7 @@ BYTE_ORDER_MARK = b'\xef\xbb\xbf'
 OUTLOOK_POSSIBLE_MIME_TYPES = [
     'application/vnd.ms-outlook',
     'application/vnd.ms-office',
+    'application/CDFV2',
 ]
 
 log = logging.getLogger(__name__)
