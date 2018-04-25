@@ -21,7 +21,7 @@ kombu==4.1.0              # via celery
 more-itertools==4.1.0     # via pytest
 pip-tools==2.0.1
 pluggy==0.6.0             # via pytest
-psycopg2==2.7.4
+psycopg2-binary==2.7.4
 py==1.5.3                 # via pytest
 pytest-django==3.2.1
 pytest==3.5.0
