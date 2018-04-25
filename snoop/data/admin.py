@@ -15,8 +15,13 @@ from django.shortcuts import render
 from django.db.models import Sum, Count, Avg, F
 from django.db import connection
 from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.http import HttpResponseRedirect
 from . import models
 from . import tasks
+
+
+def redirect_to_admin(request):
+    return HttpResponseRedirect('/admin/')
 
 
 def blob_link(blob_pk):
