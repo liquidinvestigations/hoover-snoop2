@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 from collections import defaultdict
 import email
+import codecs
 from .. import models
 from ..tasks import shaorma, ShaormaError, ShaormaBroken, require_dependency
 from ..tasks import returns_json_blob
@@ -20,6 +21,13 @@ OUTLOOK_POSSIBLE_MIME_TYPES = [
 ]
 
 log = logging.getLogger(__name__)
+
+
+def lookup_other_encodings(name):
+    if name == 'ucs-2le':
+        return codecs.lookup('utf-16-le')
+
+codecs.register(lookup_other_encodings)
 
 
 def iter_parts(message, numbers=[]):
