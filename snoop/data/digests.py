@@ -206,8 +206,10 @@ def _get_document_content(digest):
         if first_file.child_directory_set.count() > 0:
             attachments = True
 
+    original = first_file.original
+
     content = {
-        'content-type': digest.blob.mime_type,
+        'content-type': original.mime_type,
         'filetype': filetype,
         'text': digest_data.get('text'),
         'pgp': digest_data.get('pgp'),
@@ -215,9 +217,9 @@ def _get_document_content(digest):
         'ocrtext': digest_data.get('ocrtext'),
         'date': digest_data.get('date'),
         'date-created': digest_data.get('date-created'),
-        'md5': digest.blob.md5,
-        'sha1': digest.blob.sha1,
-        'size': digest.blob.size,
+        'md5': original.md5,
+        'sha1': original.sha1,
+        'size': original.size,
         'filename': first_file.name,
         'path': full_path(first_file),
         'broken': digest_data.get('broken'),
