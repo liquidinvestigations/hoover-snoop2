@@ -1,7 +1,8 @@
 import json
 from time import time
 import logging
-import traceback
+from io import StringIO
+from contextlib import contextmanager
 from django.utils import timezone
 from django.db import transaction
 from . import celery
@@ -48,8 +49,8 @@ def queue_next_tasks(task, reset=False):
             next_task.update(
                 status=models.Task.STATUS_PENDING,
                 error='',
-                traceback='',
                 broken_reason='',
+                log='',
             )
             next_task.save()
         logger.info("Queueing %r after %r", next_task, task)
@@ -68,11 +69,24 @@ def is_competed(task):
     return task.status in COMPLETED
 
 
+@contextmanager
+def shaorma_log_handler(level=logging.DEBUG):
+    stream = StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setLevel(level)
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+    try:
+        yield handler
+    finally:
+        root_logger.removeHandler(handler)
+
+
 @celery.app.task
 def laterz_shaorma(task_pk, raise_exceptions=False):
     import_shaormas()
 
-    with transaction.atomic():
+    with transaction.atomic(), shaorma_log_handler() as handler:
         task = models.Task.objects.select_for_update().get(pk=task_pk)
 
         if is_competed(task):
@@ -92,8 +106,8 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
                 task.update(
                     status=models.Task.STATUS_DEFERRED,
                     error='',
-                    traceback='',
                     broken_reason='',
+                    log=handler.stream.getvalue(),
                 )
                 task.save()
                 logger.info("%r missing dependency %r", task, prev_task)
@@ -133,8 +147,8 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
             task.update(
                 status=models.Task.STATUS_DEFERRED,
                 error='',
-                traceback='',
                 broken_reason='',
+                log=handler.stream.getvalue(),
             )
             models.TaskDependency.objects.get_or_create(
                 prev=dep.task,
@@ -144,15 +158,15 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
             queue_task(task)
 
         except ShaormaBroken as e:
-            task.update(
-                status=models.Task.STATUS_BROKEN,
-                error="{}: {}".format(e.reason, e.args[0]),
-                traceback='',
-                broken_reason=e.reason,
-            )
             logger.exception(
                 "%r broken: %s [%.03f s]",
                 task, task.error, time() - t0,
+            )
+            task.update(
+                status=models.Task.STATUS_BROKEN,
+                error="{}: {}".format(e.reason, e.args[0]),
+                broken_reason=e.reason,
+                log=handler.stream.getvalue(),
             )
 
         except Exception as e:
@@ -164,25 +178,25 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
             else:
                 error = repr(e)
 
-            task.update(
-                status=models.Task.STATUS_ERROR,
-                error=error,
-                traceback=traceback.format_exc(),
-                broken_reason='',
-            )
             logger.exception(
                 "%r failed: %s [%.03f s]",
                 task, task.error, time() - t0,
             )
+            task.update(
+                status=models.Task.STATUS_ERROR,
+                error=error,
+                broken_reason='',
+                log=handler.stream.getvalue(),
+            )
 
         else:
+            logger.info("%r succeeded [%.03f s]", task, time() - t0)
             task.update(
                 status=models.Task.STATUS_SUCCESS,
                 error='',
-                traceback='',
                 broken_reason='',
+                log=handler.stream.getvalue(),
             )
-            logger.info("%r succeeded [%.03f s]", task, time() - t0)
 
         task.date_finished = timezone.now()
         task.save()
@@ -256,8 +270,8 @@ def retry_task(task):
     task.update(
         status=models.Task.STATUS_PENDING,
         error='',
-        traceback='',
         broken_reason='',
+        log='',
     )
     logger.info("Retrying %r", task)
     task.save()
