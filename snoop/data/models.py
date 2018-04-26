@@ -181,7 +181,7 @@ class Collection(models.Model):
 
 class Directory(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
-    name = models.CharField(max_length=255, blank=True)
+    name_bytes = models.BinaryField(max_length=1024, blank=True)
     parent_directory = models.ForeignKey(
         'Directory',
         null=True, blank=True,
@@ -199,8 +199,12 @@ class Directory(models.Model):
     date_modified = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('parent_directory', 'name')
+        unique_together = ('parent_directory', 'name_bytes')
         verbose_name_plural = 'directories'
+
+    @property
+    def name(self):
+        return self.name_bytes.tobytes().decode('utf8')
 
     @property
     def parent(self):
@@ -217,7 +221,7 @@ class Directory(models.Model):
 
 class File(models.Model):
     collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
-    name = models.CharField(max_length=255)
+    name_bytes = models.BinaryField(max_length=1024, blank=True)
     parent_directory = models.ForeignKey(
         Directory,
         on_delete=models.DO_NOTHING,
@@ -235,7 +239,11 @@ class File(models.Model):
     date_modified = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('parent_directory', 'name')
+        unique_together = ('parent_directory', 'name_bytes')
+
+    @property
+    def name(self):
+        return self.name_bytes.tobytes().decode('utf8')
 
     def __str__(self):
         return truncatechars(self.name, 80)
