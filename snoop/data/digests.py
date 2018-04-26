@@ -188,7 +188,7 @@ def email_meta(digest_data):
     }
 
 
-def _get_document_content(digest):
+def _get_first_file(digest):
     first_file = (
         digest.blob
         .file_set
@@ -196,6 +196,24 @@ def _get_document_content(digest):
         .order_by('pk')
         .first()
     )
+
+    if not first_file:
+        first_file = (
+            models.File.objects
+            .filter(original=digest.blob)
+            .filter(collection=digest.collection)
+            .order_by('pk')
+            .first()
+        )
+
+    if not first_file:
+        raise RuntimeError(f"Can't find a file for blob {digest.blob}")
+
+    return first_file
+
+
+def _get_document_content(digest):
+    first_file = _get_first_file(digest)
 
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
@@ -243,13 +261,7 @@ def _get_document_version(digest):
 
 
 def get_document_data(digest):
-    first_file = (
-        digest.blob
-        .file_set
-        .filter(collection=digest.collection)
-        .order_by('pk')
-        .first()
-    )
+    first_file = _get_first_file(digest)
 
     children = None
     child_directory = first_file.child_directory_set.first()
