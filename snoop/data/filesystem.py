@@ -32,6 +32,7 @@ def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
 
+    new_files = []
     for thing in path.iterdir():
         if thing.is_dir():
             (child_directory, _) = directory.child_directory_set.get_or_create(
@@ -41,33 +42,29 @@ def walk(directory_pk):
             walk.laterz(child_directory.pk)
 
         else:
-            walk_file.laterz(directory.pk, thing.name)
+            directory = models.Directory.objects.get(pk=directory_pk)
+            path = directory_absolute_path(directory) / thing.name
+            stat = path.stat()
 
+            # TODO if file is already loaded, and size+mtime are the same,
+            # don't re-import it
 
-@shaorma('filesystem.walk_file')
-def walk_file(directory_pk, name):
-    directory = models.Directory.objects.get(pk=directory_pk)
-    path = directory_absolute_path(directory) / name
+            original = models.Blob.create_from_file(path)
 
-    try:
-        stat = path.stat()
-    except FileNotFoundError:
-        raise ShaormaBroken(f"File {path} not found", reason='file_missing')
+            file, _ = directory.child_file_set.get_or_create(
+                name=thing.name,
+                defaults=dict(
+                    collection=directory.collection,
+                    ctime=time_from_unix(stat.st_ctime),
+                    mtime=time_from_unix(stat.st_mtime),
+                    size=stat.st_size,
+                    original=original,
+                ),
+            )
+            new_files.append(file)
 
-    original = models.Blob.create_from_file(path)
-
-    file, _ = directory.child_file_set.get_or_create(
-        name=name,
-        defaults=dict(
-            collection=directory.collection,
-            ctime=time_from_unix(stat.st_ctime),
-            mtime=time_from_unix(stat.st_mtime),
-            size=stat.st_size,
-            original=original,
-        ),
-    )
-
-    handle_file.laterz(file.pk)
+    for file in new_files:
+        handle_file.laterz(file.pk)
 
 
 @shaorma('filesystem.handle_file')
