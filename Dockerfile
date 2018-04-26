@@ -21,19 +21,20 @@ WORKDIR /opt/hoover/snoop
 ADD requirements.txt ./
 RUN pip install -r requirements.txt
 
-RUN git clone https://github.com/hoover/magic-definitions.git \
-  && ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc .. )
-ENV PATH="/opt/hoover/snoop/magic-definitions/file/bin:${PATH}"
+RUN cd /opt \
+  && git clone https://github.com/hoover/magic-definitions.git \
+  && ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc /opt/hoover/snoop/ )
+ENV PATH="/opt/magic-definitions/file/bin:${PATH}"
 
-RUN wget http://www.five-ten-sg.com/libpst/packages/libpst-0.6.71.tar.gz \
+RUN wget http://www.five-ten-sg.com/libpst/packages/libpst-0.6.71.tar.gz --progress=dot:giga \
   && tar zxvf libpst-0.6.71.tar.gz \
   && rm -f libpst-0.6.71.tar.gz \
-  && mv libpst-0.6.71 libpst \
-  && cd libpst \
+  && mv libpst-0.6.71 /opt/libpst \
+  && cd /opt/libpst \
   && ./configure --disable-python --prefix="`pwd`" \
   && make \
   && make install
-ENV PATH="/opt/hoover/snoop/libpst/bin:${PATH}"
+ENV PATH="/opt/libpst/bin:${PATH}"
 
 COPY . .
 
