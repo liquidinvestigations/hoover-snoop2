@@ -3,7 +3,7 @@ Django
 Celery
 pytest
 pytest-django
-psycopg2
+psycopg2-binary
 requests
 waitress
 whitenoise

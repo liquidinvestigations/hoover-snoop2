@@ -15,8 +15,13 @@ from django.shortcuts import render
 from django.db.models import Sum, Count, Avg, F
 from django.db import connection
 from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.http import HttpResponseRedirect
 from . import models
 from . import tasks
+
+
+def redirect_to_admin(request):
+    return HttpResponseRedirect('/admin/')
 
 
 def blob_link(blob_pk):
@@ -110,9 +115,17 @@ class DirectoryAdmin(admin.ModelAdmin):
 
 class FileAdmin(admin.ModelAdmin):
     raw_id_fields = ['parent_directory', 'original', 'blob']
-    list_display = ['__str__', 'size', 'mime_type', 'original_blob_link']
+    list_display = ['__str__', 'size', 'mime_type',
+                    'original_blob_link', 'blob_link']
     search_fields = [
         'name',
+        'original__sha3_256',
+        'original__sha256',
+        'original__sha1',
+        'original__md5',
+        'original__magic',
+        'original__mime_type',
+        'original__mime_encoding',
         'blob__sha3_256',
         'blob__sha256',
         'blob__sha1',
@@ -128,7 +141,12 @@ class FileAdmin(admin.ModelAdmin):
     def original_blob_link(self, obj):
         return blob_link(obj.original.pk)
 
-    original_blob_link.short_description = 'blob'
+    original_blob_link.short_description = 'original blob'
+
+    def blob_link(self, obj):
+        return blob_link(obj.blob.pk)
+
+    blob_link.short_description = 'blob'
 
 
 class BlobAdmin(admin.ModelAdmin):
@@ -177,7 +195,7 @@ class TaskAdmin(admin.ModelAdmin):
     list_display = ['pk', 'func', 'args', 'created', 'finished',
                     'status', 'details']
     list_filter = ['func', 'status']
-    search_fields = ['pk', 'func', 'args', 'error', 'traceback']
+    search_fields = ['pk', 'func', 'args', 'error', 'log']
     actions = ['retry_selected_tasks']
 
     change_form_template = 'snoop/admin_task_change_form.html'

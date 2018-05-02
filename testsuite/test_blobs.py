@@ -62,7 +62,7 @@ def test_make_blob_from_first_eml_file():
     ("/data/mbox/shapelib.mbox", "application/mbox"),
 
     # .pdf
-    ("/ocr/one/foo/bar/f/d/41b8f1fe19c151517b3cda2a615fa8.pdf", "application/pdf"),
+    ("/ocr/one/foo/bar/f/d/fd41b8f1fe19c151517b3cda2a615fa8.pdf", "application/pdf"),
     ("/data/no-extension/file_pdf", "application/pdf"),
     ("/data/disk-files/pdf-for-ocr/mof1_1992_233.pdf", "application/pdf"),
     ("/data/disk-files/long-filenames/THIS_FILENAME_IS_LONGER_THAN_ANY_DECENT_MARGIN_AND_ITS_ONLY_ONE_WORD_WITHOUT_ANY_BREAKS_WHATSOEVER_THIS_IS_GETTING_BAD.pdf", "application/pdf"),

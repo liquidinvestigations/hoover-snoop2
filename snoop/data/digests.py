@@ -188,7 +188,7 @@ def email_meta(digest_data):
     }
 
 
-def _get_document_content(digest):
+def _get_first_file(digest):
     first_file = (
         digest.blob
         .file_set
@@ -196,6 +196,24 @@ def _get_document_content(digest):
         .order_by('pk')
         .first()
     )
+
+    if not first_file:
+        first_file = (
+            models.File.objects
+            .filter(original=digest.blob)
+            .filter(collection=digest.collection)
+            .order_by('pk')
+            .first()
+        )
+
+    if not first_file:
+        raise RuntimeError(f"Can't find a file for blob {digest.blob}")
+
+    return first_file
+
+
+def _get_document_content(digest):
+    first_file = _get_first_file(digest)
 
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
@@ -206,8 +224,10 @@ def _get_document_content(digest):
         if first_file.child_directory_set.count() > 0:
             attachments = True
 
+    original = first_file.original
+
     content = {
-        'content-type': digest.blob.mime_type,
+        'content-type': original.mime_type,
         'filetype': filetype,
         'text': digest_data.get('text'),
         'pgp': digest_data.get('pgp'),
@@ -215,9 +235,9 @@ def _get_document_content(digest):
         'ocrtext': digest_data.get('ocrtext'),
         'date': digest_data.get('date'),
         'date-created': digest_data.get('date-created'),
-        'md5': digest.blob.md5,
-        'sha1': digest.blob.sha1,
-        'size': digest.blob.size,
+        'md5': original.md5,
+        'sha1': original.sha1,
+        'size': original.size,
         'filename': first_file.name,
         'path': full_path(first_file),
         'broken': digest_data.get('broken'),
@@ -241,13 +261,7 @@ def _get_document_version(digest):
 
 
 def get_document_data(digest):
-    first_file = (
-        digest.blob
-        .file_set
-        .filter(collection=digest.collection)
-        .order_by('pk')
-        .first()
-    )
+    first_file = _get_first_file(digest)
 
     children = None
     child_directory = first_file.child_directory_set.first()
