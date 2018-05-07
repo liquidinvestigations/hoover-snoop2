@@ -37,7 +37,7 @@ def walk(directory_pk):
         if thing.is_dir():
             (child_directory, _) = directory.child_directory_set.get_or_create(
                 collection=directory.collection,
-                name=thing.name,
+                name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
             )
             walk.laterz(child_directory.pk)
 
@@ -52,7 +52,7 @@ def walk(directory_pk):
             original = models.Blob.create_from_file(path)
 
             file, _ = directory.child_file_set.get_or_create(
-                name=thing.name,
+                name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
                 defaults=dict(
                     collection=directory.collection,
                     ctime=time_from_unix(stat.st_ctime),
@@ -131,7 +131,7 @@ def create_archive_files(file_pk, archive_listing):
 
     def create_directory(parent_directory, name, children):
         (directory, _) = parent_directory.child_directory_set.get_or_create(
-            name=name,
+            name_bytes=name.encode('utf8', errors='surrogateescape'),
             defaults=dict(
                 collection=parent_directory.collection,
             ),
@@ -142,7 +142,7 @@ def create_archive_files(file_pk, archive_listing):
         size = original.path().stat().st_size
 
         (file, _) = parent_directory.child_file_set.get_or_create(
-            name=name,
+            name_bytes=name.encode('utf8', errors='surrogateescape'),
             defaults=dict(
                 collection=parent_directory.collection,
                 ctime=archive.ctime,
@@ -156,7 +156,7 @@ def create_archive_files(file_pk, archive_listing):
 
     archive = models.File.objects.get(pk=file_pk)
     (fake_root, _) = archive.child_directory_set.get_or_create(
-        name='',
+        name_bytes=b'',
         defaults=dict(
             collection=archive.collection,
         ),
@@ -190,7 +190,7 @@ def create_attachment_files(file_pk, email_parse):
     if attachments:
         email_file = models.File.objects.get(pk=file_pk)
         (attachments_dir, _) = email_file.child_directory_set.get_or_create(
-            name='',
+            name_bytes=b'',
             defaults=dict(
                 collection=email_file.collection,
             ),
@@ -199,8 +199,12 @@ def create_attachment_files(file_pk, email_parse):
             original = models.Blob.objects.get(pk=attachment['blob_pk'])
             size = original.path().stat().st_size
 
+            name_bytes = (
+                attachment['name']
+                .encode('utf8', errors='surrogateescape')
+            )
             (file, _) = attachments_dir.child_file_set.get_or_create(
-                name=attachment['name'],
+                name_bytes=name_bytes,
                 defaults=dict(
                     collection=email_file.collection,
                     ctime=email_file.ctime,

@@ -204,7 +204,10 @@ class Directory(models.Model):
 
     @property
     def name(self):
-        return self.name_bytes.tobytes().decode('utf8')
+        name_bytes = self.name_bytes
+        if isinstance(name_bytes, memoryview):
+            name_bytes = name_bytes.tobytes()
+        return name_bytes.decode('utf8', errors='surrogateescape')
 
     @property
     def parent(self):
@@ -243,7 +246,10 @@ class File(models.Model):
 
     @property
     def name(self):
-        return self.name_bytes.tobytes().decode('utf8')
+        name_bytes = self.name_bytes
+        if isinstance(name_bytes, memoryview):
+            name_bytes = name_bytes.tobytes()
+        return name_bytes.decode('utf8', errors='surrogateescape')
 
     def __str__(self):
         return truncatechars(self.name, 80)

@@ -60,7 +60,7 @@ def add_email_to_collection(path):
         parent_directory=root,
         original=blob,
         blob=blob,
-        name=path.name,
+        name_bytes=path.name.encode('utf8'),
         size=0,
         ctime=now,
         mtime=now,

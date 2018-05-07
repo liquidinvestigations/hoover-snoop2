@@ -24,7 +24,11 @@ def reconstruct(file_pk, **depends_on):
             ext = f'.{ref}.emlxpart'
             part_name = re.sub(r'\.partial\.emlx$', ext, file.name)
             parent = file.parent_directory
-            part_file = parent.child_file_set.filter(name=part_name).first()
+            part_file = (
+                parent.child_file_set
+                .filter(name_bytes=part_name.encode('utf8'))
+                .first()
+            )
 
             if not part_file:
                 log.warn("Missing %r", part_name)

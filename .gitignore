@@ -6,3 +6,4 @@
 /magic.mgc
 /static
 /docker-setup
+/.pytest_cache

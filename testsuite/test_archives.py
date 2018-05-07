@@ -137,7 +137,7 @@ def test_create_archive_files(taskmanager):
     )
     zip_file = models.File.objects.create(
         collection=col,
-        name=JERRY_ZIP.name,
+        name_bytes=JERRY_ZIP.name.encode('utf8'),
         parent_directory=zip_parent_dir,
         ctime=time_from_unix(0),
         mtime=time_from_unix(0),

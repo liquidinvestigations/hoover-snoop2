@@ -1,5 +1,6 @@
 from pathlib import Path
 import pytest
+import tempfile
 from django.conf import settings
 from snoop.data import models
 from snoop.data import tasks
@@ -28,3 +29,22 @@ def test_walk(taskmanager):
     task = models.Task.objects.get(pk=task_pk)
     assert task.func == 'filesystem.handle_file'
     assert task.args == [file.pk]
+
+
+def test_smashed_filename(taskmanager):
+    with tempfile.TemporaryDirectory() as dir:
+        collection = models.Collection.objects.create(name='test')
+        root = collection.directory_set.create()
+        collection.root = dir
+        collection.save()
+
+        broken_name = 'modifi\udce9.txt'
+        with (Path(dir) / broken_name).open('w') as f:
+            f.write('hello world\n')
+
+        filesystem.walk(root.pk)
+
+    [file] = collection.file_set.all()
+    hash = 'a8009a7a528d87778c356da3a55d964719e818666a04e4f960c9e2439e35f138'
+    assert file.original.pk == hash
+    assert file.name == broken_name
