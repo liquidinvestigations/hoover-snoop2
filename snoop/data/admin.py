@@ -118,7 +118,6 @@ class FileAdmin(admin.ModelAdmin):
     list_display = ['__str__', 'size', 'mime_type',
                     'original_blob_link', 'blob_link']
     search_fields = [
-        'name',
         'original__sha3_256',
         'original__sha256',
         'original__sha1',

@@ -311,8 +311,8 @@ def child_dir_to_dict(directory):
 
 
 def get_directory_children(directory):
-    child_directory_queryset = directory.child_directory_set.order_by('name')
-    child_file_queryset = directory.child_file_set.order_by('name')
+    child_directory_queryset = directory.child_directory_set.order_by('name_bytes')
+    child_file_queryset = directory.child_file_set.order_by('name_bytes')
     return (
         [child_dir_to_dict(d) for d in child_directory_queryset] +
         [child_file_to_dict(f) for f in child_file_queryset]
