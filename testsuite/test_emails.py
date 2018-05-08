@@ -180,7 +180,7 @@ def test_broken_header():
     )]
 
 
-def test_emlx_reconstruction_with_missing_dependency(taskmanager):
+def test_emlx_reconstruction(taskmanager):
     [collection] = models.Collection.objects.all()
     [root] = collection.directory_set.filter(
         parent_directory__isnull=True,
@@ -194,6 +194,7 @@ def test_emlx_reconstruction_with_missing_dependency(taskmanager):
     d3 = mkdir(d2, 'Data')
     d4 = mkdir(d3, '1')
     d5 = mkdir(d4, 'Messages')
+
     emlx_filename = '1498.partial.emlx'
     emlx_path = (
         Path(collection.root)
@@ -202,6 +203,15 @@ def test_emlx_reconstruction_with_missing_dependency(taskmanager):
     )
     emlx_blob = models.Blob.create_from_file(emlx_path)
     emlx_file = mkfile(d5, emlx_filename, emlx_blob)
+
+    emlxpart_filename = '1498.3.emlxpart'
+    emlxpart_path = (
+        Path(collection.root)
+        / d1.name / d2.name / d3.name
+        / d4.name / d5.name / emlxpart_filename
+    )
+    emlxpart_blob = models.Blob.create_from_file(emlxpart_path)
+    emlxpart_file = mkfile(d5, emlxpart_filename, emlxpart_blob)
 
     emlx_task = emlx.reconstruct.laterz(emlx_file.pk)
     taskmanager.run()
