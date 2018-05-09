@@ -180,18 +180,18 @@ class Collection(models.Model):
 
 
 class Directory(models.Model):
-    collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
+    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
     name_bytes = models.BinaryField(max_length=1024, blank=True)
     parent_directory = models.ForeignKey(
         'Directory',
         null=True, blank=True,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.CASCADE,
         related_name='child_directory_set',
     )
     container_file = models.ForeignKey(
         'File',
         null=True, blank=True,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.CASCADE,
         related_name='child_directory_set',
     )
 
@@ -223,11 +223,11 @@ class Directory(models.Model):
 
 
 class File(models.Model):
-    collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
+    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
     name_bytes = models.BinaryField(max_length=1024, blank=True)
     parent_directory = models.ForeignKey(
         Directory,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.CASCADE,
         related_name='child_file_set',
     )
     ctime = models.DateTimeField()
@@ -332,7 +332,7 @@ class TaskDependency(models.Model):
 
 
 class Digest(models.Model):
-    collection = models.ForeignKey(Collection, on_delete=models.DO_NOTHING)
+    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
     blob = models.ForeignKey(Blob, on_delete=models.DO_NOTHING)
     result = models.ForeignKey(
         Blob,
