@@ -59,6 +59,14 @@ def put_json(url, data):
     )
 
 
+def post_json(url, data):
+    return requests.post(
+        url,
+        data=json.dumps(data),
+        headers={'Content-Type': 'application/json'},
+    )
+
+
 def check_response(resp):
     if 200 <= resp.status_code < 300:
         log.debug('Response: %r', resp)
@@ -74,13 +82,18 @@ def index(index, id, data):
     check_response(resp)
 
 
+def delete_index(index):
+    url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
+    log.info('%s Elasticsearch DELETE', DOCUMENT_TYPE)
+    delete_resp = requests.delete(url)
+    log.debug('Response: %r', delete_resp)
+
+
 def resetindex(index, clobber=True):
     url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
 
     if clobber:
-        log.info('%s Elasticsearch DELETE', DOCUMENT_TYPE)
-        delete_resp = requests.delete(url)
-        check_response(delete_resp)
+        delete_index(index)
 
     log.info('%s Elasticsearch PUT', DOCUMENT_TYPE)
     put_resp = put_json(url, CONFIG)
@@ -147,3 +160,60 @@ def export_index(index, stream=None):
             check=True,
             stdout=stream,
         )
+
+
+def import_index(index, stream=None):
+    delete_index(index)
+
+    with snapshot_repo(index) as (repo, repo_path):
+        log.info('Unpack tar archive')
+        subprocess.run(
+            'tar x',
+            cwd=repo_path,
+            shell=True,
+            check=True,
+            stdin=stream,
+        )
+
+        snapshots_resp = requests.get(f'{repo}/*')
+        check_response(snapshots_resp)
+        for s in snapshots_resp.json()['snapshots']:
+            if s['state'] == 'SUCCESS':
+                [snapshot_index] = s['indices']
+                if snapshot_index != index:
+                    continue
+                snapshot = f'{repo}/{s["snapshot"]}'
+                break
+        else:
+            raise RuntimeError(f"No snapshots for index {index}")
+
+        log.info("Starting restore for index %r as %r", snapshot_index, index)
+        restore = f'{snapshot}/_restore'
+        restore_resp = post_json(restore, {
+            'indices': index,
+            'include_global_state': False,
+            'include_aliases': False,
+        })
+        check_response(restore_resp)
+        assert restore_resp.json()['accepted']
+
+        es_url = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
+        status = f'{es_url}/{index}/_recovery'
+        while True:
+            status_resp = requests.get(status)
+            check_response(status_resp)
+            if not status_resp.json():
+                log.debug("Waiting for restore to start")
+                time.sleep(1)
+                continue
+
+            for shard in status_resp.json()[index]['shards']:
+                stage = shard['stage']
+                if stage != 'DONE':
+                    log.debug("Shard %r stage=%r", shard['id'], stage)
+                    time.sleep(1)
+                    break
+
+            else:
+                log.info('Snapshot restored successfully')
+                break

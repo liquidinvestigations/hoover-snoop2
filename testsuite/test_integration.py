@@ -78,7 +78,7 @@ def test_complete_lifecycle(client, taskmanager):
     db_failed_count = models.Task.objects.filter(func='digests.index').exclude(status='success').count()
     assert db_failed_count == 0
 
-    # test export and import
+    # test export and import database
     with tempfile.TemporaryFile('wb') as f:
         counts = {}
         for name, model in exportimport.model_map.items():
@@ -96,3 +96,12 @@ def test_complete_lifecycle(client, taskmanager):
         for name, model in exportimport.model_map.items():
             count = len(model.objects.all())
             assert count == counts[name], f"{name}: {count} != {counts[name]}"
+
+    # test export and import index
+    with tempfile.TemporaryFile('wb') as f:
+        indexing.export_index('testdata', stream=f)
+        indexing.delete_index('testdata')
+        f.seek(0)
+        indexing.import_index('testdata', stream=f)
+        count_resp = requests.get(es_count_url)
+        assert count_resp.json()['count'] == es_count
