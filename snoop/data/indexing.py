@@ -1,5 +1,10 @@
 import json
 import logging
+from datetime import datetime
+import shutil
+import subprocess
+from contextlib import contextmanager
+import time
 import requests
 from django.conf import settings
 
@@ -56,7 +61,7 @@ def put_json(url, data):
 
 def check_response(resp):
     if 200 <= resp.status_code < 300:
-        log.info('Response: %r', resp)
+        log.debug('Response: %r', resp)
     else:
         log.error('Response: %r', resp)
         log.error('Response text:\n%s', resp.text)
@@ -80,3 +85,65 @@ def resetindex(index, clobber=True):
     log.info('%s Elasticsearch PUT', DOCUMENT_TYPE)
     put_resp = put_json(url, CONFIG)
     check_response(put_resp)
+
+
+@contextmanager
+def snapshot_repo(index):
+    id = f'{index}-{datetime.utcnow().isoformat().lower()}'
+    repo = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/_snapshot/{id}'
+    repo_path = f'/opt/hoover/es-snapshots/{id}'
+
+    log.info('Create snapshot repo')
+    repo_resp = put_json(repo, {
+        'type': 'fs',
+        'settings': {
+            'location': repo_path,
+            'compress': True,
+        },
+    })
+    check_response(repo_resp)
+
+    try:
+        yield (repo, repo_path)
+
+    finally:
+        log.info('Delete snapshot repo')
+        delete_resp = requests.delete(repo)
+        check_response(delete_resp)
+
+        log.info('Remove repo files')
+        shutil.rmtree(repo_path)
+
+
+def export_index(index, stream=None):
+    with snapshot_repo(index) as (repo, repo_path):
+        snapshot = f'{repo}/{index}'
+        log.info('Elasticsearch snapshot %r', snapshot)
+
+        log.info('Create snapshot')
+        snapshot_resp = put_json(snapshot, {
+            'indices': index,
+            'include_global_state': False,
+        })
+        check_response(snapshot_resp)
+
+        while True:
+            status_resp = requests.get(snapshot)
+            check_response(status_resp)
+            state = status_resp.json()['snapshots'][0]['state']
+            log.debug('Snapshot state: %r', state)
+
+            if state == 'SUCCESS':
+                log.info('Snapshot created successfully')
+                break
+
+            time.sleep(1)
+
+        log.info('Create tar archive')
+        subprocess.run(
+            'tar c *',
+            cwd=repo_path,
+            shell=True,
+            check=True,
+            stdout=stream,
+        )
