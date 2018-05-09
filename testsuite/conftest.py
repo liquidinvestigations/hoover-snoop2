@@ -47,7 +47,7 @@ def mkdir(parent, name):
     return models.Directory.objects.create(
         collection=parent.collection,
         parent_directory=parent,
-        name=name,
+        name_bytes=name.encode('utf8'),
     )
 
 
@@ -56,7 +56,7 @@ def mkfile(parent, name, original):
     return models.File.objects.create(
         collection=parent.collection,
         parent_directory=parent,
-        name=name,
+        name_bytes=name.encode('utf8'),
         ctime=now,
         mtime=now,
         size=0,

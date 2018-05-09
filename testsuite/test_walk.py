@@ -1,5 +1,6 @@
 from pathlib import Path
 import pytest
+import tempfile
 from django.conf import settings
 from snoop.data import models
 from snoop.data import tasks
@@ -11,13 +12,13 @@ TESTDATA = Path(settings.SNOOP_TESTDATA)
 pytestmark = [pytest.mark.django_db]
 
 
-def test_walk_file(taskmanager):
+def test_walk(taskmanager):
     collection = models.Collection.objects.create(name='test')
     root = collection.directory_set.create()
     collection.root = TESTDATA / 'data/emlx-4-missing-part'
     collection.save()
 
-    filesystem.walk_file(root.pk, '1498.partial.emlx')
+    filesystem.walk(root.pk)
 
     [file] = collection.file_set.all()
     hash = '442e8939e3e367c4263738bbb29e9360a17334279f1ecef67fa9d437c31804ca'
@@ -29,7 +30,21 @@ def test_walk_file(taskmanager):
     assert task.func == 'filesystem.handle_file'
     assert task.args == [file.pk]
 
-    with pytest.raises(tasks.ShaormaBroken) as e:
-        filesystem.walk_file(root.pk, 'no-such-file')
 
-    assert e.value.reason == 'file_missing'
+def test_smashed_filename(taskmanager):
+    with tempfile.TemporaryDirectory() as dir:
+        collection = models.Collection.objects.create(name='test')
+        root = collection.directory_set.create()
+        collection.root = dir
+        collection.save()
+
+        broken_name = 'modifi\udce9.txt'
+        with (Path(dir) / broken_name).open('w') as f:
+            f.write('hello world\n')
+
+        filesystem.walk(root.pk)
+
+    [file] = collection.file_set.all()
+    hash = 'a8009a7a528d87778c356da3a55d964719e818666a04e4f960c9e2439e35f138'
+    assert file.original.pk == hash
+    assert file.name == broken_name

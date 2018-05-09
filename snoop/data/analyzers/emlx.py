@@ -1,8 +1,11 @@
 import re
 import email
+import logging
 from .. import models
 from ..tasks import shaorma, require_dependency, ShaormaBroken
 from .email import iter_parts
+
+log = logging.getLogger(__name__)
 
 
 @shaorma('emlx.reconstruct')
@@ -21,25 +24,15 @@ def reconstruct(file_pk, **depends_on):
             ext = f'.{ref}.emlxpart'
             part_name = re.sub(r'\.partial\.emlx$', ext, file.name)
             parent = file.parent_directory
-
-            require_dependency(
-                f'walk-{parent.pk}', depends_on,
-                lambda: filesystem.walk.laterz(parent.pk),
+            part_file = (
+                parent.child_file_set
+                .filter(name_bytes=part_name.encode('utf8'))
+                .first()
             )
 
-            try:
-                require_dependency(
-                    f'walk_file-{parent.pk}-emlxpart-{ref}', depends_on,
-                    lambda: filesystem.walk_file.laterz(parent.pk, part_name),
-                )
-
-            except ShaormaBroken as e:
-                if e.reason == 'file_missing':
-                    continue
-
-                raise
-
-            part_file = parent.child_file_set.get(name=part_name)
+            if not part_file:
+                log.warn("Missing %r", part_name)
+                continue
 
             with part_file.original.open() as f:
                 payload = f.read()
