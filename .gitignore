@@ -7,3 +7,4 @@
 /static
 /docker-setup
 /.pytest_cache
+/.idea
