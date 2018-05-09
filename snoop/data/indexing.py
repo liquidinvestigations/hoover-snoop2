@@ -46,26 +46,37 @@ SETTINGS = {
 CONFIG = {'mappings': MAPPINGS, 'settings': SETTINGS}
 
 
-def index(index, id, data):
-    resp = requests.put(
-        f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}/{DOCUMENT_TYPE}/{id}',
+def put_json(url, data):
+    return requests.put(
+        url,
         data=json.dumps(data),
         headers={'Content-Type': 'application/json'},
     )
-    if not (200 <= resp.status_code < 300):
+
+
+def check_response(resp):
+    if 200 <= resp.status_code < 300:
+        log.info('Response: %r', resp)
+    else:
         log.error('Response: %r', resp)
         log.error('Response text:\n%s', resp.text)
         raise RuntimeError('Put request failed: %r' % resp)
+
+
+def index(index, id, data):
+    index_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
+    resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
+    check_response(resp)
 
 
 def resetindex(index, clobber=True):
     url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
 
     if clobber:
+        log.info('%s Elasticsearch DELETE', DOCUMENT_TYPE)
         delete_resp = requests.delete(url)
-        log.info('%s Elasticsearch DELETE: %r', DOCUMENT_TYPE, delete_resp)
+        check_response(delete_resp)
 
-    put_resp = requests.put(url, data=json.dumps(CONFIG),
-        headers={'Content-Type': 'application/json'})
-    log.info('%s Elasticsearch PUT: %r', DOCUMENT_TYPE, put_resp)
-    log.info('%s Elasticsearch PUT: %r', DOCUMENT_TYPE, put_resp.text)
+    log.info('%s Elasticsearch PUT', DOCUMENT_TYPE)
+    put_resp = put_json(url, CONFIG)
+    check_response(put_resp)
