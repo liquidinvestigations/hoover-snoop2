@@ -1,4 +1,9 @@
 import sys
+import json
+import tempfile
+from pathlib import Path
+import subprocess
+from django.core import serializers
 from django.db import transaction
 from django.db.models.expressions import RawSQL
 from django.db.models import Q
@@ -179,3 +184,41 @@ def export_db(collection_name, verbose=False):
         info('tasks:', len(tasks))
         info('task dependencies:', len(task_dependencies))
         info('digests:', len(digests))
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        json_serializer = serializers.get_serializer('json')()
+
+        def dump(queryset, name):
+            with (tmp / name).open('w', encoding='utf8') as f:
+                json_serializer.serialize(queryset, stream=f, indent=2)
+
+        dump(directories, 'directories.json')
+        dump(files, 'files.json')
+        dump(digests, 'digests.json')
+        dump(blobs, 'blobs.json')
+        dump(tasks, 'tasks.json')
+        dump(task_dependencies, 'task_dependencies.json')
+
+        def pk_interval(queryset):
+            try:
+                return {
+                    'min': queryset.order_by('pk')[0].pk,
+                    'max': queryset.order_by('-pk')[0].pk,
+                }
+
+            except IndexError:
+                return None
+
+        serials = {
+            'directories': pk_interval(directories),
+            'files': pk_interval(files),
+            'digests': pk_interval(digests),
+            'tasks': pk_interval(tasks),
+            'task_dependencies': pk_interval(task_dependencies),
+        }
+
+        with (tmp / 'serials.json').open('w', encoding='utf8') as f:
+            json.dump(serials, f, indent=2)
+
+        subprocess.run('tar c *', cwd=tmp, shell=True, check=True)
