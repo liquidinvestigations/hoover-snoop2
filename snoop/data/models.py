@@ -313,12 +313,12 @@ class Task(models.Model):
 class TaskDependency(models.Model):
     prev = models.ForeignKey(
         Task,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.CASCADE,
         related_name='next_set',
     )
     next = models.ForeignKey(
         Task,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.CASCADE,
         related_name='prev_set',
     )
     name = models.CharField(max_length=1024)
