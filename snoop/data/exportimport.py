@@ -24,10 +24,7 @@ def info(*args):
     print(*args, file=sys.stderr)
 
 
-@transaction.atomic
-def export_db(collection_name, verbose=False, stream=None):
-    collection = models.Collection.objects.get(name=collection_name)
-
+def build_export_queries(collection):
     directories = collection.directory_set.all()
     files = collection.file_set.all()
     digests = collection.digest_set.all()
@@ -134,9 +131,14 @@ def export_db(collection_name, verbose=False, stream=None):
         .filter(func='tika.rmeta')
         .filter(blob_arg__in=file_blob_pks)
     )
-    tika_rmeta_tasks = set()
-    tika_rmeta_tasks.update(tika_rmeta_email_tasks)
-    tika_rmeta_tasks.update(tika_rmeta_file_tasks)
+
+    tika_rmeta_tasks = (
+        models.Task.objects
+        .filter(
+            Q(pk__in=tika_rmeta_email_tasks) |
+            Q(pk__in=tika_rmeta_file_tasks)
+        )
+    )
 
     tasks = (
         models.Task.objects
@@ -153,8 +155,7 @@ def export_db(collection_name, verbose=False, stream=None):
             Q(pk__in=filesystem_create_attachment_files_tasks) |
             Q(pk__in=filesystem_handle_file_tasks) |
             Q(pk__in=filesystem_walk_tasks) |
-            Q(pk__in=tika_rmeta_email_tasks) |
-            Q(pk__in=tika_rmeta_file_tasks)
+            Q(pk__in=tika_rmeta_tasks)
         )
     )
 
@@ -173,29 +174,61 @@ def export_db(collection_name, verbose=False, stream=None):
         .filter(next__in=tasks)
     )
 
+    return {
+        'archives_unarchive_tasks': archives_unarchive_tasks,
+        'digests_gather_tasks': digests_gather_tasks,
+        'digests_index_tasks': digests_index_tasks,
+        'digests_launch_tasks': digests_launch_tasks,
+        'email_msg_to_eml_tasks': email_msg_to_eml_tasks,
+        'email_parse_tasks': email_parse_tasks,
+        'emlx_reconstruct_tasks': emlx_reconstruct_tasks,
+        'exif_extract_tasks': exif_extract_tasks,
+        'filesystem_create_archive_files_tasks':
+            filesystem_create_archive_files_tasks,
+        'filesystem_create_attachment_files_tasks':
+            filesystem_create_attachment_files_tasks,
+        'filesystem_handle_file_tasks': filesystem_handle_file_tasks,
+        'tika_rmeta_tasks': tika_rmeta_tasks,
+        'filesystem_walk_tasks': filesystem_walk_tasks,
+        'files': files,
+        'directories': directories,
+        'blobs': blobs,
+        'tasks': tasks,
+        'task_dependencies': task_dependencies,
+        'digests': digests,
+    }
+
+
+@transaction.atomic
+def export_db(collection_name, verbose=False, stream=None):
+    collection = models.Collection.objects.get(name=collection_name)
+    queries = build_export_queries(collection)
+
     if verbose:
         info('Exporting collection', collection)
-        info('task archives.unarchive:', len(archives_unarchive_tasks))
-        info('task digests.gather:', len(digests_gather_tasks))
-        info('task digests.index:', len(digests_index_tasks))
-        info('task digests.launch:', len(digests_launch_tasks))
-        info('task email.msg_to_eml:', len(email_msg_to_eml_tasks))
-        info('task email.parse:', len(email_parse_tasks))
-        info('task emlx.reconstruct:', len(emlx_reconstruct_tasks))
-        info('task exif.extract:', len(exif_extract_tasks))
+        info('task archives.unarchive:',
+             len(queries['archives_unarchive_tasks']))
+        info('task digests.gather:', len(queries['digests_gather_tasks']))
+        info('task digests.index:', len(queries['digests_index_tasks']))
+        info('task digests.launch:', len(queries['digests_launch_tasks']))
+        info('task email.msg_to_eml:', len(queries['email_msg_to_eml_tasks']))
+        info('task email.parse:', len(queries['email_parse_tasks']))
+        info('task emlx.reconstruct:', len(queries['emlx_reconstruct_tasks']))
+        info('task exif.extract:', len(queries['exif_extract_tasks']))
         info('task filesystem.create_archive_files:',
-             len(filesystem_create_archive_files_tasks))
+             len(queries['filesystem_create_archive_files_tasks']))
         info('task filesystem.create_attachment_files:',
-             len(filesystem_create_attachment_files_tasks))
-        info('task filesystem.handle_file:', len(filesystem_handle_file_tasks))
-        info('task filesystem.walk:', len(filesystem_walk_tasks))
-        info('task tika.rmeta:', len(tika_rmeta_tasks))
-        info('files:', len(files))
-        info('directories:', len(directories))
-        info('blobs:', len(blobs))
-        info('tasks:', len(tasks))
-        info('task dependencies:', len(task_dependencies))
-        info('digests:', len(digests))
+             len(queries['filesystem_create_attachment_files_tasks']))
+        info('task filesystem.handle_file:',
+             len(queries['filesystem_handle_file_tasks']))
+        info('task filesystem.walk:', len(queries['filesystem_walk_tasks']))
+        info('task tika.rmeta:', len(queries['tika_rmeta_tasks']))
+        info('files:', len(queries['files']))
+        info('directories:', len(queries['directories']))
+        info('blobs:', len(queries['blobs']))
+        info('tasks:', len(queries['tasks']))
+        info('task dependencies:', len(queries['task_dependencies']))
+        info('digests:', len(queries['digests']))
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -205,12 +238,12 @@ def export_db(collection_name, verbose=False, stream=None):
             with (tmp / name).open('w', encoding='utf8') as f:
                 json_serializer.serialize(queryset, stream=f, indent=2)
 
-        dump(directories, 'directories.json')
-        dump(files, 'files.json')
-        dump(digests, 'digests.json')
-        dump(blobs, 'blobs.json')
-        dump(tasks, 'tasks.json')
-        dump(task_dependencies, 'task_dependencies.json')
+        dump(queries['directories'], 'directories.json')
+        dump(queries['files'], 'files.json')
+        dump(queries['digests'], 'digests.json')
+        dump(queries['blobs'], 'blobs.json')
+        dump(queries['tasks'], 'tasks.json')
+        dump(queries['task_dependencies'], 'task_dependencies.json')
 
         def pk_interval(queryset):
             try:
@@ -223,11 +256,11 @@ def export_db(collection_name, verbose=False, stream=None):
                 return None
 
         serials = {
-            'directories': pk_interval(directories),
-            'files': pk_interval(files),
-            'digests': pk_interval(digests),
-            'tasks': pk_interval(tasks),
-            'task_dependencies': pk_interval(task_dependencies),
+            'directories': pk_interval(queries['directories']),
+            'files': pk_interval(queries['files']),
+            'digests': pk_interval(queries['digests']),
+            'tasks': pk_interval(queries['tasks']),
+            'task_dependencies': pk_interval(queries['task_dependencies']),
         }
 
         with (tmp / 'serials.json').open('w', encoding='utf8') as f:
