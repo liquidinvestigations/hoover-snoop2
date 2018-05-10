@@ -1,6 +1,7 @@
 from pathlib import Path
 from urllib.parse import urljoin
 import tempfile
+import subprocess
 import requests
 import pytest
 from django.conf import settings
@@ -25,6 +26,9 @@ ID = {
 
 
 def test_complete_lifecycle(client, taskmanager):
+    blobs_path = settings.SNOOP_BLOB_STORAGE
+    subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
+
     col = models.Collection.objects.create(
         name='testdata',
         root=Path(settings.SNOOP_TESTDATA) / 'data',
@@ -105,3 +109,23 @@ def test_complete_lifecycle(client, taskmanager):
         indexing.import_index('testdata', stream=f)
         count_resp = requests.get(es_count_url)
         assert count_resp.json()['count'] == es_count
+
+    # test export and import blobs
+    with tempfile.TemporaryFile('wb') as f:
+        count = int(subprocess.check_output(
+            'find . -type f | wc -l',
+            shell=True,
+            cwd=blobs_path,
+        ))
+        exportimport.export_blobs('testdata', stream=f)
+
+        subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
+
+        f.seek(0)
+        exportimport.import_blobs(stream=f)
+        new_count = int(subprocess.check_output(
+            'find . -type f | wc -l',
+            shell=True,
+            cwd=blobs_path,
+        ))
+        assert new_count == count

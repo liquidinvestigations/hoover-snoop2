@@ -3,12 +3,17 @@ import json
 import tempfile
 from pathlib import Path
 import subprocess
+import logging
+import tarfile
+from django.conf import settings
 from django.core import serializers
 from django.db import transaction
 from django.db import connection
 from django.db.models.expressions import RawSQL
 from django.db.models import Q
 from . import models
+
+log = logging.getLogger(__name__)
 
 model_map = {
     'directories': models.Directory,
@@ -388,3 +393,33 @@ def import_db(collection_name, verbose=False, stream=None):
             obj.next_id += deltas['tasks']
             obj.prev_id += deltas['tasks']
             obj.save()
+
+
+def export_blobs(collection_name, stream=None):
+    collection = models.Collection.objects.get(name=collection_name)
+    queries = build_export_queries(collection)
+    tar = tarfile.open(mode='w|', fileobj=stream or sys.stdout.buffer)
+
+    for blob in queries['blobs'].order_by('pk'):
+        log.debug('blob %r: %d', blob, blob.size)
+        filename = f'{blob.pk[:2]}/{blob.pk[2:4]}/{blob.pk[4:]}'
+        tarinfo = tarfile.TarInfo(filename)
+        tarinfo.size = blob.size
+        with blob.open() as f:
+            tar.addfile(tarinfo, f)
+
+    tar.close()
+
+
+def import_blobs(stream=None, verbose=False):
+    cmd = 'tar x'
+    if verbose:
+        cmd += 'v'
+
+    subprocess.run(
+        cmd,
+        shell=True,
+        check=True,
+        stdin=stream or sys.stdin.buffer,
+        cwd=settings.SNOOP_BLOB_STORAGE,
+    )
