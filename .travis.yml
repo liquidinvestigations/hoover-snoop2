@@ -4,7 +4,8 @@ services:
 install:
   - git clone https://github.com/hoover/docker-setup.git
   - cd docker-setup
-  - mkdir volumes volumes/metrics volumes/metrics/users collections
+  - mkdir volumes volumes/metrics volumes/metrics/users collections volumes/search-es-snapshots
+  - chmod 777 volumes/search-es-snapshots
   - docker build .. --tag snoop2-testing
   - cp ../testsuite/docker-compose.override.travis-snoop2.yml docker-compose.override.yml
   - cp snoop.testing.env snoop.env
