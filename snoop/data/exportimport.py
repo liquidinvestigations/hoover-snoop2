@@ -11,6 +11,7 @@ from django.db import transaction
 from django.db import connection
 from django.db.models.expressions import RawSQL
 from django.db.models import Q
+from django.db.utils import IntegrityError
 from . import models
 
 log = logging.getLogger(__name__)
@@ -355,10 +356,13 @@ def import_db(collection_name, verbose=False, stream=None):
             obj.save()
 
         n = 0
+        duplicate_tasks = 0
+        task_pk_map = {}
         for obj in load_file('tasks.json', deltas['tasks']):
             n += 1
+            exists_ok = False
             if obj.func == 'archives.unarchive':
-                pass
+                exists_ok = True
             elif obj.func == 'digests.gather':
                 obj.args[1] = collection.pk
             elif obj.func == 'digests.index':
@@ -366,13 +370,13 @@ def import_db(collection_name, verbose=False, stream=None):
             elif obj.func == 'digests.launch':
                 obj.args[1] = collection.pk
             elif obj.func == 'email.msg_to_eml':
-                pass
+                exists_ok = True
             elif obj.func == 'email.parse':
-                pass
+                exists_ok = True
             elif obj.func == 'emlx.reconstruct':
                 obj.args[0] += deltas['files']
             elif obj.func == 'exif.extract':
-                pass
+                exists_ok = True
             elif obj.func == 'filesystem.create_archive_files':
                 obj.args[0] += deltas['files']
             elif obj.func == 'filesystem.create_attachment_files':
@@ -382,17 +386,48 @@ def import_db(collection_name, verbose=False, stream=None):
             elif obj.func == 'filesystem.walk':
                 obj.args[0] += deltas['directories']
             elif obj.func == 'tika.rmeta':
-                pass
+                exists_ok = True
             else:
                 raise RuntimeError(f"Unexpected func {obj.func}")
 
-            obj.save()
+            try:
+                with transaction.atomic():
+                    obj.save()
 
+            except IntegrityError:
+                if exists_ok:
+                    existing_pk = (
+                        models.Task.objects
+                        .get(func=obj.func, args=obj.args)
+                        .pk
+                    )
+                    task_pk_map[obj.pk] = existing_pk
+                    duplicate_tasks += 1
+
+                else:
+                    raise
+
+        remap_task_pk = lambda pk: task_pk_map.get(pk, pk)
+
+        duplicate_task_dependencies = 0
         for obj in load_file('task_dependencies.json',
                              deltas['task_dependencies']):
             obj.next_id += deltas['tasks']
             obj.prev_id += deltas['tasks']
-            obj.save()
+            obj.next_id = remap_task_pk(obj.next_id)
+            obj.prev_id = remap_task_pk(obj.prev_id)
+            try:
+                with transaction.atomic():
+                    obj.save()
+            except IntegrityError:
+                duplicate_task_dependencies += 1
+
+        if duplicate_tasks:
+            log.info("Ignored %d duplicate tasks", duplicate_tasks)
+
+        if duplicate_task_dependencies:
+            log.info("Ignored %d duplicate task dependencies",
+                     duplicate_task_dependencies)
 
 
 def export_blobs(collection_name, stream=None):
