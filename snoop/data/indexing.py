@@ -58,13 +58,14 @@ def index(index, id, data):
         raise RuntimeError('Put request failed: %r' % resp)
 
 
-def resetindex(index):
-        url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
+def resetindex(index, clobber=True):
+    url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
 
+    if clobber:
         delete_resp = requests.delete(url)
         log.info('%s Elasticsearch DELETE: %r', DOCUMENT_TYPE, delete_resp)
 
-        put_resp = requests.put(url, data=json.dumps(CONFIG),
-            headers={'Content-Type': 'application/json'})
-        log.info('%s Elasticsearch PUT: %r', DOCUMENT_TYPE, put_resp)
-        log.info('%s Elasticsearch PUT: %r', DOCUMENT_TYPE, put_resp.text)
+    put_resp = requests.put(url, data=json.dumps(CONFIG),
+        headers={'Content-Type': 'application/json'})
+    log.info('%s Elasticsearch PUT: %r', DOCUMENT_TYPE, put_resp)
+    log.info('%s Elasticsearch PUT: %r', DOCUMENT_TYPE, put_resp.text)
