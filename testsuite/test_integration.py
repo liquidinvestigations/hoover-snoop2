@@ -1,5 +1,7 @@
 from pathlib import Path
 from urllib.parse import urljoin
+import tempfile
+import subprocess
 import requests
 import pytest
 from django.conf import settings
@@ -7,6 +9,7 @@ from snoop.data.tasks import shaorma
 from snoop.data import models
 from snoop.data import dispatcher
 from snoop.data import indexing
+from snoop.data import exportimport
 
 pytestmark = [pytest.mark.django_db]
 
@@ -22,7 +25,10 @@ ID = {
 }
 
 
-def test_walk_and_api(client, taskmanager):
+def test_complete_lifecycle(client, taskmanager):
+    blobs_path = settings.SNOOP_BLOB_STORAGE
+    subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
+
     col = models.Collection.objects.create(
         name='testdata',
         root=Path(settings.SNOOP_TESTDATA) / 'data',
@@ -75,3 +81,51 @@ def test_walk_and_api(client, taskmanager):
     # check that all index ops were successful
     db_failed_count = models.Task.objects.filter(func='digests.index').exclude(status='success').count()
     assert db_failed_count == 0
+
+    # test export and import database
+    with tempfile.TemporaryFile('wb') as f:
+        counts = {}
+        for name, model in exportimport.model_map.items():
+            counts[name] = len(model.objects.all())
+
+        exportimport.export_db('testdata', verbose=True, stream=f)
+
+        models.Collection.objects.all().delete()
+        for model in exportimport.model_map.values():
+            model.objects.all().delete()
+
+        f.seek(0)
+        exportimport.import_db('testdata', verbose=True, stream=f)
+
+        for name, model in exportimport.model_map.items():
+            count = len(model.objects.all())
+            assert count == counts[name], f"{name}: {count} != {counts[name]}"
+
+    # test export and import index
+    with tempfile.TemporaryFile('wb') as f:
+        indexing.export_index('testdata', stream=f)
+        indexing.delete_index('testdata')
+        f.seek(0)
+        indexing.import_index('testdata', stream=f)
+        count_resp = requests.get(es_count_url)
+        assert count_resp.json()['count'] == es_count
+
+    # test export and import blobs
+    with tempfile.TemporaryFile('wb') as f:
+        count = int(subprocess.check_output(
+            'find . -type f | wc -l',
+            shell=True,
+            cwd=blobs_path,
+        ))
+        exportimport.export_blobs('testdata', stream=f)
+
+        subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
+
+        f.seek(0)
+        exportimport.import_blobs(stream=f)
+        new_count = int(subprocess.check_output(
+            'find . -type f | wc -l',
+            shell=True,
+            cwd=blobs_path,
+        ))
+        assert new_count == count

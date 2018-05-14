@@ -16,6 +16,10 @@ log = logging.getLogger(__name__)
 def directory_absolute_path(directory):
     path_elements = []
     node = directory
+
+    if not directory.collection.root:
+        raise RuntimeError("Collection root is not set")
+
     path = Path(directory.collection.root)
 
     while node.parent_directory:
