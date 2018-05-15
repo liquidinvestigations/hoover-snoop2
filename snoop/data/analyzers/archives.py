@@ -96,6 +96,16 @@ def unpack_mbox(mbox_path, output_dir):
                 f.write(message)
 
 
+def check_recursion(listing, blob_pk):
+    for item in listing:
+        if item['type'] == 'file':
+            if item['blob_pk'] == blob_pk:
+                raise RuntimeError(f"Recursion detected, blob_pk={blob_pk}")
+
+        elif item['type'] == 'directory':
+            check_recursion(item['children'], blob_pk)
+
+
 @shaorma('archives.unarchive')
 @returns_json_blob
 def unarchive(blob):
@@ -111,6 +121,8 @@ def unarchive(blob):
             list(archive_walk(Path(temp_dir))),
             key=lambda c: c['name'],
         )
+
+    check_recursion(listing, blob.pk)
 
     return listing
 

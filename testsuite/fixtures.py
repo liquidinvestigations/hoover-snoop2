@@ -16,7 +16,8 @@ class FakeData:
             root='',
         )
         collection.directory_set.create()
-        indexing.resetindex(collection.name)
+        indexing.delete_index(collection.name)
+        indexing.create_index(collection.name)
         return collection
 
     def blob(self, data):
