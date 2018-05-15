@@ -84,18 +84,14 @@ def index(index, id, data):
 
 def delete_index(index):
     url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
-    log.info('%s Elasticsearch DELETE', DOCUMENT_TYPE)
+    log.info("DELETE %s", url)
     delete_resp = requests.delete(url)
     log.debug('Response: %r', delete_resp)
 
 
-def resetindex(index, clobber=True):
+def create_index(index):
     url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
-
-    if clobber:
-        delete_index(index)
-
-    log.info('%s Elasticsearch PUT', DOCUMENT_TYPE)
+    log.info("PUT %s", url)
     put_resp = put_json(url, CONFIG)
     check_response(put_resp)
 
@@ -162,8 +158,9 @@ def export_index(index, stream=None):
         )
 
 
-def import_index(index, stream=None):
-    delete_index(index)
+def import_index(index, delete=False, stream=None):
+    if delete:
+        delete_index(index)
 
     with snapshot_repo(index) as (repo, repo_path):
         log.info('Unpack tar archive')

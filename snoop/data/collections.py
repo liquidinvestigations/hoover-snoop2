@@ -7,7 +7,7 @@ from . import indexing
 def create_collection(name, root):
     with transaction.atomic():
         collection = models.Collection.objects.create(name=name, root=root)
-        indexing.resetindex(name, clobber=False)
+        indexing.create_index(name)
         root = collection.directory_set.create()
         filesystem.walk.laterz(root.pk)
 

@@ -13,4 +13,5 @@ class Command(BaseCommand):
     def handle(self, collection_name, *args, **options):
         logging_for_management_command(options['verbosity'])
         collection = models.Collection.objects.get(name=collection_name)
-        indexing.resetindex(collection.name)
+        indexing.delete_index(collection.name)
+        indexing.create_index(collection.name)

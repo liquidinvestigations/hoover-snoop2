@@ -34,7 +34,8 @@ def test_complete_lifecycle(client, taskmanager):
         root=Path(settings.SNOOP_TESTDATA) / 'data',
     )
     root = col.directory_set.create()
-    indexing.resetindex(col.name)
+    indexing.delete_index(col.name)
+    indexing.create_index(col.name)
 
     dispatcher.run_dispatcher()
     taskmanager.run(limit=10000)
