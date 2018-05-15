@@ -26,10 +26,6 @@ model_map = {
 }
 
 
-def info(*args):
-    print(*args, file=sys.stderr)
-
-
 def build_export_queries(collection):
     directories = collection.directory_set.all()
     files = collection.file_set.all()
@@ -206,35 +202,43 @@ def build_export_queries(collection):
 
 
 @transaction.atomic
-def export_db(collection_name, verbose=False, stream=None):
+def export_db(collection_name, stream=None):
     collection = models.Collection.objects.get(name=collection_name)
+    log.info("Exporting %r", collection)
     queries = build_export_queries(collection)
 
-    if verbose:
-        info('Exporting collection', collection)
-        info('task archives.unarchive:',
-             len(queries['archives_unarchive_tasks']))
-        info('task digests.gather:', len(queries['digests_gather_tasks']))
-        info('task digests.index:', len(queries['digests_index_tasks']))
-        info('task digests.launch:', len(queries['digests_launch_tasks']))
-        info('task email.msg_to_eml:', len(queries['email_msg_to_eml_tasks']))
-        info('task email.parse:', len(queries['email_parse_tasks']))
-        info('task emlx.reconstruct:', len(queries['emlx_reconstruct_tasks']))
-        info('task exif.extract:', len(queries['exif_extract_tasks']))
-        info('task filesystem.create_archive_files:',
-             len(queries['filesystem_create_archive_files_tasks']))
-        info('task filesystem.create_attachment_files:',
-             len(queries['filesystem_create_attachment_files_tasks']))
-        info('task filesystem.handle_file:',
-             len(queries['filesystem_handle_file_tasks']))
-        info('task filesystem.walk:', len(queries['filesystem_walk_tasks']))
-        info('task tika.rmeta:', len(queries['tika_rmeta_tasks']))
-        info('files:', len(queries['files']))
-        info('directories:', len(queries['directories']))
-        info('blobs:', len(queries['blobs']))
-        info('tasks:', len(queries['tasks']))
-        info('task dependencies:', len(queries['task_dependencies']))
-        info('digests:', len(queries['digests']))
+    if log.getEffectiveLevel() <= logging.DEBUG:
+        log.debug('task archives.unarchive: %r',
+                  len(queries['archives_unarchive_tasks']))
+        log.debug('task digests.gather: %d',
+                  len(queries['digests_gather_tasks']))
+        log.debug('task digests.index: %d',
+                  len(queries['digests_index_tasks']))
+        log.debug('task digests.launch: %d',
+                  len(queries['digests_launch_tasks']))
+        log.debug('task email.msg_to_eml: %d',
+                  len(queries['email_msg_to_eml_tasks']))
+        log.debug('task email.parse: %d',
+                  len(queries['email_parse_tasks']))
+        log.debug('task emlx.reconstruct: %d',
+                  len(queries['emlx_reconstruct_tasks']))
+        log.debug('task exif.extract: %d',
+                  len(queries['exif_extract_tasks']))
+        log.debug('task filesystem.create_archive_files: %d',
+                  len(queries['filesystem_create_archive_files_tasks']))
+        log.debug('task filesystem.create_attachment_files: %d',
+                  len(queries['filesystem_create_attachment_files_tasks']))
+        log.debug('task filesystem.handle_file: %d',
+                  len(queries['filesystem_handle_file_tasks']))
+        log.debug('task filesystem.walk: %d',
+                  len(queries['filesystem_walk_tasks']))
+        log.debug('task tika.rmeta: %d', len(queries['tika_rmeta_tasks']))
+        log.debug('files: %d', len(queries['files']))
+        log.debug('directories: %d', len(queries['directories']))
+        log.debug('blobs: %d', len(queries['blobs']))
+        log.debug('tasks: %d', len(queries['tasks']))
+        log.debug('task dependencies: %d', len(queries['task_dependencies']))
+        log.debug('digests: %d', len(queries['digests']))
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -282,13 +286,11 @@ def export_db(collection_name, verbose=False, stream=None):
 
 
 @transaction.atomic
-def import_db(collection_name, verbose=False, stream=None):
-    if verbose:
-        info("Importing collection", collection_name)
-
-    cursor = connection.cursor()
+def import_db(collection_name, stream=None):
     collection = models.Collection.objects.create(name=collection_name,
                                                   root='')
+    log.info("Importing %r", collection)
+    cursor = connection.cursor()
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
@@ -331,8 +333,7 @@ def import_db(collection_name, verbose=False, stream=None):
             if name != 'blobs'
         }
 
-        if verbose:
-            info('deltas:', deltas)
+        log.debug('deltas: %r', deltas)
 
         for obj in load_file('blobs.json'):
             obj.save()
@@ -423,11 +424,11 @@ def import_db(collection_name, verbose=False, stream=None):
                 duplicate_task_dependencies += 1
 
         if duplicate_tasks:
-            log.info("Ignored %d duplicate tasks", duplicate_tasks)
+            log.debug("Ignored %d duplicate tasks", duplicate_tasks)
 
         if duplicate_task_dependencies:
-            log.info("Ignored %d duplicate task dependencies",
-                     duplicate_task_dependencies)
+            log.debug("Ignored %d duplicate task dependencies",
+                      duplicate_task_dependencies)
 
 
 def export_blobs(collection_name, stream=None):
@@ -446,9 +447,9 @@ def export_blobs(collection_name, stream=None):
     tar.close()
 
 
-def import_blobs(stream=None, verbose=False):
+def import_blobs(stream=None):
     cmd = 'tar x'
-    if verbose:
+    if log.getEffectiveLevel() <= logging.DEBUG:
         cmd += 'v'
 
     subprocess.run(

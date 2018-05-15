@@ -11,7 +11,4 @@ class Command(BaseCommand):
 
     def handle(self, collection_name, *args, **options):
         logging_for_management_command(options['verbosity'])
-        exportimport.export_db(
-            collection_name,
-            verbose=options['verbosity'] > 1,
-        )
+        exportimport.export_db(collection_name)

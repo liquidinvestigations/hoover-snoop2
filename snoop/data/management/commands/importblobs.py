@@ -8,4 +8,4 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         logging_for_management_command(options['verbosity'])
-        exportimport.import_blobs(verbose=options['verbosity'] > 1)
+        exportimport.import_blobs()

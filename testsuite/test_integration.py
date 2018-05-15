@@ -88,14 +88,14 @@ def test_complete_lifecycle(client, taskmanager):
         for name, model in exportimport.model_map.items():
             counts[name] = len(model.objects.all())
 
-        exportimport.export_db('testdata', verbose=True, stream=f)
+        exportimport.export_db('testdata', stream=f)
 
         models.Collection.objects.all().delete()
         for model in exportimport.model_map.values():
             model.objects.all().delete()
 
         f.seek(0)
-        exportimport.import_db('testdata', verbose=True, stream=f)
+        exportimport.import_db('testdata', stream=f)
 
         for name, model in exportimport.model_map.items():
             count = len(model.objects.all())
