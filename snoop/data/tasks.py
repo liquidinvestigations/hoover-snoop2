@@ -266,7 +266,7 @@ def dispatch_pending_tasks():
         queue_task(task)
 
 
-def retry_task(task):
+def retry_task(task, fg=False):
     task.update(
         status=models.Task.STATUS_PENDING,
         error='',
@@ -275,7 +275,11 @@ def retry_task(task):
     )
     logger.info("Retrying %r", task)
     task.save()
-    queue_task(task)
+
+    if fg:
+        laterz_shaorma(task.pk, raise_exceptions=True)
+    else:
+        queue_task(task)
 
 
 def retry_tasks(queryset):
