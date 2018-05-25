@@ -63,6 +63,7 @@ def walk(directory_pk):
                     mtime=time_from_unix(stat.st_mtime),
                     size=stat.st_size,
                     original=original,
+                    blob=original,
                 ),
             )
             new_files.append(file)
@@ -153,6 +154,7 @@ def create_archive_files(file_pk, archive_listing):
                 mtime=archive.mtime,
                 size=size,
                 original=original,
+                blob=original,
             ),
         )
 
@@ -215,6 +217,7 @@ def create_attachment_files(file_pk, email_parse):
                     mtime=email_file.mtime,
                     size=size,
                     original=original,
+                    blob=original,
                 ),
             )
 
