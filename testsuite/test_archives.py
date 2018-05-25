@@ -143,6 +143,7 @@ def test_create_archive_files(taskmanager):
         mtime=time_from_unix(0),
         size=0,
         original=zip_blob,
+        blob=zip_blob,
     )
 
     filesystem.create_archive_files(zip_file.pk, listing_blob)
