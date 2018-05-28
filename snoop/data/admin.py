@@ -11,13 +11,14 @@ from django.utils.safestring import mark_safe
 from django.utils import timezone
 from django.template.defaultfilters import truncatechars
 from django.urls import path
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.db.models import Sum, Count, Avg, F
 from django.db import connection
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.http import HttpResponseRedirect
 from . import models
 from . import tasks
+from . import exportimport
 
 
 def redirect_to_admin(request):
@@ -46,11 +47,11 @@ ERROR_STATS_QUERY = (
     "ORDER BY count DESC;"
 )
 
-def get_stats():
+def get_task_matrix(task_queryset):
     task_matrix = defaultdict(dict)
 
     task_buckets_query = (
-        models.Task.objects
+        task_queryset
         .values('func', 'status')
         .annotate(count=Count('*'))
     )
@@ -59,7 +60,7 @@ def get_stats():
 
     one_minute_ago = timezone.now() - timedelta(minutes=1)
     task_1m_query = (
-        models.Task.objects
+        task_queryset
         .filter(date_finished__gt=one_minute_ago)
         .values('func')
         .annotate(count=Count('*'))
@@ -78,6 +79,10 @@ def get_stats():
         if pending and rate > 0:
             row['eta'] = timedelta(seconds=int(pending / rate))
 
+    return task_matrix
+
+def get_stats():
+    task_matrix = get_task_matrix(models.Task.objects)
     blobs = models.Blob.objects
 
     [[db_size]] = raw_sql("select pg_database_size(current_database())")
@@ -92,20 +97,40 @@ def get_stats():
                     'count': row[2],
                 }
 
+    collections = [
+        (col, {
+            'files': col.file_set.count(),
+            'directories': col.directory_set.count(),
+        })
+        for col in models.Collection.objects.all()
+    ]
+
     return {
         'task_matrix': sorted(task_matrix.items()),
-        'blobs': {
-            'count': blobs.count(),
-            'size': blobs.aggregate(Sum('size'))['size__sum'],
-        },
-        'collections': {
+        'counts': {
             'files': models.File.objects.count(),
             'directories': models.Directory.objects.count(),
+            'blob_count': blobs.count(),
+            'blob_total_size': blobs.aggregate(Sum('size'))['size__sum'],
         },
-        'database': {
-            'size': db_size,
-        },
+        'db_size': db_size,
         'error_counts': list(get_error_counts()),
+        'collections': collections,
+    }
+
+
+def get_collection_stats(col):
+    queries = exportimport.build_export_queries(col)
+    blobs = queries['blobs']
+    tasks = queries['tasks']
+    return {
+        'task_matrix': sorted(get_task_matrix(tasks).items()),
+        'counts': {
+            'files': col.file_set.count(),
+            'directories': col.directory_set.count(),
+            'blob_count': blobs.count(),
+            'blob_total_size': blobs.aggregate(Sum('size'))['size__sum'],
+        },
     }
 
 
@@ -285,6 +310,15 @@ class SnoopAminSite(admin.AdminSite):
     @method_decorator(staff_member_required)
     def stats(self, request):
         context = dict(self.each_context(request))
+
+        col_pk = request.GET.get('collection')
+        if col_pk:
+            col = get_object_or_404(models.Collection, pk=col_pk)
+            context['collection'] = col
+            context.update(get_collection_stats(col))
+            return render(request, 'snoop/admin_collection_stats.html',
+                          context)
+
         context.update(get_stats())
         return render(request, 'snoop/admin_stats.html', context)
 

@@ -3,47 +3,32 @@
 
 {% block content %}
 
-<h2>Tasks</h2>
+<h2>Collections</h2>
 <table>
   <thead>
-    <th>func</th>
-    <th>pending</th>
-    <th>deferred</th>
-    <th>success</th>
-    <th>broken</th>
-    <th>error</th>
-    <th>1m</th>
-    <th>1m duration</th>
-    <th>1m fill</th>
-    <th>eta</th>
+    <th>name</th>
+    <th>files</th>
+    <th>directories</th>
   </thead>
-
   <tbody>
-    {% for func, row in task_matrix %}
+    {% for col, row in collections %}
     <tr>
-      <th>{{ func }}</th>
-      <td>{{ row.pending }}</td>
-      <td>{{ row.deferred }}</td>
-      <td>{{ row.success }}</td>
-      <td>{{ row.broken }}</td>
-      <td>{{ row.error }}</td>
-      <td>{{ row.1m }}</td>
-      <td>{{ row.1m_duration }}</td>
-      <td>{{ row.1m_fill }}</td>
-      <td>{{ row.eta }}</td>
+      <th><a href="stats?collection={{ col.pk }}">{{ col }}</th>
+      <td>{{ row.files }}</td>
+      <td>{{ row.directories }}</td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 
-<h2>Collections</h2>
-<strong>{{ collections.files }}</strong> files<br>
-<strong>{{ collections.directories }}</strong> directories<br>
+{% include "snoop/admin_stats_task_matrix.html" %}
 
-<h2>Storage</h2>
-<strong>{{ blobs.count }}</strong> blobs<br>
-<strong>{{ blobs.size|pretty_size }}</strong> in blob storage<br>
-<strong>{{ database.size|pretty_size }}</strong> in database<br>
+<h2>Counts</h2>
+<strong>{{ counts.files }}</strong> files<br>
+<strong>{{ counts.directories }}</strong> directories<br>
+<strong>{{ counts.blob_count }}</strong> blobs<br>
+<strong>{{ counts.blob_total_size|pretty_size }}</strong> in blob storage<br>
+<strong>{{ db_size|pretty_size }}</strong> in database<br>
 
 <h2>Task errors</h2>
 <table>
