@@ -23,7 +23,7 @@ def test_walk(taskmanager):
     [file] = collection.file_set.all()
     hash = '442e8939e3e367c4263738bbb29e9360a17334279f1ecef67fa9d437c31804ca'
     assert file.original.pk == hash
-    assert file.blob is None
+    assert file.blob.pk == hash
 
     [task_pk] = taskmanager.queue
     task = models.Task.objects.get(pk=task_pk)

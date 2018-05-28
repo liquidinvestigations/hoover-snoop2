@@ -61,4 +61,5 @@ def mkfile(parent, name, original):
         mtime=now,
         size=0,
         original=original,
+        blob=original,
     )
