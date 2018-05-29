@@ -1,0 +1,32 @@
+<h2>Tasks</h2>
+<table>
+  <thead>
+    <th>func</th>
+    <th>pending</th>
+    <th>deferred</th>
+    <th>success</th>
+    <th>broken</th>
+    <th>error</th>
+    <th>1m</th>
+    <th>1m duration</th>
+    <th>1m fill</th>
+    <th>eta</th>
+  </thead>
+
+  <tbody>
+    {% for func, row in task_matrix %}
+    <tr>
+      <th>{{ func }}</th>
+      <td>{{ row.pending }}</td>
+      <td>{{ row.deferred }}</td>
+      <td>{{ row.success }}</td>
+      <td>{{ row.broken }}</td>
+      <td>{{ row.error }}</td>
+      <td>{{ row.1m }}</td>
+      <td>{{ row.1m_duration }}</td>
+      <td>{{ row.1m_fill }}</td>
+      <td>{{ row.eta }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
