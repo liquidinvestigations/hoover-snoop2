@@ -10,7 +10,7 @@ class Command(BaseCommand):
     help = "Write blobs to stdout."
 
     def add_arguments(self, parser):
-        parser.add_argument('blob_id', type=str)
+        parser.add_argument('blob_id', type=str, help="SHA3-256 based blob ID.")
 
     def handle(self, *args, **options):
         logging_for_management_command()

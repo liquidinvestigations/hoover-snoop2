@@ -10,8 +10,8 @@ class Command(BaseCommand):
     help = "Retry running task"
 
     def add_arguments(self, parser):
-        parser.add_argument('task_pk', type=str)
-        parser.add_argument('--fg', action='store_true')
+        parser.add_argument('task_pk', type=str, help="Primary key of a task for a retry.")
+        parser.add_argument('--fg', action='store_true', help="Run task in foreground mode.")
 
     def handle(self, *args, **options):
         logging_for_management_command()

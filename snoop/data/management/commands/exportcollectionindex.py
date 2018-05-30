@@ -7,7 +7,7 @@ class Command(BaseCommand):
     help = "Export elasticsearch index for a collection"
 
     def add_arguments(self, parser):
-        parser.add_argument('collection_name', type=str)
+        parser.add_argument('collection_name', type=str, help="Unique collection name.")
 
     def handle(self, collection_name, *args, **options):
         logging_for_management_command(options['verbosity'])

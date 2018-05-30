@@ -7,7 +7,7 @@ class Command(BaseCommand):
     help = "Deletes a collection"
 
     def add_arguments(self, parser):
-        parser.add_argument('name')
+        parser.add_argument('name', help="Unique collection name to delete.")
 
     def handle(self, *args, **options):
         logging_for_management_command(options['verbosity'])
