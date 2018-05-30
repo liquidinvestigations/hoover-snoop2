@@ -8,8 +8,8 @@ class Command(BaseCommand):
     help = "Creates a collection"
 
     def add_arguments(self, parser):
-        parser.add_argument('name')
-        parser.add_argument('root', type=Path)
+        parser.add_argument('name', help="Unique collection name.")
+        parser.add_argument('root', type=Path, help="A valid filesystem path.")
 
     def handle(self, *args, **options):
         logging_for_management_command(options['verbosity'])
