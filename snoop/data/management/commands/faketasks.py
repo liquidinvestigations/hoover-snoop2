@@ -9,8 +9,8 @@ class Command(BaseCommand):
     help = "Creates fake tasks for benchmarking"
 
     def add_arguments(self, parser):
-        parser.add_argument('number', type=int)
-        parser.add_argument('--delete', action='store_true')
+        parser.add_argument('number', type=int, help="Number of fake tasks to create.")
+        parser.add_argument('--delete', action='store_true', help="Delete existing fake tasks first.")
 
     def handle(self, *args, **options):
         logging_for_management_command()
