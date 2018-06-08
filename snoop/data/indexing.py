@@ -1,5 +1,7 @@
+import sys
 import json
 import logging
+import tarfile
 from datetime import datetime
 import shutil
 import subprocess
@@ -164,13 +166,10 @@ def import_index(index, delete=False, stream=None):
 
     with snapshot_repo(index) as (repo, repo_path):
         log.info('Unpack tar archive')
-        subprocess.run(
-            'tar x',
-            cwd=repo_path,
-            shell=True,
-            check=True,
-            stdin=stream,
-        )
+
+        tar = tarfile.open(mode='r|*', fileobj=stream or sys.stdin.buffer)
+        tar.extractall(repo_path)
+        tar.close()
 
         snapshots_resp = requests.get(f'{repo}/*')
         check_response(snapshots_resp)

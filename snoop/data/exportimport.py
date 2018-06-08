@@ -294,13 +294,9 @@ def import_db(collection_name, stream=None):
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
-        subprocess.run(
-            'tar x',
-            cwd=tmp,
-            shell=True,
-            check=True,
-            stdin=stream,
-        )
+        tar = tarfile.open(mode='r|*', fileobj=stream or sys.stdin.buffer)
+        tar.extractall(tmp)
+        tar.close()
 
         with (tmp / 'serials.json').open(encoding='utf8') as f:
             serials = json.load(f)
@@ -448,14 +444,6 @@ def export_blobs(collection_name, stream=None):
 
 
 def import_blobs(stream=None):
-    cmd = 'tar x'
-    if log.getEffectiveLevel() <= logging.DEBUG:
-        cmd += 'v'
-
-    subprocess.run(
-        cmd,
-        shell=True,
-        check=True,
-        stdin=stream or sys.stdin.buffer,
-        cwd=settings.SNOOP_BLOB_STORAGE,
-    )
+    tar = tarfile.open(mode='r|*', fileobj=stream or sys.stdin.buffer)
+    tar.extractall(settings.SNOOP_BLOB_STORAGE)
+    tar.close()
