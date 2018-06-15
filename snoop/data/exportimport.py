@@ -1,6 +1,7 @@
 import sys
 import json
 import tempfile
+import time
 from pathlib import Path
 import subprocess
 import logging
@@ -204,8 +205,11 @@ def build_export_queries(collection):
 @transaction.atomic
 def export_db(collection_name, stream=None):
     collection = models.Collection.objects.get(name=collection_name)
+    start = time.perf_counter()
     log.info("Exporting %r", collection)
+    start_queries = time.perf_counter()
     queries = build_export_queries(collection)
+    log.info("Queries created in {:1.2f}s".format(time.perf_counter()-start_queries))
 
     if log.getEffectiveLevel() <= logging.DEBUG:
         log.debug('task archives.unarchive: %r',
@@ -248,12 +252,26 @@ def export_db(collection_name, stream=None):
             with (tmp / name).open('w', encoding='utf8') as f:
                 json_serializer.serialize(queryset, stream=f, indent=2)
 
+        start_dump = time.perf_counter()
+        start_dump_sub = time.perf_counter()
         dump(queries['directories'], 'directories.json')
+        log.info(" Directories dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        start_dump_sub = time.perf_counter()
         dump(queries['files'], 'files.json')
+        log.info(" Files dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        start_dump_sub = time.perf_counter()
         dump(queries['digests'], 'digests.json')
+        log.info(" Digests dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        start_dump_sub = time.perf_counter()
         dump(queries['blobs'], 'blobs.json')
+        log.info(" Blobs dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        start_dump_sub = time.perf_counter()
         dump(queries['tasks'], 'tasks.json')
+        log.info(" Tasks dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        start_dump_sub = time.perf_counter()
         dump(queries['task_dependencies'], 'task_dependencies.json')
+        log.info(" Task dependencies dumped at {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        log.info("Data dumped in {:1.2f}s".format(time.perf_counter()-start_dump))
 
         def pk_interval(queryset):
             try:
@@ -276,6 +294,7 @@ def export_db(collection_name, stream=None):
         with (tmp / 'serials.json').open('w', encoding='utf8') as f:
             json.dump(serials, f, indent=2)
 
+        start_tar = time.perf_counter()
         subprocess.run(
             'tar c *',
             cwd=tmp,
@@ -283,6 +302,9 @@ def export_db(collection_name, stream=None):
             check=True,
             stdout=stream,
         )
+        log.info("Tar created in {:1.2f}s".format(time.perf_counter()-start_tar))
+
+    log.info("Exporting '{}' took {:1.2f}s".format(collection, time.perf_counter()-start))
 
 
 @transaction.atomic
