@@ -84,7 +84,7 @@ def test_complete_lifecycle(client, taskmanager):
     assert db_failed_count == 0
 
     # test export and import database
-    with tempfile.TemporaryFile('wb') as f:
+    with tempfile.TemporaryFile('w+b') as f:
         counts = {}
         for name, model in exportimport.model_map.items():
             counts[name] = len(model.objects.all())
@@ -103,7 +103,7 @@ def test_complete_lifecycle(client, taskmanager):
             assert count == counts[name], f"{name}: {count} != {counts[name]}"
 
     # test export and import index
-    with tempfile.TemporaryFile('wb') as f:
+    with tempfile.TemporaryFile('w+b') as f:
         indexing.export_index('testdata', stream=f)
         indexing.delete_index('testdata')
         f.seek(0)
@@ -112,7 +112,7 @@ def test_complete_lifecycle(client, taskmanager):
         assert count_resp.json()['count'] == es_count
 
     # test export and import blobs
-    with tempfile.TemporaryFile('wb') as f:
+    with tempfile.TemporaryFile('w+b') as f:
         count = int(subprocess.check_output(
             'find . -type f | wc -l',
             shell=True,
