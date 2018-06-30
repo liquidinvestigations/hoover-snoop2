@@ -10,6 +10,7 @@ from ..utils import zulu
 TIKA_CONTENT_TYPES = [
     'text/plain',
     'text/html',
+    'text/rtf',
 
     'application/pdf',
 
