@@ -47,6 +47,9 @@ SETTINGS = {
                 "filter": ["standard", "lowercase", "asciifolding"],
             }
         }
+    },
+    "index": {
+        "max_result_window": "20000"
     }
 }
 
