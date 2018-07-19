@@ -2,8 +2,8 @@ services:
   - docker
 
 install:
-  - '[[ "$TRAVIS_BRANCH" = "master" ]] && git clone https://github.com/hoover/docker-setup.git'
-  - '[[ "$TRAVIS_BRANCH" = "es6" ]] && git clone https://github.com/jarib/docker-setup.git && cd docker-setup && git checkout es6 && cd -'
+  - '[[ "$TRAVIS_BRANCH" = "master" ]] && (git clone https://github.com/hoover/docker-setup.git) || true'
+  - '[[ "$TRAVIS_BRANCH" = "es6" ]] && (git clone https://github.com/jarib/docker-setup.git && cd docker-setup && git checkout es6 && cd -) || true'
   - cd docker-setup
   - mkdir volumes volumes/metrics volumes/metrics/users collections volumes/search-es-snapshots
   - chmod 777 volumes/search-es-snapshots
