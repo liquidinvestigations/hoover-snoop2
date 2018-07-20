@@ -5,16 +5,16 @@ install:
   - '[[ "$TRAVIS_PULL_REQUEST_BRANCH" = "es6" ]] && (git clone https://github.com/jarib/docker-setup.git && cd docker-setup && git checkout es6 && cd -) || true'
   - '[[ "$TRAVIS_PULL_REQUEST_BRANCH" != "es6" ]] && (git clone https://github.com/hoover/docker-setup.git) || true'
   - cd docker-setup
-  - mkdir volumes volumes/metrics volumes/metrics/users collections volumes/search-es-snapshots
-  - chmod 777 volumes/search-es-snapshots
+  - mkdir -p volumes volumes/metrics volumes/metrics/users collections volumes/search-es-snapshots volumes/search-es/data
+  - chmod 777 volumes/search-es-snapshots volumes/search-es/data
   - docker build .. --tag snoop2-testing
   - cp ../testsuite/docker-compose.override.travis-snoop2.yml docker-compose.override.yml
   - cp snoop.testing.env snoop.env
   - cp search.testing.env search.env
   - docker-compose up -d
   - git clone https://github.com/hoover/testdata collections/testdata
-  - sleep 30 && docker-compose run search-es bash -c 'curl "http://search-es:9200/_cluster/health?wait_for_status=yellow&timeout=50s"'
-  - docker-compose logs search-es
+  - sleep 30 && docker-compose logs search-es
+  - docker-compose run search-es bash -c 'curl "http://search-es:9200/_cluster/health?wait_for_status=yellow&timeout=50s"'
 script:
   - docker-compose run --rm snoop bash -c 'py.test -v'
 
