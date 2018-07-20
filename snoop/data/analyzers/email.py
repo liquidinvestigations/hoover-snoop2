@@ -82,10 +82,8 @@ def dump_part(message, depends_on):
         rv['pgp'] = True
 
     if content_type == 'text/plain':
-        charset = message.get_content_charset()
-        if not charset:
-            result = chardet.detect(payload_bytes)
-            charset = result.get('encoding') or 'latin1'
+        result = chardet.detect(payload_bytes)
+        charset = result.get('encoding') or 'latin1'
         rv['text'] = payload_bytes.decode(charset, errors='replace')
 
     if content_type == 'text/html':
