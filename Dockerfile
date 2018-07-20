@@ -38,12 +38,13 @@ ENV PATH="/opt/libpst/bin:${PATH}"
 
 COPY . .
 
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.3.0/wait /wait
+
 RUN set -e \
- && curl https://raw.githubusercontent.com/vishnubob/wait-for-it/8ed92e8c/wait-for-it.sh -o /wait-for-it \
  && echo '#!/bin/bash -e' > /runserver \
  && echo 'waitress-serve --port 80 snoop.wsgi:application' >> /runserver \
- && chmod +x /runserver /wait-for-it
+ && chmod +x /runserver /wait
 
 RUN ./manage.py collectstatic --noinput
 
-CMD /runserver
+CMD /wait && /runserver

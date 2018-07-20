@@ -13,10 +13,8 @@ install:
   - cp search.testing.env search.env
   - docker-compose up -d
   - git clone https://github.com/hoover/testdata collections/testdata
-  - sleep 60 && docker-compose logs search-es
-  - docker-compose run search-es bash -c 'curl "http://search-es:9200/_cluster/health?wait_for_status=yellow&timeout=50s"'
 script:
-  - docker-compose run --rm snoop bash -c 'py.test -v'
+  - docker-compose run --rm snoop bash -c '/wait && py.test -v'
 
 notifications:
   email: false
