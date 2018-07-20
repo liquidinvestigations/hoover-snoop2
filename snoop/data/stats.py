@@ -14,20 +14,20 @@ ES_INDEX_PREFIX = settings.SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX
 ES_MAPPINGS = {
     'task': {
         'properties': {
-            'func': { 'type': 'keyword' },
-            'args': { 'type': 'keyword'},
-            'date_created': { 'type': 'date' },
-            'date_modified': { 'type': 'date' },
-            'date_started': { 'type': 'date' },
-            'date_finished': { 'type': 'date' },
+            'func': {'type': 'keyword'},
+            'args': {'type': 'keyword'},
+            'date_created': {'type': 'date'},
+            'date_modified': {'type': 'date'},
+            'date_started': {'type': 'date'},
+            'date_finished': {'type': 'date'},
         },
     },
     'blob': {
         'properties': {
-            'mime_type': { 'type': 'keyword' },
-            'mime_encoding': { 'type': 'keyword' },
-            'date_created': { 'type': 'date' },
-            'date_modified': { 'type': 'date' },
+            'mime_type': {'type': 'keyword'},
+            'mime_encoding': {'type': 'keyword'},
+            'date_created': {'type': 'date'},
+            'date_modified': {'type': 'date'},
         },
     },
 }
@@ -47,7 +47,7 @@ def reset():
 
         config = {'mappings': {document_type: ES_MAPPINGS[document_type]}}
         put_resp = requests.put(url, data=json.dumps(config),
-            headers={'Content-Type': 'application/json'})
+                                headers={'Content-Type': 'application/json'})
         log.info('%s Elasticsearch PUT: %r', document_type, put_resp)
         log.info('%s Elasticsearch PUT: %r', document_type, put_resp.text)
 
@@ -126,7 +126,7 @@ def update():
                 for m in bulk_index(task_list, document_type)
             )
             resp = requests.post(f'{ES_URL}/_bulk', data=lines,
-                headers={'Content-Type': 'application/json'})
+                                 headers={'Content-Type': 'application/json'})
 
             if resp.status_code != 200 or resp.json()['errors']:
                 log.error('Response: %r', resp)
