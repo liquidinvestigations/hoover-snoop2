@@ -14,21 +14,20 @@ ES_INDEX_PREFIX = settings.SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX
 ES_MAPPINGS = {
     'task': {
         'properties': {
-            'func': {'type': 'text', 'index': False},
-            #'args': {'type': 'keyword'},  # TODO needs ES5
-            'args': {'type': 'text', 'index': False},
-            'date_created': {'type': 'date', 'index': False},
-            'date_modified': {'type': 'date', 'index': False},
-            'date_started': {'type': 'date', 'index': False},
-            'date_finished': {'type': 'date', 'index': False},
+            'func': { 'type': 'keyword' },
+            'args': { 'type': 'keyword'},
+            'date_created': { 'type': 'date' },
+            'date_modified': { 'type': 'date' },
+            'date_started': { 'type': 'date' },
+            'date_finished': { 'type': 'date' },
         },
     },
     'blob': {
         'properties': {
-            'mime_type': {'type': 'text', 'index': False},
-            'mime_encoding': {'type': 'text', 'index': False},
-            'date_created': {'type': 'date', 'index': False},
-            'date_modified': {'type': 'date', 'index': False},
+            'mime_type': { 'type': 'keyword' },
+            'mime_encoding': { 'type': 'keyword' },
+            'date_created': { 'type': 'date' },
+            'date_modified': { 'type': 'date' },
         },
     },
 }
