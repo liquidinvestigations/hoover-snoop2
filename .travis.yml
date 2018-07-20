@@ -2,8 +2,7 @@ services:
   - docker
 
 install:
-  - '[[ "$TRAVIS_PULL_REQUEST_BRANCH" = "es6" ]] && (git clone https://github.com/jarib/docker-setup.git && cd docker-setup && git checkout es6 && cd -) || true'
-  - '[[ "$TRAVIS_PULL_REQUEST_BRANCH" != "es6" ]] && (git clone https://github.com/hoover/docker-setup.git) || true'
+  - git clone https://github.com/hoover/docker-setup.git
   - cd docker-setup
   - mkdir -p volumes volumes/metrics volumes/metrics/users collections volumes/search-es-snapshots volumes/search-es/data
   - chmod 777 volumes/search-es-snapshots volumes/search-es/data
