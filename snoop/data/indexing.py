@@ -9,6 +9,7 @@ from contextlib import contextmanager
 import time
 import requests
 from django.conf import settings
+import langdetect
 
 log = logging.getLogger(__name__)
 DOCUMENT_TYPE = 'doc'
@@ -47,9 +48,6 @@ SETTINGS = {
                 "filter": ["standard", "lowercase", "asciifolding"],
             }
         }
-    },
-    "index": {
-        "max_result_window": "20000"
     }
 }
 
@@ -82,8 +80,12 @@ def check_response(resp):
 
 
 def index(index, id, data):
+    if data.get('text', ''):
+        data['language'] = langdetect.detect(data.get('text', ''))
+
     index_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
+
     check_response(resp)
 
 

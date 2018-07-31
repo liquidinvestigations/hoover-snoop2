@@ -10,3 +10,4 @@ whitenoise
 bleach
 exifread
 python-dateutil
+langdetect
