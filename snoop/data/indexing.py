@@ -17,25 +17,35 @@ DOCUMENT_TYPE = 'doc'
 MAPPINGS = {
     "doc": {
         "properties": {
-            "id": {"type": "keyword"},
-            "path": {"type": "keyword"},
-            "suffix": {"type": "keyword"},
-            "md5": {"type": "keyword"},
-            "sha1": {"type": "keyword"},
-            "filetype": {"type": "keyword"},
-            "lang": {"type": "keyword"},
+            "attachments": {"type": "boolean"},
+            "content-type": {"type": "keyword"},
             "date": {"type": "date"},
             "date-created": {"type": "date"},
-            "attachments": {"type": "boolean"},
-            "message-id": {"type": "keyword"},
+            "filetype": {"type": "keyword"},
+            "from-domain": {"type": "keyword"},
+            "id": {"type": "keyword"},
             "in-reply-to": {"type": "keyword"},
-            "thread-index": {"type": "keyword"},
-            "references": {"type": "keyword"},
+            "lang": {"type": "keyword"},
+            "md5": {"type": "keyword"},
             "message": {"type": "keyword"},
-            "word-count": {"type": "integer"},
+            "message-id": {"type": "keyword"},
+            "path": {
+                "type": "keyword",
+                "fields": {
+                    "tree": {
+                        "type": "text",
+                        "analyzer": "paths"
+                    }
+                }
+            },
+            "references": {"type": "keyword"},
             "rev": {"type": "integer"},
-            "content-type": {"type": "keyword"},
+            "sha1": {"type": "keyword"},
             "size": {"type": "integer"},
+            "suffix": {"type": "keyword"},
+            "thread-index": {"type": "keyword"},
+            "to-domain": {"type": "keyword"},
+            "word-count": {"type": "integer"},
         }
     }
 }
@@ -46,6 +56,9 @@ SETTINGS = {
             "default": {
                 "tokenizer": "standard",
                 "filter": ["standard", "lowercase", "asciifolding"],
+            },
+            "paths": {
+                "tokenizer": "path_hierarchy"
             }
         }
     }
