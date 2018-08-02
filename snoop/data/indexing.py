@@ -21,8 +21,8 @@ MAPPINGS = {
             "content-type": {"type": "keyword"},
             "date": {"type": "date"},
             "date-created": {"type": "date"},
+            "domains": {"type": "keyword"},
             "filetype": {"type": "keyword"},
-            "from-domain": {"type": "keyword"},
             "id": {"type": "keyword"},
             "in-reply-to": {"type": "keyword"},
             "lang": {"type": "keyword"},
@@ -37,7 +37,6 @@ MAPPINGS = {
             "size": {"type": "integer"},
             "suffix": {"type": "keyword"},
             "thread-index": {"type": "keyword"},
-            "to-domain": {"type": "keyword"},
             "word-count": {"type": "integer"},
         }
     }

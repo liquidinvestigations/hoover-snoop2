@@ -193,13 +193,15 @@ def email_meta(digest_data):
         message_date = zulu(email.parse_date(message_raw_date))
 
     header_from = headers.get('From', [''])[0]
+
     to_domains = [_extract_domain(to) for to in headers_to]
+    from_domains = [_extract_domain(header_from)]
+    email_domains = to_domains + from_domains
 
     return {
         'from': header_from,
-        'from-domain': _extract_domain(header_from),
         'to': list(headers_to),
-        'to-domain': [domain for domain in to_domains if domain],
+        'domains': [d for d in email_domains if d],
         'subject': headers.get('Subject', [''])[0],
         'text': '\n\n'.join(text_bits).strip(),
         'pgp': pgp,

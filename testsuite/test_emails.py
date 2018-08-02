@@ -112,11 +112,7 @@ def test_people(taskmanager):
     assert type(content['from']) is str
     assert "newsletter@mapbox.com" in content['from']
 
-    assert type(content['to-domain']) is list
-    assert 'yahoo.com' in content['to-domain']
-
-    assert type(content['from-domain']) is str
-    assert 'mapbox.com' == content['from-domain']
+    assert ['yahoo.com', 'mapbox.com'] == content['domains']
 
 
 def test_email_with_byte_order_mark(taskmanager):
