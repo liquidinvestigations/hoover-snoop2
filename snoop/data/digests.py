@@ -130,6 +130,20 @@ def full_path(file):
         elements.append(node.name)
     return '/'.join(reversed(elements))
 
+def path_parts(path):
+  elements = path.split('/')[1:]
+  result = []
+  prev = None
+
+  for e in elements:
+    if prev:
+      prev = prev + '/' + e
+    else:
+      prev = '/' + e
+
+    result.append(prev)
+
+  return result
 
 def directory_id(directory):
     return f'_directory_{directory.pk}'
@@ -236,6 +250,7 @@ def _get_document_content(digest):
             attachments = True
 
     original = first_file.original
+    path = full_path(first_file)
 
     content = {
         'content-type': original.mime_type,
@@ -250,7 +265,8 @@ def _get_document_content(digest):
         'sha1': original.sha1,
         'size': original.size,
         'filename': first_file.name,
-        'path': full_path(first_file),
+        'path': path,
+        'path-parts': path_parts(path),
         'broken': digest_data.get('broken'),
         'attachments': attachments,
     }

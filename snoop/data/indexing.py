@@ -29,15 +29,8 @@ MAPPINGS = {
             "md5": {"type": "keyword"},
             "message": {"type": "keyword"},
             "message-id": {"type": "keyword"},
-            "path": {
-                "type": "keyword",
-                "fields": {
-                    "tree": {
-                        "type": "text",
-                        "analyzer": "paths"
-                    }
-                }
-            },
+            "path": { "type": "keyword" },
+            "path-parts": { "type": "keyword" },
             "references": {"type": "keyword"},
             "rev": {"type": "integer"},
             "sha1": {"type": "keyword"},
@@ -56,9 +49,6 @@ SETTINGS = {
             "default": {
                 "tokenizer": "standard",
                 "filter": ["standard", "lowercase", "asciifolding"],
-            },
-            "paths": {
-                "tokenizer": "path_hierarchy"
             }
         }
     }
