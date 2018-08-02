@@ -1,5 +1,6 @@
 import logging
 import json
+import re
 from .tasks import shaorma, ShaormaBroken
 from . import models
 from .utils import zulu
@@ -11,7 +12,6 @@ from . import ocr
 from . import indexing
 
 log = logging.getLogger(__name__)
-
 
 @shaorma('digests.launch')
 def launch(blob, collection_pk):
@@ -130,6 +130,20 @@ def full_path(file):
         elements.append(node.name)
     return '/'.join(reversed(elements))
 
+def path_parts(path):
+  elements = path.split('/')[1:]
+  result = []
+  prev = None
+
+  for e in elements:
+    if prev:
+      prev = prev + '/' + e
+    else:
+      prev = '/' + e
+
+    result.append(prev)
+
+  return result
 
 def directory_id(directory):
     return f'_directory_{directory.pk}'
@@ -178,15 +192,28 @@ def email_meta(digest_data):
     if message_raw_date:
         message_date = zulu(email.parse_date(message_raw_date))
 
+    header_from = headers.get('From', [''])[0]
+
+    to_domains = [_extract_domain(to) for to in headers_to]
+    from_domains = [_extract_domain(header_from)]
+    email_domains = to_domains + from_domains
+
     return {
-        'from': headers.get('From', [''])[0],
+        'from': header_from,
         'to': list(headers_to),
+        'email-domains': [d for d in email_domains if d],
         'subject': headers.get('Subject', [''])[0],
         'text': '\n\n'.join(text_bits).strip(),
         'pgp': pgp,
         'date': message_date,
     }
 
+email_domain_exp = re.compile("@([\\w.-]+)")
+
+def _extract_domain(str):
+    match = email_domain_exp.search(str)
+    if match:
+        return match[1]
 
 def _get_first_file(digest):
     first_file = (
@@ -225,6 +252,7 @@ def _get_document_content(digest):
             attachments = True
 
     original = first_file.original
+    path = full_path(first_file)
 
     content = {
         'content-type': original.mime_type,
@@ -239,7 +267,8 @@ def _get_document_content(digest):
         'sha1': original.sha1,
         'size': original.size,
         'filename': first_file.name,
-        'path': full_path(first_file),
+        'path': path,
+        'path-parts': path_parts(path),
         'broken': digest_data.get('broken'),
         'attachments': attachments,
     }
