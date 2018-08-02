@@ -21,7 +21,7 @@ MAPPINGS = {
             "content-type": {"type": "keyword"},
             "date": {"type": "date"},
             "date-created": {"type": "date"},
-            "domains": {"type": "keyword"},
+            "email-domains": {"type": "keyword"},
             "filetype": {"type": "keyword"},
             "id": {"type": "keyword"},
             "in-reply-to": {"type": "keyword"},

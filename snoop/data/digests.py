@@ -201,7 +201,7 @@ def email_meta(digest_data):
     return {
         'from': header_from,
         'to': list(headers_to),
-        'domains': [d for d in email_domains if d],
+        'email-domains': [d for d in email_domains if d],
         'subject': headers.get('Subject', [''])[0],
         'text': '\n\n'.join(text_bits).strip(),
         'pgp': pgp,
