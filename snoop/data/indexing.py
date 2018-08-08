@@ -83,7 +83,7 @@ def check_response(resp):
 
 def index(index, id, data):
     if settings.DETECT_LANGUAGE and data.get('text', ''):
-        data['lang'] = langdetect.detect(data.get('text', ''))
+        data['lang'] = langdetect.detect(data.get('text', '')[:2500])
 
     index_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
