@@ -1,11 +1,12 @@
 from pathlib import Path
-import pytest
 import tempfile
+
 from django.conf import settings
-from snoop.data import models
-from snoop.data import tasks
-from snoop.data import filesystem
+import pytest
+
 from conftest import mkdir
+from snoop.data import filesystem
+from snoop.data import models
 
 TESTDATA = Path(settings.SNOOP_TESTDATA)
 

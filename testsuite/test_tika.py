@@ -1,6 +1,5 @@
 import pytest
 from fixtures import TESTDATA, CollectionApiClient
-from snoop.data import ocr
 
 pytestmark = [pytest.mark.django_db]
 
