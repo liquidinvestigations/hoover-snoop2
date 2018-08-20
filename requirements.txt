@@ -6,32 +6,41 @@
 #
 amqp==2.2.2               # via kombu
 attrs==17.4.0             # via pytest
+autopep8==1.3.5           # via django-silk
 billiard==3.5.0.3         # via celery
 bleach==2.1.3
 celery==4.1.0
 certifi==2018.4.16        # via requests
 chardet==3.0.4            # via requests
 click==6.7                # via pip-tools
+django-silk==3.0.1
 django==2.0.4
 exifread==2.1.2
 first==2.0.1              # via pip-tools
+gprof2dot==2016.10.13     # via django-silk
 html5lib==1.0.1           # via bleach
 idna==2.6                 # via requests
+jinja2==2.10              # via django-silk
 kombu==4.1.0              # via celery
+langdetect==1.0.7
+markupsafe==1.0           # via jinja2
 more-itertools==4.1.0     # via pytest
 pip-tools==2.0.1
 pluggy==0.6.0             # via pytest
 psycopg2-binary==2.7.4
 py==1.5.3                 # via pytest
+pycodestyle==2.4.0        # via autopep8
+pydevd==1.3.3
+pygments==2.2.0           # via django-silk
 pytest-django==3.2.1
 pytest==3.5.0
 python-dateutil==2.7.2
-pytz==2018.4              # via celery, django
+pytz==2018.4              # via celery, django, django-silk
 requests==2.18.4
-six==1.11.0               # via bleach, html5lib, more-itertools, pip-tools, pytest, python-dateutil
+six==1.11.0               # via bleach, html5lib, langdetect, more-itertools, pip-tools, pytest, python-dateutil
+sqlparse==0.2.4           # via django-silk
 urllib3==1.22             # via requests
 vine==1.1.4               # via amqp
 waitress==1.1.0
 webencodings==0.5.1       # via html5lib
 whitenoise==3.3.1
-langdetect==1.0.7

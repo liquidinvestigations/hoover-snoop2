@@ -1,6 +1,11 @@
 import os
 import subprocess
+
 from django.core.management.base import BaseCommand
+
+from snoop.profiler import Profiler
+from snoop.remote_debug import remote_breakpoint
+
 from ... import tasks
 
 
@@ -35,11 +40,16 @@ class Command(BaseCommand):
                 help="Number of workers to start")
 
     def handle(self, *args, **options):
-        tasks.import_shaormas()
-        queues = options.get('func') or tasks.shaormerie
-        argv = celery_argv(
-            num_workers=options.get('num_workers'),
-            queues=queues,
-        )
-        print('+', *argv)
-        os.execv(argv[0], argv)
+        remote_breakpoint()
+
+        print('runworkers')
+
+        with Profiler():
+            tasks.import_shaormas()
+            queues = options.get('func') or tasks.shaormerie
+            argv = celery_argv(
+                num_workers=options.get('num_workers'),
+                queues=queues,
+            )
+            print('+', *argv)
+            os.execv(argv[0], argv)

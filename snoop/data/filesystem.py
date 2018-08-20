@@ -1,14 +1,17 @@
-import logging
 import json
+import logging
 from pathlib import Path
-from django.utils import timezone
-from .utils import time_from_unix
-from . import models
-from .tasks import shaorma, require_dependency, ShaormaBroken
-from .analyzers import archives
-from .analyzers import emlx
-from .analyzers import email
+
+from snoop.profiler import profile
+from snoop.remote_debug import remote_breakpoint
+
 from . import digests
+from . import models
+from .analyzers import archives
+from .analyzers import email
+from .analyzers import emlx
+from .tasks import shaorma, require_dependency, ShaormaBroken
+from .utils import time_from_unix
 
 log = logging.getLogger(__name__)
 
@@ -32,9 +35,14 @@ def directory_absolute_path(directory):
 
 
 @shaorma('filesystem.walk')
+@profile()
 def walk(directory_pk):
+
+    remote_breakpoint()
+
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
+    print('Walk ' + str(path))
 
     new_files = []
     for thing in path.iterdir():
@@ -73,6 +81,7 @@ def walk(directory_pk):
 
 
 @shaorma('filesystem.handle_file')
+@profile()
 def handle_file(file_pk, **depends_on):
     file = models.File.objects.get(pk=file_pk)
     file.blob = file.original
@@ -112,6 +121,7 @@ def handle_file(file_pk, **depends_on):
 
 
 @shaorma('filesystem.create_archive_files')
+@profile()
 def create_archive_files(file_pk, archive_listing):
     if isinstance(archive_listing, ShaormaBroken):
         log.debug("Unarchive task is broken; returning without doing anything")
@@ -190,6 +200,7 @@ def get_email_attachments(parsed_email):
 
 
 @shaorma('filesystem.create_attachment_files')
+@profile()
 def create_attachment_files(file_pk, email_parse):
     attachments = list(get_email_attachments(email_parse))
 

@@ -11,3 +11,5 @@ bleach
 exifread
 python-dateutil
 langdetect
+django-silk
+pydevd
