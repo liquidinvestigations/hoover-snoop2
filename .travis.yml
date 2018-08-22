@@ -9,6 +9,8 @@ install:
   - docker build .. --tag snoop2-testing
   - cp ../testsuite/docker-compose.override.travis-snoop2.yml docker-compose.override.yml
   - docker-compose up -d
+  - docker-compose run --rm snoop /wait
+  - docker-compose run --rm snoop ./manage.py rundispatcher
   - git clone https://github.com/hoover/testdata collections/testdata
 
 script:
