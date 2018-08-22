@@ -1,4 +1,5 @@
 from django.urls import path, include
+
 from snoop.data import admin
 
 urlpatterns = [

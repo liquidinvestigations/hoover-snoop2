@@ -1,5 +1,6 @@
-from snoop.defaultsettings import *
 import os
+
+from snoop.defaultsettings import *
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'test_blobs')
 
@@ -21,11 +22,11 @@ DATABASES = {
     },
 }
 
-#CELERY_BROKER_URL = 'amqp://snoop-rabbitmq'
+# CELERY_BROKER_URL = 'amqp://snoop-rabbitmq'
 
 SNOOP_TIKA_URL = 'http://snoop-tika:9998'
 
 SNOOP_COLLECTIONS_ELASTICSEARCH_URL = 'http://search-es:9200'
-#SNOOP_STATS_ELASTICSEARCH_URL = 'http://snoop-stats-es:9200'
-#SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'http://snoop-stats-es:9200'
-#SNOOP_GNUPG_HOME = '/opt/hoover/gnupg'
+# SNOOP_STATS_ELASTICSEARCH_URL = 'http://snoop-stats-es:9200'
+# SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'http://snoop-stats-es:9200'
+# SNOOP_GNUPG_HOME = '/opt/hoover/gnupg'

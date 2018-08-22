@@ -1,8 +1,49 @@
 version: "2"
 
 services:
+  snoop-pg:
+    image: postgres:9.6
+    environment:
+      POSTGRES_USER: snoop
+      POSTGRES_DATABASE: snoop
+    volumes:
+      - ./volumes/snoop-pg/data:/var/lib/postgresql/data
+
   snoop:
     image: snoop2-testing
+    environment:
+      - SNOOP_TESTDATA=/opt/hoover/snoop/docker-setup/collections/testdata
+    volumes:
+      - ..:/opt/hoover/snoop:cached
+      - ./gnupg:/opt/hoover/gnupg
+      - ./collections:/opt/hoover/collections
+      - ./volumes/search-es-snapshots:/opt/hoover/es-snapshots
+      - ../testsuite/snoop-settings.py:/opt/hoover/snoop/snoop/localsettings.py
+      - ./snoop-blobs:/opt/hoover/snoop/blobs
+    env_file:
+      - ./settings/snoop.testing.env
+    environment:
+      WAIT_HOSTS: search-es:9200, snoop-pg:5432
+      WAIT_HOSTS_TIMEOUT: 60
+    depends_on:
+      - snoop-pg
+      - search-es
+      - snoop-tika
 
   snoop-worker:
     image: snoop2-testing
+    env_file:
+      - ./settings/snoop.testing.env
+    environment:
+      - SNOOP_TESTDATA=/opt/hoover/snoop/docker-setup/collections/testdata
+    volumes:
+      - ..:/opt/hoover/snoop:cached
+      - ./gnupg:/opt/hoover/gnupg
+      - ./collections:/opt/hoover/collections
+      - ./volumes/search-es-snapshots:/opt/hoover/es-snapshots
+      - ../testsuite/snoop-settings.py:/opt/hoover/snoop/snoop/localsettings.py
+      - ./snoop-blobs:/opt/hoover/snoop/blobs
+    depends_on:
+      - snoop-pg
+      - search-es
+      - snoop-tika

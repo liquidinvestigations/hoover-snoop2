@@ -1,14 +1,15 @@
 import json
-import tempfile
-import shutil
 from pathlib import Path
-import pytest
+import tempfile
+
 from django.conf import settings
+import pytest
+
+from fixtures import TESTDATA, CollectionApiClient
 from snoop.data import models
 from snoop.data import tasks
 from snoop.data.analyzers import email
 from snoop.data.analyzers import pgp
-from fixtures import TESTDATA, CollectionApiClient
 
 PATH_HUSH_MAIL = 'eml-9-pgp/encrypted-hushmail-knockoff.eml'
 HEIN_PRIVATE_KEY = 'eml-9-pgp/keys/hein-priv.gpg'

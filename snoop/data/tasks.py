@@ -1,12 +1,17 @@
-import json
-from time import time
-import logging
-from io import StringIO
 from contextlib import contextmanager
-from django.utils import timezone
+from io import StringIO
+import json
+import logging
+from time import time
+
 from django.db import transaction
+from django.utils import timezone
+
+from snoop.remote_debug import remote_breakpoint
+
 from . import celery
 from . import models
+from ..profiler import profile
 from .utils import run_once
 
 logger = logging.getLogger(__name__)
@@ -23,6 +28,7 @@ class ShaormaError(Exception):
 
 
 class ShaormaBroken(Exception):
+
     def __init__(self, message, reason):
         super().__init__(message)
         self.reason = reason
@@ -36,6 +42,7 @@ class MissingDependency(Exception):
 
 
 def queue_task(task):
+
     def send_to_celery():
         laterz_shaorma.apply_async((task.pk,), queue=task.func)
 
@@ -64,8 +71,8 @@ def import_shaormas():
     from .analyzers import text  # noqa
 
 
-def is_competed(task):
-    COMPLETED = [models.Task.STATUS_SUCCESS,  models.Task.STATUS_BROKEN]
+def is_completed(task):
+    COMPLETED = [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN]
     return task.status in COMPLETED
 
 
@@ -86,10 +93,15 @@ def shaorma_log_handler(level=logging.DEBUG):
 def laterz_shaorma(task_pk, raise_exceptions=False):
     import_shaormas()
 
+    run_task(task_pk, raise_exceptions)
+
+
+@profile()
+def run_task(task_pk, raise_exceptions=False):
     with transaction.atomic(), shaorma_log_handler() as handler:
         task = models.Task.objects.select_for_update().get(pk=task_pk)
 
-        if is_competed(task):
+        if is_completed(task):
             logger.info("%r already completed", task)
             queue_next_tasks(task)
             return
@@ -102,7 +114,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         depends_on = {}
         for dep in task.prev_set.all():
             prev_task = dep.prev
-            if not is_competed(prev_task):
+            if not is_completed(prev_task):
                 task.update(
                     status=models.Task.STATUS_DEFERRED,
                     error='',
@@ -132,7 +144,10 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         logger.info("Running %r", task)
         t0 = time()
         try:
-            result = shaormerie[task.func](*args, **depends_on)
+            remote_breakpoint()
+
+            func = shaormerie[task.func]
+            result = func(*args, **depends_on)
 
             if result is not None:
                 assert isinstance(result, models.Blob)
@@ -201,12 +216,14 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
         task.date_finished = timezone.now()
         task.save()
 
-    if is_competed(task):
+    if is_completed(task):
         queue_next_tasks(task, reset=True)
 
 
 def shaorma(name):
+
     def decorator(func):
+
         def laterz(*args, depends_on={}, retry=False):
             if args and isinstance(args[0], models.Blob):
                 blob_arg = args[0]
@@ -304,6 +321,7 @@ def do_nothing(name):
 
 
 def returns_json_blob(func):
+
     def wrapper(*args, **kwargs):
         rv = func(*args, **kwargs)
 
