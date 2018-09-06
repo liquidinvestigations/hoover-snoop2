@@ -10,4 +10,4 @@ def remote_breakpoint():
 
         import pydevd
         pydevd.settrace(host, port=port, stdoutToServer=True, stderrToServer=True,
-                        overwrite_prev_trace=True, suspend=False)
+                        overwrite_prev_trace=False)
