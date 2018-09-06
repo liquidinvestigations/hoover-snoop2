@@ -3,7 +3,6 @@ import logging
 from pathlib import Path
 
 from snoop.profiler import profile
-from snoop.remote_debug import remote_breakpoint
 
 from . import digests
 from . import models
@@ -37,8 +36,6 @@ def directory_absolute_path(directory):
 @shaorma('filesystem.walk')
 @profile()
 def walk(directory_pk):
-
-    remote_breakpoint()
 
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
