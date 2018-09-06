@@ -42,8 +42,6 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         remote_breakpoint()
 
-        print('runworkers')
-
         with Profiler():
             tasks.import_shaormas()
             queues = options.get('func') or tasks.shaormerie

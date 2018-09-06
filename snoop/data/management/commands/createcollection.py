@@ -1,7 +1,9 @@
 from pathlib import Path
+
 from django.core.management.base import BaseCommand
-from ...logs import logging_for_management_command
+
 from ... import collections
+from ...logs import logging_for_management_command
 
 
 class Command(BaseCommand):
