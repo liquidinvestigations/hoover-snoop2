@@ -4,7 +4,6 @@ import subprocess
 from django.core.management.base import BaseCommand
 
 from snoop.profiler import Profiler
-from snoop.remote_debug import remote_breakpoint
 
 from ... import tasks
 
@@ -40,8 +39,6 @@ class Command(BaseCommand):
                 help="Number of workers to start")
 
     def handle(self, *args, **options):
-        remote_breakpoint()
-
         with Profiler():
             tasks.import_shaormas()
             queues = options.get('func') or tasks.shaormerie

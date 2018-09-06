@@ -7,8 +7,6 @@ from time import time
 from django.db import transaction
 from django.utils import timezone
 
-from snoop.remote_debug import remote_breakpoint
-
 from . import celery
 from . import models
 from ..profiler import profile
@@ -144,8 +142,6 @@ def run_task(task_pk, raise_exceptions=False):
         logger.info("Running %r", task)
         t0 = time()
         try:
-            remote_breakpoint()
-
             func = shaormerie[task.func]
             result = func(*args, **depends_on)
 
