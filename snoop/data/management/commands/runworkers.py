@@ -3,6 +3,7 @@ import subprocess
 
 from django.core.management.base import BaseCommand
 
+from snoop.data import models
 from snoop.profiler import Profiler
 
 from ... import tasks
@@ -24,7 +25,7 @@ def celery_argv(num_workers, queues):
     ]
 
     if num_workers:
-        argv += ['-c', num_workers]
+        argv += ['-c', num_workers if num_workers else os.cpu_count() * 2]
 
     return argv
 
@@ -42,9 +43,11 @@ class Command(BaseCommand):
         with Profiler():
             tasks.import_shaormas()
             queues = options.get('func') or tasks.shaormerie
+            collection = [models.Collection.objects.all()]
+            own_queues = [f'{collection.name}__{queue}' for queue in queues]
             argv = celery_argv(
                 num_workers=options.get('num_workers'),
-                queues=queues,
+                queues=own_queues,
             )
             print('+', *argv)
             os.execv(argv[0], argv)
