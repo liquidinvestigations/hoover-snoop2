@@ -4,6 +4,7 @@ import json
 import logging
 from time import time
 
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -42,7 +43,7 @@ class MissingDependency(Exception):
 def queue_task(task):
 
     def send_to_celery():
-        laterz_shaorma.apply_async((task.pk,), queue=task.func)
+        laterz_shaorma.apply_async((task.pk,), queue=f'{settings.TASK_PREFIX}.{task.func}')
 
     transaction.on_commit(send_to_celery)
 
@@ -90,7 +91,6 @@ def shaorma_log_handler(level=logging.DEBUG):
 @celery.app.task
 def laterz_shaorma(task_pk, raise_exceptions=False):
     import_shaormas()
-
     run_task(task_pk, raise_exceptions)
 
 

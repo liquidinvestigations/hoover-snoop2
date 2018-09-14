@@ -1,5 +1,7 @@
-import os
+import logging
+
 from celery import Celery
+
 from snoop import set_django_settings
 
 set_django_settings()
@@ -11,7 +13,6 @@ app.conf.update(
 app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks()
 
-import logging
-from pprint import pprint
-#pprint(logging.Logger.manager.loggerDict)
+# from pprint import pprint
+# pprint(logging.Logger.manager.loggerDict)
 logging.getLogger('celery').setLevel(logging.WARNING)

@@ -36,10 +36,8 @@ def directory_absolute_path(directory):
 @shaorma('filesystem.walk')
 @profile()
 def walk(directory_pk):
-
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
-    print('Walk ' + str(path))
 
     new_files = []
     for thing in path.iterdir():
