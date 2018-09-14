@@ -21,10 +21,13 @@ def celery_argv(num_workers, queues):
         '-A', 'snoop.data',
         '--loglevel=info',
         'worker',
+        '-P', 'gevent',
+        '-Ofair',
+        '--max-tasks-per-child', '1000',
         '-Q', ','.join(queues),
     ]
 
-    argv += ['-c', num_workers if num_workers else str(os.cpu_count() * 2)]
+    argv += ['-c', num_workers if num_workers else str(os.cpu_count() * 4)]
 
     return argv
 
