@@ -21,7 +21,6 @@ def celery_argv(num_workers, queues):
         '-A', 'snoop.data',
         '--loglevel=info',
         'worker',
-        '-P', 'gevent',
         '-Ofair',
         '--max-tasks-per-child', '1000',
         '-Q', ','.join(queues),

@@ -17,7 +17,6 @@ django-silk==3.0.1
 django==2.0.4
 exifread==2.1.2
 first==2.0.1              # via pip-tools
-gevent==1.2.2
 gprof2dot==2016.10.13     # via django-silk
 html5lib==1.0.1           # via bleach
 idna==2.6                 # via requests
