@@ -1,15 +1,16 @@
-import sys
+from contextlib import contextmanager
+from datetime import datetime
 import json
 import logging
-import tarfile
-from datetime import datetime
 import shutil
 import subprocess
-from contextlib import contextmanager
+import sys
+import tarfile
 import time
-import requests
+
 from django.conf import settings
 import langdetect
+import requests
 
 log = logging.getLogger(__name__)
 DOCUMENT_TYPE = 'doc'
@@ -85,21 +86,21 @@ def index(index, id, data):
     if settings.DETECT_LANGUAGE and data.get('text', ''):
         data['lang'] = langdetect.detect(data.get('text', '')[:2500])
 
-    index_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
+    index_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index.lower()}'
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
 
     check_response(resp)
 
 
 def delete_index(index):
-    url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
+    url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index.lower()}'
     log.info("DELETE %s", url)
     delete_resp = requests.delete(url)
     log.debug('Response: %r', delete_resp)
 
 
 def create_index(index):
-    url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index}'
+    url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index.lower()}'
     log.info("PUT %s", url)
     put_resp = put_json(url, CONFIG)
     check_response(put_resp)
@@ -107,7 +108,7 @@ def create_index(index):
 
 @contextmanager
 def snapshot_repo(index):
-    id = f'{index}-{datetime.utcnow().isoformat().lower()}'
+    id = f'{index.lower()}-{datetime.utcnow().isoformat().lower()}'
     repo = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/_snapshot/{id}'
     repo_path = f'/opt/hoover/es-snapshots/{id}'
 
@@ -134,6 +135,7 @@ def snapshot_repo(index):
 
 
 def export_index(index, stream=None):
+    index = index.lower()
     with snapshot_repo(index) as (repo, repo_path):
         snapshot = f'{repo}/{index}'
         log.info('Elasticsearch snapshot %r', snapshot)
@@ -168,6 +170,7 @@ def export_index(index, stream=None):
 
 
 def import_index(index, delete=False, stream=None):
+    index = index.lower()
     if delete:
         delete_index(index)
 
