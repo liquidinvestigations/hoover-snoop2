@@ -10,7 +10,9 @@ from ... import tasks
 
 
 def celery_argv(custom_workers_no, queues):
-    max_workers_no = 90
+    workers_multiplier = 1
+    cpu_count = os.cpu_count()
+    max_workers_no = min(int(cpu_count * 1.5), 100)
 
     celery_binary = (
         subprocess.check_output(['which', 'celery'])
@@ -24,16 +26,18 @@ def celery_argv(custom_workers_no, queues):
         '--loglevel=info',
         'worker',
         '-Ofair',
-        '--max-tasks-per-child', '1000',
+        '--max-tasks-per-child', '500',
         '-Q', ','.join(queues),
     ]
 
-    workers_no = custom_workers_no if custom_workers_no else str(os.cpu_count() * 2)
+    workers_no = int(custom_workers_no) if custom_workers_no else int(cpu_count * workers_multiplier)
     if workers_no > max_workers_no:
-        print(f'Limitting the number of workers to {max_workers_no}')
+        print(f'Limitting the number of workers to {max_workers_no} on {cpu_count} CPUs.')
         workers_no = max_workers_no
+    else:
+        print(f'Starting with {workers_no} workers on {cpu_count} CPUs.')
 
-    argv += ['-c', workers_no]
+    argv += ['-c', str(workers_no)]
 
     return argv
 
