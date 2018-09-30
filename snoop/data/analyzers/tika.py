@@ -45,17 +45,17 @@ TIKA_CONTENT_TYPES = [
     'application/vnd.oasis.opendocument.presentation-template',
 ]
 
-
 def can_process(blob):
     if blob.mime_type in TIKA_CONTENT_TYPES:
         return True
 
     return False
 
+session = requests.Session()
 
 def call_tika_server(endpoint, data):
     url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
-    resp = requests.put(url, data=data)
+    resp = session.put(url, data=data)
 
     if resp.status_code == 422:
         raise ShaormaBroken("tika returned http 422, corrupt?", "tika_http_422")
