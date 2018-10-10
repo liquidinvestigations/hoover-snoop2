@@ -1,4 +1,7 @@
+from datetime import timedelta
 from pathlib import Path
+
+from snoop.data import celery
 
 base_dir = Path(__file__).resolve().parent.parent
 
@@ -71,3 +74,14 @@ SNOOP_GNUPG_HOME = None
 SNOOP_FEED_PAGE_SIZE = 100
 SNOOP_STATS_ELASTICSEARCH_URL = None
 SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'snoop2-'
+
+celery.app.conf.beat_schedule = {
+    'check_if_idle': {
+        'task': 'snoop.data.tasks.check_if_idle',
+        'schedule': timedelta(seconds=5),
+    }
+}
+
+celery.app.conf.task_routes = {
+    'snoop.data.tasks.check_if_idle': {'queue': 'watchdog'}
+}

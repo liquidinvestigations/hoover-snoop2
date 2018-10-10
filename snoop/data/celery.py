@@ -6,7 +6,7 @@ from snoop import set_django_settings
 
 set_django_settings()
 
-app = Celery('snoop')
+app = Celery('snoop.data')
 app.conf.update(
     worker_log_format="[%(asctime)s: %(name)s %(levelname)s] %(message)s",
 )

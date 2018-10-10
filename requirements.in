@@ -12,3 +12,4 @@ exifread
 python-dateutil
 langdetect
 django-silk
+honcho

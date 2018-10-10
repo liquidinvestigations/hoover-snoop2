@@ -4,9 +4,12 @@ import json
 import logging
 from time import time
 
+from celery.bin.control import inspect
 from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
+
+from snoop.data.models import Task
 
 from . import celery
 from . import models
@@ -328,3 +331,39 @@ def returns_json_blob(func):
         return output.blob
 
     return wrapper
+
+
+def count_tasks(tasks_status, excluded=[]):
+    if not tasks_status:
+        return 0
+
+    count = 0
+    for tasks in tasks_status.values():
+        for task in tasks:
+            for task_name in excluded:
+                if task_name not in task['name']:
+                    count += 1
+                    break
+    return count
+
+
+@celery.app.task
+def check_if_idle():
+    excluded = ['check_if_idle']
+
+    inspector = inspect(celery.app)
+    active = inspector.call(method='active', arguments={})
+    scheduled = inspector.call(method='scheduled', arguments={})
+    reserved = inspector.call(method='reserved', arguments={})
+    count = count_tasks(active, excluded) + count_tasks(scheduled, excluded) + \
+        count_tasks(reserved, excluded)
+    if not count or True:
+        db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
+            exclude(status=Task.STATUS_SUCCESS).count()
+        if db_tasks or True:
+            print('Dispatching remaining %d tasks.' % db_tasks)
+            dispatch_pending_tasks()
+            from snoop.data.dispatcher import dispatch_walk_tasks
+            dispatch_walk_tasks()
+            from snoop.data.ocr import dispatch_ocr_tasks
+            dispatch_ocr_tasks()
