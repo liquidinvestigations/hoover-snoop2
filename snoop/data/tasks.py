@@ -357,10 +357,10 @@ def check_if_idle():
     reserved = inspector.call(method='reserved', arguments={})
     count = count_tasks(active, excluded) + count_tasks(scheduled, excluded) + \
         count_tasks(reserved, excluded)
-    if not count or True:
+    if not count:
         db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
             exclude(status=Task.STATUS_SUCCESS).count()
-        if db_tasks or True:
+        if db_tasks:
             print('Dispatching remaining %d tasks.' % db_tasks)
             dispatch_pending_tasks()
             from snoop.data.dispatcher import dispatch_walk_tasks
