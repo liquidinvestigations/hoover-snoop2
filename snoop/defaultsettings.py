@@ -78,7 +78,7 @@ SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'snoop2-'
 celery.app.conf.beat_schedule = {
     'check_if_idle': {
         'task': 'snoop.data.tasks.check_if_idle',
-        'schedule': timedelta(seconds=5),
+        'schedule': timedelta(seconds=60),
     }
 }
 
