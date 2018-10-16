@@ -10,4 +10,4 @@
 /.idea
 /venv
 celerybeat*
-Procfile
+/Procfile
