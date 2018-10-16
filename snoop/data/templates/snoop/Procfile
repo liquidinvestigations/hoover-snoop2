@@ -1,0 +1,2 @@
+workers: {{ workers_command }}
+beat: celery -A snoop.data beat -l INFO
