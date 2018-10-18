@@ -81,4 +81,3 @@ class Command(BaseCommand):
                 .strip()
             )
             os.execv(honcho_binary, [honcho_binary, 'start'])
-#             os.execv(argv[0], argv)

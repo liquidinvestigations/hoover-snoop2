@@ -13,3 +13,4 @@ python-dateutil
 langdetect
 django-silk
 honcho
+flower
