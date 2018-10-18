@@ -17,6 +17,7 @@ django-silk==3.0.1
 django==2.0.4
 exifread==2.1.2
 first==2.0.1              # via pip-tools
+flower==0.9.2
 gprof2dot==2016.10.13     # via django-silk
 honcho==1.0.1
 html5lib==1.0.1           # via bleach
