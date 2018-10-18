@@ -365,5 +365,3 @@ def check_if_idle():
             dispatch_pending_tasks()
             from snoop.data.dispatcher import dispatch_walk_tasks
             dispatch_walk_tasks()
-            from snoop.data.ocr import dispatch_ocr_tasks
-            dispatch_ocr_tasks()
