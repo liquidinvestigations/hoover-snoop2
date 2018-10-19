@@ -1,4 +1,3 @@
-import json
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.shortcuts import get_object_or_404
 from django.conf import settings
@@ -8,22 +7,19 @@ from . import ocr
 from .analyzers import html
 
 
-def collection(request, name):
-    collection = get_object_or_404(models.Collection.objects, name=name)
+def collection(request):
     return JsonResponse({
-        'name': name,
-        'title': name,
-        'description': name,
+        'name': settings.SNOOP_COLLECTION_NAME,
+        'title': settings.SNOOP_COLLECTION_NAME,
+        'description': settings.SNOOP_COLLECTION_NAME,
         'feed': 'feed',
         'data_urls': '{id}/json',
     })
 
 
-def feed(request, name):
-    collection = get_object_or_404(models.Collection.objects, name=name)
-
+def feed(request):
     limit = settings.SNOOP_FEED_PAGE_SIZE
-    query = collection.digest_set.order_by('-date_modified')
+    query = models.Digest.objects.order_by('-date_modified')
 
     lt = request.GET.get('lt')
     if lt:
@@ -44,21 +40,18 @@ def feed(request, name):
     })
 
 
-def directory(request, name, pk):
-    collection = get_object_or_404(models.Collection.objects, name=name)
-    directory = get_object_or_404(collection.directory_set, pk=pk)
+def directory(request, pk):
+    directory = get_object_or_404(models.Directory.objects, pk=pk)
     return JsonResponse(digests.get_directory_data(directory))
 
 
-def document(request, name, hash):
-    collection = get_object_or_404(models.Collection.objects, name=name)
-    digest = get_object_or_404(collection.digest_set, blob__pk=hash)
+def document(request, hash):
+    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
     return JsonResponse(digests.get_document_data(digest))
 
 
-def document_download(request, name, hash, filename):
-    collection = get_object_or_404(models.Collection.objects, name=name)
-    digest = get_object_or_404(collection.digest_set, blob__pk=hash)
+def document_download(request, hash, filename):
+    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
     blob = digest.blob
 
     if html.is_html(blob):
@@ -68,9 +61,8 @@ def document_download(request, name, hash, filename):
     return FileResponse(blob.open(), content_type=blob.content_type)
 
 
-def document_ocr(request, name, hash, ocrname):
-    collection = get_object_or_404(models.Collection.objects, name=name)
-    digest = get_object_or_404(collection.digest_set, blob__pk=hash)
+def document_ocr(request, hash, ocrname):
+    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
 
     ocr_source = get_object_or_404(models.OcrSource, name=ocrname)
     ocr_queryset = ocr.ocr_documents_for_blob(digest.blob)
@@ -80,8 +72,7 @@ def document_ocr(request, name, hash, ocrname):
     return FileResponse(blob.open(), content_type=blob.content_type)
 
 
-def document_locations(request, name, hash):
-    collection = get_object_or_404(models.Collection.objects, name=name)
-    digest = get_object_or_404(collection.digest_set, blob__pk=hash)
+def document_locations(request, hash):
+    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
     locations = digests.get_document_locations(digest)
     return JsonResponse({'locations': locations})

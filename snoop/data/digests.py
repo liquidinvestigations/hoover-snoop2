@@ -14,7 +14,7 @@ from . import indexing
 log = logging.getLogger(__name__)
 
 @shaorma('digests.launch')
-def launch(blob, collection_pk):
+def launch(blob):
     depends_on = {}
 
     if blob.mime_type == 'message/rfc822':
@@ -26,14 +26,12 @@ def launch(blob, collection_pk):
     if exif.can_extract(blob):
         depends_on['exif_data'] = exif.extract.laterz(blob)
 
-    gather_task = gather.laterz(blob, collection_pk, depends_on=depends_on)
-    index.laterz(blob, collection_pk, depends_on={'digests_gather': gather_task})
+    gather_task = gather.laterz(blob, depends_on=depends_on)
+    index.laterz(blob, depends_on={'digests_gather': gather_task})
 
 
 @shaorma('digests.gather')
-def gather(blob, collection_pk, **depends_on):
-    collection = models.Collection.objects.get(pk=collection_pk)
-
+def gather(blob, **depends_on):
     rv = {'broken': []}
     text_blob = depends_on.get('text')
     if text_blob:
@@ -89,7 +87,7 @@ def gather(blob, collection_pk, **depends_on):
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
 
-    digest, _ = collection.digest_set.update_or_create(
+    digest, _ = models.Digest.update_or_create(
         blob=blob,
         defaults=dict(
             result=writer.blob,
@@ -99,16 +97,12 @@ def gather(blob, collection_pk, **depends_on):
     return writer.blob
 
 @shaorma('digests.index')
-def index(blob, collection_pk, digests_gather):
-    digest = models.Digest.objects.get(blob=blob, collection__pk=collection_pk)
+def index(blob, digests_gather):
+    digest = models.Digest.objects.get(blob=blob)
     content = _get_document_content(digest)
     version = _get_document_version(digest)
     body = dict(content, _hoover={'version': version})
-    indexing.index(
-        digest.collection.name,
-        digest.blob.pk,
-        body,
-    )
+    indexing.index(digest.blob.pk, body)
 
 
 def get_filetype(mime_type):
@@ -219,7 +213,6 @@ def _get_first_file(digest):
     first_file = (
         digest.blob
         .file_set
-        .filter(collection=digest.collection)
         .order_by('pk')
         .first()
     )
@@ -228,7 +221,6 @@ def _get_first_file(digest):
         first_file = (
             models.File.objects
             .filter(original=digest.blob)
-            .filter(collection=digest.collection)
             .order_by('pk')
             .first()
         )

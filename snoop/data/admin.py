@@ -9,16 +9,14 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.utils.decorators import method_decorator
 from django.utils.safestring import mark_safe
 from django.utils import timezone
-from django.template.defaultfilters import truncatechars
 from django.urls import path
-from django.shortcuts import render, get_object_or_404
+from django.shortcuts import render
 from django.db.models import Sum, Count, Avg, F
 from django.db import connection
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.http import HttpResponseRedirect
 from . import models
 from . import tasks
-from . import exportimport
 
 
 def redirect_to_admin(request):
@@ -38,14 +36,15 @@ def raw_sql(query):
 
 ERROR_STATS_QUERY = (
     "SELECT "
-        "func, "
-        "SUBSTRING(error FOR position('(' IN error) - 1) AS error_type, "
-        "COUNT(*) "
+    "    func, "
+    "    SUBSTRING(error FOR position('(' IN error) - 1) AS error_type, "
+    "    COUNT(*) "
     "FROM data_task "
     "WHERE status = 'error' "
     "GROUP BY func, error_type "
     "ORDER BY count DESC;"
 )
+
 
 def get_task_matrix(task_queryset):
     task_matrix = defaultdict(dict)
@@ -72,7 +71,7 @@ def get_task_matrix(task_queryset):
         count = bucket['count']
         avg_duration = bucket['avg_duration'].total_seconds()
         rate = (count / 60)
-        fill =  avg_duration * rate * 100
+        fill = avg_duration * rate * 100
         row['1m'] = count
         row['1m_duration'] = avg_duration
         row['1m_fill'] = f'{fill:.02f}%'
@@ -80,6 +79,7 @@ def get_task_matrix(task_queryset):
             row['eta'] = timedelta(seconds=int(pending / rate))
 
     return task_matrix
+
 
 def get_stats():
     task_matrix = get_task_matrix(models.Task.objects)
@@ -97,14 +97,6 @@ def get_stats():
                     'count': row[2],
                 }
 
-    collections = [
-        (col, {
-            'files': col.file_set.count(),
-            'directories': col.directory_set.count(),
-        })
-        for col in models.Collection.objects.all()
-    ]
-
     return {
         'task_matrix': sorted(task_matrix.items()),
         'counts': {
@@ -115,22 +107,6 @@ def get_stats():
         },
         'db_size': db_size,
         'error_counts': list(get_error_counts()),
-        'collections': collections,
-    }
-
-
-def get_collection_stats(col):
-    queries = exportimport.build_export_queries(col)
-    blobs = queries['blobs']
-    tasks = queries['tasks']
-    return {
-        'task_matrix': sorted(get_task_matrix(tasks).items()),
-        'counts': {
-            'files': col.file_set.count(),
-            'directories': col.directory_set.count(),
-            'blob_count': blobs.count(),
-            'blob_total_size': blobs.aggregate(Sum('size'))['size__sum'],
-        },
     }
 
 
@@ -263,7 +239,6 @@ class TaskAdmin(admin.ModelAdmin):
         dep_list = [link(dep) for dep in obj.prev_set.order_by('name')]
         return mark_safe(', '.join(dep_list))
 
-
     def details(self, obj):
         if obj.status == models.Task.STATUS_ERROR:
             return obj.error
@@ -281,10 +256,10 @@ class TaskDependencyAdmin(admin.ModelAdmin):
 
 class DigestAdmin(admin.ModelAdmin):
     raw_id_fields = ['blob', 'result']
-    list_display = ['pk', 'collection', 'blob__mime_type', 'blob_link',
+    list_display = ['pk', 'blob__mime_type', 'blob_link',
                     'result_link', 'date_modified']
-    list_filter = ['collection__name', 'blob__mime_type']
-    search_fields = ['pk', 'collection__pk', 'blob__pk', 'result__pk']
+    list_filter = ['blob__mime_type']
+    search_fields = ['pk', 'blob__pk', 'result__pk']
 
     def blob__mime_type(self, obj):
         return obj.blob.mime_type
@@ -310,15 +285,6 @@ class SnoopAminSite(admin.AdminSite):
     @method_decorator(staff_member_required)
     def stats(self, request):
         context = dict(self.each_context(request))
-
-        col_pk = request.GET.get('collection')
-        if col_pk:
-            col = get_object_or_404(models.Collection, pk=col_pk)
-            context['collection'] = col
-            context.update(get_collection_stats(col))
-            return render(request, 'snoop/admin_collection_stats.html',
-                          context)
-
         context.update(get_stats())
         return render(request, 'snoop/admin_stats.html', context)
 
@@ -329,7 +295,6 @@ site = SnoopAminSite(name='snoopadmin')
 site.register(auth_models.User, auth_admin.UserAdmin)
 site.register(auth_models.Group, auth_admin.GroupAdmin)
 
-site.register(models.Collection)
 site.register(models.Directory, DirectoryAdmin)
 site.register(models.File, FileAdmin)
 site.register(models.Blob, BlobAdmin)
