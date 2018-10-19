@@ -3,24 +3,6 @@
 
 {% block content %}
 
-<h2>Collections</h2>
-<table>
-  <thead>
-    <th>name</th>
-    <th>files</th>
-    <th>directories</th>
-  </thead>
-  <tbody>
-    {% for col, row in collections %}
-    <tr>
-      <th><a href="stats?collection={{ col.pk }}">{{ col }}</th>
-      <td>{{ row.files }}</td>
-      <td>{{ row.directories }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-
 {% include "snoop/admin_stats_task_matrix.html" %}
 
 <h2>Counts</h2>

@@ -3,11 +3,11 @@ from . import views
 
 
 urlpatterns = [
-    path('<name>/json', views.collection),
-    path('<name>/feed', views.feed),
-    path('<name>/_directory_<int:pk>/json', views.directory),
-    path('<name>/<hash>/json', views.document),
-    path('<name>/<hash>/raw/<filename>', views.document_download),
-    path('<name>/<hash>/ocr/<ocrname>/', views.document_ocr),
-    path('<name>/<hash>/locations', views.document_locations),
+    path('json', views.collection),
+    path('feed', views.feed),
+    path('_directory_<int:pk>/json', views.directory),
+    path('<hash>/json', views.document),
+    path('<hash>/raw/<filename>', views.document_download),
+    path('<hash>/ocr/<ocrname>/', views.document_ocr),
+    path('<hash>/locations', views.document_locations),
 ]

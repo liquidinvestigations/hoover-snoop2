@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from django.conf import settings
 
 from snoop.profiler import profile
 
@@ -18,11 +19,7 @@ log = logging.getLogger(__name__)
 def directory_absolute_path(directory):
     path_elements = []
     node = directory
-
-    if not directory.collection.root:
-        raise RuntimeError("Collection root is not set")
-
-    path = Path(directory.collection.root)
+    path = Path(settings.SNOOP_COLLECTION_ROOT)
 
     while node.parent_directory:
         path_elements.append(node.name)
@@ -43,7 +40,6 @@ def walk(directory_pk):
     for thing in path.iterdir():
         if thing.is_dir():
             (child_directory, _) = directory.child_directory_set.get_or_create(
-                collection=directory.collection,
                 name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
             )
             walk.laterz(child_directory.pk)
@@ -61,7 +57,6 @@ def walk(directory_pk):
             file, _ = directory.child_file_set.get_or_create(
                 name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
                 defaults=dict(
-                    collection=directory.collection,
                     ctime=time_from_unix(stat.st_ctime),
                     mtime=time_from_unix(stat.st_mtime),
                     size=stat.st_size,
@@ -112,7 +107,7 @@ def handle_file(file_pk, **depends_on):
 
     file.save()
 
-    digests.launch.laterz(file.blob, file.collection.pk)
+    digests.launch.laterz(file.blob)
 
 
 @shaorma('filesystem.create_archive_files')
@@ -142,9 +137,6 @@ def create_archive_files(file_pk, archive_listing):
     def create_directory(parent_directory, name, children):
         (directory, _) = parent_directory.child_directory_set.get_or_create(
             name_bytes=name.encode('utf8', errors='surrogateescape'),
-            defaults=dict(
-                collection=parent_directory.collection,
-            ),
         )
         create_directory_children(directory, children)
 
@@ -154,7 +146,6 @@ def create_archive_files(file_pk, archive_listing):
         (file, _) = parent_directory.child_file_set.get_or_create(
             name_bytes=name.encode('utf8', errors='surrogateescape'),
             defaults=dict(
-                collection=parent_directory.collection,
                 ctime=archive.ctime,
                 mtime=archive.mtime,
                 size=size,
@@ -166,12 +157,7 @@ def create_archive_files(file_pk, archive_listing):
         return file
 
     archive = models.File.objects.get(pk=file_pk)
-    (fake_root, _) = archive.child_directory_set.get_or_create(
-        name_bytes=b'',
-        defaults=dict(
-            collection=archive.collection,
-        ),
-    )
+    (fake_root, _) = archive.child_directory_set.get_or_create(name_bytes=b'')
     create_directory_children(fake_root, archive_listing_data)
 
 
@@ -203,9 +189,6 @@ def create_attachment_files(file_pk, email_parse):
         email_file = models.File.objects.get(pk=file_pk)
         (attachments_dir, _) = email_file.child_directory_set.get_or_create(
             name_bytes=b'',
-            defaults=dict(
-                collection=email_file.collection,
-            ),
         )
         for attachment in attachments:
             original = models.Blob.objects.get(pk=attachment['blob_pk'])
@@ -218,7 +201,6 @@ def create_attachment_files(file_pk, email_parse):
             (file, _) = attachments_dir.child_file_set.get_or_create(
                 name_bytes=name_bytes,
                 defaults=dict(
-                    collection=email_file.collection,
                     ctime=email_file.ctime,
                     mtime=email_file.mtime,
                     size=size,

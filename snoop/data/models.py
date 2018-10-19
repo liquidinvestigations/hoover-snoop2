@@ -161,26 +161,7 @@ class Blob(models.Model):
         return self.path().open(mode, encoding=encoding)
 
 
-class Collection(models.Model):
-    name = models.CharField(max_length=128, unique=True)
-    root = models.CharField(max_length=4096, blank=True)
-
-    date_created = models.DateTimeField(auto_now_add=True)
-    date_modified = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return self.name
-
-    @property
-    def root_directory(self):
-        return self.directory_set.filter(
-            parent_directory__isnull=True,
-            container_file__isnull=True
-        ).first()
-
-
 class Directory(models.Model):
-    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
     name_bytes = models.BinaryField(max_length=1024, blank=True)
     parent_directory = models.ForeignKey(
         'Directory',
@@ -201,6 +182,13 @@ class Directory(models.Model):
     class Meta:
         unique_together = ('parent_directory', 'name_bytes')
         verbose_name_plural = 'directories'
+
+    @classmethod
+    def root(cls):
+        return cls.objects.filter(
+            parent_directory__isnull=True,
+            container_file__isnull=True
+        ).first()
 
     @property
     def name(self):
@@ -223,7 +211,6 @@ class Directory(models.Model):
 
 
 class File(models.Model):
-    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
     name_bytes = models.BinaryField(max_length=1024, blank=True)
     parent_directory = models.ForeignKey(
         Directory,
@@ -331,8 +318,7 @@ class TaskDependency(models.Model):
 
 
 class Digest(models.Model):
-    collection = models.ForeignKey(Collection, on_delete=models.CASCADE)
-    blob = models.ForeignKey(Blob, on_delete=models.DO_NOTHING)
+    blob = models.OneToOneField(Blob, on_delete=models.DO_NOTHING)
     result = models.ForeignKey(
         Blob,
         on_delete=models.DO_NOTHING,
@@ -343,7 +329,6 @@ class Digest(models.Model):
     date_modified = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ('collection', 'blob')
         indexes = [
             models.Index(fields=['date_modified']),
         ]

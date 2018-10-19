@@ -14,6 +14,8 @@ import requests
 
 log = logging.getLogger(__name__)
 DOCUMENT_TYPE = 'doc'
+ES_INDEX = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_INDEX
+ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
 
 MAPPINGS = {
     "doc": {
@@ -30,8 +32,8 @@ MAPPINGS = {
             "md5": {"type": "keyword"},
             "message": {"type": "keyword"},
             "message-id": {"type": "keyword"},
-            "path": { "type": "keyword" },
-            "path-parts": { "type": "keyword" },
+            "path": {"type": "keyword"},
+            "path-parts": {"type": "keyword"},
             "references": {"type": "keyword"},
             "rev": {"type": "integer"},
             "sha1": {"type": "keyword"},
@@ -82,34 +84,34 @@ def check_response(resp):
         raise RuntimeError('Put request failed: %r' % resp)
 
 
-def index(index, id, data):
+def index(id, data):
     if settings.DETECT_LANGUAGE and data.get('text', ''):
         data['lang'] = langdetect.detect(data.get('text', '')[:2500])
 
-    index_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index.lower()}'
+    index_url = f'{ES_URL}/{ES_INDEX}'
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
 
     check_response(resp)
 
 
-def delete_index(index):
-    url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index.lower()}'
+def delete_index():
+    url = f'{ES_URL}/{ES_INDEX}'
     log.info("DELETE %s", url)
     delete_resp = requests.delete(url)
     log.debug('Response: %r', delete_resp)
 
 
-def create_index(index):
-    url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/{index.lower()}'
+def create_index():
+    url = f'{ES_URL}/{ES_INDEX}'
     log.info("PUT %s", url)
     put_resp = put_json(url, CONFIG)
     check_response(put_resp)
 
 
 @contextmanager
-def snapshot_repo(index):
-    id = f'{index.lower()}-{datetime.utcnow().isoformat().lower()}'
-    repo = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/_snapshot/{id}'
+def snapshot_repo():
+    id = f'{ES_INDEX}-{datetime.utcnow().isoformat().lower()}'
+    repo = f'{ES_URL}/_snapshot/{id}'
     repo_path = f'/opt/hoover/es-snapshots/{id}'
 
     log.info('Create snapshot repo')
@@ -134,15 +136,14 @@ def snapshot_repo(index):
         shutil.rmtree(repo_path)
 
 
-def export_index(index, stream=None):
-    index = index.lower()
-    with snapshot_repo(index) as (repo, repo_path):
-        snapshot = f'{repo}/{index}'
+def export_index(stream=None):
+    with snapshot_repo(ES_INDEX) as (repo, repo_path):
+        snapshot = f'{repo}/{ES_INDEX}'
         log.info('Elasticsearch snapshot %r', snapshot)
 
         log.info('Create snapshot')
         snapshot_resp = put_json(snapshot, {
-            'indices': index,
+            'indices': ES_INDEX,
             'include_global_state': False,
         })
         check_response(snapshot_resp)
@@ -169,12 +170,11 @@ def export_index(index, stream=None):
         )
 
 
-def import_index(index, delete=False, stream=None):
-    index = index.lower()
+def import_index(delete=False, stream=None):
     if delete:
-        delete_index(index)
+        delete_index(ES_INDEX)
 
-    with snapshot_repo(index) as (repo, repo_path):
+    with snapshot_repo(ES_INDEX) as (repo, repo_path):
         log.info('Unpack tar archive')
 
         tar = tarfile.open(mode='r|*', fileobj=stream or sys.stdin.buffer)
@@ -186,25 +186,24 @@ def import_index(index, delete=False, stream=None):
         for s in snapshots_resp.json()['snapshots']:
             if s['state'] == 'SUCCESS':
                 [snapshot_index] = s['indices']
-                if snapshot_index != index:
+                if snapshot_index != ES_INDEX:
                     continue
                 snapshot = f'{repo}/{s["snapshot"]}'
                 break
         else:
-            raise RuntimeError(f"No snapshots for index {index}")
+            raise RuntimeError(f"No snapshots for index {ES_INDEX}")
 
-        log.info("Starting restore for index %r as %r", snapshot_index, index)
+        log.info("Starting restore for index %r as %r", snapshot_index, ES_INDEX)
         restore = f'{snapshot}/_restore'
         restore_resp = post_json(restore, {
-            'indices': index,
+            'indices': ES_INDEX,
             'include_global_state': False,
             'include_aliases': False,
         })
         check_response(restore_resp)
         assert restore_resp.json()['accepted']
 
-        es_url = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
-        status = f'{es_url}/{index}/_recovery'
+        status = f'{ES_URL}/{ES_INDEX}/_recovery'
         while True:
             status_resp = requests.get(status)
             check_response(status_resp)
@@ -213,7 +212,7 @@ def import_index(index, delete=False, stream=None):
                 time.sleep(1)
                 continue
 
-            for shard in status_resp.json()[index]['shards']:
+            for shard in status_resp.json()[ES_INDEX]['shards']:
                 stage = shard['stage']
                 if stage != 'DONE':
                     log.debug("Shard %r stage=%r", shard['id'], stage)
