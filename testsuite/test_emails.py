@@ -26,9 +26,8 @@ BYTE_ORDER_MARK = DATA / "eml-bom/with-bom.eml"
 
 
 @pytest.fixture(autouse=True)
-def mock_collection():
-    collection = models.Collection.objects.create(name='test')
-    collection.directory_set.create()
+def root_directory():
+    models.Directory.objects.create()
 
 
 def test_convert_msg_to_eml():
@@ -47,17 +46,12 @@ def test_email_header_parsing():
 
 
 def add_email_to_collection(path):
-    [collection] = models.Collection.objects.all()
-    [root] = collection.directory_set.filter(
-        parent_directory__isnull=True,
-        container_file__isnull=True
-    ).all()
     blob = models.Blob.create_from_file(path)
     assert blob.mime_type == 'message/rfc822'
     now = timezone.now()
 
-    return collection.file_set.create(
-        parent_directory=root,
+    return models.File.objects.create(
+        parent_directory=models.Directory.root(),
         original=blob,
         blob=blob,
         name_bytes=path.name.encode('utf8'),
@@ -70,7 +64,7 @@ def add_email_to_collection(path):
 def parse_email(path, taskmanager):
     file = add_email_to_collection(path)
     filesystem.handle_file(file.pk)
-    digests.launch(file.blob, file.collection.pk)
+    digests.launch(file.blob)
     taskmanager.run()
     [digest] = file.blob.digest_set.all()
     return digests.get_document_data(digest)
