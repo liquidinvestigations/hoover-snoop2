@@ -45,7 +45,6 @@ def fakedata():
 
 def mkdir(parent, name):
     return models.Directory.objects.create(
-        collection=parent.collection,
         parent_directory=parent,
         name_bytes=name.encode('utf8'),
     )
@@ -54,7 +53,6 @@ def mkdir(parent, name):
 def mkfile(parent, name, original):
     now = timezone.now()
     return models.File.objects.create(
-        collection=parent.collection,
         parent_directory=parent,
         name_bytes=name.encode('utf8'),
         ctime=now,

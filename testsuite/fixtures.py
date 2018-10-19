@@ -10,22 +10,16 @@ TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 
 class FakeData:
 
-    def collection(self, name='testdata'):
-        collection = models.Collection.objects.create(
-            name=name,
-            root='',
-        )
-        collection.directory_set.create()
-        indexing.delete_index(collection.name)
-        indexing.create_index(collection.name)
-        return collection
+    def init(self):
+        indexing.delete_index()
+        indexing.create_index()
+        return models.Directory.objects.create()
 
     def blob(self, data):
         return models.Blob.create_from_bytes(data)
 
     def directory(self, parent, name):
         directory = models.Directory.objects.create(
-            collection=parent.collection,
             parent_directory=parent,
             name_bytes=name.encode('utf8'),
         )
@@ -34,7 +28,6 @@ class FakeData:
     def file(self, parent, name, blob):
         now = timezone.now()
         file = models.File.objects.create(
-            collection=parent.collection,
             parent_directory=parent,
             name_bytes=name.encode('utf8'),
             ctime=now,
@@ -49,12 +42,11 @@ class FakeData:
 
 class CollectionApiClient:
 
-    def __init__(self, collection, client):
-        self.collection = collection
+    def __init__(self, client):
         self.client = client
 
     def get(self, url):
-        url = f'/collections/{self.collection.name}{url}'
+        url = f'/collection{url}'
         resp = self.client.get(url)
         assert resp.status_code == 200
         return resp.json()
