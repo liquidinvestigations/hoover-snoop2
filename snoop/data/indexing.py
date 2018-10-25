@@ -137,7 +137,7 @@ def snapshot_repo():
 
 
 def export_index(stream=None):
-    with snapshot_repo(ES_INDEX) as (repo, repo_path):
+    with snapshot_repo() as (repo, repo_path):
         snapshot = f'{repo}/{ES_INDEX}'
         log.info('Elasticsearch snapshot %r', snapshot)
 
@@ -174,7 +174,7 @@ def import_index(delete=False, stream=None):
     if delete:
         delete_index(ES_INDEX)
 
-    with snapshot_repo(ES_INDEX) as (repo, repo_path):
+    with snapshot_repo() as (repo, repo_path):
         log.info('Unpack tar archive')
 
         tar = tarfile.open(mode='r|*', fileobj=stream or sys.stdin.buffer)

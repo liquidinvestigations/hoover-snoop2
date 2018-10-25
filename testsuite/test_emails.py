@@ -66,8 +66,7 @@ def parse_email(path, taskmanager):
     filesystem.handle_file(file.pk)
     digests.launch(file.blob)
     taskmanager.run()
-    [digest] = file.blob.digest_set.all()
-    return digests.get_document_data(digest)
+    return digests.get_document_data(file.blob.digest)
 
 
 def test_subject_and_date(taskmanager):
@@ -177,14 +176,7 @@ def test_broken_header():
 
 
 def test_emlx_reconstruction(taskmanager):
-    [collection] = models.Collection.objects.all()
-    [root] = collection.directory_set.filter(
-        parent_directory__isnull=True,
-        container_file__isnull=True
-    ).all()
-    collection.root = Path(settings.SNOOP_TESTDATA) / "data"
-    collection.save()
-
+    root = mkdir(None, '')
     d1 = mkdir(root, 'lists.mbox')
     d2 = mkdir(d1, 'F2D0D67E-7B19-4C30-B2E9-B58FE4789D51')
     d3 = mkdir(d2, 'Data')
@@ -193,7 +185,7 @@ def test_emlx_reconstruction(taskmanager):
 
     emlx_filename = '1498.partial.emlx'
     emlx_path = (
-        Path(collection.root)
+        Path(settings.SNOOP_TESTDATA) / 'data'
         / d1.name / d2.name / d3.name
         / d4.name / d5.name / emlx_filename
     )
@@ -202,7 +194,7 @@ def test_emlx_reconstruction(taskmanager):
 
     emlxpart_filename = '1498.3.emlxpart'
     emlxpart_path = (
-        Path(collection.root)
+        Path(settings.SNOOP_TESTDATA) / 'data'
         / d1.name / d2.name / d3.name
         / d4.name / d5.name / emlxpart_filename
     )
@@ -231,17 +223,10 @@ def test_emlx_reconstruction(taskmanager):
 
 
 def test_emlx_reconstruction_with_missing_file(taskmanager):
-    [collection] = models.Collection.objects.all()
-    [root] = collection.directory_set.filter(
-        parent_directory__isnull=True,
-        container_file__isnull=True
-    ).all()
-    collection.root = Path(settings.SNOOP_TESTDATA) / "data"
-    collection.save()
-
+    root = mkdir(None, '')
     d1 = mkdir(root, 'emlx-4-missing-part')
     emlx_filename = '1498.partial.emlx'
-    emlx_path = Path(collection.root) / d1.name / emlx_filename
+    emlx_path = Path(settings.SNOOP_TESTDATA) / 'data' / d1.name / emlx_filename
     emlx_blob = models.Blob.create_from_file(emlx_path)
     emlx_file = mkfile(d1, emlx_filename, emlx_blob)
 

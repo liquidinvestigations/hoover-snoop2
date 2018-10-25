@@ -29,18 +29,14 @@ def test_complete_lifecycle(client, taskmanager):
     blobs_path = settings.SNOOP_BLOB_STORAGE
     subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
 
-    col = models.Collection.objects.create(
-        name='testdata',
-        root=Path(settings.SNOOP_TESTDATA) / 'data',
-    )
-    root = col.directory_set.create()
-    indexing.delete_index(col.name)
-    indexing.create_index(col.name)
+    root = models.Directory.objects.create()
+    indexing.delete_index()
+    indexing.create_index()
 
     dispatcher.run_dispatcher()
     taskmanager.run(limit=10000)
 
-    col_url = '/collections/testdata/json'
+    col_url = '/collection/json'
     col = client.get(col_url).json()
 
     def feed_page(url):
@@ -72,7 +68,7 @@ def test_complete_lifecycle(client, taskmanager):
     assert partialemlx['content']['subject'] == "Re: promulgare lege"
 
     # check that all successful digests.index tasks made it into es
-    es_count_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/testdata/_count'
+    es_count_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/snoop2/_count'
     es_count_resp = requests.get(es_count_url)
     es_count = es_count_resp.json()['count']
     db_count = models.Task.objects.filter(func='digests.index', status='success').count()
@@ -89,14 +85,13 @@ def test_complete_lifecycle(client, taskmanager):
         for name, model in exportimport.model_map.items():
             counts[name] = len(model.objects.all())
 
-        exportimport.export_db('testdata', stream=f)
+        exportimport.export_db(stream=f)
 
-        models.Collection.objects.all().delete()
         for model in exportimport.model_map.values():
             model.objects.all().delete()
 
         f.seek(0)
-        exportimport.import_db('testdata', stream=f)
+        exportimport.import_db(stream=f)
 
         for name, model in exportimport.model_map.items():
             count = len(model.objects.all())
@@ -104,10 +99,10 @@ def test_complete_lifecycle(client, taskmanager):
 
     # test export and import index
     with tempfile.TemporaryFile('w+b') as f:
-        indexing.export_index('testdata', stream=f)
-        indexing.delete_index('testdata')
+        indexing.export_index(stream=f)
+        indexing.delete_index()
         f.seek(0)
-        indexing.import_index('testdata', stream=f)
+        indexing.import_index(stream=f)
         count_resp = requests.get(es_count_url)
         assert count_resp.json()['count'] == es_count
 
@@ -118,7 +113,7 @@ def test_complete_lifecycle(client, taskmanager):
             shell=True,
             cwd=blobs_path,
         ))
-        exportimport.export_blobs('testdata', stream=f)
+        exportimport.export_blobs(stream=f)
 
         subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
 

@@ -87,7 +87,7 @@ def gather(blob, **depends_on):
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
 
-    digest, _ = models.Digest.update_or_create(
+    digest, _ = models.Digest.objects.update_or_create(
         blob=blob,
         defaults=dict(
             result=writer.blob,

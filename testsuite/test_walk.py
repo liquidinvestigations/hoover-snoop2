@@ -13,15 +13,14 @@ TESTDATA = Path(settings.SNOOP_TESTDATA)
 pytestmark = [pytest.mark.django_db]
 
 
-def test_walk(taskmanager):
-    collection = models.Collection.objects.create(name='test')
-    root = collection.directory_set.create()
-    collection.root = TESTDATA / 'data/emlx-4-missing-part'
-    collection.save()
+def test_walk(taskmanager, monkeypatch):
+    root_path = Path(settings.SNOOP_COLLECTION_ROOT) / 'emlx-4-missing-part'
+    monkeypatch.setattr(settings, 'SNOOP_COLLECTION_ROOT', root_path)
+    root = models.Directory.objects.create()
 
     filesystem.walk(root.pk)
 
-    [file] = collection.file_set.all()
+    [file] = models.File.objects.all()
     hash = '442e8939e3e367c4263738bbb29e9360a17334279f1ecef67fa9d437c31804ca'
     assert file.original.pk == hash
     assert file.blob.pk == hash
@@ -32,12 +31,10 @@ def test_walk(taskmanager):
     assert task.args == [file.pk]
 
 
-def test_smashed_filename(taskmanager):
+def test_smashed_filename(taskmanager, monkeypatch):
     with tempfile.TemporaryDirectory() as dir:
-        collection = models.Collection.objects.create(name='test')
-        root = collection.directory_set.create()
-        collection.root = dir
-        collection.save()
+        monkeypatch.setattr(settings, 'SNOOP_COLLECTION_ROOT', dir)
+        root = models.Directory.objects.create()
 
         broken_name = 'modifi\udce9.txt'
         with (Path(dir) / broken_name).open('w') as f:
@@ -45,7 +42,7 @@ def test_smashed_filename(taskmanager):
 
         filesystem.walk(root.pk)
 
-    [file] = collection.file_set.all()
+    [file] = models.File.objects.all()
     hash = 'a8009a7a528d87778c356da3a55d964719e818666a04e4f960c9e2439e35f138'
     assert file.original.pk == hash
     assert file.name == broken_name
