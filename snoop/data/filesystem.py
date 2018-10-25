@@ -15,6 +15,9 @@ from .utils import time_from_unix
 
 log = logging.getLogger(__name__)
 
+if settings.SNOOP_COLLECTION_ROOT is None:
+    raise RuntimeError("settings.SNOOP_COLLECTION_ROOT not configured")
+
 
 def directory_absolute_path(directory):
     path_elements = []

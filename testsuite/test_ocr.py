@@ -9,15 +9,15 @@ def test_pdf_ocr(fakedata, taskmanager, client):
     ocr1_path = TESTDATA.parent / 'ocr/one'
     ocr.create_ocr_source('ocr1', ocr1_path)
 
-    collection = fakedata.collection()
+    root = fakedata.init()
     mof1_1992_233 = TESTDATA / 'disk-files/pdf-for-ocr/mof1_1992_233.pdf'
     with mof1_1992_233.open('rb') as f:
         blob = fakedata.blob(f.read())
-    fakedata.file(collection.root_directory, 'mof1_1992_233.pdf', blob)
+    fakedata.file(root, 'mof1_1992_233.pdf', blob)
 
     taskmanager.run()
 
-    api = CollectionApiClient(collection, client)
+    api = CollectionApiClient(client)
     digest = api.get_digest(blob.pk)['content']
     assert "Hotărlre privind stabilirea cantităţii de gaze" in digest['text']
 
@@ -25,7 +25,7 @@ def test_pdf_ocr(fakedata, taskmanager, client):
     with ocr_pdf.open('rb') as f:
         ocr_pdf_data = f.read()
 
-    resp = client.get(f'/collections/testdata/{blob.pk}/ocr/ocr1/')
+    resp = client.get(f'/collection/{blob.pk}/ocr/ocr1/')
     assert b''.join(resp.streaming_content) == ocr_pdf_data
     assert resp['Content-Type'] == 'application/pdf'
 

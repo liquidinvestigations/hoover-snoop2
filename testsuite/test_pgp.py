@@ -56,12 +56,12 @@ def test_decrypted_data(gpg_blob, configure_gpg):
 
 
 def test_gpg_digest(gpg_blob, configure_gpg, client, fakedata, taskmanager):
-    collection = fakedata.collection()
-    fakedata.file(collection.root_directory, 'email', gpg_blob)
+    root = fakedata.init()
+    fakedata.file(root, 'email', gpg_blob)
 
     taskmanager.run()
 
-    api = CollectionApiClient(collection, client)
+    api = CollectionApiClient(client)
     digest = api.get_digest(gpg_blob.pk)['content']
     assert digest['pgp']
 

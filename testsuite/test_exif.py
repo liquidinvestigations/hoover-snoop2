@@ -9,14 +9,14 @@ logging.getLogger('exifread').setLevel(logging.INFO)
 
 
 def test_digest_image_exif(client, fakedata, taskmanager):
-    collection = fakedata.collection()
+    root = fakedata.init()
     with (TESTDATA / PATH_IMAGE).open('rb') as f:
         blob = fakedata.blob(f.read())
-    fakedata.file(collection.root_directory, 'bikes.jpg', blob)
+    fakedata.file(root, 'bikes.jpg', blob)
 
     taskmanager.run()
 
-    api = CollectionApiClient(collection, client)
+    api = CollectionApiClient(client)
     digest = api.get_digest(blob.pk)['content']
 
     assert digest['date-created'] == '2006-02-11T11:06:37Z'
