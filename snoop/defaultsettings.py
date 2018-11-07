@@ -82,9 +82,14 @@ celery.app.conf.beat_schedule = {
     'check_if_idle': {
         'task': 'snoop.data.tasks.check_if_idle',
         'schedule': timedelta(seconds=60),
+    },
+    'auto_sync': {
+        'task': 'snoop.data.tasks.auto_sync',
+        'schedule': timedelta(seconds=20)
     }
 }
 
 celery.app.conf.task_routes = {
-    'snoop.data.tasks.check_if_idle': {'queue': 'watchdog'}
+    'snoop.data.tasks.check_if_idle': {'queue': 'watchdog'},
+    'snoop.data.tasks.auto_sync': {'queue': 'auto_sync'}
 }
