@@ -11,6 +11,7 @@ import time
 from django.conf import settings
 import langdetect
 import requests
+from langdetect.lang_detect_exception import LangDetectException
 
 log = logging.getLogger(__name__)
 DOCUMENT_TYPE = 'doc'
@@ -85,8 +86,11 @@ def check_response(resp):
 
 
 def index(id, data):
-    if settings.DETECT_LANGUAGE and data.get('text', ''):
-        data['lang'] = langdetect.detect(data.get('text', '')[:2500])
+    if settings.DETECT_LANGUAGE and data.get('text') is not None:
+        try:
+            data['lang'] = langdetect.detect(data['text'][:2500])
+        except LangDetectException:
+            data['lang'] = None
 
     index_url = f'{ES_URL}/{ES_INDEX}'
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
