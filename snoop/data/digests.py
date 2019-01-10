@@ -105,9 +105,8 @@ def index(blob, digests_gather):
     try:
         indexing.index(digest.blob.pk, body)
     except RuntimeError as e:
-        log.exception(repr(e))
         log.exception(repr(body))
-        raise e
+        raise
 
 
 def get_filetype(mime_type):

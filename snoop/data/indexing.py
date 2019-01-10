@@ -90,6 +90,7 @@ def index(id, data):
         try:
             data['lang'] = langdetect.detect(data['text'][:2500])
         except LangDetectException:
+            log.debug(f'Unable to detect language for document {id}')
             data['lang'] = None
 
     index_url = f'{ES_URL}/{ES_INDEX}'
