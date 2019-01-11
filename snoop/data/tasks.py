@@ -15,6 +15,7 @@ from . import celery
 from . import models
 from ..profiler import profile
 from .utils import run_once
+from requests.exceptions import ConnectionError
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -180,6 +181,15 @@ def run_task(task_pk, raise_exceptions=False):
                 status=models.Task.STATUS_BROKEN,
                 error="{}: {}".format(e.reason, e.args[0]),
                 broken_reason=e.reason,
+                log=handler.stream.getvalue(),
+            )
+
+        except ConnectionError as e:
+            logger.exception(repr(e))
+            task.update(
+                status=models.Task.STATUS_DEFERRED,
+                error=repr(e),
+                broken_reason='',
                 log=handler.stream.getvalue(),
             )
 

@@ -102,7 +102,11 @@ def index(blob, digests_gather):
     content = _get_document_content(digest)
     version = _get_document_version(digest)
     body = dict(content, _hoover={'version': version})
-    indexing.index(digest.blob.pk, body)
+    try:
+        indexing.index(digest.blob.pk, body)
+    except RuntimeError as e:
+        log.exception(repr(body))
+        raise
 
 
 def get_filetype(mime_type):
