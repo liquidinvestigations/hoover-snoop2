@@ -9,9 +9,7 @@ import tarfile
 import time
 
 from django.conf import settings
-import langdetect
 import requests
-from langdetect.lang_detect_exception import LangDetectException
 
 log = logging.getLogger(__name__)
 DOCUMENT_TYPE = 'doc'
@@ -88,9 +86,9 @@ def check_response(resp):
 def index(id, data):
     if settings.DETECT_LANGUAGE and data.get('text') is not None:
         try:
-            data['lang'] = langdetect.detect(data['text'][:2500])
-        except LangDetectException:
-            log.debug(f'Unable to detect language for document {id}')
+            data['lang'] = settings.LANGUAGE_DETECTOR(data['text'][:2500])
+        except Exception as e:
+            log.debug(f'Unable to detect language for document {id}: {e}')
             data['lang'] = None
 
     index_url = f'{ES_URL}/{ES_INDEX}'

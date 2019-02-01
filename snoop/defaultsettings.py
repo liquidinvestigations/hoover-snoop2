@@ -1,7 +1,7 @@
 from datetime import timedelta
 from pathlib import Path
 
-from snoop.data import celery
+from snoop.data import celery, language_detection
 
 base_dir = Path(__file__).resolve().parent.parent
 
@@ -58,6 +58,7 @@ DATABASES = {
 
 LANGUAGE_CODE = 'en-us'
 DETECT_LANGUAGE = True
+LANGUAGE_DETECTOR_NAME = 'polyglot'
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_L10N = True
@@ -88,3 +89,5 @@ celery.app.conf.beat_schedule = {
 celery.app.conf.task_routes = {
     'snoop.data.tasks.check_if_idle': {'queue': 'watchdog'}
 }
+
+LANGUAGE_DETECTOR = language_detection.detectors[LANGUAGE_DETECTOR_NAME]
