@@ -9,5 +9,6 @@ application = DjangoWhiteNoise(application)
 
 from django.conf import settings
 from . import defaultsettings
-if not settings.DEBUG and settings.SECRET_KEY == defaultsettings.SECRET_KEY:
-    raise RuntimeError("Please change the default SECRET_KEY setting")
+if settings.SECRET_KEY == defaultsettings._default_secret_key:
+    if not settings.DEBUG:
+        raise RuntimeError("Please change the default SECRET_KEY setting")

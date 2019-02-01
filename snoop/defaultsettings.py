@@ -8,7 +8,9 @@ from snoop.data import celery
 base_dir = Path(__file__).resolve().parent.parent
 
 DEBUG = False
-SECRET_KEY = 'placeholder key for development'
+_default_secret_key = 'placeholder key for development'
+SECRET_KEY = os.environ.get('SECRET_KEY', _default_secret_key)
+
 ALLOWED_HOSTS = []
 
 INSTALLED_APPS = [
