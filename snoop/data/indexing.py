@@ -9,14 +9,14 @@ import tarfile
 import time
 
 from django.conf import settings
-import langdetect
 import requests
-from langdetect.lang_detect_exception import LangDetectException
+from snoop.data import language_detection
 
 log = logging.getLogger(__name__)
 DOCUMENT_TYPE = 'doc'
 ES_INDEX = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_INDEX
 ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
+language_detector = language_detection.detectors[settings.LANGUAGE_DETECTOR_NAME]
 
 MAPPINGS = {
     "doc": {
@@ -88,9 +88,9 @@ def check_response(resp):
 def index(id, data):
     if settings.DETECT_LANGUAGE and data.get('text') is not None:
         try:
-            data['lang'] = langdetect.detect(data['text'][:2500])
-        except LangDetectException:
-            log.debug(f'Unable to detect language for document {id}')
+            data['lang'] = language_detector(data['text'][:2500])
+        except Exception as e:
+            log.debug(f'Unable to detect language for document {id}: {e}')
             data['lang'] = None
 
     index_url = f'{ES_URL}/{ES_INDEX}'

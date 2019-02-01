@@ -7,6 +7,7 @@
 amqp==2.2.2               # via kombu
 attrs==17.4.0             # via pytest
 autopep8==1.3.5           # via django-silk
+babel==2.6.0              # via flower
 billiard==3.5.0.3         # via celery
 bleach==2.1.3
 celery==4.1.0
@@ -29,17 +30,21 @@ markupsafe==1.0           # via jinja2
 more-itertools==4.1.0     # via pytest
 pip-tools==2.0.1
 pluggy==0.6.0             # via pytest
+polyglot==16.7.4
 psycopg2-binary==2.7.4
 py==1.5.3                 # via pytest
+pycld2==0.31
 pycodestyle==2.4.0        # via autopep8
 pygments==2.2.0           # via django-silk
+pyicu==2.2
 pytest-django==3.2.1
 pytest==3.5.0
 python-dateutil==2.7.2
-pytz==2018.4              # via celery, django, django-silk
+pytz==2018.4              # via babel, celery, django, django-silk, flower
 requests==2.18.4
 six==1.11.0               # via bleach, html5lib, langdetect, more-itertools, pip-tools, pytest, python-dateutil
 sqlparse==0.2.4           # via django-silk
+tornado==5.1.1            # via flower
 urllib3==1.22             # via requests
 vine==1.1.4               # via amqp
 waitress==1.1.0
