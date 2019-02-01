@@ -1,3 +1,5 @@
+import os
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -55,6 +57,22 @@ DATABASES = {
         'NAME': 'snoop2',
     }
 }
+
+# heroku-style db config
+_snoop_db = os.environ.get('SNOOP_DB')
+if _snoop_db:
+    dbm = re.match(
+        r'postgresql://(?P<user>[^:]+):(?P<password>[^@]+)'
+        r'@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>.+)',
+        _snoop_db,
+    )
+    if not dbm:
+        raise RuntimeError("Can't parse SNOOP_DB value %r" % _snoop_db)
+    DATABASES['default']['HOST'] = dbm.group('host')
+    DATABASES['default']['PORT'] = dbm.group('port')
+    DATABASES['default']['NAME'] = dbm.group('name')
+    DATABASES['default']['USER'] = dbm.group('user')
+    DATABASES['default']['PASSWORD'] = dbm.group('password')
 
 LANGUAGE_CODE = 'en-us'
 DETECT_LANGUAGE = True
