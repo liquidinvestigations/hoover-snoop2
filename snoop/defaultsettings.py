@@ -101,6 +101,10 @@ SNOOP_COLLECTION_ROOT = None
 SNOOP_STATS_ELASTICSEARCH_URL = None
 SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'snoop2-'
 
+_amqp_url = os.environ.get('SNOOP_AMQP_URL')
+if _amqp_url:
+    CELERY_BROKER_URL = _amqp_url
+
 celery.app.conf.beat_schedule = {
     'check_if_idle': {
         'task': 'snoop.data.tasks.check_if_idle',
