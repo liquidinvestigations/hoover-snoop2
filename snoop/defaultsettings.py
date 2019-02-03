@@ -90,7 +90,7 @@ STATIC_URL = '/static/'
 STATIC_ROOT = str(base_dir / 'static')
 
 SNOOP_COLLECTION_NAME = 'snoop'
-SNOOP_COLLECTIONS_ELASTICSEARCH_URL = 'http://localhost:9200'
+SNOOP_COLLECTIONS_ELASTICSEARCH_URL = os.environ.get('SNOOP_ES_URL', 'http://localhost:9200')
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
