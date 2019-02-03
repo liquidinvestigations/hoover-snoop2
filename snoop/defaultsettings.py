@@ -12,7 +12,7 @@ _default_secret_key = 'placeholder key for development'
 SECRET_KEY = os.environ.get('SECRET_KEY', _default_secret_key)
 
 ALLOWED_HOSTS = []
-_hostname = os.environ.get('SNOOP_HTTP_HOSTNAME')
+_hostname = os.environ.get('SNOOP_HOSTNAME')
 if _hostname:
     ALLOWED_HOSTS.append(_hostname)
 
