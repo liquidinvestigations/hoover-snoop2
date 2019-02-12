@@ -8,8 +8,8 @@ from snoop.data import celery
 base_dir = Path(__file__).resolve().parent.parent
 
 DEBUG = os.environ.get('DEBUG', '').lower() in ['on', 'true']
-_default_secret_key = 'placeholder key for development'
-SECRET_KEY = os.environ.get('SECRET_KEY', _default_secret_key)
+default_secret_key = 'placeholder key for development'
+SECRET_KEY = os.environ.get('SECRET_KEY', default_secret_key)
 
 ALLOWED_HOSTS = []
 _hostname = os.environ.get('SNOOP_HOSTNAME')

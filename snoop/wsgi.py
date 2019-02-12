@@ -8,7 +8,6 @@ from whitenoise.django import DjangoWhiteNoise
 application = DjangoWhiteNoise(application)
 
 from django.conf import settings
-from . import defaultsettings
-if settings.SECRET_KEY == defaultsettings._default_secret_key:
-    if not settings.DEBUG:
-        raise RuntimeError("Please change the default SECRET_KEY setting")
+from .defaultsettings import default_secret_key
+if settings.SECRET_KEY == default_secret_key and not settings.DEBUG:
+    raise RuntimeError("Please change the default SECRET_KEY setting")
