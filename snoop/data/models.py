@@ -138,20 +138,22 @@ class Blob(models.Model):
     @classmethod
     def create_from_file(cls, path):
         file_sha3_256 = hashlib.sha3_256()
-        with open(path, 'rb') as f:
-            for block in chunks(f):
-                file_sha3_256.update(block)
 
         try:
-            return Blob.objects.get(pk=file_sha3_256.hexdigest())
+            blob = Blob.objects.get(pk=file_sha3_256.hexdigest())
+            with open(path, 'rb') as f:
+                for block in chunks(f):
+                    file_sha3_256.update(block)
 
         except ObjectDoesNotExist:
             with cls.create() as writer:
                 with open(path, 'rb') as f:
                     for block in chunks(f):
+                        file_sha3_256.update(block)
                         writer.write(block)
-
             return writer.blob
+
+        return blob
 
     def open(self, encoding=None):
         if encoding is not None:
@@ -201,7 +203,7 @@ class Directory(models.Model):
     def parent(self):
         return self.parent_directory or self.container_file
 
-    def ancestry(item):
+    def ancestry(self, item):
         while item:
             yield item
             item = item.parent
