@@ -151,6 +151,7 @@ class Blob(models.Model):
                     for block in chunks(f):
                         file_sha3_256.update(block)
                         writer.write(block)
+
             return writer.blob
 
         return blob
@@ -203,7 +204,8 @@ class Directory(models.Model):
     def parent(self):
         return self.parent_directory or self.container_file
 
-    def ancestry(self, item):
+    def ancestry(self):
+        item = self
         while item:
             yield item
             item = item.parent
