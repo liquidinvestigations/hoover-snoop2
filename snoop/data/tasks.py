@@ -16,6 +16,7 @@ from . import models
 from ..profiler import profile
 from .utils import run_once
 from requests.exceptions import ConnectionError
+from snoop.trace import tracer, TracerStats
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -95,16 +96,17 @@ def shaorma_log_handler(level=logging.DEBUG):
 @celery.app.task
 def laterz_shaorma(task_pk, raise_exceptions=False):
     import_shaormas()
-    run_task(task_pk, raise_exceptions)
+    with transaction.atomic(), shaorma_log_handler() as handler:
+        task = models.Task.objects.select_for_update().get(pk=task_pk)
+        run_task(task, handler, raise_exceptions)
 
 
 @profile()
-def run_task(task_pk, raise_exceptions=False):
-    with transaction.atomic(), shaorma_log_handler() as handler:
-        task = models.Task.objects.select_for_update().get(pk=task_pk)
-
+def run_task(task, log_handler, raise_exceptions=False):
+    with tracer.span(task.func) as span, TracerStats(task.func):
         if is_completed(task):
             logger.info("%r already completed", task)
+            span.add_annotation('already completed')
             queue_next_tasks(task)
             return
 
@@ -121,10 +123,11 @@ def run_task(task_pk, raise_exceptions=False):
                     status=models.Task.STATUS_DEFERRED,
                     error='',
                     broken_reason='',
-                    log=handler.stream.getvalue(),
+                    log=log_handler.stream.getvalue(),
                 )
                 task.save()
                 logger.info("%r missing dependency %r", task, prev_task)
+                span.add_annotation("%r missing dependency %r" % (task, prev_task))
                 return
 
             if prev_task.status == models.Task.STATUS_SUCCESS:
@@ -147,23 +150,24 @@ def run_task(task_pk, raise_exceptions=False):
         t0 = time()
         try:
             func = shaormerie[task.func]
-            result = func(*args, **depends_on)
+            with tracer.span('run ' + task.func) as span:
+                result = func(*args, **depends_on)
+                span.add_annotation('success')
 
             if result is not None:
                 assert isinstance(result, models.Blob)
                 task.result = result
 
         except MissingDependency as dep:
-            logger.info(
-                "%r requests an extra dependency: %r [%.03f s]",
-                task, dep, time() - t0,
-            )
+            msg = '%r requests an extra dependency: %r [%.03f s]' % (task, dep, time() - t0)
+            logger.info(msg)
+            span.add_annotation(msg)
 
             task.update(
                 status=models.Task.STATUS_DEFERRED,
                 error='',
                 broken_reason='',
-                log=handler.stream.getvalue(),
+                log=log_handler.stream.getvalue(),
             )
             models.TaskDependency.objects.get_or_create(
                 prev=dep.task,
@@ -173,27 +177,31 @@ def run_task(task_pk, raise_exceptions=False):
             queue_task(task)
 
         except ShaormaBroken as e:
-            logger.exception(
-                "%r broken: %s [%.03f s]",
-                task, task.error, time() - t0,
-            )
+            msg = '%r broken: %s [%.03f s]' % (task, task.error, time() - t0)
+            logger.exception(msg)
+            span.add_annotation(msg)
+
             task.update(
                 status=models.Task.STATUS_BROKEN,
                 error="{}: {}".format(e.reason, e.args[0]),
                 broken_reason=e.reason,
-                log=handler.stream.getvalue(),
+                log=log_handler.stream.getvalue(),
             )
 
         except ConnectionError as e:
+            span.add_annotation(repr(e))
             logger.exception(repr(e))
             task.update(
                 status=models.Task.STATUS_DEFERRED,
                 error=repr(e),
                 broken_reason='',
-                log=handler.stream.getvalue(),
+                log=log_handler.stream.getvalue(),
             )
 
         except Exception as e:
+            msg = '%r failed: %s [%.03f s]' % (task, task.error, time() - t0)
+            span.add_annotation(msg)
+
             if raise_exceptions:
                 raise
 
@@ -202,15 +210,12 @@ def run_task(task_pk, raise_exceptions=False):
             else:
                 error = repr(e)
 
-            logger.exception(
-                "%r failed: %s [%.03f s]",
-                task, task.error, time() - t0,
-            )
+            logger.exception(msg)
             task.update(
                 status=models.Task.STATUS_ERROR,
                 error=error,
                 broken_reason='',
-                log=handler.stream.getvalue(),
+                log=log_handler.stream.getvalue(),
             )
 
         else:
@@ -219,7 +224,7 @@ def run_task(task_pk, raise_exceptions=False):
                 status=models.Task.STATUS_SUCCESS,
                 error='',
                 broken_reason='',
-                log=handler.stream.getvalue(),
+                log=log_handler.stream.getvalue(),
             )
 
         task.date_finished = timezone.now()

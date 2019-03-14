@@ -17,3 +17,5 @@ flower
 polyglot
 pyicu
 pycld2
+opencensus
+prometheus_client

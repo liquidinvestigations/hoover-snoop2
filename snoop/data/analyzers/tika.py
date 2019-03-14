@@ -1,11 +1,10 @@
 from urllib.parse import urljoin
-import json
 from django.conf import settings
 import requests
 from dateutil import parser
 from ..tasks import shaorma, ShaormaBroken, returns_json_blob
-from .. import models
 from ..utils import zulu
+from snoop.trace import tracer
 
 TIKA_CONTENT_TYPES = [
     'text/plain',
@@ -71,7 +70,9 @@ def call_tika_server(endpoint, data):
 @returns_json_blob
 def rmeta(blob):
     with blob.open() as f:
+        tracer.current_span().add_annotation('call tika')
         resp = call_tika_server('/rmeta/text', f)
+        tracer.current_span().add_annotation('end call')
 
     return resp.json()
 
