@@ -11,7 +11,7 @@ from ... import tasks
 
 
 def celery_argv(custom_workers_no, queues):
-    workers_multiplier = 1
+    workers_multiplier = 1.5
     cpu_count = os.cpu_count()
     max_workers_no = min(int(cpu_count * 1.5), 100)
 
@@ -27,7 +27,7 @@ def celery_argv(custom_workers_no, queues):
         '--loglevel=info',
         'worker',
         '-Ofair',
-        '--max-tasks-per-child', '500',
+        '--max-tasks-per-child', '2000',
         '-Q', ','.join(queues),
     ]
 
