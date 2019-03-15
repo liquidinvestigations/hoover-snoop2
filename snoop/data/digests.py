@@ -87,7 +87,7 @@ def gather(blob, **depends_on):
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
 
-    digest, _ = models.Digest.objects.update_or_create(
+    _, _ = models.Digest.objects.update_or_create(
         blob=blob,
         defaults=dict(
             result=writer.blob,
@@ -104,7 +104,7 @@ def index(blob, digests_gather):
     body = dict(content, _hoover={'version': version})
     try:
         indexing.index(digest.blob.pk, body)
-    except RuntimeError as e:
+    except RuntimeError:
         log.exception(repr(body))
         raise
 
@@ -129,19 +129,19 @@ def full_path(file):
     return '/'.join(reversed(elements))
 
 def path_parts(path):
-  elements = path.split('/')[1:]
-  result = []
-  prev = None
+    elements = path.split('/')[1:]
+    result = []
+    prev = None
+    
+    for e in elements:
+        if prev:
+            prev = prev + '/' + e
+        else:
+            prev = '/' + e
 
-  for e in elements:
-    if prev:
-      prev = prev + '/' + e
-    else:
-      prev = '/' + e
-
-    result.append(prev)
-
-  return result
+        result.append(prev)
+    
+    return result
 
 def directory_id(directory):
     return f'_directory_{directory.pk}'
@@ -208,8 +208,8 @@ def email_meta(digest_data):
 
 email_domain_exp = re.compile("@([\\w.-]+)")
 
-def _extract_domain(str):
-    match = email_domain_exp.search(str)
+def _extract_domain(text):
+    match = email_domain_exp.search(text)
     if match:
         return match[1]
 
