@@ -69,10 +69,8 @@ def call_tika_server(endpoint, data):
 @shaorma('tika.rmeta')
 @returns_json_blob
 def rmeta(blob):
-    with blob.open() as f:
-        tracer.current_span().add_annotation('call tika')
+    with blob.open() as f, tracer.span('tika.rmeta'):
         resp = call_tika_server('/rmeta/text', f)
-        tracer.current_span().add_annotation('end call')
 
     return resp.json()
 
