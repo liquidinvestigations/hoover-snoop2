@@ -1,3 +1,4 @@
+from snoop.trace import tracer
 from contextlib import contextmanager
 from datetime import datetime
 import json
@@ -80,6 +81,7 @@ def check_response(resp):
     if 200 <= resp.status_code < 300:
         log.debug('Response: %r', resp)
     else:
+        tracer.current_span().add_annotation('error: write index: %r' % resp)
         log.error('Response: %r', resp)
         log.error('Response text:\n%s', resp.text)
         raise RuntimeError('Put request failed: %r' % resp)
@@ -87,6 +89,7 @@ def check_response(resp):
 
 def index(id, data):
     if settings.DETECT_LANGUAGE and data.get('text') is not None:
+        tracer.current_span().add_annotation('detect language')
         try:
             data['lang'] = language_detector(data['text'][:2500])
         except Exception as e:
@@ -94,7 +97,9 @@ def index(id, data):
             data['lang'] = None
 
     index_url = f'{ES_URL}/{ES_INDEX}'
+    tracer.current_span().add_annotation('write index')
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
+    tracer.current_span().add_annotation('done: write index')
 
     check_response(resp)
 
