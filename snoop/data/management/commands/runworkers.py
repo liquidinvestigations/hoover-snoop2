@@ -54,13 +54,13 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('func', nargs='*',
-                            help="Task types to run")
+                help="Task types to run")
         parser.add_argument('-n', '--workers-no',
-                            help="Number of workers to start")
+                help="Number of workers to start")
         parser.add_argument('-p', '--prefix',
-                            help="Prefix to insert to the queue name")
+                help="Prefix to insert to the queue name")
         parser.add_argument('-s', '--synced', action='store_true',
-                            help="Synchronize the collection with hoover")
+                help="Synchronize the collection with hoover")
 
     def handle(self, *args, **options):
         with Profiler():
