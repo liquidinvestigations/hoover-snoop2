@@ -1,3 +1,5 @@
+import os
+import re
 from datetime import timedelta
 from pathlib import Path
 
@@ -5,9 +7,14 @@ from snoop.data import celery
 
 base_dir = Path(__file__).resolve().parent.parent
 
-DEBUG = False
-SECRET_KEY = 'placeholder key for development'
+DEBUG = os.environ.get('DEBUG', '').lower() in ['on', 'true']
+default_secret_key = 'placeholder key for development'
+SECRET_KEY = os.environ.get('SECRET_KEY', default_secret_key)
+
 ALLOWED_HOSTS = []
+_hostname = os.environ.get('SNOOP_HOSTNAME')
+if _hostname:
+    ALLOWED_HOSTS.append(_hostname)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -56,6 +63,22 @@ DATABASES = {
     }
 }
 
+# heroku-style db config
+_snoop_db = os.environ.get('SNOOP_DB')
+if _snoop_db:
+    dbm = re.match(
+        r'postgresql://(?P<user>[^:]+):(?P<password>[^@]+)'
+        r'@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>.+)',
+        _snoop_db,
+    )
+    if not dbm:
+        raise RuntimeError("Can't parse SNOOP_DB value %r" % _snoop_db)
+    DATABASES['default']['HOST'] = dbm.group('host')
+    DATABASES['default']['PORT'] = dbm.group('port')
+    DATABASES['default']['NAME'] = dbm.group('name')
+    DATABASES['default']['USER'] = dbm.group('user')
+    DATABASES['default']['PASSWORD'] = dbm.group('password')
+
 LANGUAGE_CODE = 'en-us'
 DETECT_LANGUAGE = True
 LANGUAGE_DETECTOR_NAME = 'polyglot'
@@ -68,16 +91,21 @@ STATIC_URL = '/static/'
 STATIC_ROOT = str(base_dir / 'static')
 
 SNOOP_COLLECTION_NAME = 'snoop'
-SNOOP_COLLECTIONS_ELASTICSEARCH_URL = 'http://localhost:9200'
+SNOOP_COLLECTIONS_ELASTICSEARCH_URL = os.environ.get('SNOOP_ES_URL', 'http://localhost:9200')
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
-SNOOP_TIKA_URL = 'http://localhost:9998'
+SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 SNOOP_GNUPG_HOME = None
 SNOOP_FEED_PAGE_SIZE = 100
-SNOOP_COLLECTIONS_ELASTICSEARCH_INDEX = 'snoop2'
-SNOOP_COLLECTION_ROOT = None
+SNOOP_COLLECTIONS_ELASTICSEARCH_INDEX = os.environ.get('SNOOP_ES_INDEX', 'snoop2')
+SNOOP_COLLECTION_ROOT = os.environ.get('SNOOP_COLLECTION_ROOT')
 SNOOP_STATS_ELASTICSEARCH_URL = None
 SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'snoop2-'
+TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
+
+_amqp_url = os.environ.get('SNOOP_AMQP_URL')
+if _amqp_url:
+    CELERY_BROKER_URL = _amqp_url
 
 celery.app.conf.beat_schedule = {
     'check_if_idle': {
