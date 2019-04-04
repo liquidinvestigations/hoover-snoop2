@@ -59,6 +59,8 @@ class Command(BaseCommand):
                 help="Number of workers to start")
         parser.add_argument('-p', '--prefix',
                 help="Prefix to insert to the queue name")
+        parser.add_argument('-s', '--synced', action='store_true',
+                help="Synchronize the collection with hoover")
 
     def handle(self, *args, **options):
         with Profiler():
@@ -69,9 +71,13 @@ class Command(BaseCommand):
             else:
                 prefix = settings.TASK_PREFIX
             queues = options.get('func') or tasks.shaormerie
+            system_queues = ['watchdog']
+            if options.get('synced'):
+                system_queues += ['auto_sync']
+
             argv = celery_argv(
                 custom_workers_no=options.get('workers_no'),
-                queues=[f'{prefix}.{queue}' for queue in queues] + ['watchdog'],
+                queues=[f'{prefix}.{queue}' for queue in queues] + system_queues,
             )
             print('+', *argv)
             create_procfile(argv)

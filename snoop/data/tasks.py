@@ -10,7 +10,6 @@ from django.db import transaction
 from django.utils import timezone
 
 from snoop.data.models import Task
-
 from . import celery
 from . import models
 from ..profiler import profile
@@ -380,3 +379,11 @@ def check_if_idle():
             dispatch_pending_tasks()
             from snoop.data.dispatcher import dispatch_walk_tasks
             dispatch_walk_tasks()
+
+
+@celery.app.task
+def auto_sync():
+    logger.info("walk for auto sync")
+    queryset = models.Task.objects
+    queryset = queryset.filter(func='filesystem.walk')
+    retry_tasks(queryset)
