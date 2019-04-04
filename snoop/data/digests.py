@@ -154,6 +154,9 @@ def parent_id(file):
         return parent.blob.pk
 
     if isinstance(parent, models.Directory):
+        # skip over the dirs that are the children of container files
+        if parent.container_file:
+            return parent.container_file.blob.pk
         return directory_id(parent)
 
     return None
@@ -307,11 +310,11 @@ def get_document_data(digest):
 
 def get_document_locations(digest):
     def location(file):
-        parent = file.parent_directory
+        parent_path = full_path(file.parent_directory.container_file or file.parent_directory)
         return {
             'filename': file.name,
-            'parent_id': directory_id(parent),
-            'parent_path': full_path(parent),
+            'parent_id': parent_id(file),
+            'parent_path': parent_path,
         }
 
     queryset = digest.blob.file_set.order_by('pk')
