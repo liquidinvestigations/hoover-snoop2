@@ -107,6 +107,18 @@ _amqp_url = os.environ.get('SNOOP_AMQP_URL')
 if _amqp_url:
     CELERY_BROKER_URL = _amqp_url
 
+_tracing_url = os.environ.get('TRACING_URL')
+if _tracing_url:
+    trm = re.match(r'http://(?P<host>[^:]+):(?P<port>\d+)', _tracing_url)
+    if not trm:
+        raise RuntimeError("Can't parse TRACING_API value %r" % _tracing_url)
+
+    TRACING_ENABLED = True
+    TRACING_SERVICE = 'snoop'
+    TRACING_HOST = trm.group('host')
+    TRACING_PORT = int(trm.group('port'))
+    TRACING_API = '/api/v2/spans'
+
 celery.app.conf.beat_schedule = {
     'check_if_idle': {
         'task': 'snoop.data.tasks.check_if_idle',
