@@ -39,6 +39,7 @@ else:
 # Set the tracer to use the exporter
 # Get the global singleton Tracer object
 tracer = Tracer(exporter=ze, sampler=sampler)
+tracer.span('root')
 
 # Create the measures
 # The latency in milliseconds
