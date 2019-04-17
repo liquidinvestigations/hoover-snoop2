@@ -7,11 +7,11 @@ from opencensus.stats import aggregation as aggregation_module
 from opencensus.stats import measure as measure_module
 from opencensus.stats import stats as stats_module
 from opencensus.stats import view as view_module
-from opencensus.stats.exporters import prometheus_exporter as prometheus
+from opencensus.ext.prometheus import stats_exporter as prometheus
 from opencensus.tags import tag_key as tag_key_module
 from opencensus.tags import tag_map as tag_map_module
 from opencensus.tags import tag_value as tag_value_module
-from opencensus.trace.exporters.zipkin_exporter import ZipkinExporter
+from opencensus.ext.zipkin import trace_exporter as zipkin
 from opencensus.trace.samplers import always_on, always_off
 from opencensus.trace.tracer import Tracer
 
@@ -25,7 +25,7 @@ def is_enabled():
 
 
 # Setup the exporter
-ze = ZipkinExporter(service_name = getattr(settings, 'TRACING_SERVICE', 'snoop'),
+ze = zipkin.ZipkinExporter(service_name = getattr(settings, 'TRACING_SERVICE', 'snoop'),
                     host_name = getattr(settings, 'TRACING_HOST', 'zipkin'),
                     port = getattr(settings, 'TRACING_PORT', 9411),
                     endpoint = getattr(settings, 'TRACING_API', '/api/v2/spans'))
@@ -45,7 +45,7 @@ tracer.span('root')
 # The latency in milliseconds
 m_latency_ms = measure_module.MeasureFloat("latency", "The latency in milliseconds", "ms")
 
-stats = stats_module.Stats()
+stats = stats_module.stats
 
 # Create the method key
 key_method = tag_key_module.TagKey("method")
