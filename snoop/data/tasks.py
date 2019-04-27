@@ -15,7 +15,7 @@ from . import models
 from ..profiler import profile
 from .utils import run_once
 from requests.exceptions import ConnectionError
-from snoop.trace import tracer, TracerStats
+from snoop.trace import tracer
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -102,7 +102,7 @@ def laterz_shaorma(task_pk, raise_exceptions=False):
 
 @profile()
 def run_task(task, log_handler, raise_exceptions=False):
-    with tracer.span(task.func) as span, TracerStats(task.func):
+    with tracer.span(task.func) as span:
         if is_completed(task):
             logger.info("%r already completed", task)
             span.add_annotation('already completed')
