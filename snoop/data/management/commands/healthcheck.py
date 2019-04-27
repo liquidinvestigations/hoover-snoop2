@@ -14,5 +14,5 @@ class Command(BaseCommand):
     help = "Check service health: migrations, dependencies"
 
     def handle(self, **options):
-        assert is_database_synchronized(DEFAULT_DB_ALIAS), 'Migrations not run'
+        assert is_database_synchronized(), 'Migrations not run'
         print('database ok')
