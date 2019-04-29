@@ -9,6 +9,8 @@ from snoop.profiler import Profiler
 
 from ... import tasks
 
+def bool_env(value):
+    return (value or '').lower() in ['on', 'true']
 
 def celery_argv(custom_workers_no, queues):
     workers_multiplier = 1.5
@@ -59,8 +61,6 @@ class Command(BaseCommand):
                 help="Number of workers to start")
         parser.add_argument('-p', '--prefix',
                 help="Prefix to insert to the queue name")
-        parser.add_argument('-s', '--synced', action='store_true',
-                help="Synchronize the collection with hoover")
 
     def handle(self, *args, **options):
         with Profiler():
@@ -72,7 +72,7 @@ class Command(BaseCommand):
                 prefix = settings.TASK_PREFIX
             queues = options.get('func') or tasks.shaormerie
             system_queues = ['watchdog']
-            if options.get('synced'):
+            if bool_env(os.environ.get('SYNCED')):
                 system_queues += ['auto_sync']
 
             argv = celery_argv(
