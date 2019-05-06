@@ -72,7 +72,7 @@ class Command(BaseCommand):
                 prefix = settings.TASK_PREFIX
             queues = options.get('func') or tasks.shaormerie
             system_queues = ['watchdog']
-            if bool_env(os.environ.get('SYNCED')):
+            if bool_env(os.environ.get('SYNC_FILES')):
                 system_queues += ['auto_sync']
 
             argv = celery_argv(
