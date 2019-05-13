@@ -31,7 +31,7 @@ def reconstruct(file_pk, **depends_on):
             )
 
             if not part_file:
-                log.warn("Missing %r", part_name)
+                log.warning("Missing %r", part_name)
                 continue
 
             with part_file.original.open() as f:
