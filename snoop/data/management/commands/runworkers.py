@@ -12,11 +12,7 @@ from ... import tasks
 def bool_env(value):
     return (value or '').lower() in ['on', 'true']
 
-def celery_argv(custom_workers_no, queues):
-    workers_multiplier = 1.5
-    cpu_count = os.cpu_count()
-    max_workers_no = min(int(cpu_count * 1.5), 100)
-
+def celery_argv(queues):
     celery_binary = (
         subprocess.check_output(['which', 'celery'])
         .decode('latin1')
@@ -31,16 +27,8 @@ def celery_argv(custom_workers_no, queues):
         '-Ofair',
         '--max-tasks-per-child', '2000',
         '-Q', ','.join(queues),
+        '-c', '1',  # single worker
     ]
-
-    workers_no = int(custom_workers_no) if custom_workers_no else int(cpu_count * workers_multiplier)
-    if workers_no > max_workers_no:
-        print(f'Limitting the number of workers to {max_workers_no} on {cpu_count} CPUs.')
-        workers_no = max_workers_no
-    else:
-        print(f'Starting with {workers_no} workers on {cpu_count} CPUs.')
-
-    argv += ['-c', str(workers_no)]
 
     return argv
 
@@ -57,8 +45,6 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('func', nargs='*',
                 help="Task types to run")
-        parser.add_argument('-n', '--workers-no',
-                help="Number of workers to start")
         parser.add_argument('-p', '--prefix',
                 help="Prefix to insert to the queue name")
 
@@ -76,7 +62,6 @@ class Command(BaseCommand):
                 system_queues += ['auto_sync']
 
             argv = celery_argv(
-                custom_workers_no=options.get('workers_no'),
                 queues=[f'{prefix}.{queue}' for queue in queues] + system_queues,
             )
             print('+', *argv)
