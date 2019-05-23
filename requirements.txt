@@ -50,7 +50,7 @@ pytest-django==3.2.1
 pytest==3.5.0
 python-dateutil==2.7.2
 pytz==2018.4              # via babel, celery, django, django-silk, flower, google-api-core
-requests==2.18.4
+requests==2.20.0
 rsa==4.0                  # via google-auth
 six==1.11.0               # via bleach, google-api-core, google-auth, html5lib, langdetect, more-itertools, pip-tools, protobuf, pytest, python-dateutil
 sqlparse==0.2.4           # via django-silk
