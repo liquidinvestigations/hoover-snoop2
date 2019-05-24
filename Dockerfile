@@ -18,7 +18,6 @@ RUN set -e \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
  && pip install pipenv
 
-
 RUN mkdir -p /opt/hoover/snoop
 WORKDIR /opt/hoover/snoop
 
