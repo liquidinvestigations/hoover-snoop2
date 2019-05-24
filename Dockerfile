@@ -15,13 +15,15 @@ RUN set -e \
      python-numpy \
      libicu-dev \
  && cpanm --notest Email::Outlook::Message \
- && apt-get clean && rm -rf /var/lib/apt/lists/*
+ && apt-get clean && rm -rf /var/lib/apt/lists/* \
+ && pip install pipenv
+
 
 RUN mkdir -p /opt/hoover/snoop
 WORKDIR /opt/hoover/snoop
 
-ADD requirements.txt ./
-RUN pip install -r requirements.txt
+ADD Pipfile Pipfile.lock ./
+RUN pipenv install --system --deploy --ignore-pipfile
 
 RUN cd /opt \
   && git clone https://github.com/hoover/magic-definitions.git \
