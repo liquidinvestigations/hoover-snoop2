@@ -1,0 +1,69 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+amqp = '*'
+attrs = '*'
+autopep8 = '*'
+billiard = '*'
+bleach = '*'
+cachetools = '*'
+celery = '*'
+certifi = '*'
+chardet = '*'
+click = '*'
+django-silk = '*'
+first = '*'
+flower = '*'
+google-api-core = '*'
+google-auth = '*'
+googleapis-common-protos = '*'
+gprof2dot = '*'
+honcho = '*'
+html5lib = '*'
+idna = '*'
+kombu = '*'
+langdetect = '*'
+more-itertools = '*'
+opencensus = '*'
+pip-tools = '*'
+pluggy = '*'
+polyglot = '*'
+protobuf = '*'
+psycopg2-binary = '*'
+py = '*'
+pyasn1-modules = '*'
+pyasn1 = '*'
+pycld2 = '*'
+pycodestyle = '*'
+pytest-django = '*'
+pytest = '*'
+python-dateutil = '*'
+pytz = '*'
+requests = '*'
+rsa = '*'
+six = '*'
+sqlparse = '*'
+tornado = '*'
+urllib3 = '*'
+vine = '*'
+waitress = '*'
+webencodings = '*'
+whitenoise = '*'
+Babel = '*'
+Django = '*'
+ExifRead = '*'
+Jinja2 = '*'
+MarkupSafe = '*'
+prometheus_client = '*'
+Pygments = '*'
+PyICU = '*'
+opencensus-ext-prometheus = "*"
+opencensus-ext-zipkin = "*"
+
+[requires]
+python_version = "3.6"
