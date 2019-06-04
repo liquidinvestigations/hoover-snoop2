@@ -182,7 +182,7 @@ def export_index(stream=None):
 
 def import_index(delete=False, stream=None):
     if delete:
-        delete_index(ES_INDEX)
+        delete_index()
 
     with snapshot_repo() as (repo, repo_path):
         log.info('Unpack tar archive')
