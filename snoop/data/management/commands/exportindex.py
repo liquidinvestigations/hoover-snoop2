@@ -13,7 +13,8 @@ class Command(BaseCommand):
     def handle(self, file_name, *args, **options):
         logging_for_management_command(options['verbosity'])
         if file_name:
-            with open(os.path.join('exports', f'{file_name}.tar'), 'w') as export_file:
+            file_name = file_name if file_name.endswith('.tar') else f'{file_name}.tar'
+            with open(os.path.join('exports', file_name), 'w') as export_file:
                 indexing.export_index(export_file)
         else:
             indexing.export_index()

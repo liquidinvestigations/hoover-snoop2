@@ -180,9 +180,11 @@ def export_index(stream=None):
         )
 
 
-def import_index(delete=False, stream=None):
+def import_index(delete=False, stream=None, from_index=None):
     if delete:
         delete_index()
+
+    from_index = from_index or ES_INDEX
 
     with snapshot_repo() as (repo, repo_path):
         log.info('Unpack tar archive')
@@ -196,7 +198,7 @@ def import_index(delete=False, stream=None):
         for s in snapshots_resp.json()['snapshots']:
             if s['state'] == 'SUCCESS':
                 [snapshot_index] = s['indices']
-                if snapshot_index != ES_INDEX:
+                if snapshot_index != from_index:
                     continue
                 snapshot = f'{repo}/{s["snapshot"]}'
                 break
@@ -206,9 +208,11 @@ def import_index(delete=False, stream=None):
         log.info("Starting restore for index %r as %r", snapshot_index, ES_INDEX)
         restore = f'{snapshot}/_restore'
         restore_resp = post_json(restore, {
-            'indices': ES_INDEX,
+            'indices': from_index,
             'include_global_state': False,
             'include_aliases': False,
+            'rename_pattern': from_index,
+            'rename_replacement': ES_INDEX
         })
         check_response(restore_resp)
         assert restore_resp.json()['accepted']

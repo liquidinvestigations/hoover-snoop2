@@ -10,12 +10,17 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('-d', '--delete', action='store_true',
                             help="Delete any existing index.")
+        parser.add_argument('-i', '--index', nargs = 1,
+                            help='Snapshot name (previous index name)')
         parser.add_argument('file_name', type=str, default=None, help="Export file")
 
-    def handle(self, delete, file_name, *args, **options):
+    def handle(self, delete, index, file_name, *args, **options):
+        index = index[0] if index else None
         logging_for_management_command(options['verbosity'])
         if file_name:
-            with open(os.path.join('exports', f'{file_name}.tar'), 'rb') as import_file:
-                indexing.import_index(delete=delete, stream=import_file)
+            file_name = file_name if file_name.endswith('.tar') else f'{file_name}.tar'
+            with open(os.path.join('exports', file_name), 'rb') as import_file:
+                indexing.import_index(delete=delete, stream=import_file,
+                                      from_index=index)
         else:
-            indexing.export_index(delete=delete)
+            indexing.import_index(delete=delete, from_index=index)
