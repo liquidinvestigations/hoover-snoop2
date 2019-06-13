@@ -48,6 +48,7 @@ RUN set -e \
  && echo 'waitress-serve --port 80 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver /wait
 
-RUN ./manage.py collectstatic --noinput
+RUN set -e \
+ && SECRET_KEY=temp SNOOP_AMQP_URL='amqp://localhost' SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
 CMD /wait && /runserver

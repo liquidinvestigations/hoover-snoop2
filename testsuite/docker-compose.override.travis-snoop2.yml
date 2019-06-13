@@ -25,6 +25,7 @@ services:
     environment:
       WAIT_HOSTS: search-es:9200, snoop-pg:5432
       WAIT_HOSTS_TIMEOUT: 60
+      SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
     depends_on:
       - snoop-pg
       - search-es
@@ -36,6 +37,7 @@ services:
       - ./settings/snoop.testing.env
     environment:
       - SNOOP_TESTDATA=/opt/hoover/snoop/docker-setup/collections/testdata
+      - SNOOP_DB = postgresql://snoop:snoop@snoop-pg:5432/snoop
     volumes:
       - ..:/opt/hoover/snoop:cached
       - ./gnupg:/opt/hoover/gnupg
