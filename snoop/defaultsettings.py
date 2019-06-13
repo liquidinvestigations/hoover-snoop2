@@ -65,20 +65,19 @@ DATABASES = {
 }
 
 # heroku-style db config
-_snoop_db = os.environ.get('SNOOP_DB')
-if _snoop_db:
-    dbm = re.match(
-        r'postgresql://(?P<user>[^:]+):(?P<password>[^@]+)'
-        r'@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>.+)',
-        _snoop_db,
-    )
-    if not dbm:
-        raise RuntimeError("Can't parse SNOOP_DB value %r" % _snoop_db)
-    DATABASES['default']['HOST'] = dbm.group('host')
-    DATABASES['default']['PORT'] = dbm.group('port')
-    DATABASES['default']['NAME'] = dbm.group('name')
-    DATABASES['default']['USER'] = dbm.group('user')
-    DATABASES['default']['PASSWORD'] = dbm.group('password')
+_snoop_db = os.environ['SNOOP_DB']
+dbm = re.match(
+    r'postgresql://(?P<user>[^:]+):(?P<password>[^@]+)'
+    r'@(?P<host>[^:]+):(?P<port>\d+)/(?P<name>.+)',
+    _snoop_db,
+)
+if not dbm:
+    raise RuntimeError("Can't parse SNOOP_DB value %r" % _snoop_db)
+DATABASES['default']['HOST'] = dbm.group('host')
+DATABASES['default']['PORT'] = dbm.group('port')
+DATABASES['default']['NAME'] = dbm.group('name')
+DATABASES['default']['USER'] = dbm.group('user')
+DATABASES['default']['PASSWORD'] = dbm.group('password')
 
 LANGUAGE_CODE = 'en-us'
 DETECT_LANGUAGE = True
@@ -104,7 +103,7 @@ SNOOP_STATS_ELASTICSEARCH_URL = None
 SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'snoop2-'
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 
-_amqp_url = os.environ.get('SNOOP_AMQP_URL')
+_amqp_url = os.environ['SNOOP_AMQP_URL']
 if _amqp_url:
     CELERY_BROKER_URL = _amqp_url
 
