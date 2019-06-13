@@ -26,6 +26,7 @@ services:
       WAIT_HOSTS: search-es:9200, snoop-pg:5432
       WAIT_HOSTS_TIMEOUT: 60
       SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
+      SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
     depends_on:
       - snoop-pg
       - search-es
@@ -38,6 +39,7 @@ services:
     environment:
       - SNOOP_TESTDATA=/opt/hoover/snoop/docker-setup/collections/testdata
       - SNOOP_DB = postgresql://snoop:snoop@snoop-pg:5432/snoop
+      - SNOOP_AMQP_URL = amqp://snoop-rabbitmq
     volumes:
       - ..:/opt/hoover/snoop:cached
       - ./gnupg:/opt/hoover/gnupg
