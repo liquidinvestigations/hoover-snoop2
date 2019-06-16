@@ -8,6 +8,7 @@ steps:
   - pip install flake8 > /dev/null
   - flake8 || true
   - echo 'not running flake8 yet'
+
 - name: docker build, extract magic
   image: docker:dind
   volumes:
@@ -17,26 +18,34 @@ steps:
   - until docker version; do sleep 3; done
   - docker build . --tag snoop2-testing
   - docker run --rm -v `pwd`:/local snoop2-testing cp magic.mgc /local
-- name: docker setup
+
+- name: download docker setup, testdata
+  image: alpine/git:1.0.7
+  commands:
+  - git --version
+  - git clone https://github.com/hoover/docker-setup.git
+  - mkdir docker-setup/collections
+  - git clone https://github.com/hoover/testdata docker-setup/collections/testdata
+
+- name: do the docker setup
   image: docker/compose:1.24.0
   volumes:
   - name: dockersock
     path: /var/run
   commands:
-  - apk add git
-  - git clone https://github.com/hoover/docker-setup.git
   - cd docker-setup
-  - mkdir -p volumes volumes/metrics volumes/metrics/users collections volumes/search-es-snapshots volumes/search-es/data
+  - mkdir -p volumes volumes/metrics volumes/metrics/users volumes/search-es-snapshots volumes/search-es/data
   - chmod 777 volumes/search-es-snapshots volumes/search-es/data
   - cp ../testsuite/docker-compose.override.travis-snoop2.yml docker-compose.override.yml
   - docker-compose up -d
-  - git clone https://github.com/hoover/testdata collections/testdata
+
 - name: py.test
   image: docker/compose:1.24.0
   volumes:
   - name: dockersock
     path: /var/run
   commands:
+  - cd docker-setup
   - docker-compose run --rm snoop bash -c '/wait && py.test -vv --ignore=docker-setup'
 
 services:
@@ -50,6 +59,7 @@ services:
 volumes:
 - name: dockersock
   temp: {}
+
 ---
 kind: pipeline
 name: publish
