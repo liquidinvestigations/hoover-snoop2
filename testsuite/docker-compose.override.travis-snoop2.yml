@@ -38,8 +38,8 @@ services:
       - ./settings/snoop.testing.env
     environment:
       - SNOOP_TESTDATA=/opt/hoover/snoop/docker-setup/collections/testdata
-      - SNOOP_DB = postgresql://snoop:snoop@snoop-pg:5432/snoop
-      - SNOOP_AMQP_URL = amqp://snoop-rabbitmq
+      - SNOOP_DB=postgresql://snoop:snoop@snoop-pg:5432/snoop
+      - SNOOP_AMQP_URL=amqp://snoop-rabbitmq
     volumes:
       - ..:/opt/hoover/snoop:cached
       - ./gnupg:/opt/hoover/gnupg

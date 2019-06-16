@@ -62,7 +62,7 @@ volumes:
 
 ---
 kind: pipeline
-name: publish
+name: publish to docker hub
 
 trigger:
   status:
