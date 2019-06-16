@@ -1,0 +1,92 @@
+kind: pipeline
+name: test
+
+steps:
+- name: flake8
+  image: python:3.7-stretch
+  commands:
+  - pip install flake8 > /dev/null
+  - flake8 || true
+  - echo 'not running flake8 yet'
+- name: docker setup
+  image: docker/compose:1.24.0
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  - docker-compose --version
+  - docker --version
+  - apk add git
+  - docker build . --tag snoop2-testing
+  - docker run --rm -it -v `pwd`:/local snoop2-testing cp magic.mgc /local
+  - git clone https://github.com/hoover/docker-setup.git
+  - cd docker-setup
+  - mkdir -p volumes volumes/metrics volumes/metrics/users collections volumes/search-es-snapshots volumes/search-es/data
+  - chmod 777 volumes/search-es-snapshots volumes/search-es/data
+  - cp ../testsuite/docker-compose.override.travis-snoop2.yml docker-compose.override.yml
+  - docker-compose up -d
+  - git clone https://github.com/hoover/testdata collections/testdata
+  - docker-compose run --rm snoop bash -c '/wait && py.test -vv --ignore=docker-setup'
+
+services:
+- name: docker daemon in docker
+  image: docker:dind
+  privileged: true
+  volumes:
+  - name: dockersock
+    path: /var/run
+
+volumes:
+- name: dockersock
+  temp: {}
+---
+kind: pipeline
+name: publish
+
+trigger:
+  status:
+  - success
+  event:
+  - push
+  - tag
+
+depends_on:
+- test
+
+steps:
+- name: docker push branch ${DRONE_COMMIT_BRANCH}
+  image: plugins/docker
+  settings:
+    repo: liquidinvestigations/hoover-snoop2
+    tags: ${DRONE_COMMIT_BRANCH}
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+  when:
+    event:
+    - push
+
+- name: docker push autotag + latest
+  image: plugins/docker
+  settings:
+    repo: liquidinvestigations/hoover-snoop2
+    auto_tag: true
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+
+---
+kind: secret
+name: docker_username
+get:
+  path: liquid/ci/drone.docker
+  name: username
+
+---
+kind: secret
+name: docker_password
+get:
+  path: liquid/ci/drone.docker
+  name: password
