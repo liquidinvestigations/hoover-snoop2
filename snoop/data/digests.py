@@ -267,6 +267,7 @@ def _get_document_content(digest):
         'size': original.size,
         'filename': first_file.name,
         'path': path,
+        'path-text': path,
         'path-parts': path_parts(path),
         'broken': digest_data.get('broken'),
         'attachments': attachments,
