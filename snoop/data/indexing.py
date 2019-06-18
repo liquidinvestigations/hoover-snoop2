@@ -35,6 +35,7 @@ MAPPINGS = {
             "message": {"type": "keyword"},
             "message-id": {"type": "keyword"},
             "path": {"type": "keyword"},
+            "path-text": {"type": "text"},
             "path-parts": {"type": "keyword"},
             "references": {"type": "keyword"},
             "rev": {"type": "integer"},
