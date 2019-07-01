@@ -26,7 +26,8 @@ ID = {
 def test_complete_lifecycle(client, taskmanager):
     blobs_path = settings.SNOOP_BLOB_STORAGE
     subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
-
+    
+    models.Directory.objects.create()
     indexing.delete_index()
     indexing.create_index()
 

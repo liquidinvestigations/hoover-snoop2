@@ -195,6 +195,15 @@ def test_emlx_reconstruction(taskmanager):
     emlx_blob = models.Blob.create_from_file(emlx_path)
     emlx_file = mkfile(d5, emlx_filename, emlx_blob)
 
+    emlxpart_filename = '1498.3.emlxpart'
+    emlxpart_path = (
+        Path(settings.SNOOP_TESTDATA) / 'data'
+        / d1.name / d2.name / d3.name
+        / d4.name / d5.name / emlxpart_filename
+    )
+    emlxpart_blob = models.Blob.create_from_file(emlxpart_path)
+    emlxpart_file = mkfile(d5, emlxpart_filename, emlxpart_blob)
+
     emlx_task = emlx.reconstruct.laterz(emlx_file.pk)
     taskmanager.run()
     emlx_task.refresh_from_db()
