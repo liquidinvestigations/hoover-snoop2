@@ -59,6 +59,7 @@ def test_children_of_archives_in_multiple_locations(taskmanager, monkeypatch):
 
     files = list(models.File.objects.all())
     dirs = list(models.Directory.objects.all())
+    blobs = list(models.Blob.objects.all())
 
     [z1, c1, z2, c2] = sorted(files, key=lambda x: str(x.parent) + str(x))
     assert z1.blob == z2.blob
