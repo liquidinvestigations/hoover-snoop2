@@ -4,7 +4,6 @@ import tempfile
 from django.conf import settings
 import pytest
 
-from conftest import mkdir
 from snoop.data import dispatcher
 from snoop.data import filesystem
 from snoop.data import models
@@ -52,15 +51,13 @@ def test_smashed_filename(taskmanager, monkeypatch):
 def test_children_of_archives_in_multiple_locations(taskmanager, monkeypatch):
     root_path = Path(settings.SNOOP_COLLECTION_ROOT) / 'zip-in-multiple-locations'
     monkeypatch.setattr(settings, 'SNOOP_COLLECTION_ROOT', root_path)
-    root = models.Directory.objects.create()
 
-    #filesystem.walk(root.pk)
+    # filesystem.walk(root.pk)
     dispatcher.run_dispatcher()
     taskmanager.run(limit=10000)
 
     files = list(models.File.objects.all())
     dirs = list(models.Directory.objects.all())
-    blobs = list(models.Blob.objects.all())
 
     [z1, c1, z2, c2] = sorted(files, key=lambda x: str(x.parent) + str(x))
     assert z1.blob == z2.blob

@@ -58,6 +58,7 @@ SHAPELIB_MBOX = Path(settings.SNOOP_TESTDATA) / "data/mbox/shapelib.mbox"
 TAR_GZ = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz"
 RAR = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/rar-with-pdf-doc-docx.rar"
 
+
 def test_unarchive_zip(taskmanager):
     zip_blob = models.Blob.create_from_file(JERRY_ZIP)
     listing_blob = archives.unarchive(zip_blob)
@@ -78,11 +79,11 @@ def test_unarchive_pst(taskmanager):
     with listing_blob.open() as f:
         listing = json.load(f)
 
-    EML_NUMBER_5 = {
+    EML_NUMBER_5 = {  # noqa: F841
         "type": "file",
         "name": "5.eml",
         "blob_pk": "9c007ccf1720d6279fc64389321fd83e053c9c4abc885a1745e9bc6793d515c9"
-    }
+        }
 
     [root_dir] = listing
     assert root_dir['name'] == 'pst-test-2@aranetic.com'
@@ -158,9 +159,9 @@ def test_unarchive_mbox(taskmanager):
 
     assert len(listing) == 28
     assert listing[0] == {
-         'children': [
+        'children': [
             {'blob_pk': '7779d128a2cd425eba06693b56e1fc7351c1d66c2ee78c96dd4bd5649307f636',
              'name': '0716d9708d321ffb6a00818614779e779925365c.eml',
              'type': 'file'}],
-         'name': '07',
-         'type': 'directory'}
+        'name': '07',
+        'type': 'directory'}

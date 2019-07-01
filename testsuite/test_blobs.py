@@ -1,10 +1,10 @@
-from pathlib import Path
+from pathlib import Path  # noqa: F401
 import pytest
 from django.conf import settings
 from snoop.data import models
-from snoop.data import tasks
 
 pytestmark = [pytest.mark.django_db]
+
 
 def test_make_blob_from_jpeg_file():
     IMAGE = settings.SNOOP_TESTDATA + "/data/disk-files/images/bikes.jpg"
@@ -33,29 +33,37 @@ def test_make_blob_from_first_eml_file():
     # .eml: message/rfc822
     ("/data/no-extension/file_eml", 'message/rfc822'),
     ("/data/eml-2-attachment/message-without-subject.eml", 'message/rfc822'),
-    ("/data/eml-2-attachment/Fwd: The American College of Thessaloniki - Greece - Tarek Kouatly <tarek@act.edu> - 2013-11-11 1622.eml", 'message/rfc822'),
+    (("/data/eml-2-attachment/Fwd: The American College of Thessaloniki - Greece - Tarek Kouatly "
+      "<tarek@act.edu> - 2013-11-11 1622.eml"), 'message/rfc822'),
     ("/data/eml-2-attachment/attachments-have-octet-stream-content-type.eml", 'message/rfc822'),
-    ("/data/eml-2-attachment/FW: Invitation Fontys Open Day 2nd of February 2014 - Campus Venlo <campusvenlo@fontys.nl> - 2013-12-16 1700.eml", 'message/rfc822'),
+    (("/data/eml-2-attachment/FW: Invitation Fontys Open Day 2nd of February 2014 - Campus Venlo "
+      "<campusvenlo@fontys.nl> - 2013-12-16 1700.eml"), 'message/rfc822'),
     ("/data/eml-2-attachment/Urăsc canicula, e nașpa.eml", 'message/rfc822'),
     ("/data/eml-5-long-names/Attachments have long file names..eml", 'message/rfc822'),
     ("/data/eml-bom/with-bom.eml", 'message/rfc822'),
-    ("/data/eml-1-promotional/Introducing Mapbox Android Services - Mapbox Team <newsletter@mapbox.com> - 2016-04-20 1603.eml", 'message/rfc822'),
-    ("/data/eml-1-promotional/Machine Learning comes to CodinGame! - CodinGame Team <contact@codingame.com> - 2016-04-22 1731.eml", 'message/rfc822'),
-    ("/data/eml-1-promotional/New on CodinGame: Check it out! - CodinGame <coders@codingame.com> - 2016-04-21 1034.eml", 'message/rfc822'),
+    (("/data/eml-1-promotional/Introducing Mapbox Android Services - Mapbox Team "
+      "<newsletter@mapbox.com> - 2016-04-20 1603.eml"), 'message/rfc822'),
+    (("/data/eml-1-promotional/Machine Learning comes to CodinGame! - CodinGame Team "
+      "<contact@codingame.com> - 2016-04-22 1731.eml"), 'message/rfc822'),
+    (("/data/eml-1-promotional/New on CodinGame: Check it out! - CodinGame <coders@codingame.com>"
+      "- 2016-04-21 1034.eml"), 'message/rfc822'),
     ("/data/eml-8-double-encoded/simple-encoding.eml", 'message/rfc822'),
     ("/data/eml-8-double-encoded/double-encoding.eml", 'message/rfc822'),
-    ("/data/eml-3-uppercaseheaders/Fwd: The American College of Thessaloniki - Greece - Tarek Kouatly <tarek@act.edu> - 2013-11-11 1622.eml", 'message/rfc822'),
+    (("/data/eml-3-uppercaseheaders/Fwd: The American College of Thessaloniki - Greece - Tarek "
+      "Kouatly <tarek@act.edu> - 2013-11-11 1622.eml"), 'message/rfc822'),
     ("/data/eml-9-pgp/encrypted-hushmail-knockoff.eml", 'message/rfc822'),
     ("/data/eml-9-pgp/encrypted-machine-learning-comes.eml", 'message/rfc822'),
     ("/data/eml-9-pgp/encrypted-hushmail-smashed-bytes.eml", 'message/rfc822'),
 
     # text/plain
-    ("/data/disk-files/long-filenames/Sample text file with a long filename Sample text file with a long filename Sample text file with a long filename .txt", 'text/plain'),
+    (("/data/disk-files/long-filenames/Sample text file with a long filename Sample text file with "
+      "a long filename Sample text file with a long filename .txt"), 'text/plain'),
     ("/data/disk-files/pdf-doc-txt/easychair.txt", 'text/plain'),
     ("/data/words/usr-share-dict-words.txt", 'text/plain'),
 
     # .emlx: message/x-emlx
-    ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Messages/1498.partial.emlx", 'message/x-emlx'),
+    ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Messages/1498.partial.emlx",
+     'message/x-emlx'),
 
     # .mbox: application/mbox
     ("/data/mbox/2018-March.txt", "application/mbox"),
@@ -65,32 +73,39 @@ def test_make_blob_from_first_eml_file():
     ("/ocr/one/foo/bar/f/d/fd41b8f1fe19c151517b3cda2a615fa8.pdf", "application/pdf"),
     ("/data/no-extension/file_pdf", "application/pdf"),
     ("/data/disk-files/pdf-for-ocr/mof1_1992_233.pdf", "application/pdf"),
-    ("/data/disk-files/long-filenames/THIS_FILENAME_IS_LONGER_THAN_ANY_DECENT_MARGIN_AND_ITS_ONLY_ONE_WORD_WITHOUT_ANY_BREAKS_WHATSOEVER_THIS_IS_GETTING_BAD.pdf", "application/pdf"),
+    (("/data/disk-files/long-filenames/THIS_FILENAME_IS_LONGER_THAN_ANY_DECENT_MARGIN_AND_ITS_ONLY_"
+      "ONE_WORD_WITHOUT_ANY_BREAKS_WHATSOEVER_THIS_IS_GETTING_BAD.pdf"), "application/pdf"),
     ("/data/disk-files/pdf-doc-txt/stanley.ec02.pdf", "application/pdf"),
     ("/data/disk-files/duplicates/one.pdf", "application/pdf"),
     ("/data/disk-files/duplicates/three.pdf", "application/pdf"),
     ("/data/disk-files/duplicates/two.pdf", "application/pdf"),
     ("/data/disk-files/duplicates/some/other/deep/path/five.pdf", "application/pdf"),
-    ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Attachments/1498/3/Legea-299-2015-informatiile-publice.pdf", "application/pdf"),
-    ("/data/eml-9-pgp/stuff/cleartext/adobe-acrobat-xi-create-form-or-template-tutorial_ue.pdf", "application/pdf"),
+    (("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Attachments/1498/3/Legea-299"
+      "-2015-informatiile-publice.pdf"), "application/pdf"),
+    ("/data/eml-9-pgp/stuff/cleartext/adobe-acrobat-xi-create-form-or-template-tutorial_ue.pdf",
+     "application/pdf"),
 
     # .doc
     ("/data/no-extension/file_doc", "application/msword"),
-    ("/data/disk-files/long-filenames/This filename is just really long long long long long long long long long long long long long long long long.doc", "application/msword"),
+    (("/data/disk-files/long-filenames/This filename is just really long long long long long long "
+      "long long long long long long long long long long.doc"), "application/msword"),
     ("/data/disk-files/pdf-doc-txt/sample (1).doc", "application/msword"),
     ("/data/eml-9-pgp/stuff/cleartext/wd-spectools-word-sample-04.doc", "application/msword"),
     # .odt
     ("/data/no-extension/file_odt", "application/vnd.oasis.opendocument.text"),
     ("/data/disk-files/pdf-doc-txt/easychair.odt", "application/vnd.oasis.opendocument.text"),
-    ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Attachments/1498/2/Legea-299-2015-informatiile-publice.odt", "application/vnd.oasis.opendocument.text"),
+    (("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Attachments/1498/2/Legea-299"
+      "-2015-informatiile-publice.odt"), "application/vnd.oasis.opendocument.text"),
     # .html
     ("/data/no-extension/file_html", "text/html"),
     ("/data/disk-files/bad-html/alert.html", "text/html"),
     ("/data/disk-files/html-encodings/meta_encoding_latin1.html", "text/html"),
     ("/data/disk-files/html-encodings/xml_declaration_latin1.html", "text/xml"),
     # .docx
-    ("/data/no-extension/file_docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-    ("/data/disk-files/pdf-doc-txt/easychair.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ("/data/no-extension/file_docx",
+     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ("/data/disk-files/pdf-doc-txt/easychair.docx",
+     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     # .zip
     ("/data/no-extension/file_zip", "application/zip"),
     ("/data/disk-files/archives/zip-with-docx-and-doc.zip", "application/zip"),
@@ -111,7 +126,8 @@ def test_make_blob_from_first_eml_file():
     ("/data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz", "application/x-gzip"),
     # .msg
     ("/data/no-extension/file_msg", "application/vnd.ms-outlook"),
-    ("/data/msg-5-outlook/DISEARĂ-Te-așteptăm-la-discuția-despre-finanțarea-culturii.msg", "application/vnd.ms-outlook"),
+    ("/data/msg-5-outlook/DISEARĂ-Te-așteptăm-la-discuția-despre-finanțarea-culturii.msg",
+     "application/vnd.ms-outlook"),
     # .pst
     ("/data/no-extension/file_pst", "application/x-hoover-pst"),
     ("/data/pst/flags_jane_doe.pst", "application/x-hoover-pst"),

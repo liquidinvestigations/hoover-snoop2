@@ -1,11 +1,9 @@
-from pathlib import Path
 from urllib.parse import urljoin
 import tempfile
 import subprocess
 import requests
 import pytest
 from django.conf import settings
-from snoop.data.tasks import shaorma
 from snoop.data import models
 from snoop.data import dispatcher
 from snoop.data import indexing
@@ -29,7 +27,6 @@ def test_complete_lifecycle(client, taskmanager):
     blobs_path = settings.SNOOP_BLOB_STORAGE
     subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
 
-    root = models.Directory.objects.create()
     indexing.delete_index()
     indexing.create_index()
 
@@ -76,10 +73,12 @@ def test_complete_lifecycle(client, taskmanager):
     assert es_count == db_count
 
     # check that all index ops were successful
-    index_failed = [(t.args, t.status) for t in models.Task.objects.filter(func='digests.index').exclude(status='success')]
+    filtered_tasks = models.Task.objects.filter(func='digests.index')
+    index_failed = [(t.args, t.status) for t in filtered_tasks.exclude(status='success')]
     # one indexing task should be deferred because
     # `encrypted-hushmail-smashed-bytes.eml` is broken
-    assert index_failed == [(['66a3a6bb9b8d86b7ce2be5e9f3a794a778a85fb58b8550a54b7e2821d602e1f1'], 'deferred')]
+    assert index_failed == [(['66a3a6bb9b8d86b7ce2be5e9f3a794a778a85fb58b8550a54b7e2821d602e1f1'],
+                             'deferred')]
 
     # test export and import database
     with tempfile.TemporaryFile('w+b') as f:
