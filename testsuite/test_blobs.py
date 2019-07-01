@@ -1,10 +1,10 @@
-from pathlib import Path
+# flake8: noqa
 import pytest
 from django.conf import settings
 from snoop.data import models
-from snoop.data import tasks
 
 pytestmark = [pytest.mark.django_db]
+
 
 def test_make_blob_from_jpeg_file():
     IMAGE = settings.SNOOP_TESTDATA + "/data/disk-files/images/bikes.jpg"
