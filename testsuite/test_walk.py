@@ -51,6 +51,7 @@ def test_smashed_filename(taskmanager, monkeypatch):
 def test_children_of_archives_in_multiple_locations(taskmanager, monkeypatch):
     root_path = Path(settings.SNOOP_COLLECTION_ROOT) / 'zip-in-multiple-locations'
     monkeypatch.setattr(settings, 'SNOOP_COLLECTION_ROOT', root_path)
+    models.Directory.objects.create()
 
     # filesystem.walk(root.pk)
     dispatcher.run_dispatcher()
