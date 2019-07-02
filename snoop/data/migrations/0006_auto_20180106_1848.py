@@ -14,20 +14,16 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='TaskDependency',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False,
-                                        verbose_name='ID')),
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(max_length=1024)),
-                ('next', models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING,
-                                           related_name='prev_set', to='data.Task')),
-                ('prev', models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING,
-                                           related_name='next_set', to='data.Task')),
+                ('next', models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, related_name='prev_set', to='data.Task')),
+                ('prev', models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, related_name='next_set', to='data.Task')),
             ],
         ),
         migrations.AlterField(
             model_name='file',
             name='parent_directory',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING,
-                                    related_name='child_file_set', to='data.Directory'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, related_name='child_file_set', to='data.Directory'),
         ),
         migrations.AlterUniqueTogether(
             name='file',

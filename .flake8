@@ -1,7 +1,7 @@
 [flake8]
 ignore = W503
 exclude = 
-    snoop/data/migrations/,
     snoop/wsgi.py	  
 per-file-ignores =
     testsuite/*: E501, F405, F403
+    snoop/data/migrations/*: E501

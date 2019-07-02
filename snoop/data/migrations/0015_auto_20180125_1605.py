@@ -14,29 +14,22 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='directory',
             name='container_file',
-            field=models.ForeignKey(blank=True, null=True,
-                                    on_delete=django.db.models.deletion.DO_NOTHING,
-                                    related_name='child_directory_set', to='data.File'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='child_directory_set', to='data.File'),
         ),
         migrations.AlterField(
             model_name='directory',
             name='parent_directory',
-            field=models.ForeignKey(blank=True, null=True,
-                                    on_delete=django.db.models.deletion.DO_NOTHING,
-                                    related_name='child_directory_set', to='data.Directory'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='child_directory_set', to='data.Directory'),
         ),
         migrations.AlterField(
             model_name='file',
             name='blob',
-            field=models.ForeignKey(blank=True, null=True,
-                                    on_delete=django.db.models.deletion.DO_NOTHING, to='data.Blob'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='data.Blob'),
         ),
         migrations.AlterField(
             model_name='task',
             name='blob_arg',
-            field=models.ForeignKey(blank=True, null=True,
-                                    on_delete=django.db.models.deletion.DO_NOTHING,
-                                    related_name='+', to='data.Blob'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='+', to='data.Blob'),
         ),
         migrations.AlterField(
             model_name='task',
@@ -51,7 +44,6 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='task',
             name='result',
-            field=models.ForeignKey(blank=True, null=True,
-                                    on_delete=django.db.models.deletion.DO_NOTHING, to='data.Blob'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.DO_NOTHING, to='data.Blob'),
         ),
     ]
