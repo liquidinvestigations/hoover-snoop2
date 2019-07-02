@@ -1,15 +1,7 @@
 import logging
 
 from django.conf import settings
-from opencensus.stats import aggregation as aggregation_module  # noqa: F401
-from opencensus.stats import measure as measure_module  # noqa: F401
-from opencensus.stats import stats as stats_module  # noqa: F401
-from opencensus.stats import view as view_module  # noqa: F401
-from opencensus.ext.prometheus import stats_exporter as prometheus  # noqa: F401
-from opencensus.tags import tag_key as tag_key_module  # noqa: F401
-from opencensus.tags import tag_map as tag_map_module  # noqa: F401
-from opencensus.tags import tag_value as tag_value_module  # noqa: F401
-from opencensus.ext.zipkin import trace_exporter as zipkin  # noqa: F401
+from opencensus.ext.zipkin import trace_exporter as zipkin
 from opencensus.trace.samplers import always_on, always_off
 from opencensus.trace.tracer import Tracer
 

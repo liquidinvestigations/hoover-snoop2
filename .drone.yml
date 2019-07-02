@@ -5,7 +5,7 @@ steps:
 - name: flake8
   image: alpine/flake8:3.7.7
   commands:
-  - flake8 --ignore=W503
+  - flake8
 
 - name: docker build, extract magic
   image: docker:dind

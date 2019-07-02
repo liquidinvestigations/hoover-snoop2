@@ -1,4 +1,3 @@
-# flake8: noqa
 import pytest
 from django.conf import settings
 from snoop.data import models

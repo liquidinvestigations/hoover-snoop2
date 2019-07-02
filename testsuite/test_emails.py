@@ -15,12 +15,9 @@ pytestmark = [pytest.mark.django_db]
 DATA = Path(settings.SNOOP_TESTDATA) / "data"
 EML = DATA / "eml-5-long-names/Attachments have long file names..eml"
 MSG = DATA / "msg-5-outlook/DISEARĂ-Te-așteptăm-la-discuția-despre-finanțarea-culturii.msg"
-MAPBOX = DATA / ("eml-1-promotional/Introducing Mapbox Android Services - Mapbox Team "
-                 "<newsletter@mapbox.com> - 2016-04-20 1603.eml")
-CODINGAME = DATA / ("eml-1-promotional/New on CodinGame: Check it out! - CodinGame "
-                    "<coders@codingame.com> - 2016-04-21 1034.eml")
-CAMPUS = DATA / ("eml-2-attachment/FW: Invitation Fontys Open Day 2nd of February 2014 - Campus "
-                 "Venlo <campusvenlo@fontys.nl> - 2013-12-16 1700.eml")
+MAPBOX = DATA / "eml-1-promotional/Introducing Mapbox Android Services - Mapbox Team <newsletter@mapbox.com> - 2016-04-20 1603.eml"
+CODINGAME = DATA / "eml-1-promotional/New on CodinGame: Check it out! - CodinGame <coders@codingame.com> - 2016-04-21 1034.eml"
+CAMPUS = DATA / "eml-2-attachment/FW: Invitation Fontys Open Day 2nd of February 2014 - Campus Venlo <campusvenlo@fontys.nl> - 2013-12-16 1700.eml"
 LONG_FILENAMES = DATA / "eml-5-long-names/Attachments have long file names..eml"
 NO_SUBJECT = DATA / "eml-2-attachment/message-without-subject.eml"
 OCTET_STREAM_CONTENT_TYPE = DATA / "eml-2-attachment/attachments-have-octet-stream-content-type.eml"

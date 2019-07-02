@@ -1,12 +1,12 @@
 import os
 
-from snoop.defaultsettings import *  # noqa
+from snoop.defaultsettings import *
 
-SNOOP_BLOB_STORAGE = str(base_dir / 'test_blobs')  # noqa: F405
+SNOOP_BLOB_STORAGE = str(base_dir / 'test_blobs')
 
-default_testdata_path = str(base_dir.parent / 'collections' / 'testdata')  # noqa: F405
+default_testdata_path = str(base_dir.parent / 'collections' / 'testdata')
 SNOOP_TESTDATA = os.getenv('SNOOP_TESTDATA', default_testdata_path)
-SNOOP_COLLECTION_ROOT = str(Path(SNOOP_TESTDATA) / 'data')  # noqa: F405
+SNOOP_COLLECTION_ROOT = str(Path(SNOOP_TESTDATA) / 'data')
 
 assert os.path.isdir(SNOOP_TESTDATA)
 
