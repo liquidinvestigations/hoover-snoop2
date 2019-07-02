@@ -103,7 +103,7 @@ def download_magic_definitions():
     which_file = subprocess.check_output(['which', 'file']).decode('latin1')
     version_file = subprocess.check_output([
         'file', '--version',
-         '-m', str(MAGIC_FILE),
+        '-m', str(MAGIC_FILE),
     ]).decode('latin1')
     print(f"Using {which_file} with version info: \n{version_file}")
 
@@ -145,6 +145,7 @@ MBOX_PATTERNS = {
 }
 
 MBOX_MINIMUM_EMAILS = 3
+
 
 def looks_like_mbox(path):
     emails = 0

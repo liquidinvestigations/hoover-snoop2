@@ -199,7 +199,7 @@ def test_emlx_reconstruction(taskmanager):
         / d4.name / d5.name / emlxpart_filename
     )
     emlxpart_blob = models.Blob.create_from_file(emlxpart_path)
-    emlxpart_file = mkfile(d5, emlxpart_filename, emlxpart_blob)
+    mkfile(d5, emlxpart_filename, emlxpart_blob)
 
     emlx_task = emlx.reconstruct.laterz(emlx_file.pk)
     taskmanager.run()

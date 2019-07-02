@@ -49,7 +49,7 @@ def export_db(stream=None):
     start = time.perf_counter()
     start_queries = time.perf_counter()
     queries = build_export_queries()
-    log.info("Queries created in {:1.2f}s".format(time.perf_counter()-start_queries))
+    log.info("Queries created in {:1.2f}s".format(time.perf_counter() - start_queries))
 
     if log.getEffectiveLevel() <= logging.DEBUG:
         log.debug('files: %d', len(queries['files']))
@@ -70,23 +70,24 @@ def export_db(stream=None):
         start_dump = time.perf_counter()
         start_dump_sub = time.perf_counter()
         dump(queries['directories'], 'directories.json')
-        log.info(" Directories dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        log.info(" Directories dumped in {:1.2f}s".format(time.perf_counter() - start_dump_sub))
         start_dump_sub = time.perf_counter()
         dump(queries['files'], 'files.json')
-        log.info(" Files dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        log.info(" Files dumped in {:1.2f}s".format(time.perf_counter() - start_dump_sub))
         start_dump_sub = time.perf_counter()
         dump(queries['digests'], 'digests.json')
-        log.info(" Digests dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        log.info(" Digests dumped in {:1.2f}s".format(time.perf_counter() - start_dump_sub))
         start_dump_sub = time.perf_counter()
         dump(queries['blobs'], 'blobs.json')
-        log.info(" Blobs dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        log.info(" Blobs dumped in {:1.2f}s".format(time.perf_counter() - start_dump_sub))
         start_dump_sub = time.perf_counter()
         dump(queries['tasks'], 'tasks.json')
-        log.info(" Tasks dumped in {:1.2f}s".format(time.perf_counter()-start_dump_sub))
+        log.info(" Tasks dumped in {:1.2f}s".format(time.perf_counter() - start_dump_sub))
         start_dump_sub = time.perf_counter()
         dump(queries['task_dependencies'], 'task_dependencies.json')
-        log.info(" Task dependencies dumped at {:1.2f}s".format(time.perf_counter()-start_dump_sub))
-        log.info("Data dumped in {:1.2f}s".format(time.perf_counter()-start_dump))
+        log.info(" Task dependencies dumped at {:1.2f}s".format(time.perf_counter()
+                                                                - start_dump_sub))
+        log.info("Data dumped in {:1.2f}s".format(time.perf_counter() - start_dump))
 
         def pk_interval(queryset):
             try:
@@ -117,9 +118,9 @@ def export_db(stream=None):
             check=True,
             stdout=stream,
         )
-        log.info("Tar created in {:1.2f}s".format(time.perf_counter()-start_tar))
+        log.info("Tar created in {:1.2f}s".format(time.perf_counter() - start_tar))
 
-    log.info("Exporting took {:1.2f}s".format(time.perf_counter()-start))
+    log.info("Exporting took {:1.2f}s".format(time.perf_counter() - start))
 
 
 @transaction.atomic
@@ -236,7 +237,7 @@ def import_db(stream=None):
                 else:
                     raise
 
-        remap_task_pk = lambda pk: task_pk_map.get(pk, pk)
+        remap_task_pk = lambda pk: task_pk_map.get(pk, pk)  # noqa: E731
 
         duplicate_task_dependencies = 0
         for obj in load_file('task_dependencies.json',

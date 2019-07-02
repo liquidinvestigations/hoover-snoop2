@@ -9,8 +9,10 @@ from snoop.profiler import Profiler
 
 from ... import tasks
 
+
 def bool_env(value):
     return (value or '').lower() in ['on', 'true']
+
 
 def celery_argv(queues):
     celery_binary = (
@@ -44,9 +46,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('func', nargs='*',
-                help="Task types to run")
+                            help="Task types to run")
         parser.add_argument('-p', '--prefix',
-                help="Prefix to insert to the queue name")
+                            help="Prefix to insert to the queue name")
 
     def handle(self, *args, **options):
         with Profiler():

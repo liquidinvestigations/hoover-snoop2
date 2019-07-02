@@ -1,7 +1,8 @@
 from polyglot.detect import Detector
 
 
-NAME='polyglot'
+NAME = 'polyglot'
+
 
 def detect(txt):
     detector = Detector(txt)

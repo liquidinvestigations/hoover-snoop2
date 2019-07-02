@@ -44,13 +44,16 @@ TIKA_CONTENT_TYPES = [
     'application/vnd.oasis.opendocument.presentation-template',
 ]
 
+
 def can_process(blob):
     if blob.mime_type in TIKA_CONTENT_TYPES:
         return True
 
     return False
 
+
 session = requests.Session()
+
 
 def call_tika_server(endpoint, data):
     url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
@@ -59,8 +62,8 @@ def call_tika_server(endpoint, data):
     if resp.status_code == 422:
         raise ShaormaBroken("tika returned http 422, corrupt?", "tika_http_422")
 
-    if (resp.status_code != 200 or
-        resp.headers['Content-Type'] != 'application/json'):
+    if (resp.status_code != 200
+            or resp.headers['Content-Type'] != 'application/json'):
         raise RuntimeError(f"Unexpected response from tika: {resp}")
 
     return resp
@@ -83,6 +86,7 @@ def get_date_created(rmeta):
         value = rmeta[0].get(field)
         if value:
             return zulu(parser.parse(value))
+
 
 def get_date_modified(rmeta):
     FIELDS_MODIFIED = ['Last-Modified', 'Last-Saved-Date', 'dcterms:modified',

@@ -1,7 +1,7 @@
 import os
 from urllib.parse import urlparse
 
-from .defaultsettings import *
+from .defaultsettings import *  # noqa: F401
 
 ALLOWED_HOSTS = ['snoop']
 

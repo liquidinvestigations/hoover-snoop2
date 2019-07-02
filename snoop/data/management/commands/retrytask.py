@@ -1,5 +1,3 @@
-import sys
-from time import time
 from django.core.management.base import BaseCommand
 from ...logs import logging_for_management_command
 from ... import models

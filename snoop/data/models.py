@@ -282,11 +282,8 @@ class Task(models.Model):
     def __str__(self):
         deps = ''
         prev_set = self.prev_set.all()
-        if prev_set:
-            deps = (
-                '; depends on ' +
-                ', '.join(str(t.prev.pk) for t in prev_set)
-            )
+        prev_ids = ', '.join(str(t.prev.pk) for t in prev_set)
+        deps = '; depends on ' + prev_ids if prev_ids else ''
         return f'#{self.pk} {self.func}({self.args}{deps}) [{self.status}]'
 
     def update(self, status, error, broken_reason, log):

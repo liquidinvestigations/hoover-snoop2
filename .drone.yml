@@ -3,11 +3,9 @@ name: test
 
 steps:
 - name: flake8
-  image: python:3.7-stretch
+  image: alpine/flake8:3.7.7
   commands:
-  - pip install flake8 > /dev/null
-  - flake8 || true
-  - echo 'not running flake8 yet'
+  - flake8
 
 - name: docker build, extract magic
   image: docker:dind

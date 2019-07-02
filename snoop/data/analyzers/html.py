@@ -8,9 +8,9 @@ def is_html(blob):
     [main_type, subtype] = blob.mime_type.split('/')
 
     if main_type in ['text', 'application']:
-        if (subtype.startswith('html') or
-            subtype.startswith('xhtml') or
-            subtype.startswith('xml')):
+        if (subtype.startswith('html')
+                or subtype.startswith('xhtml')
+                or subtype.startswith('xml')):
             return True
 
     return False
