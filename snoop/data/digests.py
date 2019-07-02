@@ -13,6 +13,7 @@ from . import indexing
 
 log = logging.getLogger(__name__)
 
+
 @shaorma('digests.launch')
 def launch(blob):
     depends_on = {}
@@ -96,6 +97,7 @@ def gather(blob, **depends_on):
 
     return writer.blob
 
+
 @shaorma('digests.index')
 def index(blob, digests_gather):
     digest = models.Digest.objects.get(blob=blob)
@@ -128,11 +130,12 @@ def full_path(file):
         elements.append(node.name)
     return '/'.join(reversed(elements))
 
+
 def path_parts(path):
     elements = path.split('/')[1:]
     result = []
     prev = None
-    
+
     for e in elements:
         if prev:
             prev = prev + '/' + e
@@ -140,8 +143,9 @@ def path_parts(path):
             prev = '/' + e
 
         result.append(prev)
-    
+
     return result
+
 
 def directory_id(directory):
     return f'_directory_{directory.pk}'
@@ -209,12 +213,15 @@ def email_meta(digest_data):
         'date': message_date,
     }
 
+
 email_domain_exp = re.compile("@([\\w.-]+)")
+
 
 def _extract_domain(text):
     match = email_domain_exp.search(text)
     if match:
         return match[1]
+
 
 def _get_first_file(digest):
     first_file = (
@@ -343,8 +350,8 @@ def get_directory_children(directory):
     child_directory_queryset = directory.child_directory_set.order_by('name_bytes')
     child_file_queryset = directory.child_file_set.order_by('name_bytes')
     return (
-        [child_dir_to_dict(d) for d in child_directory_queryset] +
-        [child_file_to_dict(f) for f in child_file_queryset]
+        [child_dir_to_dict(d) for d in child_directory_queryset]
+        + [child_file_to_dict(f) for f in child_file_queryset]
     )
 
 

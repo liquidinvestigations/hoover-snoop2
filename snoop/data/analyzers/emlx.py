@@ -2,7 +2,7 @@ import re
 import email
 import logging
 from .. import models
-from ..tasks import shaorma, require_dependency, ShaormaBroken
+from ..tasks import shaorma
 from .email import iter_parts
 
 log = logging.getLogger(__name__)
@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 
 @shaorma('emlx.reconstruct')
 def reconstruct(file_pk, **depends_on):
-    from .. import filesystem
+    from .. import filesystem  # noqa: F401
 
     file = models.File.objects.get(pk=file_pk)
     with file.original.open() as f:

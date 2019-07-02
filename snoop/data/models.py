@@ -284,8 +284,8 @@ class Task(models.Model):
         prev_set = self.prev_set.all()
         if prev_set:
             deps = (
-                '; depends on ' +
-                ', '.join(str(t.prev.pk) for t in prev_set)
+                '; depends on '
+                + ', '.join(str(t.prev.pk) for t in prev_set)
             )
         return f'#{self.pk} {self.func}({self.args}{deps}) [{self.status}]'
 
