@@ -14,15 +14,18 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='OcrDocument',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False,
+                                        verbose_name='ID')),
                 ('original_hash', models.CharField(db_index=True, max_length=64)),
-                ('ocr', models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, to='data.Blob')),
+                ('ocr', models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING,
+                                          to='data.Blob')),
             ],
         ),
         migrations.CreateModel(
             name='OcrSource',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False,
+                                        verbose_name='ID')),
                 ('name', models.CharField(max_length=1024)),
                 ('root', models.CharField(max_length=4096)),
             ],
@@ -30,12 +33,14 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='ocrdocument',
             name='source',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, to='data.OcrSource'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING,
+                                    to='data.OcrSource'),
         ),
         migrations.AddField(
             model_name='ocrdocument',
             name='text',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, related_name='+', to='data.Blob'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING,
+                                    related_name='+', to='data.Blob'),
         ),
         migrations.AlterUniqueTogether(
             name='ocrdocument',

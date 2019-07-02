@@ -14,11 +14,13 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='taskdependency',
             name='next',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='prev_set', to='data.Task'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
+                                    related_name='prev_set', to='data.Task'),
         ),
         migrations.AlterField(
             model_name='taskdependency',
             name='prev',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='next_set', to='data.Task'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
+                                    related_name='next_set', to='data.Task'),
         ),
     ]

@@ -28,6 +28,7 @@ def lookup_other_encodings(name):
     if name == 'ucs-2le':
         return codecs.lookup('utf-16-le')
 
+
 codecs.register(lookup_other_encodings)
 
 
@@ -73,7 +74,7 @@ def dump_part(message, depends_on):
 
     try:
         payload_bytes = message.get_payload(decode=True)
-    except:
+    except:  # noqa: E722
         log.exception("Error getting email payload")
         raise ShaormaBroken("Error getting payload", "email_get_payload")
 

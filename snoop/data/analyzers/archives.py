@@ -1,4 +1,3 @@
-import json
 import subprocess
 import tempfile
 from pathlib import Path
@@ -50,7 +49,7 @@ def call_readpst(pst_path, output_dir):
             str(pst_path),
         ], stderr=subprocess.STDOUT)
 
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         raise ShaormaBroken('readpst failed', 'readpst_error')
 
 
@@ -65,7 +64,7 @@ def call_7z(archive_path, output_dir):
             '-o' + str(output_dir),
         ], stderr=subprocess.STDOUT)
 
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
         raise ShaormaBroken("7z extraction failed", '7z_error')
 
 
