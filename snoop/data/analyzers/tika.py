@@ -56,7 +56,7 @@ session = requests.Session()
 
 
 def call_tika_server(endpoint, data):
-    url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
+    url = urljoin(settings.TIKA_URL, endpoint)
     resp = session.put(url, data=data)
 
     if resp.status_code == 422:

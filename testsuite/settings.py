@@ -25,7 +25,7 @@ DATABASES = {
 
 # CELERY_BROKER_URL = 'amqp://snoop-rabbitmq'
 
-SNOOP_TIKA_URL = 'http://snoop-tika:9998'
+TIKA_URL = 'http://snoop-tika:9998'
 
 SNOOP_COLLECTIONS_ELASTICSEARCH_URL = 'http://search-es:9200'
 # SNOOP_STATS_ELASTICSEARCH_URL = 'http://snoop-stats-es:9200'
