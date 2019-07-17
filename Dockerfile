@@ -49,6 +49,6 @@ RUN set -e \
  && chmod +x /runserver /wait
 
 RUN set -e \
- && SECRET_KEY=temp SNOOP_AMQP_URL='amqp://localhost' SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
+ && SECRET_KEY=temp SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
 CMD /wait && /runserver

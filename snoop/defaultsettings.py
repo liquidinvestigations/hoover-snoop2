@@ -102,7 +102,7 @@ SNOOP_STATS_ELASTICSEARCH_URL = None
 SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'snoop2-'
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 
-_amqp_url = os.environ['SNOOP_AMQP_URL']
+_amqp_url = os.getenv('SNOOP_AMQP_URL')
 if _amqp_url:
     CELERY_BROKER_URL = _amqp_url
 
