@@ -125,7 +125,7 @@ celery.app.conf.beat_schedule = {
     },
     'auto_sync': {
         'task': 'snoop.data.tasks.auto_sync',
-        'schedule': timedelta(seconds=20)
+        'schedule': timedelta(seconds=60)
     }
 }
 
