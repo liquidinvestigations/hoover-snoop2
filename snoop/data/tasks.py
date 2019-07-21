@@ -361,28 +361,40 @@ def count_tasks(tasks_status, excluded=[]):
     return count
 
 
-@celery.app.task
-def check_if_idle():
-    excluded = ['check_if_idle']
+def has_any_tasks():
+    excluded = ['check_if_idle', 'auto_sync']
 
     inspector = inspect(celery.app)
     active = inspector.call(method='active', arguments={})
     scheduled = inspector.call(method='scheduled', arguments={})
     reserved = inspector.call(method='reserved', arguments={})
-    count = count_tasks(active, excluded) + count_tasks(scheduled, excluded) + \
+    count = (
+        count_tasks(active, excluded) +
+        count_tasks(scheduled, excluded) +
         count_tasks(reserved, excluded)
-    if not count:
-        db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
-            exclude(status=Task.STATUS_SUCCESS).count()
-        if db_tasks:
-            print('Dispatching remaining %d tasks.' % db_tasks)
-            dispatch_pending_tasks()
-            from snoop.data.dispatcher import dispatch_walk_tasks
-            dispatch_walk_tasks()
+    )
+    return !!count
+
+
+@celery.app.task
+def check_if_idle():
+    if has_any_tasks():
+        return
+
+    db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
+        exclude(status=Task.STATUS_SUCCESS).count()
+    if db_tasks:
+        print('Dispatching remaining %d tasks.' % db_tasks)
+        dispatch_pending_tasks()
+        from snoop.data.dispatcher import dispatch_walk_tasks
+        dispatch_walk_tasks()
 
 
 @celery.app.task
 def auto_sync():
+    if has_any_tasks():
+        return
+
     logger.info("walk for auto sync")
     queryset = models.Task.objects
     queryset = queryset.filter(func='filesystem.walk')
