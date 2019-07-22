@@ -369,11 +369,11 @@ def has_any_tasks():
     scheduled = inspector.call(method='scheduled', arguments={})
     reserved = inspector.call(method='reserved', arguments={})
     count = (
-        count_tasks(active, excluded) +
-        count_tasks(scheduled, excluded) +
-        count_tasks(reserved, excluded)
+        count_tasks(active, excluded)
+        + count_tasks(scheduled, excluded)
+        + count_tasks(reserved, excluded)
     )
-    return !!count
+    return not not count
 
 
 @celery.app.task
