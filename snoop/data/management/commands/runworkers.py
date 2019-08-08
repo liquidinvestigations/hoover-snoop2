@@ -47,7 +47,7 @@ def create_procfile(celery_args):
 
     with open('Procfile') as procfile:
         for line in procfile.readlines():
-            log.info('Procfile: %s', line)
+            log.info('Procfile: %s', line.strip())
     log.info('Procfile done.')
 
 
