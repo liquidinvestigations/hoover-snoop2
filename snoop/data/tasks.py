@@ -362,7 +362,7 @@ def count_tasks(tasks_status, excluded=[]):
 
 
 def has_any_tasks():
-    excluded = ['check_if_idle', 'auto_sync']
+    excluded = ['snoop.data.tasks.check_if_idle', 'snoop.data.tasks.auto_sync']
 
     inspector = inspect(celery.app)
     active = inspector.call(method='active', arguments={})
