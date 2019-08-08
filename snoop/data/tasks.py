@@ -313,8 +313,10 @@ def retry_task(task, fg=False):
 
 
 def retry_tasks(queryset):
+    logger.info('Retrying %s tasks...', queryset.count())
     for task in queryset.iterator():
         retry_task(task)
+    logger.info('Done submitting %s tasks.', queryset.count())
 
 
 def require_dependency(name, depends_on, callback):
@@ -354,15 +356,13 @@ def count_tasks(tasks_status, excluded=[]):
     count = 0
     for tasks in tasks_status.values():
         for task in tasks:
-            for task_name in excluded:
-                if task_name not in task['name']:
-                    count += 1
-                    break
+            if task['name'] not in excluded:
+                count += 1
     return count
 
 
 def has_any_tasks():
-    excluded = ['check_if_idle', 'auto_sync']
+    excluded = ['snoop.data.tasks.check_if_idle', 'snoop.data.tasks.auto_sync']
 
     inspector = inspect(celery.app)
     active = inspector.call(method='active', arguments={})
@@ -373,19 +373,23 @@ def has_any_tasks():
         + count_tasks(scheduled, excluded)
         + count_tasks(reserved, excluded)
     )
-    return not not count
+    logger.info('has_any_tasks found %s active tasks', count)
+    return count > 0
 
 
 @celery.app.task
 def check_if_idle():
     if has_any_tasks():
+        logger.info('skipping watchdog')
         return
 
+    logger.info('running watchdog')
     db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
         exclude(status=Task.STATUS_SUCCESS).count()
     if db_tasks:
-        print('Dispatching remaining %d tasks.' % db_tasks)
+        logger.info('Dispatching remaining %s tasks.', db_tasks)
         dispatch_pending_tasks()
+        logger.info('Disaptching walk tasks.')
         from snoop.data.dispatcher import dispatch_walk_tasks
         dispatch_walk_tasks()
 
@@ -393,6 +397,7 @@ def check_if_idle():
 @celery.app.task
 def auto_sync():
     if has_any_tasks():
+        logger.info('skipping auto sync')
         return
 
     logger.info("walk for auto sync")
