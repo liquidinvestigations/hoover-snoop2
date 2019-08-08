@@ -28,6 +28,7 @@ def celery_argv(queues):
     argv = [
         celery_binary,
         '-A', 'snoop.data',
+        '-E',
         '--pidfile=',
         '--loglevel=info',
         'worker',
