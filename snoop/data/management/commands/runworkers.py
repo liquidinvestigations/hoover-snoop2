@@ -1,4 +1,5 @@
 import os
+import logging
 import subprocess
 
 from django.conf import settings
@@ -8,6 +9,9 @@ from django.template.loader import render_to_string
 from snoop.profiler import Profiler
 
 from ... import tasks
+from ...logs import logging_for_management_command
+
+log = logging.getLogger(__name__)
 
 
 def bool_env(value):
@@ -40,6 +44,11 @@ def create_procfile(celery_args):
         out = render_to_string('snoop/Procfile', context={'workers_command': ' '.join(celery_args)})
         procfile.write(out)
 
+    with open('Procfile') as procfile:
+        for line in procfile.readlines():
+            log.info('Procfile: %s', line)
+    log.info('Procfile done.')
+
 
 class Command(BaseCommand):
     help = "Run celery worker"
@@ -51,6 +60,7 @@ class Command(BaseCommand):
                             help="Prefix to insert to the queue name")
 
     def handle(self, *args, **options):
+        logging_for_management_command()
         with Profiler():
             tasks.import_shaormas()
             if options.get('prefix'):
@@ -61,16 +71,17 @@ class Command(BaseCommand):
             queues = options.get('func') or tasks.shaormerie
             system_queues = ['watchdog']
             if bool_env(os.environ.get('SYNC_FILES')):
+                log.warning('auto sync enabled!')
                 system_queues += ['auto_sync']
 
             argv = celery_argv(
                 queues=[f'{prefix}.{queue}' for queue in queues] + system_queues,
             )
-            print('+', *argv)
             create_procfile(argv)
             honcho_binary = (
                 subprocess.check_output(['which', 'honcho'])
                 .decode('latin1')
                 .strip()
             )
+            log.info('running honcho...')
             os.execv(honcho_binary, [honcho_binary, 'start'])

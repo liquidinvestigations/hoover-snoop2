@@ -373,18 +373,20 @@ def has_any_tasks():
         + count_tasks(scheduled, excluded)
         + count_tasks(reserved, excluded)
     )
-    return not not count
+    logger.info('has_any_tasks found %s active tasks', count)
+    return count > 0
 
 
 @celery.app.task
 def check_if_idle():
     if has_any_tasks():
+        logger.info('skipping watchdog')
         return
 
     db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
         exclude(status=Task.STATUS_SUCCESS).count()
     if db_tasks:
-        print('Dispatching remaining %d tasks.' % db_tasks)
+        logger.info('Dispatching remaining %s tasks.', db_tasks)
         dispatch_pending_tasks()
         from snoop.data.dispatcher import dispatch_walk_tasks
         dispatch_walk_tasks()
@@ -393,6 +395,7 @@ def check_if_idle():
 @celery.app.task
 def auto_sync():
     if has_any_tasks():
+        logger.info('skipping auto sync')
         return
 
     logger.info("walk for auto sync")

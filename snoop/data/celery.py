@@ -15,4 +15,4 @@ app.autodiscover_tasks()
 
 # from pprint import pprint
 # pprint(logging.Logger.manager.loggerDict)
-logging.getLogger('celery').setLevel(logging.WARNING)
+logging.getLogger('celery').setLevel(logging.INFO)
