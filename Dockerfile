@@ -24,6 +24,8 @@ WORKDIR /opt/hoover/snoop
 ADD Pipfile Pipfile.lock ./
 RUN pipenv install --system --deploy --ignore-pipfile
 
+RUN polyglot download embeddings2.en ner2.en
+
 RUN cd /opt \
   && git clone https://github.com/hoover/magic-definitions.git \
   && ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc /opt/hoover/snoop/ )

@@ -19,3 +19,5 @@ pyicu
 pycld2
 opencensus
 prometheus_client
+numpy
+morpheus

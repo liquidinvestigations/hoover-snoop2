@@ -1,6 +1,9 @@
 import logging
 import json
 import re
+
+from snoop.data.analyzers import language
+from snoop.data.analyzers.entities import detect_entities
 from .tasks import shaorma, ShaormaBroken
 from . import models
 from .utils import zulu
@@ -23,12 +26,18 @@ def launch(blob):
 
     if tika.can_process(blob):
         depends_on['tika_rmeta'] = tika.rmeta.laterz(blob)
+        if language.can_detect(blob):
+            lang_deps = {'tika_rmeta': depends_on['tika_rmeta']}
+            depends_on['lang'] = language.detect_language.laterz(blob, depends_on=lang_deps)
 
     if exif.can_extract(blob):
         depends_on['exif_data'] = exif.extract.laterz(blob)
 
     gather_task = gather.laterz(blob, depends_on=depends_on)
-    index.laterz(blob, depends_on={'digests_gather': gather_task})
+    index_task = index.laterz(blob, depends_on={'digests_gather': gather_task})
+
+    if depends_on.get('lang'):
+        detect_entities.laterz(blob, depends_on={'index': index_task})
 
 
 @shaorma('digests.gather')
@@ -84,6 +93,17 @@ def gather(blob, **depends_on):
                 exif_data = json.load(f)
             rv['location'] = exif_data.get('location')
             rv['date-created'] = exif_data.get('date-created')
+
+    lang_data_blob = depends_on.get('lang')
+    if lang_data_blob:
+        if isinstance(exif_data_blob, ShaormaBroken):
+            rv['broken'].append(lang_data_blob.reason)
+            log.info("lang task is broken; skipping")
+
+        else:
+            with lang_data_blob.open(encoding='utf8') as f:
+                lang_data = json.load(f)
+            rv['lang'] = lang_data.get('lang')
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -264,6 +284,7 @@ def _get_document_content(digest):
         'content-type': original.mime_type,
         'filetype': filetype,
         'text': digest_data.get('text'),
+        'lang': digest_data.get('lang'),
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
         'ocrtext': digest_data.get('ocrtext'),

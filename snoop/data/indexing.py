@@ -44,6 +44,13 @@ MAPPINGS = {
             "suffix": {"type": "keyword"},
             "thread-index": {"type": "keyword"},
             "word-count": {"type": "integer"},
+            "entities": {
+                "type": "nested",
+                "properties": {
+                    "type": {"type": "keyword"},
+                    "name": {"type": "keyword"},
+                },
+            },
         }
     }
 }
@@ -89,14 +96,6 @@ def check_response(resp):
 
 
 def index(id, data):
-    if settings.DETECT_LANGUAGE and data.get('text') is not None:
-        tracer.current_span().add_annotation('detect language')
-        try:
-            data['lang'] = language_detector(data['text'][:2500])
-        except Exception as e:
-            log.debug(f'Unable to detect language for document {id}: {e}')
-            data['lang'] = None
-
     index_url = f'{ES_URL}/{ES_INDEX}'
     tracer.current_span().add_annotation('write index')
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
