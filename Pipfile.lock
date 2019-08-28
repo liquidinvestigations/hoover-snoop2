@@ -297,16 +297,16 @@
         },
         "opencensus": {
             "hashes": [
-                "sha256:5e0f516b0d5706eb63ab91a3d23b7ad24cc26a6f3f763d02f8e0525cc7f3582d"
+                "sha256:ff8198404eb4378d170f462e826c2f777e46c4a1d09043a0cc640f21de5c44db"
             ],
             "index": "pypi",
-            "version": "==0.5.0"
+            "version": "==0.7.3"
         },
         "opencensus-context": {
             "hashes": [
-                "sha256:0d63a1da591b529371d4121819ffe0c191548236a24af3df5b502d3e6eb10447"
+                "sha256:1a3fdf6bec537031efcc93d51b04f1edee5201f8c9a0c85681d63308b76f5702"
             ],
-            "version": "==0.1.0"
+            "version": "==0.1.1"
         },
         "opencensus-ext-prometheus": {
             "hashes": [
