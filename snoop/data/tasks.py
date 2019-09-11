@@ -13,6 +13,8 @@ from snoop.data.models import Task
 from . import celery
 from . import models
 from ..profiler import profile
+from .filesystem import walk
+from .ocr import dispatch_ocr_tasks
 from .utils import run_once
 from requests.exceptions import ConnectionError
 from snoop.trace import tracer
@@ -382,16 +384,20 @@ def check_if_idle():
     if has_any_tasks():
         logger.info('skipping watchdog')
         return
-
     logger.info('running watchdog')
+
+    logger.info('Dispatching root walk task.')
+    root = models.Directory.root()
+    walk.laterz(root.pk)
+
+    logger.info('Dispatching ocr tasks.')
+    dispatch_ocr_tasks()
+
     db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
         exclude(status=Task.STATUS_SUCCESS).count()
     if db_tasks:
         logger.info('Dispatching remaining %s tasks.', db_tasks)
         dispatch_pending_tasks()
-        logger.info('Disaptching walk tasks.')
-        from snoop.data.dispatcher import dispatch_walk_tasks
-        dispatch_walk_tasks()
 
 
 @celery.app.task
