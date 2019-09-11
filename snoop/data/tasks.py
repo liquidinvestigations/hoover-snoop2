@@ -13,7 +13,6 @@ from snoop.data.models import Task
 from . import celery
 from . import models
 from ..profiler import profile
-from .filesystem import walk
 from .ocr import dispatch_ocr_tasks
 from .utils import run_once
 from requests.exceptions import ConnectionError
@@ -298,6 +297,13 @@ def dispatch_pending_tasks():
         queue_task(task)
 
 
+def dispatch_walk_tasks():
+    from .filesystem import walk
+
+    root = models.Directory.root()
+    walk.laterz(root.pk)
+
+
 def retry_task(task, fg=False):
     task.update(
         status=models.Task.STATUS_PENDING,
@@ -387,8 +393,7 @@ def check_if_idle():
     logger.info('running watchdog')
 
     logger.info('Dispatching root walk task.')
-    root = models.Directory.root()
-    walk.laterz(root.pk)
+    dispatch_walk_tasks()
 
     logger.info('Dispatching ocr tasks.')
     dispatch_ocr_tasks()
