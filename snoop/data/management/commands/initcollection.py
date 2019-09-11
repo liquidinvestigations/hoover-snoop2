@@ -1,8 +1,7 @@
 from django.core.management.base import BaseCommand
 
-from . import models
 from .magic import download_magic_definitions
-from ... import indexing
+from ... import indexing, models
 from ...logs import logging_for_management_command
 
 
