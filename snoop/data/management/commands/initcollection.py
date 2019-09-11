@@ -13,4 +13,3 @@ class Command(BaseCommand):
         logging_for_management_command(options['verbosity'])
         management.call_command('migrate')
         indexing.create_index()
-        run_dispatcher()
