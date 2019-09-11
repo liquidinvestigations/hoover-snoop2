@@ -13,7 +13,6 @@ from snoop.data.models import Task
 from . import celery
 from . import models
 from ..profiler import profile
-from .ocr import dispatch_ocr_tasks
 from .utils import run_once
 from requests.exceptions import ConnectionError
 from snoop.trace import tracer
@@ -387,6 +386,8 @@ def has_any_tasks():
 
 @celery.app.task
 def check_if_idle():
+    from .ocr import dispatch_ocr_tasks
+
     if has_any_tasks():
         logger.info('skipping watchdog')
         return
