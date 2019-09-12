@@ -296,6 +296,13 @@ def dispatch_pending_tasks():
         queue_task(task)
 
 
+def dispatch_walk_tasks():
+    from .filesystem import walk
+
+    root = models.Directory.root()
+    walk.laterz(root.pk)
+
+
 def retry_task(task, fg=False):
     task.update(
         status=models.Task.STATUS_PENDING,
@@ -379,19 +386,24 @@ def has_any_tasks():
 
 @celery.app.task
 def check_if_idle():
+    from .ocr import dispatch_ocr_tasks
+
     if has_any_tasks():
         logger.info('skipping watchdog')
         return
-
     logger.info('running watchdog')
+
+    logger.info('Dispatching root walk task.')
+    dispatch_walk_tasks()
+
+    logger.info('Dispatching ocr tasks.')
+    dispatch_ocr_tasks()
+
     db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
         exclude(status=Task.STATUS_SUCCESS).count()
     if db_tasks:
         logger.info('Dispatching remaining %s tasks.', db_tasks)
         dispatch_pending_tasks()
-        logger.info('Disaptching walk tasks.')
-        from snoop.data.dispatcher import dispatch_walk_tasks
-        dispatch_walk_tasks()
 
 
 @celery.app.task
