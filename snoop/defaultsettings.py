@@ -121,11 +121,11 @@ if _tracing_url:
 celery.app.conf.beat_schedule = {
     'check_if_idle': {
         'task': 'snoop.data.tasks.check_if_idle',
-        'schedule': timedelta(seconds=60),
+        'schedule': timedelta(minutes=4),
     },
     'auto_sync': {
         'task': 'snoop.data.tasks.auto_sync',
-        'schedule': timedelta(seconds=60)
+        'schedule': timedelta(minutes=7)
     }
 }
 
