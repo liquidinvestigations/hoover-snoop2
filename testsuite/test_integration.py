@@ -99,31 +99,32 @@ def test_complete_lifecycle(client, taskmanager):
             count = len(model.objects.all())
             assert count == counts[name], f"{name}: {count} != {counts[name]}"
 
-    # test export and import index
-    with tempfile.TemporaryFile('w+b') as f:
-        indexing.export_index(stream=f)
-        indexing.delete_index()
-        f.seek(0)
-        indexing.import_index(stream=f)
-        count_resp = requests.get(es_count_url)
-        assert count_resp.json()['count'] == es_count
-
-    # test export and import blobs
-    with tempfile.TemporaryFile('w+b') as f:
-        count = int(subprocess.check_output(
-            'find . -type f | wc -l',
-            shell=True,
-            cwd=blobs_path,
-        ))
-        exportimport.export_blobs(stream=f)
-
-        subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
-
-        f.seek(0)
-        exportimport.import_blobs(stream=f)
-        new_count = int(subprocess.check_output(
-            'find . -type f | wc -l',
-            shell=True,
-            cwd=blobs_path,
-        ))
-        assert new_count == count
+# TODO make a separate test for export and import index+blobs
+#     # test export and import index
+#     with tempfile.TemporaryFile('w+b') as f:
+#         indexing.export_index(stream=f)
+#         indexing.delete_index()
+#         f.seek(0)
+#         indexing.import_index(stream=f)
+#         count_resp = requests.get(es_count_url)
+#         assert count_resp.json()['count'] == es_count
+# 
+#     # test export and import blobs
+#     with tempfile.TemporaryFile('w+b') as f:
+#         count = int(subprocess.check_output(
+#             'find . -type f | wc -l',
+#             shell=True,
+#             cwd=blobs_path,
+#         ))
+#         exportimport.export_blobs(stream=f)
+# 
+#         subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
+# 
+#         f.seek(0)
+#         exportimport.import_blobs(stream=f)
+#         new_count = int(subprocess.check_output(
+#             'find . -type f | wc -l',
+#             shell=True,
+#             cwd=blobs_path,
+#         ))
+#         assert new_count == count
