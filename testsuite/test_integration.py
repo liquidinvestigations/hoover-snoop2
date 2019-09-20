@@ -108,7 +108,7 @@ def test_complete_lifecycle(client, taskmanager):
 #         indexing.import_index(stream=f)
 #         count_resp = requests.get(es_count_url)
 #         assert count_resp.json()['count'] == es_count
-# 
+#
 #     # test export and import blobs
 #     with tempfile.TemporaryFile('w+b') as f:
 #         count = int(subprocess.check_output(
@@ -117,9 +117,9 @@ def test_complete_lifecycle(client, taskmanager):
 #             cwd=blobs_path,
 #         ))
 #         exportimport.export_blobs(stream=f)
-# 
+#
 #         subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
-# 
+#
 #         f.seek(0)
 #         exportimport.import_blobs(stream=f)
 #         new_count = int(subprocess.check_output(
