@@ -73,7 +73,7 @@ def call_tika_server(endpoint, data):
 @returns_json_blob
 def rmeta(blob):
     with blob.open() as f, tracer.span('tika.rmeta'):
-        resp = call_tika_server('/rmeta/text', f)
+        resp = call_tika_server('rmeta/text', f)
 
     return resp.json()
 
