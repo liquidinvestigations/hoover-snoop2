@@ -233,11 +233,11 @@
         },
         "importlib-metadata": {
             "hashes": [
-                "sha256:0c505102757e7fa28b9f0958d8bc81301159dea16e2649858c92edc158b78a83",
-                "sha256:9a9f75ce32e78170905888acbf2376a81d3f21ecb3bb4867050413411d3ca7a9"
+                "sha256:aa18d7378b00b40847790e7c27e11673d7fed219354109d0e7b9e5b25dc3ad26",
+                "sha256:d5f18a79777f3aa179c145737780282e27b508fc8fd688cb17c7a813e8bd39af"
             ],
             "markers": "python_version < '3.8'",
-            "version": "==0.21"
+            "version": "==0.23"
         },
         "jinja2": {
             "hashes": [
@@ -306,16 +306,16 @@
         },
         "opencensus": {
             "hashes": [
-                "sha256:5e0f516b0d5706eb63ab91a3d23b7ad24cc26a6f3f763d02f8e0525cc7f3582d"
+                "sha256:f5d3c022aa1e78f084a0be7e1972394a4345d00f3bfbe126406a34b62357c34c"
             ],
             "index": "pypi",
-            "version": "==0.5.0"
+            "version": "==0.7.5"
         },
         "opencensus-context": {
             "hashes": [
-                "sha256:0d63a1da591b529371d4121819ffe0c191548236a24af3df5b502d3e6eb10447"
+                "sha256:1a3fdf6bec537031efcc93d51b04f1edee5201f8c9a0c85681d63308b76f5702"
             ],
-            "version": "==0.1.0"
+            "version": "==0.1.1"
         },
         "opencensus-ext-prometheus": {
             "hashes": [
