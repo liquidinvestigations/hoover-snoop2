@@ -5,7 +5,7 @@ from contextlib import closing
 from pathlib import Path
 from .utils import read_exactly
 
-MAGIC_URL = 'https://github.com/hoover/magic-definitions/raw/master/magic.mgc'
+MAGIC_URL = 'https://github.com/liquidinvestigations/magic-definitions/raw/master/magic.mgc'
 MAGIC_FILE = Path(__file__).resolve().parent.parent.parent / 'magic.mgc'
 
 

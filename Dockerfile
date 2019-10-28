@@ -25,7 +25,7 @@ ADD Pipfile Pipfile.lock ./
 RUN pipenv install --system --deploy --ignore-pipfile
 
 RUN cd /opt \
-  && git clone https://github.com/hoover/magic-definitions.git \
+  && git clone https://github.com/liquidinvestigations/magic-definitions.git \
   && ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc /opt/hoover/snoop/ )
 ENV PATH="/opt/magic-definitions/file/bin:${PATH}"
 
