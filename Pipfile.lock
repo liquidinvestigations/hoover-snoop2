@@ -127,11 +127,11 @@
         },
         "django-silk": {
             "hashes": [
-                "sha256:646f422318e880004424623fbbf854bfa45c86df11beedd9752815b5a68f47fb",
-                "sha256:8dd5b78531360bd8c3d571384f9f4f82ef03e1764e30dd4621c5638f5c973a1d"
+                "sha256:25fca5307d2904c347f88b4848302ab576d0bf598f3c0c12f1726478af5c069f",
+                "sha256:55a0e847710ea43b6c46e6f86bea8b4fba88bffe261c9bd9b21de599ca76dc3c"
             ],
             "index": "pypi",
-            "version": "==3.0.2"
+            "version": "==3.0.4"
         },
         "exifread": {
             "hashes": [
