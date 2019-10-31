@@ -41,10 +41,10 @@ EOF
 supervisorctl update
 
 # download testdata
-git clone https://github.com/hoover/testdata.git /opt/testdata
+git clone https://github.com/liquidinvestigations/testdata.git /opt/testdata
 
 # download magic file
-wget https://github.com/hoover/magic-definitions/raw/master/magic.mgc -O /opt/snoop2/magic.mgc
+wget https://github.com/liquidinvestigations/magic-definitions/raw/master/magic.mgc -O /opt/snoop2/magic.mgc
 
 # set up snoop's virtualenv
 virtualenv -p python3 /opt/snoop2-venv
