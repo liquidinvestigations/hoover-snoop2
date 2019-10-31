@@ -413,6 +413,5 @@ def auto_sync():
         return
 
     logger.info("walk for auto sync")
-    queryset = models.Task.objects
-    queryset = queryset.filter(func='filesystem.walk')
+    queryset = models.Task.objects.filter(func__in=['filesystem.walk', 'ocr.walk_source'])
     retry_tasks(queryset)
