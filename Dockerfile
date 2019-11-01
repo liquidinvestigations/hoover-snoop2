@@ -43,9 +43,10 @@ COPY . .
 
 ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.3.0/wait /wait
 
+ENV THREAD_COUNT 20
 RUN set -e \
  && echo '#!/bin/bash -e' > /runserver \
- && echo 'waitress-serve --port 80 snoop.wsgi:application' >> /runserver \
+ && echo 'waitress-serve --threads $THREAD_COUNT --port 80 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver /wait
 
 RUN set -e \
