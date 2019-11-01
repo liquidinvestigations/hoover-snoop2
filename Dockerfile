@@ -45,7 +45,7 @@ ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.3.0/wait
 
 RUN set -e \
  && echo '#!/bin/bash -e' > /runserver \
- && echo 'waitress-serve --port 80 snoop.wsgi:application' >> /runserver \
+ && echo 'waitress-serve --threads 42 --port 80 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver /wait
 
 RUN set -e \
