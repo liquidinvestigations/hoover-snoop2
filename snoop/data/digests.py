@@ -1,6 +1,9 @@
 import logging
 import json
 import re
+
+from django.conf import settings
+
 from .tasks import shaorma, ShaormaBroken
 from . import models
 from .utils import zulu
@@ -300,9 +303,10 @@ def get_document_data(digest):
     first_file = _get_first_file(digest)
 
     children = None
+    incomplete_children_list = False
     child_directory = first_file.child_directory_set.first()
     if child_directory:
-        children = get_directory_children(child_directory)
+        children, incomplete_children_list = get_directory_children(child_directory)
 
     rv = {
         'id': digest.blob.pk,
@@ -311,6 +315,7 @@ def get_document_data(digest):
         'version': _get_document_version(digest),
         'content': _get_document_content(digest),
         'children': children,
+        'incomplete_children_list': incomplete_children_list,
     }
 
     return rv
@@ -326,6 +331,7 @@ def get_document_locations(digest):
         }
 
     queryset = digest.blob.file_set.order_by('pk')
+    queryset = queryset[:settings.SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT + 1]
     return [location(file) for file in queryset]
 
 
@@ -347,15 +353,21 @@ def child_dir_to_dict(directory):
 
 
 def get_directory_children(directory):
-    child_directory_queryset = directory.child_directory_set.order_by('name_bytes')
+    limit = settings.SNOOP_DOCUMENT_CHILD_QUERY_LIMIT + 1
+    child_directory_queryset = directory.child_directory_set.order_by('name_bytes')[:limit]
+    child_directory_queryset = child_directory_queryset[:limit]
     child_file_queryset = directory.child_file_set.order_by('name_bytes')
+    child_file_queryset = child_file_queryset[:limit]
+    incomplete = len(child_directory_queryset) == limit or \
+        len(child_file_queryset) == limit
     return (
-        [child_dir_to_dict(d) for d in child_directory_queryset]
-        + [child_file_to_dict(f) for f in child_file_queryset]
-    )
+        [child_dir_to_dict(d) for d in child_directory_queryset][:limit - 1]
+        + [child_file_to_dict(f) for f in child_file_queryset][:limit - 1]
+    ), incomplete
 
 
 def get_directory_data(directory):
+    children, incomplete_children_list = get_directory_children(directory),
     return {
         'id': directory_id(directory),
         'parent_id': parent_id(directory),
@@ -365,5 +377,6 @@ def get_directory_data(directory):
             'filename': directory.name,
             'path': full_path(directory),
         },
-        'children': get_directory_children(directory),
+        'children': children,
+        'incomplete_children_list': incomplete_children_list,
     }
