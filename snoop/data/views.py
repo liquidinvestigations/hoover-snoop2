@@ -62,7 +62,10 @@ def document(request, hash):
 
 
 def document_download(request, hash, filename):
-    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
+    digest = get_object_or_404(
+        models.Digest.objects.only('blob'),
+        blob__pk=hash,
+    )
     blob = digest.blob
 
     if html.is_html(blob):
