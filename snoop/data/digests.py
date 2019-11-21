@@ -367,7 +367,7 @@ def get_directory_children(directory):
 
 
 def get_directory_data(directory):
-    children, incomplete_children_list = get_directory_children(directory),
+    children, incomplete_children_list = get_directory_children(directory)
     return {
         'id': directory_id(directory),
         'parent_id': parent_id(directory),

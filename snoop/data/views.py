@@ -6,6 +6,8 @@ from . import digests
 from . import ocr
 from .analyzers import html
 
+TEXT_LIMIT = 1000000  # one million chars
+
 
 def collection(request):
     return JsonResponse({
@@ -45,13 +47,25 @@ def directory(request, pk):
     return JsonResponse(digests.get_directory_data(directory))
 
 
+def trim_text(data):
+    """ Trim the text fields to TEXT_LIMIT chars """
+    text = data['content']['text']
+    if len(text) > TEXT_LIMIT:
+        text = text[:TEXT_LIMIT] + "\n\n=== Long text trimmed by Hoover ===\n"
+    data['content']['text'] = text
+    return data
+
+
 def document(request, hash):
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
-    return JsonResponse(digests.get_document_data(digest))
+    return JsonResponse(trim_text(digests.get_document_data(digest)))
 
 
 def document_download(request, hash, filename):
-    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
+    digest = get_object_or_404(
+        models.Digest.objects.only('blob'),
+        blob__pk=hash,
+    )
     blob = digest.blob
 
     if html.is_html(blob):
