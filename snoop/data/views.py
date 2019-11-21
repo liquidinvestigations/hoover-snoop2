@@ -6,7 +6,7 @@ from . import digests
 from . import ocr
 from .analyzers import html
 
-TEXT_LIMIT = 1000000  # one million chars
+TEXT_LIMIT = 10 ** 7  # ten million characters
 
 
 def collection(request):
