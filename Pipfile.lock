@@ -477,10 +477,10 @@
         },
         "pyicu": {
             "hashes": [
-                "sha256:ddb2b453853b4c25db382bc5e8c4cde09b3f4696ef1e1494f8294e174f459cf4"
+                "sha256:48c43424b67090c4028d8743132d141d8477f390f93e26c2cb67c26485622c20"
             ],
             "index": "pypi",
-            "version": "==2.3.1"
+            "version": "==2.4.2"
         },
         "pyparsing": {
             "hashes": [
