@@ -6,7 +6,7 @@ from . import digests
 from . import ocr
 from .analyzers import html
 
-TEXT_LIMIT = 1000000  # one million chars
+TEXT_LIMIT = 10 ** 7  # ten million characters
 
 
 def collection(request):
@@ -49,7 +49,13 @@ def directory(request, pk):
 
 def trim_text(data):
     """ Trim the text fields to TEXT_LIMIT chars """
+
     text = data['content']['text']
+
+    # For images and the like, text is None.
+    if not text:
+        return data
+
     if len(text) > TEXT_LIMIT:
         text = text[:TEXT_LIMIT] + "\n\n=== Long text trimmed by Hoover ===\n"
     data['content']['text'] = text
