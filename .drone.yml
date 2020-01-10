@@ -83,11 +83,11 @@ steps:
     password:
       from_secret: docker_password
   when:
-    branch:
-      excludes:
-        - dependabot/*
     event:
     - push
+    branch:
+      exclude:
+      - dependabot/**
 
 - name: docker push autotag + latest
   image: plugins/docker
