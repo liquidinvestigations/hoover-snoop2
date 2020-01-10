@@ -78,6 +78,8 @@ class Blob(models.Model):
     def __str__(self):
         return self.pk
 
+    __repr__ = __str__
+
     @property
     def content_type(self):
         if self.mime_type.startswith('text/'):
@@ -209,6 +211,8 @@ class Directory(models.Model):
     def __str__(self):
         return ''.join(reversed([f'{item.name}/' for item in self.ancestry()]))
 
+    __repr__ = __str__
+
 
 class File(models.Model):
     name_bytes = models.BinaryField(max_length=1024, blank=True)
@@ -239,6 +243,8 @@ class File(models.Model):
 
     def __str__(self):
         return truncatechars(self.name, 80)
+
+    __repr__ = __str__
 
     @property
     def parent(self):
@@ -286,6 +292,8 @@ class Task(models.Model):
         deps = '; depends on ' + prev_ids if prev_ids else ''
         return f'#{self.pk} {self.func}({self.args}{deps}) [{self.status}]'
 
+    __repr__ = __str__
+
     def update(self, status, error, broken_reason, log):
         self.status = status
         self.error = error
@@ -312,6 +320,8 @@ class TaskDependency(models.Model):
 
     def __str__(self):
         return f'{self.prev} -> {self.next}'
+
+    __repr__ = __str__
 
 
 class Digest(models.Model):
