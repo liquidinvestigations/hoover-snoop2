@@ -107,7 +107,7 @@ def add_record(row, document_type):
 
     log.debug('Sending %s %r', document_type, row)
     index = ES_INDEX_PREFIX + document_type
-    resp = requests.put(
+    resp = requests.post(
         f'{ES_URL}/{index}/{document_type}/',
         data=json.dumps(dump(row)),
         headers={'Content-Type': 'application/json'},
