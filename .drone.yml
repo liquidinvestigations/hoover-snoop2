@@ -78,7 +78,7 @@ steps:
   settings:
     repo: liquidinvestigations/hoover-snoop2
     # https://0-8-0.docs.drone.io/substitution/
-    tags: ${DRONE_COMMIT_BRANCH/\//-}
+    tags: ${DRONE_COMMIT_BRANCH}
     username:
       from_secret: docker_username
     password:
@@ -88,7 +88,7 @@ steps:
     - push
     branch:
       exclude:
-      - dependabot/*
+      - dependabot/**
 
 - name: docker push autotag + latest
   image: plugins/docker
