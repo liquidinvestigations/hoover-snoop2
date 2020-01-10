@@ -16,18 +16,19 @@ ES_MAPPINGS = {
         'properties': {
             'func': {'type': 'keyword'},
             'args': {'type': 'keyword'},
-            'date_created': {'type': 'date'},
-            'date_modified': {'type': 'date'},
-            'date_started': {'type': 'date'},
-            'date_finished': {'type': 'date'},
+            'date_created': {'type': 'date', 'format': 'date_time'},
+            'date_modified': {'type': 'date', 'format': 'date_time'},
+            'date_started': {'type': 'date', 'format': 'date_time'},
+            'date_finished': {'type': 'date', 'format': 'date_time'},
+            'duration': {'type': 'float'},
         },
     },
     'blob': {
         'properties': {
             'mime_type': {'type': 'keyword'},
             'mime_encoding': {'type': 'keyword'},
-            'date_created': {'type': 'date'},
-            'date_modified': {'type': 'date'},
+            'date_created': {'type': 'date', 'format': 'date_time'},
+            'date_modified': {'type': 'date', 'format': 'date_time'},
         },
     },
 }
@@ -57,6 +58,11 @@ def dump(row):
     data = {}
     for f in chain(meta.concrete_fields, meta.private_fields, meta.many_to_many):
         data[f.name] = f.value_from_object(row)
+
+    if data.get('date_finished', None):
+        finished = data['date_finished']
+        started = data['date_started']
+        data['duration'] = (finished - started).total_seconds()
 
     for k in data:
         if isinstance(data[k], datetime):
