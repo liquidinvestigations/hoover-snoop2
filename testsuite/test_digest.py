@@ -4,6 +4,7 @@ from fixtures import TESTDATA, CollectionApiClient
 pytestmark = [pytest.mark.django_db]
 
 
+@pytest.mark.skip(reason="tika no longer outputs HTTP422 with a broken response format in 1.20")
 def test_digest_with_broken_dependency(fakedata, taskmanager, client):
     root_directory = fakedata.init()
     mof1_1992_233 = TESTDATA / 'disk-files/broken.pdf'
@@ -19,7 +20,7 @@ def test_digest_with_broken_dependency(fakedata, taskmanager, client):
 
     assert digest['md5'] == 'f6e0d13c5c3aaab75b4febced3e72ae0'
     assert digest['size'] == 1000
-    assert digest['text'] is None
+    assert not digest['text']
     assert digest['broken'] == ['tika_http_422']
 
 
