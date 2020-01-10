@@ -86,6 +86,9 @@ steps:
   when:
     event:
     - push
+    branch:
+      exclude:
+      - dependabot/*
 
 - name: docker push autotag + latest
   image: plugins/docker
