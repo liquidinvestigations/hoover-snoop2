@@ -77,15 +77,13 @@ steps:
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
-    tags: ${DRONE_COMMIT_BRANCH}
+    # https://0-8-0.docs.drone.io/substitution/
+    tags: ${DRONE_COMMIT_BRANCH/\//-}
     username:
       from_secret: docker_username
     password:
       from_secret: docker_password
   when:
-    branch:
-      excludes:
-        - dependabot/*
     event:
     - push
 
