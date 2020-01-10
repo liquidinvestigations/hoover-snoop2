@@ -14,8 +14,10 @@ ES_INDEX_PREFIX = settings.SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX
 ES_MAPPINGS = {
     'task': {
         'properties': {
+            'collection': {'type': 'keyword'},
             'func': {'type': 'keyword'},
             'args': {'type': 'keyword'},
+            'status': {'type': 'keyword'},
             'date_created': {'type': 'date', 'format': 'date_time'},
             'date_modified': {'type': 'date', 'format': 'date_time'},
             'date_started': {'type': 'date', 'format': 'date_time'},
@@ -25,6 +27,7 @@ ES_MAPPINGS = {
     },
     'blob': {
         'properties': {
+            'collection': {'type': 'keyword'},
             'mime_type': {'type': 'keyword'},
             'mime_encoding': {'type': 'keyword'},
             'date_created': {'type': 'date', 'format': 'date_time'},
@@ -59,6 +62,8 @@ def dump(row):
     for f in chain(meta.concrete_fields, meta.private_fields, meta.many_to_many):
         data[f.name] = f.value_from_object(row)
 
+    data['collection'] = settings.SNOOP_COLLECTION_NAME
+
     if data.get('date_finished', None):
         finished = data['date_finished']
         started = data['date_started']
@@ -91,7 +96,6 @@ def bulk_index(row_iter, document_type):
         address = {
             '_index': index,
             '_type': document_type,
-            '_id': row.pk,
         }
         yield {'index': address}
         yield dump(row)
@@ -104,7 +108,7 @@ def add_record(row, document_type):
     log.debug('Sending %s %r', document_type, row)
     index = ES_INDEX_PREFIX + document_type
     resp = requests.put(
-        f'{ES_URL}/{index}/{document_type}/{row.pk}',
+        f'{ES_URL}/{index}/{document_type}/',
         data=json.dumps(dump(row)),
         headers={'Content-Type': 'application/json'},
     )

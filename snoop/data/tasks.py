@@ -143,6 +143,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
         task.status = models.Task.STATUS_PENDING
         task.date_started = timezone.now()
+        task.date_finished = None
         task.save()
 
         logger.info("Running %r", task)
