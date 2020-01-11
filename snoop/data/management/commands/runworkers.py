@@ -35,7 +35,7 @@ def celery_argv(queues):
         '-Ofair',
         '--max-tasks-per-child', '2000',
         '-Q', ','.join(queues),
-        '-c', '1',  # single worker
+        '-c', settings.WORKER_COUNT,
     ]
 
     return argv
