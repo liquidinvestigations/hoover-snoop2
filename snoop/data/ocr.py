@@ -18,6 +18,8 @@ def create_ocr_source(name, root):
 
 
 def dispatch_ocr_tasks():
+    log.info('Dispatching ocr tasks.')
+
     for ocr_source in models.OcrSource.objects.all():
         walk_source.laterz(ocr_source.pk)
 

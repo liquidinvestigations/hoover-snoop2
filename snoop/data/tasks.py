@@ -9,7 +9,6 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from snoop.data.models import Task
 from . import celery
 from . import models
 from ..profiler import profile
@@ -284,21 +283,30 @@ def dispatch_pending_tasks():
         ])
     )
 
-    for task in task_query:
+    task_count = task_query.count()
+    if not task_count:
+        logger.info('No pending tasks to dispatch')
+        return
+    logger.info('Dispatching remaining %s tasks.', task_count)
+
+    for task in task_query.iterator():
         deps_not_ready = (
             task.prev_set
             .exclude(prev__status=models.Task.STATUS_SUCCESS)
             .exists()
         )
         if deps_not_ready:
+            logger.info('Cannot dispatch %r, deps not ready')
             continue
         logger.info("Dispatching %r", task)
         queue_task(task)
+    logger.info('Done dispatching pending tasks!')
 
 
 def dispatch_walk_tasks():
     from .filesystem import walk
 
+    logger.info('Dispatching root walk task.')
     root = models.Directory.root()
     walk.laterz(root.pk)
 
@@ -393,17 +401,11 @@ def check_if_idle():
         return
     logger.info('running watchdog')
 
-    logger.info('Dispatching root walk task.')
     dispatch_walk_tasks()
 
-    logger.info('Dispatching ocr tasks.')
     dispatch_ocr_tasks()
 
-    db_tasks = Task.objects.exclude(status=Task.STATUS_BROKEN).\
-        exclude(status=Task.STATUS_SUCCESS).count()
-    if db_tasks:
-        logger.info('Dispatching remaining %s tasks.', db_tasks)
-        dispatch_pending_tasks()
+    dispatch_pending_tasks()
 
 
 @celery.app.task
