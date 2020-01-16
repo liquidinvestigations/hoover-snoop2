@@ -28,5 +28,5 @@ else:
 
 # Set the tracer to use the exporter
 # Get the global singleton Tracer object
-tracer = Tracer(exporter=ze, sampler=sampler)
-tracer.span('root')
+def create_tracer():
+    return Tracer(exporter=ze, sampler=sampler)
