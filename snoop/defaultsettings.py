@@ -117,7 +117,6 @@ if _tracing_url:
         raise RuntimeError("Can't parse TRACING_API value %r" % _tracing_url)
 
     TRACING_ENABLED = True
-    TRACING_SERVICE = 'snoop'
     TRACING_HOST = trm.group('host')
     TRACING_PORT = int(trm.group('port'))
     TRACING_API = '/api/v2/spans'

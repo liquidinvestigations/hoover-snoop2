@@ -157,8 +157,9 @@ def run_task(task, log_handler, raise_exceptions=False):
             try:
                 func = shaormerie[task.func]
                 with tracing.span('call func'):
-                    result = func(*args, **depends_on)
-                    tracing.add_annotation('success')
+                    with tracing.trace(name=task.func, service_name='func'):
+                        result = func(*args, **depends_on)
+                        tracing.add_annotation('success')
 
                 if result is not None:
                     assert isinstance(result, models.Blob)

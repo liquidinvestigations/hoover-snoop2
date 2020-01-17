@@ -16,11 +16,21 @@ def is_enabled():
     return getattr(settings, 'TRACING_ENABLED', False)
 
 
-# Setup the exporter
-ze = zipkin.ZipkinExporter(service_name=getattr(settings, 'TRACING_SERVICE', 'snoop'),
-                           host_name=getattr(settings, 'TRACING_HOST', 'zipkin'),
-                           port=getattr(settings, 'TRACING_PORT', 9411),
-                           endpoint=getattr(settings, 'TRACING_API', '/api/v2/spans'))
+def create_exporter(service_name):
+    return zipkin.ZipkinExporter(
+        service_name=service_name,
+        host_name=getattr(settings, 'TRACING_HOST', 'zipkin'),
+        port=getattr(settings, 'TRACING_PORT', 9411),
+        endpoint=getattr(settings, 'TRACING_API', '/api/v2/spans'),
+    )
+
+
+_exporters = {}
+def get_exporter(service_name):
+    if service_name not in _exporters:
+        _exporters[service_name] = create_exporter(service_name)
+    return _exporters[service_name]
+
 
 # If enabled configure 100% sample rate, otherwise, 0% sample rate
 if is_enabled():
@@ -47,15 +57,17 @@ def set_parent(value):
 
 
 @contextmanager
-def trace(name):
-    tracer = Tracer(exporter=ze, sampler=sampler)
+def trace(name, service_name='snoop'):
+    tracer = Tracer(exporter=get_exporter(service_name), sampler=sampler)
     try:
-        with set_parent(tracer):
-            with span(name):
-                yield
+        # if there is another trace on the stack, mask it, so this trace's
+        # spans don't interfere with it
+        with set_parent(None):
+            with set_parent(tracer):
+                with span(name):
+                    yield
     finally:
         tracer.finish()
-        execution_context.clean()
 
 
 @contextmanager
