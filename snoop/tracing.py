@@ -26,6 +26,8 @@ def create_exporter(service_name):
 
 
 _exporters = {}
+
+
 def get_exporter(service_name):
     if service_name not in _exporters:
         _exporters[service_name] = create_exporter(service_name)
