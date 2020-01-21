@@ -4,7 +4,7 @@ import requests
 from dateutil import parser
 from ..tasks import shaorma, ShaormaBroken, returns_json_blob
 from ..utils import zulu
-from snoop.trace import tracer
+from snoop import tracing
 
 TIKA_CONTENT_TYPES = [
     'text/plain',
@@ -72,7 +72,7 @@ def call_tika_server(endpoint, data):
 @shaorma('tika.rmeta')
 @returns_json_blob
 def rmeta(blob):
-    with blob.open() as f, tracer.span('tika.rmeta'):
+    with blob.open() as f, tracing.span('tika.rmeta'):
         resp = call_tika_server('rmeta/text', f)
 
     return resp.json()
