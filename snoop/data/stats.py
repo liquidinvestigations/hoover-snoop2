@@ -114,9 +114,7 @@ def add_record(row, document_type):
     )
 
     if not (200 <= resp.status_code < 300):
-        log.error('Response: %r', resp)
-        log.error('Response text:\n%s', resp.text)
-        raise RuntimeError('Put request failed: %r' % resp)
+        log.error('Failed to add stats record: %r', resp)
 
 
 def update():
