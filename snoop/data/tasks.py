@@ -285,19 +285,18 @@ def shaorma(name):
     return decorator
 
 
-def dispatch_pending_tasks():
+def dispatch_tasks(status):
     task_query = (
         models.Task.objects
         .filter(status__in=[
-            models.Task.STATUS_PENDING,
-            models.Task.STATUS_DEFERRED,
+            status,
         ])
     )
 
     task_count = task_query.count()
     if not task_count:
-        logger.info('No pending tasks to dispatch')
-        return
+        logger.info('No tasks to dispatch')
+        return False
     logger.info('Dispatching remaining %s tasks.', task_count)
 
     for task in task_query.iterator():
@@ -311,7 +310,9 @@ def dispatch_pending_tasks():
             continue
         logger.info("Dispatching %r", task)
         queue_task(task)
+
     logger.info('Done dispatching pending tasks!')
+    return True
 
 
 def dispatch_walk_tasks():
@@ -388,7 +389,7 @@ def count_tasks(tasks_status, excluded=[]):
 
 
 def has_any_tasks():
-    excluded = ['snoop.data.tasks.check_if_idle', 'snoop.data.tasks.auto_sync']
+    excluded = ['snoop.data.tasks.populate_queue']
 
     inspector = inspect(celery.app)
     active = inspector.call(method='active', arguments={})
@@ -404,27 +405,31 @@ def has_any_tasks():
 
 
 @celery.app.task
-def check_if_idle():
+def populate_queue():
     from .ocr import dispatch_ocr_tasks
 
     if has_any_tasks():
-        logger.info('skipping watchdog')
+        logger.info('skipping populate_queue')
         return
-    logger.info('running watchdog')
+    logger.info('running populate_queue')
 
-    dispatch_walk_tasks()
+    if dispatch_tasks(models.Task.STATUS_PENDING):
+        logger.info('found PENDING tasks, exiting...')
+        return
 
+    if dispatch_tasks(models.Task.STATUS_DEFERRED):
+        logger.info('found DEFERRED tasks, exiting...')
+        return
+
+    count_before = models.Task.objects.filter().count()
     dispatch_ocr_tasks()
-
-    dispatch_pending_tasks()
-
-
-@celery.app.task
-def auto_sync():
-    if has_any_tasks():
-        logger.info('skipping auto sync')
+    dispatch_walk_tasks()
+    count_after = models.Task.objects.filter().count()
+    if count_before != count_after:
+        logger.info('initial dispatch added new tasks, exiting...')
         return
 
-    logger.info("walk for auto sync")
-    queryset = models.Task.objects.filter(func__in=['filesystem.walk', 'ocr.walk_source'])
-    retry_tasks(queryset)
+    if settings.SYNC_FILES:
+        logger.info("sync: retrying all walk tasks")
+        queryset = models.Task.objects.filter(func__in=['filesystem.walk', 'ocr.walk_source'])
+        retry_tasks(queryset)

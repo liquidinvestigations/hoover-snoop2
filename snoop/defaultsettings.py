@@ -103,6 +103,13 @@ SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = os.environ.get('SNOOP_STATS_ES_PREFIX',
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
 
+
+def bool_env(value):
+    return (value or '').lower() in ['on', 'true']
+
+
+SYNC_FILES = bool_env(os.environ.get('SYNC_FILES'))
+
 SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT = 300
 SNOOP_DOCUMENT_CHILD_QUERY_LIMIT = 300
 
@@ -122,17 +129,12 @@ if _tracing_url:
     TRACING_API = '/api/v2/spans'
 
 celery.app.conf.beat_schedule = {
-    'check_if_idle': {
-        'task': 'snoop.data.tasks.check_if_idle',
-        'schedule': timedelta(minutes=4),
+    'populate_queue': {
+        'task': 'snoop.data.tasks.populate_queue',
+        'schedule': timedelta(minutes=1),
     },
-    'auto_sync': {
-        'task': 'snoop.data.tasks.auto_sync',
-        'schedule': timedelta(minutes=7)
-    }
 }
 
 celery.app.conf.task_routes = {
-    'snoop.data.tasks.check_if_idle': {'queue': 'watchdog'},
-    'snoop.data.tasks.auto_sync': {'queue': 'auto_sync'}
+    'snoop.data.tasks.populate_queue': {'queue': 'populate_queue'},
 }

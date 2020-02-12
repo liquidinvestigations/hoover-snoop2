@@ -14,10 +14,6 @@ from ...logs import logging_for_management_command
 log = logging.getLogger(__name__)
 
 
-def bool_env(value):
-    return (value or '').lower() in ['on', 'true']
-
-
 def celery_argv(queues):
     celery_binary = (
         subprocess.check_output(['which', 'celery'])
@@ -71,10 +67,7 @@ class Command(BaseCommand):
             else:
                 prefix = settings.TASK_PREFIX
             queues = options.get('func') or tasks.shaormerie
-            system_queues = ['watchdog']
-            if bool_env(os.environ.get('SYNC_FILES')):
-                log.warning('auto sync enabled!')
-                system_queues += ['auto_sync']
+            system_queues = ['populate_queue']
 
             argv = celery_argv(
                 queues=[f'{prefix}.{queue}' for queue in queues] + system_queues,
