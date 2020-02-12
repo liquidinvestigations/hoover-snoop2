@@ -67,7 +67,7 @@ class Command(BaseCommand):
             else:
                 prefix = settings.TASK_PREFIX
             queues = options.get('func') or tasks.shaormerie
-            system_queues = ['populate_queue']
+            system_queues = ['run_dispatcher']
 
             argv = celery_argv(
                 queues=[f'{prefix}.{queue}' for queue in queues] + system_queues,

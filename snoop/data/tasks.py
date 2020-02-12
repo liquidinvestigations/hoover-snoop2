@@ -274,7 +274,7 @@ def shaorma(name):
                         name=dep_name,
                     )
 
-            if created or queue_now:
+            if queue_now:
                 queue_task(task)
 
             return task
@@ -289,10 +289,9 @@ def shaorma(name):
 def dispatch_tasks(status):
     task_query = (
         models.Task.objects
-        .filter(status__in=[
-            status,
-        ])
-    )
+        .filter(status=status)
+        .order_by('-date_modified')  # newest pending tasks first
+    )[:settings.DISPATCH_QUEUE_LIMIT]
 
     task_count = task_query.count()
     if not task_count:
@@ -382,7 +381,7 @@ def count_tasks(tasks_status, excluded=[]):
 
 
 def has_any_tasks():
-    excluded = ['snoop.data.tasks.populate_queue']
+    excluded = ['snoop.data.tasks.run_dispatcher']
 
     inspector = inspect(celery.app)
     active = inspector.call(method='active', arguments={})
@@ -432,5 +431,9 @@ def run_dispatcher():
 
     if settings.SYNC_FILES:
         logger.info("sync: retrying all walk tasks")
-        queryset = models.Task.objects.filter(func__in=['filesystem.walk', 'ocr.walk_source'])
+        queryset = (
+            models.Task.objects
+            .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
+            .order_by('date_modified')[:settings.DISPATCH_QUEUE_LIMIT]
+        )
         retry_tasks(queryset)

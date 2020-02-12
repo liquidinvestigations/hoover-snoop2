@@ -106,7 +106,9 @@ WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
 # task count to be picked up by 1 worker
 WORKER_TASK_LIMIT = 500
 # limit for queueing large counts of children tasks and run_dispatcher
-QUEUED_TASK_LIMIT = 500
+CHILD_QUEUE_LIMIT = 100
+# count of extra tasks to trigger every minute where there
+DISPATCH_QUEUE_LIMIT = 500
 
 
 def bool_env(value):

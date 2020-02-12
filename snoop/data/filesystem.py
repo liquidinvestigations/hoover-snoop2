@@ -40,7 +40,7 @@ def walk(directory_pk):
     path = directory_absolute_path(directory)
 
     for i, thing in enumerate(path.iterdir()):
-        queue_limit = i > settings.QUEUED_TASK_LIMIT
+        queue_limit = i >= settings.CHILD_QUEUE_LIMIT
 
         if thing.is_dir():
             (child_directory, created) = directory.child_directory_set.get_or_create(
@@ -127,7 +127,7 @@ def create_archive_files(file_pk, archive_listing):
 
     def create_directory_children(directory, children):
         for i, item in enumerate(children):
-            queue_limit = i > settings.QUEUED_TASK_LIMIT
+            queue_limit = i >= settings.CHILD_QUEUE_LIMIT
 
             if item['type'] == 'file':
                 child_original = models.Blob.objects.get(pk=item['blob_pk'])
