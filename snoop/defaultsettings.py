@@ -103,7 +103,9 @@ SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = os.environ.get('SNOOP_STATS_ES_PREFIX',
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
 
+# task count to be picked up by 1 worker
 WORKER_TASK_LIMIT = 500
+# limit for queueing large counts of children tasks and run_dispatcher
 QUEUED_TASK_LIMIT = 500
 
 
@@ -132,12 +134,12 @@ if _tracing_url:
     TRACING_API = '/api/v2/spans'
 
 celery.app.conf.beat_schedule = {
-    'populate_queue': {
-        'task': 'snoop.data.tasks.populate_queue',
+    'run_dispatcher': {
+        'task': 'snoop.data.tasks.run_dispatcher',
         'schedule': timedelta(minutes=1),
     },
 }
 
 celery.app.conf.task_routes = {
-    'snoop.data.tasks.populate_queue': {'queue': 'populate_queue'},
+    'snoop.data.tasks.run_dispatcher': {'queue': 'run_dispatcher'},
 }

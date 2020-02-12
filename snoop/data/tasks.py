@@ -316,16 +316,6 @@ def dispatch_tasks(status):
     return True
 
 
-def dispatch_walk_tasks():
-    from .filesystem import walk
-
-    logger.info('Dispatching root walk task.')
-    root = models.Directory.root()
-    assert root, "root directory does not exist"
-
-    walk.laterz(root.pk)
-
-
 def retry_task(task, fg=False):
     task.update(
         status=models.Task.STATUS_PENDING,
@@ -407,14 +397,22 @@ def has_any_tasks():
     return count > 0
 
 
+def dispatch_walk_tasks():
+    from .filesystem import walk
+    root = models.Directory.root()
+    if not root:
+        root = models.Directory.objects.create()
+    walk.laterz(root.pk)
+
+
 @celery.app.task
-def populate_queue():
+def run_dispatcher():
     from .ocr import dispatch_ocr_tasks
 
     if has_any_tasks():
-        logger.info('skipping populate_queue')
+        logger.info('skipping run_dispatcher -- already have tasks')
         return
-    logger.info('running populate_queue')
+    logger.info('running run_dispatcher')
 
     if dispatch_tasks(models.Task.STATUS_PENDING):
         logger.info('found PENDING tasks, exiting...')
@@ -425,8 +423,8 @@ def populate_queue():
         return
 
     count_before = models.Task.objects.filter().count()
-    dispatch_ocr_tasks()
     dispatch_walk_tasks()
+    dispatch_ocr_tasks()
     count_after = models.Task.objects.filter().count()
     if count_before != count_after:
         logger.info('initial dispatch added new tasks, exiting...')

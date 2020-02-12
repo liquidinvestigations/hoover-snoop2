@@ -5,7 +5,7 @@ import requests
 import pytest
 from django.conf import settings
 from snoop.data import models
-from snoop.data import dispatcher
+from snoop.data import tasks
 from snoop.data import indexing
 from snoop.data import exportimport
 
@@ -31,7 +31,7 @@ def test_complete_lifecycle(client, taskmanager):
     indexing.delete_index()
     indexing.create_index()
 
-    dispatcher.run_dispatcher()
+    tasks.run_dispatcher()
     taskmanager.run(limit=10000)
 
     col_url = '/collection/json'
