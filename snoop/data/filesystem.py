@@ -39,25 +39,25 @@ def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     path = directory_absolute_path(directory)
 
-    new_files = []
-    for thing in path.iterdir():
+    for i, thing in enumerate(path.iterdir()):
+        queue_limit = i > settings.QUEUED_TASK_LIMIT
+
         if thing.is_dir():
-            (child_directory, _) = directory.child_directory_set.get_or_create(
+            (child_directory, created) = directory.child_directory_set.get_or_create(
                 name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
             )
-            walk.laterz(child_directory.pk)
+            # since the periodic task retries all talk tasks in rotation,
+            # we're not going to dispatch a walk task we didn't create
+            walk.laterz(child_directory.pk, queue_now=created and not queue_limit)
 
         else:
             directory = models.Directory.objects.get(pk=directory_pk)
             path = directory_absolute_path(directory) / thing.name
             stat = path.stat()
 
-            # TODO if file is already loaded, and size+mtime are the same,
-            # don't re-import it
-
             original = models.Blob.create_from_file(path)
 
-            file, _ = directory.child_file_set.get_or_create(
+            file, created = directory.child_file_set.get_or_create(
                 name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
                 defaults=dict(
                     ctime=time_from_unix(stat.st_ctime),
@@ -67,10 +67,12 @@ def walk(directory_pk):
                     blob=original,
                 ),
             )
-            new_files.append(file)
-
-    for file in new_files:
-        handle_file.laterz(file.pk)
+            # if file is already loaded, and size+mtime are the same,
+            # don't dispatch remaining tasks
+            if created or file.mtime != time_from_unix(stat.st_mtime) or file.size != stat.st_size:
+                handle_file.laterz(file.pk, queue_now=not queue_limit)
+            else:
+                handle_file.laterz(file.pk, queue_now=False)
 
 
 @shaorma('filesystem.handle_file')
@@ -124,18 +126,16 @@ def create_archive_files(file_pk, archive_listing):
         archive_listing_data = json.load(f)
 
     def create_directory_children(directory, children):
-        child_files = []
-        for item in children:
+        for i, item in enumerate(children):
+            queue_limit = i > settings.QUEUED_TASK_LIMIT
+
             if item['type'] == 'file':
                 child_original = models.Blob.objects.get(pk=item['blob_pk'])
                 file = create_file(directory, item['name'], child_original)
-                child_files.append(file)
+                handle_file.laterz(file.pk, queue_now=not queue_limit)
 
             if item['type'] == 'directory':
                 create_directory(directory, item['name'], item['children'])
-
-        for file in child_files:
-            handle_file.laterz(file.pk)
 
     def create_directory(parent_directory, name, children):
         (directory, _) = parent_directory.child_directory_set.get_or_create(
@@ -146,7 +146,7 @@ def create_archive_files(file_pk, archive_listing):
     def create_file(parent_directory, name, original):
         size = original.path().stat().st_size
 
-        (file, _) = parent_directory.child_file_set.get_or_create(
+        file, _ = parent_directory.child_file_set.get_or_create(
             name_bytes=name.encode('utf8', errors='surrogateescape'),
             defaults=dict(
                 ctime=archive.ctime,

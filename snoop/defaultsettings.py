@@ -103,6 +103,9 @@ SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = os.environ.get('SNOOP_STATS_ES_PREFIX',
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
 
+WORKER_TASK_LIMIT = 500
+QUEUED_TASK_LIMIT = 500
+
 
 def bool_env(value):
     return (value or '').lower() in ['on', 'true']

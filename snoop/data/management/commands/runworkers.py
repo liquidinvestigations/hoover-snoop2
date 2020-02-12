@@ -29,7 +29,7 @@ def celery_argv(queues):
         '--loglevel=info',
         'worker',
         '-Ofair',
-        '--max-tasks-per-child', '2000',
+        '--max-tasks-per-child', str(settings.WORKER_TASK_LIMIT),
         '-Q', ','.join(queues),
         '-c', str(settings.WORKER_COUNT),
     ]

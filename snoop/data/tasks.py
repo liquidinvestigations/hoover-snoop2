@@ -247,7 +247,7 @@ def shaorma(name):
 
     def decorator(func):
 
-        def laterz(*args, depends_on={}, retry=False):
+        def laterz(*args, depends_on={}, retry=False, queue_now=True):
             if args and isinstance(args[0], models.Blob):
                 blob_arg = args[0]
                 args = (blob_arg.pk,) + args[1:]
@@ -255,7 +255,7 @@ def shaorma(name):
             else:
                 blob_arg = None
 
-            task, _ = models.Task.objects.get_or_create(
+            task, created = models.Task.objects.get_or_create(
                 func=name,
                 args=args,
                 blob_arg=blob_arg,
@@ -274,7 +274,8 @@ def shaorma(name):
                         name=dep_name,
                     )
 
-            queue_task(task)
+            if created or queue_now:
+                queue_task(task)
 
             return task
 
