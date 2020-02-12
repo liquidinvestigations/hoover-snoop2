@@ -320,6 +320,8 @@ def dispatch_walk_tasks():
 
     logger.info('Dispatching root walk task.')
     root = models.Directory.root()
+    assert root, "root directory does not exist"
+
     walk.laterz(root.pk)
 
 

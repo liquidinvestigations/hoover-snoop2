@@ -7,7 +7,7 @@ steps:
   commands:
   - flake8
 
-- name: docker build, extract magic
+- name: docker build
   image: docker:dind
   volumes:
   - name: dockersock
@@ -15,7 +15,6 @@ steps:
   commands:
   - until docker version; do sleep 3; done
   - docker build . --tag snoop2-testing
-  - docker run --rm -v `pwd`:/local snoop2-testing cp magic.mgc /local
 
 - name: download docker setup, testdata
   image: alpine/git:1.0.7

@@ -1,12 +1,12 @@
+import os
 import subprocess
 import re
-from urllib.request import urlopen
-from contextlib import closing
 from pathlib import Path
 from .utils import read_exactly
 
 MAGIC_URL = 'https://github.com/liquidinvestigations/magic-definitions/raw/master/magic.mgc'
-MAGIC_FILE = Path(__file__).resolve().parent.parent.parent / 'magic.mgc'
+MAGIC_FILE = Path(os.getenv('MAGIC_FILE'))
+assert MAGIC_FILE.exists()
 
 
 class Magic:
@@ -88,24 +88,6 @@ class Magic:
                 self.magic_process.stdin.write(buffer)
             except IOError:
                 self.finish_mime()
-
-
-def download_magic_definitions():
-    from .models import chunks
-    if not MAGIC_FILE.exists():
-        print("Downloading magic.mgc ...")
-        with MAGIC_FILE.open('wb') as f:
-            with closing(urlopen(MAGIC_URL)) as resp:
-                for chunk in chunks(resp):
-                    f.write(chunk)
-        print("ok")
-
-    which_file = subprocess.check_output(['which', 'file']).decode('latin1')
-    version_file = subprocess.check_output([
-        'file', '--version',
-        '-m', str(MAGIC_FILE),
-    ]).decode('latin1')
-    print(f"Using {which_file} with version info: \n{version_file}")
 
 
 def looks_like_email(path):

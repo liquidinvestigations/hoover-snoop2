@@ -26,8 +26,9 @@ RUN pipenv install --system --deploy --ignore-pipfile
 
 RUN cd /opt \
   && git clone https://github.com/liquidinvestigations/magic-definitions.git \
-  && ( cd magic-definitions && ( ./build.sh ) && cp magic.mgc /opt/hoover/snoop/ )
+  && ( cd magic-definitions && ./build.sh )
 ENV PATH="/opt/magic-definitions/file/bin:${PATH}"
+ENV MAGIC_FILE="/opt/magic-definitions/magic.mgc"
 
 RUN wget http://www.five-ten-sg.com/libpst/packages/libpst-0.6.71.tar.gz --progress=dot:giga \
   && tar zxvf libpst-0.6.71.tar.gz \
