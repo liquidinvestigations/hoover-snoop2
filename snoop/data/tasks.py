@@ -46,7 +46,10 @@ class MissingDependency(Exception):
 def queue_task(task):
 
     def send_to_celery():
-        laterz_shaorma.apply_async((task.pk,), queue=f'{settings.TASK_PREFIX}.{task.func}')
+        laterz_shaorma.apply_async(
+            (task.pk,),
+            queue=f'{settings.TASK_PREFIX}.{task.func}',
+            priority=shaormerie[task.func].priority)
 
     transaction.on_commit(send_to_celery)
 
@@ -243,7 +246,7 @@ def run_task(task, log_handler, raise_exceptions=False):
         queue_next_tasks(task, reset=True)
 
 
-def shaorma(name):
+def shaorma(name, priority=5):
 
     def decorator(func):
 
@@ -280,6 +283,7 @@ def shaorma(name):
             return task
 
         func.laterz = laterz
+        func.priority = priority
         shaormerie[name] = func
         return func
 

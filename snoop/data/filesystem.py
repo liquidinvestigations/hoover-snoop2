@@ -33,7 +33,7 @@ def directory_absolute_path(directory):
     return path
 
 
-@shaorma('filesystem.walk')
+@shaorma('filesystem.walk', priority=1)
 @profile()
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
@@ -75,7 +75,7 @@ def walk(directory_pk):
                 handle_file.laterz(file.pk, queue_now=False)
 
 
-@shaorma('filesystem.handle_file')
+@shaorma('filesystem.handle_file', priority=2)
 @profile()
 def handle_file(file_pk, **depends_on):
     file = models.File.objects.get(pk=file_pk)
@@ -115,7 +115,7 @@ def handle_file(file_pk, **depends_on):
     digests.launch.laterz(file.blob)
 
 
-@shaorma('filesystem.create_archive_files')
+@shaorma('filesystem.create_archive_files', priority=3)
 @profile()
 def create_archive_files(file_pk, archive_listing):
     if isinstance(archive_listing, ShaormaBroken):

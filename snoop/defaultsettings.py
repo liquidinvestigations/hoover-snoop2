@@ -105,10 +105,12 @@ WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
 
 # task count to be picked up by 1 worker
 WORKER_TASK_LIMIT = 500
-# limit for queueing large counts of children tasks and run_dispatcher
-CHILD_QUEUE_LIMIT = 100
-# count of extra tasks to trigger every minute where there
-DISPATCH_QUEUE_LIMIT = 500
+# limit for queueing large counts of children tasks
+CHILD_QUEUE_LIMIT = 50
+# count of pending tasks to trigger when finding an empty queue.
+# If there are no pending tasks, this is how many directories
+# will be retried by sync every minute.
+DISPATCH_QUEUE_LIMIT = 5000
 
 
 def bool_env(value):
