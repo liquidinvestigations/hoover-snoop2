@@ -106,7 +106,7 @@ WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
 # task count to be picked up by 1 worker
 WORKER_TASK_LIMIT = 500
 # limit for queueing large counts of children tasks
-CHILD_QUEUE_LIMIT = 50
+CHILD_QUEUE_LIMIT = 66
 # count of pending tasks to trigger when finding an empty queue.
 # If there are no pending tasks, this is how many directories
 # will be retried by sync every minute.
