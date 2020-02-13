@@ -311,7 +311,7 @@ def dispatch_tasks(status):
             .exists()
         )
         if deps_not_ready:
-            logger.info('Cannot dispatch %r, deps not ready')
+            logger.info('Cannot dispatch %r, deps not ready', task)
             continue
         logger.info("Dispatching %r", task)
         queue_task(task)
