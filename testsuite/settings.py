@@ -28,6 +28,4 @@ DATABASES = {
 SNOOP_TIKA_URL = 'http://snoop-tika:9998'
 
 SNOOP_COLLECTIONS_ELASTICSEARCH_URL = 'http://search-es:9200'
-# SNOOP_STATS_ELASTICSEARCH_URL = 'http://snoop-stats-es:9200'
-# SNOOP_STATS_ELASTICSEARCH_INDEX_PREFIX = 'http://snoop-stats-es:9200'
 # SNOOP_GNUPG_HOME = '/opt/hoover/gnupg'
