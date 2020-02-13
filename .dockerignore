@@ -6,3 +6,4 @@ test_blobs
 magic.mgc
 static
 factory-scripts
+docker-setup

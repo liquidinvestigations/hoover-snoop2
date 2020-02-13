@@ -103,6 +103,9 @@ def gather(blob, **depends_on):
 
 @shaorma('digests.index', priority=9)
 def index(blob, digests_gather):
+    if isinstance(digests_gather, ShaormaBroken):
+        raise digests_gather
+
     digest = models.Digest.objects.get(blob=blob)
     content = _get_document_content(digest)
     version = _get_document_version(digest)

@@ -76,10 +76,10 @@ def test_complete_lifecycle(client, taskmanager):
     # check that all index ops were successful
     filtered_tasks = models.Task.objects.filter(func='digests.index')
     index_failed = [(t.args, t.status) for t in filtered_tasks.exclude(status='success')]
-    # one indexing task should be deferred because
+    # one indexing task should be broken because
     # `encrypted-hushmail-smashed-bytes.eml` is broken
     assert index_failed == [(['66a3a6bb9b8d86b7ce2be5e9f3a794a778a85fb58b8550a54b7e2821d602e1f1'],
-                             'deferred')]
+                             'broken')]
 
     # test export and import database
     with tempfile.TemporaryFile('w+b') as f:
