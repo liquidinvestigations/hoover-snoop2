@@ -45,6 +45,7 @@ class MissingDependency(Exception):
 
 def queue_task(task):
 
+    import_shaormas()
     def send_to_celery():
         laterz_shaorma.apply_async(
             (task.pk,),
