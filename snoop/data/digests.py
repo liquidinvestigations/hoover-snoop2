@@ -17,7 +17,7 @@ from . import indexing
 log = logging.getLogger(__name__)
 
 
-@shaorma('digests.launch')
+@shaorma('digests.launch', priority=3)
 def launch(blob):
     depends_on = {}
 
@@ -34,7 +34,7 @@ def launch(blob):
     index.laterz(blob, depends_on={'digests_gather': gather_task})
 
 
-@shaorma('digests.gather')
+@shaorma('digests.gather', priority=8)
 def gather(blob, **depends_on):
     rv = {'broken': []}
     text_blob = depends_on.get('text')
@@ -101,7 +101,7 @@ def gather(blob, **depends_on):
     return writer.blob
 
 
-@shaorma('digests.index')
+@shaorma('digests.index', priority=9)
 def index(blob, digests_gather):
     digest = models.Digest.objects.get(blob=blob)
     content = _get_document_content(digest)
