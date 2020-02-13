@@ -311,7 +311,14 @@ def dispatch_tasks(status):
             .exists()
         )
         if deps_not_ready:
-            logger.info('Cannot dispatch %r, deps not ready', task)
+            logger.info('Cannot dispatch %r, deps not ready, settings as DEFERRED', task)
+            task.state = models.Task.STATUS_DEFERRED
+            task.update(
+                status=models.Task.STATUS_DEFERRED,
+                error='',
+                broken_reason='',
+                log="deps not ready",
+            )
             continue
         logger.info("Dispatching %r", task)
         queue_task(task)
