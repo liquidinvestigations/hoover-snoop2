@@ -6,6 +6,7 @@ from time import time
 
 from celery.bin.control import inspect
 from django.conf import settings
+from django.db import transaction, DatabaseError
 from django.utils import timezone
 
 from . import celery
@@ -45,10 +46,13 @@ class MissingDependency(Exception):
 def queue_task(task):
     import_shaormas()
 
-    laterz_shaorma.apply_async(
-        (task.pk,),
-        queue=f'{settings.TASK_PREFIX}.{task.func}',
-        priority=shaormerie[task.func].priority)
+    def send_to_celery():
+        laterz_shaorma.apply_async(
+            (task.pk,),
+            queue=f'{settings.TASK_PREFIX}.{task.func}',
+            priority=shaormerie[task.func].priority)
+
+    transaction.on_commit(send_to_celery)
 
 
 def queue_next_tasks(task, reset=False):
@@ -95,8 +99,12 @@ def shaorma_log_handler(level=logging.DEBUG):
 @celery.app.task
 def laterz_shaorma(task_pk, raise_exceptions=False):
     import_shaormas()
-    with shaorma_log_handler() as handler:
-        task = models.Task.objects.select_for_update().get(pk=task_pk)
+    with transaction.atomic(), shaorma_log_handler() as handler:
+        try:
+            task = models.Task.objects.select_for_update(nowait=True).get(pk=task_pk)
+        except DatabaseError as e:
+            logger.error("task %r already running, locked in the database: %s", task_pk, e)
+            return
         run_task(task, handler, raise_exceptions)
 
 
