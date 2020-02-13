@@ -282,6 +282,10 @@ class Task(models.Model):
         indexes = [
             models.Index(fields=['status']),
             models.Index(fields=['func', 'status']),
+            # for dispatching in reverse order
+            models.Index(fields=['status', 'date_modified']),
+            # for retrying all walks, in order
+            models.Index(fields=['func', 'date_modified']),
         ]
 
     def __str__(self):

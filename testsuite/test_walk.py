@@ -4,7 +4,7 @@ import tempfile
 from django.conf import settings
 import pytest
 
-from snoop.data import dispatcher
+from snoop.data import tasks
 from snoop.data import filesystem
 from snoop.data import models
 
@@ -54,7 +54,7 @@ def test_children_of_archives_in_multiple_locations(taskmanager, monkeypatch):
     models.Directory.objects.create()
 
     # filesystem.walk(root.pk)
-    dispatcher.run_dispatcher()
+    tasks.run_dispatcher()
     taskmanager.run(limit=10000)
 
     files = list(models.File.objects.all())
