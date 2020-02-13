@@ -123,7 +123,20 @@ def run_task(task, log_handler, raise_exceptions=False):
 
         with tracing.span('check dependencies'):
             depends_on = {}
-            for dep in task.prev_set.all():
+
+            all_prev_deps = list(task.prev_set.all())
+            if any(dep.prev.status == models.Task.STATUS_ERROR for dep in all_prev_deps):
+                logger.info("%r has a dependency in the ERROR state.", task)
+                task.update(
+                    status=models.Task.STATUS_BROKEN,
+                    error='',
+                    broken_reason='has a dependency in the ERROR state',
+                    log=log_handler.stream.getvalue(),
+                )
+                task.save()
+                return
+
+            for dep in all_prev_deps:
                 prev_task = dep.prev
                 if not is_completed(prev_task):
                     task.update(
@@ -135,6 +148,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     task.save()
                     logger.info("%r missing dependency %r", task, prev_task)
                     tracing.add_annotation("%r missing dependency %r" % (task, prev_task))
+                    queue_task(prev_task)
                     return
 
                 if prev_task.status == models.Task.STATUS_SUCCESS:
@@ -305,28 +319,6 @@ def dispatch_tasks(status):
     logger.info('Dispatching remaining %s tasks.', task_count)
 
     for task in task_query.iterator():
-        deps_not_ready = (
-            task.prev_set
-            .exclude(prev__status=models.Task.STATUS_SUCCESS)
-            .exists()
-        )
-        if deps_not_ready:
-            logger.info('Cannot dispatch %r, deps not ready, settings as DEFERRED', task)
-            task.update(
-                status=models.Task.STATUS_DEFERRED,
-                error='',
-                broken_reason='',
-                log="deps not ready",
-            )
-            task.save()
-
-            logger.info('Dispatching pending dependencies...')
-            for dep in task.prev_set.filter(prev__status=models.Task.STATUS_PENDING).iterator():
-                queue_task(dep.prev)
-            else:
-                logger.error("No pending tasks for DEFERRED")
-            continue
-
         logger.info("Dispatching %r", task)
         queue_task(task)
 
