@@ -3,14 +3,12 @@ from pathlib import Path
 import tempfile
 import hashlib
 from django.db import models
-from django.db.models.signals import post_save
 from django.conf import settings
 from django.template.defaultfilters import truncatechars
 from django.contrib.postgres.fields import JSONField
 from django.core.exceptions import ObjectDoesNotExist
 from .magic import Magic, looks_like_email, looks_like_emlx_email, \
     looks_like_mbox
-from . import stats
 
 BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
 BLOB_TMP = BLOB_ROOT / 'tmp'
@@ -359,16 +357,3 @@ class OcrDocument(models.Model):
 
     class Meta:
         unique_together = ('source', 'original_hash')
-
-
-def on_save_task(sender, instance, **kwargs):
-    stats.add_record(instance, 'task')
-
-
-def on_save_blob(sender, instance, **kwargs):
-    stats.add_record(instance, 'blob')
-
-
-if stats.is_enabled():
-    post_save.connect(on_save_task, sender=Task, dispatch_uid='index_tasks')
-    post_save.connect(on_save_blob, sender=Blob, dispatch_uid='index_blobs')
