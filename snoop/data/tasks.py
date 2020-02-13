@@ -319,7 +319,15 @@ def dispatch_tasks(status):
                 broken_reason='',
                 log="deps not ready",
             )
+            task.save()
+
+            logger.info('Dispatching pending dependencies...')
+            for prev in task.prev_set.filter(prev__status=models.Task.STATUS_PENDING).iterator():
+                queue_task(prev)
+            else:
+                logger.error("No pending tasks for DEFERRED")
             continue
+
         logger.info("Dispatching %r", task)
         queue_task(task)
 
