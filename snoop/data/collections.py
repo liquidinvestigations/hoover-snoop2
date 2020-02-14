@@ -90,3 +90,9 @@ def from_object(obj):
     db_alias = obj._state.db
     assert db_alias.startswith('collection_')
     return ALL[db_alias.split('_', 1)[1]]
+
+
+def current():
+    col = threadlocal.collection
+    assert col is not None
+    return col
