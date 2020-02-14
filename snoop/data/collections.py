@@ -28,6 +28,18 @@ class Collection:
     def migrate(self):
         management.call_command('migrate', '--database', self.db_alias)
 
+    @contextmanager
+    def set_current(self):
+        assert getattr(threadlocal, 'collection', None) is None
+        try:
+            threadlocal.collection = self
+            logger.debug("WITH collection = %s BEGIN", self)
+            yield
+        finally:
+            logger.debug("WITH collectio = %s END", self)
+            assert threadlocal.collection is self
+            threadlocal.collection = None
+
 
 ALL = {name: Collection(name) for name in settings.SNOOP_COLLECTIONS}
 
@@ -53,15 +65,13 @@ class CollectionsRouter:
 
     def db_for_read(self, model, **hints):
         if model._meta.app_label in self.snoop_app_labels:
-            db_alias = db()
-            assert db_alias is not None
+            db_alias = threadlocal.collection.db_alias
             logger.debug("Sending READ to %s db", db_alias)
             return db_alias
 
     def db_for_write(self, model, **hints):
         if model._meta.app_label in self.snoop_app_labels:
-            db_alias = db()
-            assert db_alias is not None
+            db_alias = threadlocal.collection.db_alias
             logger.debug("Sending WRITE to %s db", db_alias)
             return db_alias
 
@@ -76,18 +86,7 @@ class CollectionsRouter:
             return (app_label in self.snoop_app_labels)
 
 
-@contextmanager
-def set_db(db_alias):
-    assert getattr(threadlocal, 'db_alias', None) is None
-    try:
-        threadlocal.db_alias = db_alias
-        logger.debug("WITH set_db = %s BEGIN", db_alias)
-        yield
-    finally:
-        logger.debug("WITH set_db = %s END", db_alias)
-        assert threadlocal.db_alias == db_alias
-        threadlocal.db_alias = None
-
-
-def db():
-    return threadlocal.db_alias
+def from_object(obj):
+    db_alias = obj._state.db
+    assert db_alias.startswith('collection_')
+    return ALL[db_alias.split('_', 1)[1]]

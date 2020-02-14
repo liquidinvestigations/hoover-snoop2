@@ -19,7 +19,7 @@ class Command(BaseCommand):
         logging_for_management_command(options['verbosity'])
 
         col = collections.ALL[collection]
-        with collections.set_db(col.db_alias):
+        with col.set_current():
             queryset = models.Task.objects
 
             func = options.get('func')

@@ -48,8 +48,9 @@ def queue_task(task):
     import_shaormas()
 
     def send_to_celery():
+        col = collections.from_object(task)
         laterz_shaorma.apply_async(
-            (task._state.db, task.pk,),
+            (col.name, task.pk,),
             queue=f'{settings.TASK_PREFIX}.{task.func}',
             priority=shaormerie[task.func].priority)
 
@@ -98,9 +99,10 @@ def shaorma_log_handler(level=logging.DEBUG):
 
 
 @celery.app.task
-def laterz_shaorma(db_alias, task_pk, raise_exceptions=False):
+def laterz_shaorma(col_name, task_pk, raise_exceptions=False):
     import_shaormas()
-    with transaction.atomic(using=db_alias), collections.set_db(db_alias):
+    col = collections.ALL[col_name]
+    with transaction.atomic(using=col.db_alias), col.set_current():
         with shaorma_log_handler() as handler:
             try:
                 task = (
@@ -345,7 +347,8 @@ def retry_task(task, fg=False):
     task.save()
 
     if fg:
-        laterz_shaorma(task._state.db, task.pk, raise_exceptions=True)
+        col = collections.from_object(task)
+        laterz_shaorma(col.name, task.pk, raise_exceptions=True)
     else:
         queue_task(task)
 
@@ -431,13 +434,13 @@ def run_dispatcher():
     logger.info('running run_dispatcher')
 
     for collection in collections.ALL.values():
-        if dispatch_for(collection.db_name):
+        if dispatch_for(collection):
             return
 
-def dispatch_for(db_alias):
+def dispatch_for(collection):
     from .ocr import dispatch_ocr_tasks
 
-    with collections.set_db(db_alias):
+    with collection.set_current():
         if dispatch_tasks(models.Task.STATUS_PENDING):
             logger.info('found PENDING tasks, exiting...')
             return True
