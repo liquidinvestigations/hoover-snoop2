@@ -4,6 +4,7 @@ import pytest
 from django.utils import timezone
 from snoop.data import tasks
 from snoop.data import models
+from snoop.data import collections
 from fixtures import FakeData
 
 logging.getLogger('celery').setLevel(logging.WARNING)
@@ -35,7 +36,8 @@ class TaskManager:
 def taskmanager(monkeypatch):
     taskmanager = TaskManager()
     monkeypatch.setattr(tasks, 'queue_task', taskmanager.add)
-    return taskmanager
+    with collections.ALL['testdata'].set_current():
+        yield taskmanager
 
 
 @pytest.fixture
