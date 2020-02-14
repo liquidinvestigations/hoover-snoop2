@@ -4,10 +4,15 @@ from django.db import migrations
 
 
 def remove_walk_file_tasks(apps, schema_editor):
+    db_alias = schema_editor.connection.alias
     Task = apps.get_model('data', 'Task')
     TaskDependency = apps.get_model('data', 'TaskDependency')
-    TaskDependency.objects.filter(prev__func='filesystem.walk_file').delete()
-    Task.objects.filter(func='filesystem.walk_file').delete()
+    deps = (
+        TaskDependency.objects.using(db_alias)
+        .filter(prev__func='filesystem.walk_file')
+    )
+    deps.delete()
+    Task.objects.using(db_alias).filter(func='filesystem.walk_file').delete()
 
 
 def noop(apps, schema_editor):
