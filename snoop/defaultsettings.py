@@ -57,13 +57,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'snoop.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'snoop2',
-    }
-}
-
 # heroku-style db config
 _snoop_db = os.environ['SNOOP_DB']
 dbm = re.match(
@@ -73,11 +66,29 @@ dbm = re.match(
 )
 if not dbm:
     raise RuntimeError("Can't parse SNOOP_DB value %r" % _snoop_db)
-DATABASES['default']['HOST'] = dbm.group('host')
-DATABASES['default']['PORT'] = dbm.group('port')
-DATABASES['default']['NAME'] = dbm.group('name')
-DATABASES['default']['USER'] = dbm.group('user')
-DATABASES['default']['PASSWORD'] = dbm.group('password')
+
+default_db = {
+    'ENGINE': 'django.db.backends.postgresql',
+    'HOST': dbm.group('host'),
+    'PORT': dbm.group('port'),
+    'NAME': dbm.group('name'),
+    'USER': dbm.group('user'),
+    'PASSWORD': dbm.group('password'),
+}
+
+DATABASES = {
+    'default': default_db,
+}
+
+SNOOP_COLLECTION_NAME = os.environ.get('SNOOP_ES_INDEX', 'snoop')
+SNOOP_COLLECTIONS = [SNOOP_COLLECTION_NAME]
+
+for name in SNOOP_COLLECTIONS:
+    assert re.match(r'^[a-zA-Z0-9-_]+$', name)
+    db_name = f'collection_{name}'
+    DATABASES[db_name] = dict(default_db, NAME=db_name)
+
+DATABASE_ROUTERS = ['snoop.data.collections.CollectionsRouter']
 
 LANGUAGE_CODE = 'en-us'
 DETECT_LANGUAGE = True
@@ -90,7 +101,6 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = str(base_dir / 'static')
 
-SNOOP_COLLECTION_NAME = os.environ.get('SNOOP_ES_INDEX', 'snoop')
 SNOOP_COLLECTIONS_ELASTICSEARCH_URL = os.environ.get('SNOOP_ES_URL', 'http://localhost:9200')
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')

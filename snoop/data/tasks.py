@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.utils import timezone
 
+from . import collections
 from . import celery
 from . import models
 from ..profiler import profile
