@@ -437,6 +437,7 @@ def run_dispatcher():
         if dispatch_for(collection):
             return
 
+
 def dispatch_for(collection):
     from .ocr import dispatch_ocr_tasks
 
