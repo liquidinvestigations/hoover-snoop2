@@ -12,3 +12,4 @@
 celerybeat*
 /Procfile
 /wait
+/testsuite/volumes

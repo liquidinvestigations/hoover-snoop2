@@ -12,25 +12,3 @@ assert os.path.isdir(SNOOP_TESTDATA)
 
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_EAGER_PROPAGATES_EXCEPTIONS = True
-
-default_db = {
-    'ENGINE': 'django.db.backends.postgresql',
-    'NAME': 'snoop',
-    'USER': 'snoop',
-    'HOST': 'snoop-pg',
-    'PORT': 5432,
-}
-
-DATABASES = {
-    'default': default_db,
-    'collection_testdata': dict(default_db, NAME='collection_testdata'),
-}
-
-SNOOP_COLLECTIONS = [{'name': 'testdata'}]
-
-# CELERY_BROKER_URL = 'amqp://snoop-rabbitmq'
-
-SNOOP_TIKA_URL = 'http://snoop-tika:9998'
-
-SNOOP_COLLECTIONS_ELASTICSEARCH_URL = 'http://search-es:9200'
-# SNOOP_GNUPG_HOME = '/opt/hoover/gnupg'
