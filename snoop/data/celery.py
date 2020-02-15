@@ -1,4 +1,7 @@
 import logging
+import os
+
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "snoop.defaultsettings")
 
 from celery import Celery
 

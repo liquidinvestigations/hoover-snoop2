@@ -18,7 +18,6 @@ services:
       - ./gnupg:/opt/hoover/gnupg
       - ./collections:/opt/hoover/collections
       - ./volumes/search-es-snapshots:/opt/hoover/es-snapshots
-      - ../testsuite/snoop-settings.py:/opt/hoover/snoop/snoop/localsettings.py
       - ./snoop-blobs:/opt/hoover/snoop/blobs
     env_file:
       - ./settings/snoop.testing.env
@@ -45,7 +44,6 @@ services:
       - ./gnupg:/opt/hoover/gnupg
       - ./collections:/opt/hoover/collections
       - ./volumes/search-es-snapshots:/opt/hoover/es-snapshots
-      - ../testsuite/snoop-settings.py:/opt/hoover/snoop/snoop/localsettings.py
       - ./snoop-blobs:/opt/hoover/snoop/blobs
     depends_on:
       - snoop-pg
