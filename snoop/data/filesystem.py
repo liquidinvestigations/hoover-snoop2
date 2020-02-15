@@ -7,6 +7,7 @@ from snoop.profiler import profile
 
 from . import digests
 from . import models
+from . import collections
 from .analyzers import archives
 from .analyzers import email
 from .analyzers import emlx
@@ -22,7 +23,8 @@ if settings.SNOOP_COLLECTION_ROOT is None:
 def directory_absolute_path(directory):
     path_elements = []
     node = directory
-    path = Path(settings.SNOOP_COLLECTION_ROOT)
+    col = collections.current()
+    path = Path(settings.SNOOP_COLLECTION_ROOT) / col.name / 'data'
 
     while node.parent_directory:
         path_elements.append(node.name)

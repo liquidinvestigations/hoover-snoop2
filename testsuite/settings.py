@@ -26,7 +26,7 @@ DATABASES = {
     'collection_testdata': dict(default_db, NAME='collection_testdata'),
 }
 
-SNOOP_COLLECTIONS = ['testdata']
+SNOOP_COLLECTIONS = [{'name': 'testdata'}]
 
 # CELERY_BROKER_URL = 'amqp://snoop-rabbitmq'
 

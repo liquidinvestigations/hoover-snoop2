@@ -439,26 +439,28 @@ def run_dispatcher():
 
 
 def dispatch_for(collection):
+    logger.info('Dispatching for %r', collection)
     from .ocr import dispatch_ocr_tasks
 
     with collection.set_current():
-        if dispatch_tasks(models.Task.STATUS_PENDING):
-            logger.info('found PENDING tasks, exiting...')
-            return True
+        if collection.process:
+            if dispatch_tasks(models.Task.STATUS_PENDING):
+                logger.info('%r found PENDING tasks, exiting...', collection)
+                return True
 
-        if dispatch_tasks(models.Task.STATUS_DEFERRED):
-            logger.info('found DEFERRED tasks, exiting...')
-            return True
+            if dispatch_tasks(models.Task.STATUS_DEFERRED):
+                logger.info('%r found DEFERRED tasks, exiting...', collection)
+                return True
 
-        count_before = models.Task.objects.count()
-        dispatch_walk_tasks()
-        dispatch_ocr_tasks()
-        count_after = models.Task.objects.count()
-        if count_before != count_after:
-            logger.info('initial dispatch added new tasks, exiting...')
-            return True
+            count_before = models.Task.objects.count()
+            dispatch_walk_tasks()
+            dispatch_ocr_tasks()
+            count_after = models.Task.objects.count()
+            if count_before != count_after:
+                logger.info('%r initial dispatch added new tasks, exiting...', collection)
+                return True
 
-        if settings.SYNC_FILES:
+        if collection.sync:
             logger.info("sync: retrying all walk tasks")
             queryset = (
                 models.Task.objects

@@ -14,8 +14,13 @@ threadlocal = threading.local()
 
 class Collection:
 
-    def __init__(self, name):
+    def __init__(self, name, process=False, sync=False):
         self.name = name
+        self.process = process or sync
+        self.sync = sync
+
+    def __repr__(self):
+        return f"<Collection {self.name} process={self.process} sync={self.sync}>"
 
     @property
     def db_name(self):
@@ -43,7 +48,10 @@ class Collection:
             threadlocal.collection = None
 
 
-ALL = {name: Collection(name) for name in settings.SNOOP_COLLECTIONS}
+ALL = {}
+for item in settings.SNOOP_COLLECTIONS:
+    col = Collection(**item)
+    ALL[col.name] = col
 
 
 def create_databases():

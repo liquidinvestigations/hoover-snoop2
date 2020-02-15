@@ -2,6 +2,7 @@ import os
 import re
 from datetime import timedelta
 from pathlib import Path
+import json
 
 from snoop.data import celery
 
@@ -81,9 +82,10 @@ DATABASES = {
 }
 
 SNOOP_COLLECTION_NAME = os.environ.get('SNOOP_ES_INDEX', 'snoop')
-SNOOP_COLLECTIONS = [SNOOP_COLLECTION_NAME]
+SNOOP_COLLECTIONS = json.loads(os.environ.get('SNOOP_COLLECTIONS', '[]'))
 
-for name in SNOOP_COLLECTIONS:
+for col in SNOOP_COLLECTIONS:
+    name = col['name']
     assert re.match(r'^[a-zA-Z0-9-_]+$', name)
     db_name = f'collection_{name}'
     DATABASES[db_name] = dict(default_db, NAME=db_name)
