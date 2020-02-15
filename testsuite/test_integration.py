@@ -1,13 +1,17 @@
 from urllib.parse import urljoin
 import tempfile
 import subprocess
+
 import requests
 import pytest
 from django.conf import settings
+
 from snoop.data import models
 from snoop.data import tasks
 from snoop.data import indexing
 from snoop.data import exportimport
+
+from conftest import mask_out_current_collection
 
 pytestmark = [pytest.mark.django_db]
 
@@ -31,7 +35,9 @@ def test_complete_lifecycle(client, taskmanager):
     indexing.delete_index()
     indexing.create_index()
 
-    tasks.run_dispatcher()
+    with mask_out_current_collection():
+        tasks.run_dispatcher()
+
     taskmanager.run(limit=10000)
 
     col_url = '/collection/json'

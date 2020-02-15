@@ -8,6 +8,8 @@ from snoop.data import tasks
 from snoop.data import filesystem
 from snoop.data import models
 
+from conftest import mask_out_current_collection
+
 TESTDATA = Path(settings.SNOOP_TESTDATA)
 
 pytestmark = [pytest.mark.django_db]
@@ -53,8 +55,9 @@ def test_children_of_archives_in_multiple_locations(taskmanager, monkeypatch):
     monkeypatch.setattr(settings, 'SNOOP_COLLECTION_ROOT', root_path)
     models.Directory.objects.create()
 
-    # filesystem.walk(root.pk)
-    tasks.run_dispatcher()
+    with mask_out_current_collection():
+        tasks.run_dispatcher()
+
     taskmanager.run(limit=10000)
 
     files = list(models.File.objects.all())

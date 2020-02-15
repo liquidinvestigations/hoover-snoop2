@@ -1,10 +1,9 @@
 #!/usr/bin/env python
+import os
 import sys
 
 if __name__ == "__main__":
-    from snoop import set_django_settings
-    set_django_settings()
-
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "snoop.defaultsettings")
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

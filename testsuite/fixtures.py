@@ -4,6 +4,7 @@ from django.conf import settings
 from snoop.data import models
 from snoop.data import filesystem
 from snoop.data import indexing
+from snoop.data import collections
 
 TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 
@@ -11,6 +12,7 @@ TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 class FakeData:
 
     def init(self):
+        col = collections.current()
         indexing.delete_index()
         indexing.create_index()
         return models.Directory.objects.create()
@@ -19,15 +21,14 @@ class FakeData:
         return models.Blob.create_from_bytes(data)
 
     def directory(self, parent, name):
-        directory = models.Directory.objects.create(
-            parent_directory=parent,
+        directory = parent.child_directory_set.create(
             name_bytes=name.encode('utf8'),
         )
         return directory
 
     def file(self, parent, name, blob):
         now = timezone.now()
-        file = models.File.objects.create(
+        file = parent.child_file_set.create(
             parent_directory=parent,
             name_bytes=name.encode('utf8'),
             ctime=now,

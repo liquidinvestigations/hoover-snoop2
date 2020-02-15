@@ -30,14 +30,16 @@ class Collection:
 
     @contextmanager
     def set_current(self):
-        assert getattr(threadlocal, 'collection', None) is None
+        assert getattr(threadlocal, 'collection', None) is None, \
+            "There is already a current collection"
         try:
             threadlocal.collection = self
             logger.debug("WITH collection = %s BEGIN", self)
             yield
         finally:
             logger.debug("WITH collectio = %s END", self)
-            assert threadlocal.collection is self
+            assert threadlocal.collection is self, \
+                "Current collection has changed!"
             threadlocal.collection = None
 
 
@@ -63,17 +65,17 @@ class CollectionsRouter:
 
     snoop_app_labels = ['data']
 
-    def db_for_read(self, model, **hints):
+    def db_for_read(self, model, instance=None, **hints):
         if model._meta.app_label in self.snoop_app_labels:
-            db_alias = threadlocal.collection.db_alias
-            logger.debug("Sending READ to %s db", db_alias)
+            if instance is None:
+                db_alias = current().db_alias
+            else:
+                db_alias = from_object(instance).db_alias
+            logger.debug("Sending to db %r", db_alias)
             return db_alias
 
     def db_for_write(self, model, **hints):
-        if model._meta.app_label in self.snoop_app_labels:
-            db_alias = threadlocal.collection.db_alias
-            logger.debug("Sending WRITE to %s db", db_alias)
-            return db_alias
+        return self.db_for_read(model, **hints)
 
     def allow_migrate(self, db, app_label, model_name=None, **hints):
         """
@@ -93,6 +95,6 @@ def from_object(obj):
 
 
 def current():
-    col = threadlocal.collection
-    assert col is not None
+    col = getattr(threadlocal, 'collection', None)
+    assert col is not None, "There is no current collection set"
     return col
