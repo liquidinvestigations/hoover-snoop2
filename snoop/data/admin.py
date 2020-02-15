@@ -12,11 +12,12 @@ from django.utils import timezone
 from django.urls import path
 from django.shortcuts import render
 from django.db.models import Sum, Count, Avg, F
-from django.db import connection
+from django.db import connections
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from django.http import HttpResponseRedirect
 from . import models
 from . import tasks
+from . import collections
 
 
 def redirect_to_admin(request):
@@ -29,7 +30,8 @@ def blob_link(blob_pk):
 
 
 def raw_sql(query):
-    with connection.cursor() as cursor:
+    col = collections.current()
+    with connections[col.db_alias].cursor() as cursor:
         cursor.execute(query)
         return cursor.fetchall()
 
@@ -88,7 +90,8 @@ def get_stats():
     [[db_size]] = raw_sql("select pg_database_size(current_database())")
 
     def get_error_counts():
-        with connection.cursor() as cursor:
+        col = collections.current()
+        with connections[col.db_alias].cursor() as cursor:
             cursor.execute(ERROR_STATS_QUERY)
             for row in cursor.fetchall():
                 yield {
