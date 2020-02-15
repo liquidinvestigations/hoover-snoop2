@@ -1,5 +1,4 @@
 import pytest
-from snoop.data import collections
 from fixtures import CollectionApiClient
 
 pytestmark = [pytest.mark.django_db]

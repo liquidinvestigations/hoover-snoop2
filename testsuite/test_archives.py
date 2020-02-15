@@ -5,7 +5,6 @@ from django.conf import settings
 from snoop.data import models, filesystem
 from snoop.data.analyzers import archives
 from snoop.data.utils import time_from_unix
-from snoop.data import collections
 
 pytestmark = [pytest.mark.django_db]
 

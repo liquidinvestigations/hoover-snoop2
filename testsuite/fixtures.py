@@ -4,7 +4,6 @@ from django.conf import settings
 from snoop.data import models
 from snoop.data import filesystem
 from snoop.data import indexing
-from snoop.data import collections
 
 TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 
@@ -12,7 +11,6 @@ TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 class FakeData:
 
     def init(self):
-        col = collections.current()
         indexing.delete_index()
         indexing.create_index()
         return models.Directory.objects.create()
