@@ -1,5 +1,4 @@
 from urllib.parse import urljoin
-import tempfile
 import subprocess
 
 import requests
