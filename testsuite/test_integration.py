@@ -9,7 +9,6 @@ from django.conf import settings
 from snoop.data import models
 from snoop.data import tasks
 from snoop.data import indexing
-from snoop.data import exportimport
 
 from conftest import mask_out_current_collection
 
@@ -86,51 +85,3 @@ def test_complete_lifecycle(client, taskmanager):
     # `encrypted-hushmail-smashed-bytes.eml` is broken
     assert index_failed == [(['66a3a6bb9b8d86b7ce2be5e9f3a794a778a85fb58b8550a54b7e2821d602e1f1'],
                              'broken')]
-
-    # test export and import database
-    with tempfile.TemporaryFile('w+b') as f:
-        counts = {}
-        for name, model in exportimport.model_map.items():
-            counts[name] = len(model.objects.all())
-
-        exportimport.export_db(stream=f)
-
-        for model in exportimport.model_map.values():
-            model.objects.all().delete()
-
-        f.seek(0)
-        exportimport.import_db(stream=f)
-
-        for name, model in exportimport.model_map.items():
-            count = len(model.objects.all())
-            assert count == counts[name], f"{name}: {count} != {counts[name]}"
-
-# TODO make a separate test for export and import index+blobs
-#     # test export and import index
-#     with tempfile.TemporaryFile('w+b') as f:
-#         indexing.export_index(stream=f)
-#         indexing.delete_index()
-#         f.seek(0)
-#         indexing.import_index(stream=f)
-#         count_resp = requests.get(es_count_url)
-#         assert count_resp.json()['count'] == es_count
-#
-#     # test export and import blobs
-#     with tempfile.TemporaryFile('w+b') as f:
-#         count = int(subprocess.check_output(
-#             'find . -type f | wc -l',
-#             shell=True,
-#             cwd=blobs_path,
-#         ))
-#         exportimport.export_blobs(stream=f)
-#
-#         subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
-#
-#         f.seek(0)
-#         exportimport.import_blobs(stream=f)
-#         new_count = int(subprocess.check_output(
-#             'find . -type f | wc -l',
-#             shell=True,
-#             cwd=blobs_path,
-#         ))
-#         assert new_count == count
