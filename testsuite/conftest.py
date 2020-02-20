@@ -75,6 +75,7 @@ class TaskManager:
 def taskmanager(monkeypatch):
     taskmanager = TaskManager(collections.ALL['testdata'])
     monkeypatch.setattr(tasks, 'queue_task', taskmanager.add)
+    monkeypatch.setattr(tasks, 'has_any_tasks', lambda: False)
     return taskmanager
 
 
