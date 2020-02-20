@@ -7,7 +7,6 @@ from fixtures import CollectionApiClient
 from snoop.data import models
 from snoop.data import tasks
 from snoop.data.analyzers import email
-from snoop.data.analyzers import pgp
 
 PATH_HUSH_MAIL = 'eml-9-pgp/encrypted-hushmail-knockoff.eml'
 
