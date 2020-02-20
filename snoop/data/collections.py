@@ -48,6 +48,10 @@ class Collection:
     def gpghome_path(self):
         return self.base_path / self.GPGHOME_DIR
 
+    @property
+    def es_index(self):
+        return self.name
+
     def migrate(self):
         management.call_command('migrate', '--database', self.db_alias)
 
@@ -85,6 +89,14 @@ def create_databases():
 def migrate_databases():
     for col in ALL.values():
         col.migrate()
+
+
+def create_es_indexes():
+    from snoop.data import indexing
+    for col in ALL.values():
+        with col.set_current():
+            if not indexing.index_exists():
+                indexing.create_index()
 
 
 class CollectionsRouter:

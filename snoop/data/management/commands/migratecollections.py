@@ -11,3 +11,4 @@ class Command(BaseCommand):
         logging_for_management_command(options['verbosity'])
         collections.create_databases()
         collections.migrate_databases()
+        collections.create_es_indexes()

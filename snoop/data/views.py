@@ -25,10 +25,11 @@ def collection_view(func):
 
 @collection_view
 def collection(request):
+    col = collections.current()
     return JsonResponse({
-        'name': settings.SNOOP_COLLECTION_NAME,
-        'title': settings.SNOOP_COLLECTION_NAME,
-        'description': settings.SNOOP_COLLECTION_NAME,
+        'name': col.name,
+        'title': col.name,
+        'description': col.name,
         'feed': 'feed',
         'data_urls': '{id}/json',
     })

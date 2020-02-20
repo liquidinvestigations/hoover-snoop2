@@ -81,7 +81,6 @@ DATABASES = {
     'default': default_db,
 }
 
-SNOOP_COLLECTION_NAME = os.environ.get('SNOOP_ES_INDEX', 'snoop')
 SNOOP_COLLECTIONS = json.loads(os.environ.get('SNOOP_COLLECTIONS', '[]'))
 
 for col in SNOOP_COLLECTIONS:
@@ -108,7 +107,6 @@ SNOOP_COLLECTIONS_ELASTICSEARCH_URL = os.environ.get('SNOOP_ES_URL', 'http://loc
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 SNOOP_FEED_PAGE_SIZE = 100
-SNOOP_COLLECTIONS_ELASTICSEARCH_INDEX = os.environ.get('SNOOP_ES_INDEX', 'snoop2')
 SNOOP_COLLECTION_ROOT = os.environ.get('SNOOP_COLLECTION_ROOT')
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
@@ -126,8 +124,6 @@ DISPATCH_QUEUE_LIMIT = 5000
 def bool_env(value):
     return (value or '').lower() in ['on', 'true']
 
-
-SYNC_FILES = bool_env(os.environ.get('SYNC_FILES'))
 
 SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT = 300
 SNOOP_DOCUMENT_CHILD_QUERY_LIMIT = 300
