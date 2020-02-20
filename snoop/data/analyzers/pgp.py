@@ -1,9 +1,7 @@
-from pathlib import Path
 import subprocess
-from django.conf import settings
-from ..tasks import ShaormaBroken
 
-gpghome = Path(settings.SNOOP_COLLECTION_ROOT).parent / 'gpghome'
+from .. import collections
+from ..tasks import ShaormaBroken
 
 
 def is_encrypted(data):
@@ -11,6 +9,7 @@ def is_encrypted(data):
 
 
 def decrypt(data):
+    gpghome = collections.current().gpghome_path
     if not gpghome.exists():
         raise ShaormaBroken("No gpghome folder", 'gpg_not_configured')
 
@@ -24,6 +23,7 @@ def decrypt(data):
 
 
 def import_keys(keydata):
+    gpghome = collections.current().gpghome_path
     subprocess.run(
         ['gpg', '--home', gpghome, '--import'],
         input=keydata,

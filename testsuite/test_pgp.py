@@ -52,7 +52,10 @@ def test_gpg_digest(gpg_blob, client, fakedata, taskmanager):
 
 
 def test_broken_if_no_gpg_home(gpg_blob, monkeypatch):
-    monkeypatch.setattr(pgp, 'gpghome', Path('/tmp/no-such-gpghome'))
+    monkeypatch.setattr(
+        'snoop.data.collections.Collection.gpghome_path',
+        Path('/tmp/no-such-gpghome'),
+    )
 
     with pytest.raises(tasks.ShaormaBroken) as e:
         email.parse(gpg_blob)

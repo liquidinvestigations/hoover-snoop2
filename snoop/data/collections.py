@@ -1,6 +1,7 @@
 import logging
 import threading
 from contextlib import contextmanager
+from pathlib import Path
 
 from django.conf import settings
 from django.db import connection
@@ -29,6 +30,20 @@ class Collection:
     @property
     def db_alias(self):
         return f"collection_{self.name}"
+
+    @property
+    def base_path(self):
+        if settings.SNOOP_COLLECTION_ROOT is None:
+            raise RuntimeError("settings.SNOOP_COLLECTION_ROOT not configured")
+        return Path(settings.SNOOP_COLLECTION_ROOT) / col.name
+
+    @property
+    def data_path(self):
+        return self.base_path / 'data'
+
+    @property
+    def gpghome_path(self):
+        return self.base_path / 'gpghome'
 
     def migrate(self):
         management.call_command('migrate', '--database', self.db_alias)

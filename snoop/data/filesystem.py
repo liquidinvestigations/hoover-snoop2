@@ -16,15 +16,12 @@ from .utils import time_from_unix
 
 log = logging.getLogger(__name__)
 
-if settings.SNOOP_COLLECTION_ROOT is None:
-    raise RuntimeError("settings.SNOOP_COLLECTION_ROOT not configured")
-
 
 def directory_absolute_path(directory):
     path_elements = []
     node = directory
     col = collections.current()
-    path = Path(settings.SNOOP_COLLECTION_ROOT) / col.name / 'data'
+    path = col.data_path
 
     while node.parent_directory:
         path_elements.append(node.name)
