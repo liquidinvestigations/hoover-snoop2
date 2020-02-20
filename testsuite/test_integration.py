@@ -38,20 +38,21 @@ def test_complete_lifecycle(client, taskmanager):
 
     taskmanager.run(limit=10000)
 
-    col_url = '/collections/testdata/json'
-    col = client.get(col_url).json()
+    with mask_out_current_collection():
+        col_url = '/collections/testdata/json'
+        col = client.get(col_url).json()
 
-    def feed_page(url):
-        page = client.get(url).json()
-        next_url = urljoin(url, page['next']) if page.get('next') else None
-        return next_url, page['documents']
+        def feed_page(url):
+            page = client.get(url).json()
+            next_url = urljoin(url, page['next']) if page.get('next') else None
+            return next_url, page['documents']
 
-    docs = {}
-    feed_url = urljoin(col_url, col['feed'])
-    while feed_url:
-        feed_url, page_docs = feed_page(feed_url)
-        for doc in page_docs:
-            docs[doc['id']] = doc
+        docs = {}
+        feed_url = urljoin(col_url, col['feed'])
+        while feed_url:
+            feed_url, page_docs = feed_page(feed_url)
+            for doc in page_docs:
+                docs[doc['id']] = doc
 
     # this file exists on the filesystem
     cheese = docs[ID['cheese']]
