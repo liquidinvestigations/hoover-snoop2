@@ -96,6 +96,7 @@ def create_es_indexes():
     for col in ALL.values():
         with col.set_current():
             if not indexing.index_exists():
+                logger.info(f'Creating index {col.es_index}')
                 indexing.create_index()
 
 
