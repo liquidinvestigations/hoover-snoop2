@@ -38,7 +38,7 @@ def test_complete_lifecycle(client, taskmanager):
 
     taskmanager.run(limit=10000)
 
-    col_url = '/collection/json'
+    col_url = '/collections/testdata/json'
     col = client.get(col_url).json()
 
     def feed_page(url):
