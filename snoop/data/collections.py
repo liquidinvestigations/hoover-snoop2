@@ -15,6 +15,9 @@ threadlocal = threading.local()
 
 class Collection:
 
+    DATA_DIR = 'data'
+    GPGHOME_DIR = 'gpghome'
+
     def __init__(self, name, process=False, sync=False):
         self.name = name
         self.process = process or sync
@@ -39,11 +42,11 @@ class Collection:
 
     @property
     def data_path(self):
-        return self.base_path / 'data'
+        return self.base_path / self.DATA_DIR
 
     @property
     def gpghome_path(self):
-        return self.base_path / 'gpghome'
+        return self.base_path / self.GPGHOME_DIR
 
     def migrate(self):
         management.call_command('migrate', '--database', self.db_alias)
