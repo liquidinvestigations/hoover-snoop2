@@ -71,7 +71,7 @@ def test_complete_lifecycle(client, taskmanager):
     assert partialemlx['content']['subject'] == "Re: promulgare lege"
 
     # check that all successful digests.index tasks made it into es
-    es_count_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/snoop2/_count'
+    es_count_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/testdata/_count'
     es_count_resp = requests.get(es_count_url)
     es_count = es_count_resp.json()['count']
     db_count = models.Task.objects.filter(func='digests.index', status='success').count()
