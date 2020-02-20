@@ -1,12 +1,13 @@
 import json
 from pathlib import Path
+
 from django.conf import settings
 import pytest
 
-from fixtures import CollectionApiClient
 from snoop.data import models
 from snoop.data import tasks
 from snoop.data.analyzers import email
+from conftest import CollectionApiClient
 
 PATH_HUSH_MAIL = 'eml-9-pgp/encrypted-hushmail-knockoff.eml'
 

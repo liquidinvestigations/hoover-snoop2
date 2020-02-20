@@ -40,9 +40,11 @@ services:
       SNOOP_TIKA_URL: "http://snoop-tika:9998"
       SNOOP_ES_URL: "http://search-es:9200"
       SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
-      SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/test_blobs"
+      SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
     depends_on:
       - snoop-pg
       - search-es
       - snoop-tika
       - snoop-rabbitmq
+    ports:
+      - 8000:8000
