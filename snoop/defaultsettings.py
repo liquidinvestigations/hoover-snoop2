@@ -114,7 +114,7 @@ WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
 # task count to be picked up by 1 worker
 WORKER_TASK_LIMIT = 500
 # limit for queueing large counts of children tasks
-CHILD_QUEUE_LIMIT = 66
+CHILD_QUEUE_LIMIT = 100
 # count of pending tasks to trigger when finding an empty queue.
 # If there are no pending tasks, this is how many directories
 # will be retried by sync every minute.
@@ -146,7 +146,7 @@ if _tracing_url:
 celery.app.conf.beat_schedule = {
     'run_dispatcher': {
         'task': 'snoop.data.tasks.run_dispatcher',
-        'schedule': timedelta(minutes=1),
+        'schedule': timedelta(seconds=30),
     },
 }
 
