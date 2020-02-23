@@ -9,8 +9,4 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         logging_for_management_command(options['verbosity'])
-
-        if not models.Directory.root():
-            models.Directory.objects.create()
-
-        indexing.create_index()
+        print("initcollection is now a no-op")

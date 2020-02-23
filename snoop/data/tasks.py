@@ -415,6 +415,11 @@ def dispatch_walk_tasks():
     from .filesystem import walk
     root = models.Directory.root()
     if not root:
+        try:
+            indexing.create_index()
+        except RuntimeError:
+            # already created?
+            pass
         root = models.Directory.objects.create()
     walk.laterz(root.pk)
 
