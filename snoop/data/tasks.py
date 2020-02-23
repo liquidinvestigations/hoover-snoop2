@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from . import celery
 from . import models
+from . import indexing
 from ..profiler import profile
 from .utils import run_once
 from requests.exceptions import ConnectionError
