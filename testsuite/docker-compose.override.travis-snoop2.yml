@@ -6,6 +6,7 @@ services:
     environment:
       POSTGRES_USER: snoop
       POSTGRES_DATABASE: snoop
+      POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - ./volumes/snoop-pg/data:/var/lib/postgresql/data
 
