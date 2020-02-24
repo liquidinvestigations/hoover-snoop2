@@ -10,8 +10,8 @@ from django.db import transaction, DatabaseError
 from django.utils import timezone
 
 from . import celery
-from . import models
 from . import indexing
+from . import models
 from ..profiler import profile
 from .utils import run_once
 from requests.exceptions import ConnectionError
@@ -48,10 +48,15 @@ def queue_task(task):
     import_shaormas()
 
     def send_to_celery():
-        laterz_shaorma.apply_async(
-            (task.pk,),
-            queue=f'{settings.TASK_PREFIX}.{task.func}',
-            priority=shaormerie[task.func].priority)
+        try:
+            laterz_shaorma.apply_async(
+                (task.pk,),
+                queue=f'{settings.TASK_PREFIX}.{task.func}',
+                priority=shaormerie[task.func].priority,
+                retry=False,
+            )
+        except laterz_shaorma.OperationalError as e:
+            logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
 
     transaction.on_commit(send_to_celery)
 
@@ -208,16 +213,15 @@ def run_task(task, log_handler, raise_exceptions=False):
                     queue_task(task)
 
             except ShaormaBroken as e:
-                msg = '%r broken: %s [%.03f s]' % (task, task.error, time() - t0)
-                logger.exception(msg)
-                tracing.add_annotation(msg)
-
                 task.update(
                     status=models.Task.STATUS_BROKEN,
                     error="{}: {}".format(e.reason, e.args[0]),
                     broken_reason=e.reason,
                     log=log_handler.stream.getvalue(),
                 )
+                msg = '%r broken: %s [%.03f s]' % (task, task.broken_reason, time() - t0)
+                logger.exception(msg)
+                tracing.add_annotation(msg)
 
             except ConnectionError as e:
                 tracing.add_annotation(repr(e))
@@ -230,18 +234,10 @@ def run_task(task, log_handler, raise_exceptions=False):
                 )
 
             except Exception as e:
-                msg = '%r failed: %s [%.03f s]' % (task, task.error, time() - t0)
-                tracing.add_annotation(msg)
-
-                if raise_exceptions:
-                    raise
-
                 if isinstance(e, ShaormaError):
                     error = "{} ({})".format(e.args[0], e.details)
                 else:
                     error = repr(e)
-
-                logger.exception(msg)
                 task.update(
                     status=models.Task.STATUS_ERROR,
                     error=error,
@@ -249,6 +245,12 @@ def run_task(task, log_handler, raise_exceptions=False):
                     log=log_handler.stream.getvalue(),
                 )
 
+                msg = '%r failed: %s [%.03f s]' % (task, task.error, time() - t0)
+                tracing.add_annotation(msg)
+                logger.exception(msg)
+
+                if raise_exceptions:
+                    raise
             else:
                 logger.info("%r succeeded [%.03f s]", task, time() - t0)
                 task.update(
@@ -258,9 +260,10 @@ def run_task(task, log_handler, raise_exceptions=False):
                     log=log_handler.stream.getvalue(),
                 )
 
-        with tracing.span('save state after run'):
-            task.date_finished = timezone.now()
-            task.save()
+            finally:
+                with tracing.span('save state after run'):
+                    task.date_finished = timezone.now()
+                    task.save()
 
     if is_completed(task):
         queue_next_tasks(task, reset=True)

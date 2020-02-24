@@ -1,3 +1,4 @@
+import string
 from contextlib import contextmanager
 from pathlib import Path
 import tempfile
@@ -280,6 +281,8 @@ class Task(models.Model):
         unique_together = ('func', 'args')
         indexes = [
             models.Index(fields=['status']),
+            # stats for last minute
+            models.Index(fields=['date_finished']),
             models.Index(fields=['func', 'status']),
             # for dispatching in reverse order
             models.Index(fields=['status', 'date_modified']),
@@ -297,10 +300,17 @@ class Task(models.Model):
     __repr__ = __str__
 
     def update(self, status, error, broken_reason, log):
+        def _escape(s):
+            def _translate(x):
+                if x in string.printable:
+                    return x
+                return f'\\{ord(x)}'
+            return "".join(map(_translate, s))
+
         self.status = status
-        self.error = error
-        self.broken_reason = broken_reason
-        self.log = log
+        self.error = _escape(error)
+        self.broken_reason = _escape(broken_reason)
+        self.log = _escape(log)
 
 
 class TaskDependency(models.Model):
