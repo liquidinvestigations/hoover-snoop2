@@ -311,16 +311,17 @@
         },
         "opencensus": {
             "hashes": [
-                "sha256:5e0f516b0d5706eb63ab91a3d23b7ad24cc26a6f3f763d02f8e0525cc7f3582d"
+                "sha256:0dde7fb46046be5acd000bd3d02828cd310d1673bef4fd3d6f582a4205a91db1",
+                "sha256:116068b9dd3a373157ef05da46c83ef08acae2e138862a8f6b7c6fee718ce633"
             ],
             "index": "pypi",
-            "version": "==0.5.0"
+            "version": "==0.7.7"
         },
         "opencensus-context": {
             "hashes": [
-                "sha256:0d63a1da591b529371d4121819ffe0c191548236a24af3df5b502d3e6eb10447"
+                "sha256:1a3fdf6bec537031efcc93d51b04f1edee5201f8c9a0c85681d63308b76f5702"
             ],
-            "version": "==0.1.0"
+            "version": "==0.1.1"
         },
         "opencensus-ext-prometheus": {
             "hashes": [
@@ -620,10 +621,10 @@
         },
         "zipp": {
             "hashes": [
-                "sha256:5c56e330306215cd3553342cfafc73dda2c60792384117893f3a83f8a1209f50",
-                "sha256:d65287feb793213ffe11c0f31b81602be31448f38aeb8ffc2eb286c4f6f6657e"
+                "sha256:12248a63bbdf7548f89cb4c7cda4681e537031eda29c02ea29674bc6854460c2",
+                "sha256:7c0f8e91abc0dc07a5068f315c52cb30c66bfbc581e5b50704c8a2f6ebae794a"
             ],
-            "version": "==2.2.0"
+            "version": "==3.0.0"
         }
     },
     "develop": {}
