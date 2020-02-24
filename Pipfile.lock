@@ -158,11 +158,11 @@
         },
         "google-api-core": {
             "hashes": [
-                "sha256:9e6f4daf193be1c0230fc7a539058f7681c0a9741a02292614d0c9e3e091f4fc",
-                "sha256:c69bad1ae3e193764028f5ec58049d1d8ef81efd0320cf110c712cd1292daeab"
+                "sha256:859f7392676761f2b160c6ee030c3422135ada4458f0948c5690a6a7c8d86294",
+                "sha256:92e962a087f1c4b8d1c5c88ade1c1dfd550047dcffb320c57ef6a534a20403e2"
             ],
             "index": "pypi",
-            "version": "==1.10.0"
+            "version": "==1.16.0"
         },
         "google-auth": {
             "hashes": [
@@ -620,10 +620,10 @@
         },
         "zipp": {
             "hashes": [
-                "sha256:5c56e330306215cd3553342cfafc73dda2c60792384117893f3a83f8a1209f50",
-                "sha256:d65287feb793213ffe11c0f31b81602be31448f38aeb8ffc2eb286c4f6f6657e"
+                "sha256:12248a63bbdf7548f89cb4c7cda4681e537031eda29c02ea29674bc6854460c2",
+                "sha256:7c0f8e91abc0dc07a5068f315c52cb30c66bfbc581e5b50704c8a2f6ebae794a"
             ],
-            "version": "==2.2.0"
+            "version": "==3.0.0"
         }
     },
     "develop": {}
