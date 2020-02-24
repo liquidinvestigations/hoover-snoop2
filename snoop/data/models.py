@@ -281,6 +281,8 @@ class Task(models.Model):
         unique_together = ('func', 'args')
         indexes = [
             models.Index(fields=['status']),
+            # stats for last minute
+            models.Index(fields=['date_finished']),
             models.Index(fields=['func', 'status']),
             # for dispatching in reverse order
             models.Index(fields=['status', 'date_modified']),
