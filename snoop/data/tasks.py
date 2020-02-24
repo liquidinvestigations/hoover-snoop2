@@ -11,6 +11,7 @@ from django.utils import timezone
 
 from . import celery
 from . import models
+from . import indexing
 from ..profiler import profile
 from .utils import run_once
 from requests.exceptions import ConnectionError
@@ -415,6 +416,11 @@ def dispatch_walk_tasks():
     from .filesystem import walk
     root = models.Directory.root()
     if not root:
+        try:
+            indexing.create_index()
+        except RuntimeError:
+            # already created?
+            pass
         root = models.Directory.objects.create()
     walk.laterz(root.pk)
 
