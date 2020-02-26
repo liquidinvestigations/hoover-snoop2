@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 
+from ... import indexing
 from ...logs import logging_for_management_command
 
 
@@ -8,4 +9,10 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         logging_for_management_command(options['verbosity'])
-        print("initcollection is now a no-op")
+        # try and create index if it doesn't exist this is required for backing
+        # up collections which have never been started.
+        try:
+            indexing.create_index()
+        except RuntimeError:
+            # already created?
+            pass
