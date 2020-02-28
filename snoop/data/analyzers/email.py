@@ -145,6 +145,7 @@ def msg_to_eml(blob):
                 stderr=subprocess.STDOUT
             )
         except subprocess.CalledProcessError as e:
+            log.exception(e)
             raise ShaormaError("msgconvert failed", e.output.decode('latin1'))
 
         return models.Blob.create_from_file(eml_path)
