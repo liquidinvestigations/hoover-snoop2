@@ -1,6 +1,7 @@
 import pytest
-from fixtures import TESTDATA, CollectionApiClient
+
 from snoop.data import ocr
+from conftest import TESTDATA, CollectionApiClient, mask_out_current_collection
 
 pytestmark = [pytest.mark.django_db]
 
@@ -25,7 +26,8 @@ def test_pdf_ocr(fakedata, taskmanager, client):
     with ocr_pdf.open('rb') as f:
         ocr_pdf_data = f.read()
 
-    resp = client.get(f'/collection/{blob.pk}/ocr/ocr1/')
+    with mask_out_current_collection():
+        resp = client.get(f'/collections/testdata/{blob.pk}/ocr/ocr1/')
     assert b''.join(resp.streaming_content) == ocr_pdf_data
     assert resp['Content-Type'] == 'application/pdf'
 

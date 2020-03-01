@@ -7,3 +7,4 @@ magic.mgc
 static
 factory-scripts
 docker-setup
+testsuite/volumes

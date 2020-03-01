@@ -9,6 +9,7 @@ from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.utils import timezone
 
+from . import collections
 from . import celery
 from . import indexing
 from . import models
@@ -48,9 +49,10 @@ def queue_task(task):
     import_shaormas()
 
     def send_to_celery():
+        col = collections.from_object(task)
         try:
             laterz_shaorma.apply_async(
-                (task.pk,),
+                (col.name, task.pk,),
                 queue=f'{settings.TASK_PREFIX}.{task.func}',
                 priority=shaormerie[task.func].priority,
                 retry=False,
@@ -103,15 +105,21 @@ def shaorma_log_handler(level=logging.DEBUG):
 
 
 @celery.app.task
-def laterz_shaorma(task_pk, raise_exceptions=False):
+def laterz_shaorma(col_name, task_pk, raise_exceptions=False):
     import_shaormas()
-    with transaction.atomic(), shaorma_log_handler() as handler:
-        try:
-            task = models.Task.objects.select_for_update(nowait=True).get(pk=task_pk)
-        except DatabaseError as e:
-            logger.error("task %r already running, locked in the database: %s", task_pk, e)
-            return
-        run_task(task, handler, raise_exceptions)
+    col = collections.ALL[col_name]
+    with transaction.atomic(using=col.db_alias), col.set_current():
+        with shaorma_log_handler() as handler:
+            try:
+                task = (
+                    models.Task.objects
+                    .select_for_update(nowait=True)
+                    .get(pk=task_pk)
+                )
+            except DatabaseError as e:
+                logger.error("task %r already running, locked in the database: %s", task_pk, e)
+                return
+            run_task(task, handler, raise_exceptions)
 
 
 @profile()
@@ -205,9 +213,8 @@ def run_task(task, log_handler, raise_exceptions=False):
                         broken_reason='',
                         log=log_handler.stream.getvalue(),
                     )
-                    models.TaskDependency.objects.get_or_create(
+                    task.prev_set.get_or_create(
                         prev=dep.task,
-                        next=task,
                         name=dep.name,
                     )
                     queue_task(task)
@@ -294,9 +301,8 @@ def shaorma(name, priority=5):
 
             if depends_on:
                 for dep_name, dep in depends_on.items():
-                    models.TaskDependency.objects.get_or_create(
+                    task.prev_set.get_or_create(
                         prev=dep,
-                        next=task,
                         name=dep_name,
                     )
 
@@ -345,7 +351,8 @@ def retry_task(task, fg=False):
     task.save()
 
     if fg:
-        laterz_shaorma(task.pk, raise_exceptions=True)
+        col = collections.from_object(task)
+        laterz_shaorma(col.name, task.pk, raise_exceptions=True)
     else:
         queue_task(task)
 
@@ -430,34 +437,43 @@ def dispatch_walk_tasks():
 
 @celery.app.task
 def run_dispatcher():
-    from .ocr import dispatch_ocr_tasks
-
     if has_any_tasks():
         logger.info('skipping run_dispatcher -- already have tasks')
         return
     logger.info('running run_dispatcher')
 
-    if dispatch_tasks(models.Task.STATUS_PENDING):
-        logger.info('found PENDING tasks, exiting...')
-        return
+    for collection in collections.ALL.values():
+        if dispatch_for(collection):
+            return
 
-    if dispatch_tasks(models.Task.STATUS_DEFERRED):
-        logger.info('found DEFERRED tasks, exiting...')
-        return
 
-    count_before = models.Task.objects.filter().count()
-    dispatch_walk_tasks()
-    dispatch_ocr_tasks()
-    count_after = models.Task.objects.filter().count()
-    if count_before != count_after:
-        logger.info('initial dispatch added new tasks, exiting...')
-        return
+def dispatch_for(collection):
+    logger.info('Dispatching for %r', collection)
+    from .ocr import dispatch_ocr_tasks
 
-    if settings.SYNC_FILES:
-        logger.info("sync: retrying all walk tasks")
-        queryset = (
-            models.Task.objects
-            .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
-            .order_by('date_modified')[:settings.DISPATCH_QUEUE_LIMIT]
-        )
-        retry_tasks(queryset)
+    with collection.set_current():
+        if collection.process:
+            if dispatch_tasks(models.Task.STATUS_PENDING):
+                logger.info('%r found PENDING tasks, exiting...', collection)
+                return True
+
+            if dispatch_tasks(models.Task.STATUS_DEFERRED):
+                logger.info('%r found DEFERRED tasks, exiting...', collection)
+                return True
+
+            count_before = models.Task.objects.count()
+            dispatch_walk_tasks()
+            dispatch_ocr_tasks()
+            count_after = models.Task.objects.count()
+            if count_before != count_after:
+                logger.info('%r initial dispatch added new tasks, exiting...', collection)
+                return True
+
+        if collection.sync:
+            logger.info("sync: retrying all walk tasks")
+            queryset = (
+                models.Task.objects
+                .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
+                .order_by('date_modified')[:settings.DISPATCH_QUEUE_LIMIT]
+            )
+            retry_tasks(queryset)

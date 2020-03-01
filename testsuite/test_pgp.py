@@ -1,13 +1,13 @@
 import json
 from pathlib import Path
+
 from django.conf import settings
 import pytest
 
-from fixtures import CollectionApiClient
 from snoop.data import models
 from snoop.data import tasks
 from snoop.data.analyzers import email
-from snoop.data.analyzers import pgp
+from conftest import CollectionApiClient
 
 PATH_HUSH_MAIL = 'eml-9-pgp/encrypted-hushmail-knockoff.eml'
 
@@ -52,7 +52,10 @@ def test_gpg_digest(gpg_blob, client, fakedata, taskmanager):
 
 
 def test_broken_if_no_gpg_home(gpg_blob, monkeypatch):
-    monkeypatch.setattr(pgp, 'gpghome', Path('/tmp/no-such-gpghome'))
+    monkeypatch.setattr(
+        'snoop.data.collections.Collection.gpghome_path',
+        Path('/tmp/no-such-gpghome'),
+    )
 
     with pytest.raises(tasks.ShaormaBroken) as e:
         email.parse(gpg_blob)

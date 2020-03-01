@@ -1,24 +1,41 @@
-from django.http import HttpResponse, JsonResponse, FileResponse
+from django.http import HttpResponse, JsonResponse, FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.conf import settings
 from . import models
 from . import digests
 from . import ocr
+from . import collections
 from .analyzers import html
 
 TEXT_LIMIT = 10 ** 7  # ten million characters
 
 
+def collection_view(func):
+    def view(request, *args, collection, **kwargs):
+        try:
+            col = collections.ALL[collection]
+        except KeyError:
+            raise Http404(f"Collection {collection} does not exist")
+
+        with col.set_current():
+            return func(request, *args, **kwargs)
+
+    return view
+
+
+@collection_view
 def collection(request):
+    col = collections.current()
     return JsonResponse({
-        'name': settings.SNOOP_COLLECTION_NAME,
-        'title': settings.SNOOP_COLLECTION_NAME,
-        'description': settings.SNOOP_COLLECTION_NAME,
+        'name': col.name,
+        'title': col.name,
+        'description': col.name,
         'feed': 'feed',
         'data_urls': '{id}/json',
     })
 
 
+@collection_view
 def feed(request):
     limit = settings.SNOOP_FEED_PAGE_SIZE
     query = models.Digest.objects.order_by('-date_modified')
@@ -42,6 +59,7 @@ def feed(request):
     })
 
 
+@collection_view
 def directory(request, pk):
     directory = get_object_or_404(models.Directory.objects, pk=pk)
     return JsonResponse(digests.get_directory_data(directory))
@@ -62,11 +80,13 @@ def trim_text(data):
     return data
 
 
+@collection_view
 def document(request, hash):
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
     return JsonResponse(trim_text(digests.get_document_data(digest)))
 
 
+@collection_view
 def document_download(request, hash, filename):
     digest = get_object_or_404(
         models.Digest.objects.only('blob'),
@@ -81,6 +101,7 @@ def document_download(request, hash, filename):
     return FileResponse(blob.open(), content_type=blob.content_type)
 
 
+@collection_view
 def document_ocr(request, hash, ocrname):
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
 
@@ -92,6 +113,7 @@ def document_ocr(request, hash, ocrname):
     return FileResponse(blob.open(), content_type=blob.content_type)
 
 
+@collection_view
 def document_locations(request, hash):
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
     locations = digests.get_document_locations(digest)

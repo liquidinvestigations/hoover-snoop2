@@ -6,9 +6,10 @@ from django.conf import settings
 
 
 def get_size_for_blobs(apps, schema_editor):
+    db_alias = schema_editor.connection.alias
     BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
     Blob = apps.get_model('data', 'Blob')
-    for blob in Blob.objects.all():
+    for blob in Blob.objects.using(db_alias).all():
         sha3_256 = blob.sha3_256
         path = BLOB_ROOT / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
         blob.size = path.stat().st_size

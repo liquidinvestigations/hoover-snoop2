@@ -11,12 +11,16 @@ from django.core.exceptions import ObjectDoesNotExist
 from .magic import Magic, looks_like_email, looks_like_emlx_email, \
     looks_like_mbox
 
-BLOB_ROOT = Path(settings.SNOOP_BLOB_STORAGE)
-BLOB_TMP = BLOB_ROOT / 'tmp'
+from . import collections
+
+
+def blob_root():
+    col = collections.current()
+    return Path(settings.SNOOP_BLOB_STORAGE) / col.name
 
 
 def blob_repo_path(sha3_256):
-    return BLOB_ROOT / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
+    return blob_root() / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
 
 
 def chunks(file, blocksize=65536):
@@ -92,9 +96,10 @@ class Blob(models.Model):
     @classmethod
     @contextmanager
     def create(cls):
-        BLOB_TMP.mkdir(exist_ok=True, parents=True)
+        blob_tmp = blob_root() / 'tmp'
+        blob_tmp.mkdir(exist_ok=True, parents=True)
 
-        with tempfile.NamedTemporaryFile(dir=BLOB_TMP, delete=False) as f:
+        with tempfile.NamedTemporaryFile(dir=blob_tmp, delete=False) as f:
             writer = BlobWriter(f)
             yield writer
 

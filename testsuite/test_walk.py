@@ -1,21 +1,24 @@
 from pathlib import Path
 import tempfile
 
-from django.conf import settings
 import pytest
 
 from snoop.data import tasks
 from snoop.data import filesystem
 from snoop.data import models
+from snoop.data import collections
 
-TESTDATA = Path(settings.SNOOP_TESTDATA)
+from conftest import mask_out_current_collection
 
 pytestmark = [pytest.mark.django_db]
 
 
 def test_walk(taskmanager, monkeypatch):
-    root_path = Path(settings.SNOOP_COLLECTION_ROOT) / 'emlx-4-missing-part'
-    monkeypatch.setattr(settings, 'SNOOP_COLLECTION_ROOT', root_path)
+    monkeypatch.setattr(
+        collections.Collection,
+        'DATA_DIR',
+        'data/emlx-4-missing-part',
+    )
     root = models.Directory.objects.create()
 
     filesystem.walk(root.pk)
@@ -33,7 +36,7 @@ def test_walk(taskmanager, monkeypatch):
 
 def test_smashed_filename(taskmanager, monkeypatch):
     with tempfile.TemporaryDirectory() as dir:
-        monkeypatch.setattr(settings, 'SNOOP_COLLECTION_ROOT', dir)
+        monkeypatch.setattr(collections.Collection, 'DATA_DIR', dir)
         root = models.Directory.objects.create()
 
         broken_name = 'modifi\udce9.txt'
@@ -49,12 +52,16 @@ def test_smashed_filename(taskmanager, monkeypatch):
 
 
 def test_children_of_archives_in_multiple_locations(taskmanager, monkeypatch):
-    root_path = Path(settings.SNOOP_COLLECTION_ROOT) / 'zip-in-multiple-locations'
-    monkeypatch.setattr(settings, 'SNOOP_COLLECTION_ROOT', root_path)
+    monkeypatch.setattr(
+        collections.Collection,
+        'DATA_DIR',
+        'data/zip-in-multiple-locations',
+    )
     models.Directory.objects.create()
 
-    # filesystem.walk(root.pk)
-    tasks.run_dispatcher()
+    with mask_out_current_collection():
+        tasks.run_dispatcher()
+
     taskmanager.run(limit=10000)
 
     files = list(models.File.objects.all())

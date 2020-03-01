@@ -1,5 +1,6 @@
 import pytest
-from fixtures import CollectionApiClient
+
+from conftest import CollectionApiClient
 
 pytestmark = [pytest.mark.django_db]
 

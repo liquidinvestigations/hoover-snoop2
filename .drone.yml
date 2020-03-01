@@ -7,22 +7,11 @@ steps:
   commands:
   - flake8
 
-- name: docker build
-  image: docker:dind
-  volumes:
-  - name: dockersock
-    path: /var/run
-  commands:
-  - until docker version; do sleep 3; done
-  - docker build . --tag snoop2-testing
-
-- name: download docker setup, testdata
+- name: download testdata
   image: alpine/git:1.0.7
   commands:
-  - git --version
-  - git clone https://github.com/hoover/docker-setup.git
-  - mkdir docker-setup/collections
-  - git clone https://github.com/hoover/testdata docker-setup/collections/testdata
+  - mkdir -p testsuite/volumes/collections
+  - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
 
 - name: do the docker setup
   image: docker/compose:1.24.0
@@ -30,11 +19,10 @@ steps:
   - name: dockersock
     path: /var/run
   commands:
-  - cd docker-setup
-  - mkdir -p volumes volumes/metrics volumes/metrics/users volumes/search-es-snapshots volumes/search-es/data
-  - chmod 777 volumes/search-es-snapshots volumes/search-es/data
-  - cp ../testsuite/docker-compose.override.travis-snoop2.yml docker-compose.override.yml
-  - docker-compose up -d
+  - cd testsuite
+  - mkdir -p volumes/search-es/data
+  - chmod 777 volumes/search-es/data
+  - docker-compose up -d --scale snoop=0
 
 - name: py.test
   image: docker/compose:1.24.0
@@ -42,8 +30,8 @@ steps:
   - name: dockersock
     path: /var/run
   commands:
-  - cd docker-setup
-  - docker-compose run --rm snoop bash -c '/wait && py.test -vv --ignore=docker-setup'
+  - cd testsuite
+  - docker-compose run --rm snoop bash -c '/wait && py.test -vv'
 
 services:
 - name: docker daemon in docker

@@ -1,0 +1,50 @@
+version: "3.3"
+
+services:
+  snoop-rabbitmq:
+    image: rabbitmq:3.7.3
+
+  snoop-tika:
+    image: logicalspark/docker-tikaserver
+
+  search-es:
+    image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+    volumes:
+      - ./volumes/search-es/data:/usr/share/elasticsearch/data
+    environment:
+      discovery.type: single-node
+
+  snoop-pg:
+    image: postgres:12.2
+    environment:
+      POSTGRES_USER: snoop
+      POSTGRES_DATABASE: snoop
+      POSTGRES_PASSWORD: snoop
+    volumes:
+      - ./volumes/snoop-pg/data:/var/lib/postgresql/data
+
+  snoop:
+    build: ..
+    command: tail -f /dev/null
+    volumes:
+      - ..:/opt/hoover/snoop:cached
+      - ./volumes/gnupg:/opt/hoover/gnupg
+      - ./volumes/collections:/opt/hoover/collections
+      - ./volumes/snoop-blobs:/opt/hoover/snoop/blobs
+    environment:
+      WAIT_HOSTS: search-es:9200, snoop-pg:5432
+      WAIT_HOSTS_TIMEOUT: 60
+      SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
+      SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
+      SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
+      SNOOP_TIKA_URL: "http://snoop-tika:9998"
+      SNOOP_ES_URL: "http://search-es:9200"
+      SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
+      SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
+    depends_on:
+      - snoop-pg
+      - search-es
+      - snoop-tika
+      - snoop-rabbitmq
+    ports:
+      - 8000:8000

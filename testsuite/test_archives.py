@@ -59,7 +59,7 @@ TAR_GZ = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/targz-with-pd
 RAR = Path(settings.SNOOP_TESTDATA) / "data/disk-files/archives/rar-with-pdf-doc-docx.rar"
 
 
-def test_unarchive_zip(taskmanager):
+def test_unarchive_zip(taskmanager, testdata_current):
     zip_blob = models.Blob.create_from_file(JERRY_ZIP)
     listing_blob = archives.unarchive(zip_blob)
     with listing_blob.open() as f:
@@ -73,7 +73,7 @@ def test_unarchive_zip(taskmanager):
     assert MOUSE_DIR in listing[0]['children']
 
 
-def test_unarchive_pst(taskmanager):
+def test_unarchive_pst(taskmanager, testdata_current):
     pst_blob = models.Blob.create_from_file(JANE_DOE_PST)
     listing_blob = archives.unarchive(pst_blob)
     with listing_blob.open() as f:
@@ -91,7 +91,7 @@ def test_unarchive_pst(taskmanager):
     assert len(root_dir['children']) == 3
 
 
-def test_unarchive_tar_gz(taskmanager):
+def test_unarchive_tar_gz(taskmanager, testdata_current):
     tar_gz_blob = models.Blob.create_from_file(TAR_GZ)
     listing_blob = archives.unarchive(tar_gz_blob)
     with listing_blob.open() as f:
@@ -112,7 +112,7 @@ def test_unarchive_tar_gz(taskmanager):
     }
 
 
-def test_unarchive_rar(taskmanager):
+def test_unarchive_rar(taskmanager, testdata_current):
     rar = models.Blob.create_from_file(RAR)
     listing_blob = archives.unarchive(rar)
     with listing_blob.open() as f:
@@ -125,7 +125,8 @@ def test_unarchive_rar(taskmanager):
     }
 
 
-def test_create_archive_files(taskmanager):
+def test_create_archive_files(taskmanager, testdata_current):
+    assert models.Directory.objects.count() == 0  # empty?
     zip_blob = models.Blob.create_from_file(ZIP_DOCX)
     listing_blob = archives.unarchive(zip_blob)
 
@@ -148,10 +149,11 @@ def test_create_archive_files(taskmanager):
     file_names = set(f.name for f in models.File.objects.all())
     assert file_names == {'jerry.zip', 'AppBody-Sample-English.docx', 'sample.doc'}
 
-    assert models.Directory.objects.get(container_file__isnull=False).container_file == zip_file
+    d = models.Directory.objects.get(container_file__isnull=False)
+    assert d.container_file == zip_file
 
 
-def test_unarchive_mbox(taskmanager):
+def test_unarchive_mbox(taskmanager, testdata_current):
     mbox_blob = models.Blob.create_from_file(SHAPELIB_MBOX)
     listing_blob = archives.unarchive(mbox_blob)
     with listing_blob.open() as f:

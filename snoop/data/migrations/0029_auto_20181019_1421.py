@@ -5,15 +5,17 @@ import django.db.models.deletion
 
 
 def ensure_one_collection(apps, schema_editor):
+    db_alias = schema_editor.connection.alias
     Collection = apps.get_model('data', 'Collection')
-    if len(Collection.objects.all()) > 1:
+    if len(Collection.objects.using(db_alias).all()) > 1:
         raise RuntimeError("Must have at most one collection")
 
 
 def remove_collections(apps, schema_editor):
+    db_alias = schema_editor.connection.alias
     Task = apps.get_model('data', 'Task')
     for func in ['digests.gather', 'digests.launch', 'digests.index']:
-        for task in Task.objects.filter(func=func).iterator():
+        for task in Task.objects.using(db_alias).filter(func=func).iterator():
             task.args = task.args[:1] + task.args[2:]
             task.save()
 

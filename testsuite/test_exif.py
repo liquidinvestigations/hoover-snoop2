@@ -1,6 +1,8 @@
 import logging
+
 import pytest
-from fixtures import TESTDATA, CollectionApiClient
+
+from conftest import TESTDATA, CollectionApiClient
 
 pytestmark = [pytest.mark.django_db]
 PATH_IMAGE = 'disk-files/images/bikes.jpg'
