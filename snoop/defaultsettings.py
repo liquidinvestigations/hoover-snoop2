@@ -120,6 +120,9 @@ CHILD_QUEUE_LIMIT = 100
 # will be retried by sync every minute.
 DISPATCH_QUEUE_LIMIT = 5000
 
+# url prefix for all the views, for example "snoop/"
+URL_PREFIX = os.getenv('SNOOP_URL_PREFIX')
+
 
 def bool_env(value):
     return (value or '').lower() in ['on', 'true']
