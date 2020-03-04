@@ -1,11 +1,17 @@
 # Snoop Mk2
-A lean and mean rewrite of [snoop][], the Hoover collection analyzer.
 
-[snoop]: https://github.com/hoover/snoop
-
-[![Build Status](https://travis-ci.org/hoover/snoop2.svg?branch=master)](https://travis-ci.org/hoover/snoop2)
+Collection analyzer for Hoover.
 
 ### Setup
-Snoop is recommended to run in Docker using the provided
-[docker-setup](https://github.com/hoover/docker-setup) environment. For
-development you can set `DOCKER_HOOVER_SNOOP_DEBUG=on` in `snoop.env`.
+
+Snoop is recommended to run in Nomad using [Liquid Investigations][].
+
+[Liquid Investigations]: https://github.com/liquidinvestigations
+
+
+### Authentication and Security
+
+This website leaves out access control, authentication and user management to other components.
+
+The admin sites are public, logging in any visitor as an administrator called "root".
+Please firewall the exposed port and run it behind authentication.

