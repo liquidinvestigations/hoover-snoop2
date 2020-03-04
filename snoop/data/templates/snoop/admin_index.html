@@ -1,18 +1,12 @@
-{% extends "admin/index.html" %}
+{% extends "snoop/admin_index_default.html" %}
 
 {% block content %}
 
-  {{ block.super }}
-
   <div id="snoop-links">
-    <a href="stats">Task stats</a>
+    <p>
+    Visit <a href="stats">TASK STATS</a> for this collection.
+    </p>
   </div>
 
-
-  <script>
-    document.querySelector('#content-main').append(
-      document.querySelector('#snoop-links')
-    );
-  </script>
-
+  {{ block.super }}
 {% endblock %}

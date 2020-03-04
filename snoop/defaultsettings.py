@@ -15,7 +15,7 @@ SECRET_KEY = os.environ.get('SECRET_KEY', default_secret_key)
 ALLOWED_HOSTS = [os.environ.get('SNOOP_HOSTNAME', '*')]
 
 INSTALLED_APPS = [
-    'django.contrib.admin',
+    'snoop.data.apps.AdminConfig',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -29,7 +29,10 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
+
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'snoop.data.auto_login.Middleware',
+
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
@@ -96,9 +99,6 @@ USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
-STATIC_URL = '/static/'
-STATIC_ROOT = str(base_dir / 'static')
-
 SNOOP_COLLECTIONS_ELASTICSEARCH_URL = os.environ.get('SNOOP_ES_URL', 'http://localhost:9200')
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
@@ -118,7 +118,12 @@ CHILD_QUEUE_LIMIT = 100
 DISPATCH_QUEUE_LIMIT = 5000
 
 # url prefix for all the views, for example "snoop/"
-URL_PREFIX = os.getenv('SNOOP_URL_PREFIX')
+URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')
+if URL_PREFIX:
+    assert URL_PREFIX.endswith('/') and not URL_PREFIX.startswith('/')
+
+STATIC_URL = '/' + URL_PREFIX + 'static/'
+STATIC_ROOT = str(base_dir / 'static')
 
 
 def bool_env(value):

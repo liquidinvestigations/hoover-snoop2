@@ -1,0 +1,28 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+
+  {{ block.super }}
+
+  <div id="snoop-collection-links">
+    <h2>Admin Site Index</h2>
+    <p>
+    Navigate to other admin sites from here.
+    <ol>
+    {% for name, link in collection_links %}
+      <li>
+        <a href={{link}}><b>{{name}}</b></a>
+      </li>
+    {% endfor %}
+    </ol>
+    </p>
+  </div>
+
+  <script>
+    document.querySelector('#content-main').append(
+      document.querySelector('#snoop-collection-links')
+    );
+  </script>
+
+
+{% endblock %}
