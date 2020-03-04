@@ -3,10 +3,7 @@ from datetime import timedelta
 from collections import defaultdict
 from django.urls import reverse
 from django.contrib import admin
-from django.contrib.auth import models as auth_models
-from django.contrib.auth import admin as auth_admin
-from django.contrib.admin.views.decorators import staff_member_required
-from django.utils.decorators import method_decorator
+from django.conf import settings
 from django.utils.safestring import mark_safe
 from django.utils import timezone
 from django.urls import path
@@ -14,18 +11,13 @@ from django.shortcuts import render
 from django.db.models import Sum, Count, Avg, F
 from django.db import connections
 from django.contrib.humanize.templatetags.humanize import naturaltime
-from django.http import HttpResponseRedirect
 from . import models
 from . import tasks
 from . import collections
 
 
-def redirect_to_admin(request):
-    return HttpResponseRedirect('/admin/')
-
-
 def blob_link(blob_pk):
-    url = reverse('admin:data_blob_change', args=[blob_pk])
+    url = reverse(f'{collections.current().name}:data_blob_change', args=[blob_pk])
     return mark_safe(f'<a href="{url}">{blob_pk[:10]}...{blob_pk[-4:]}</a>')
 
 
@@ -113,11 +105,61 @@ def get_stats():
     }
 
 
-class DirectoryAdmin(admin.ModelAdmin):
+class MultiDBModelAdmin(admin.ModelAdmin):
+    # A handy constant for the name of the alternate database.
+    def __init__(self, *args, **kwargs):
+        self.collection = collections.current()
+        self.using = self.collection.db_name
+        return super().__init__(*args, **kwargs)
+
+    def add_view(self, *args, **kwargs):
+        with self.collection.set_current():
+            return super().add_view(*args, **kwargs)
+
+    def change_view(self, *args, **kwargs):
+        with self.collection.set_current():
+            return super().change_view(*args, **kwargs)
+
+    def changelist_view(self, *args, **kwargs):
+        with self.collection.set_current():
+            return super().changelist_view(*args, **kwargs)
+
+    def delete_view(self, *args, **kwargs):
+        with self.collection.set_current():
+            return super().delete_view(*args, **kwargs)
+
+    def history_view(self, *args, **kwargs):
+        with self.collection.set_current():
+            return super().history_view(*args, **kwargs)
+
+    def save_model(self, request, obj, form, change):
+        # Tell Django to save objects to the 'other' database.
+        obj.save(using=self.using)
+
+    def delete_model(self, request, obj):
+        # Tell Django to delete objects from the 'other' database
+        obj.delete(using=self.using)
+
+    def get_queryset(self, request):
+        # Tell Django to look for objects on the 'other' database.
+        return super().get_queryset(request).using(self.using)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        # Tell Django to populate ForeignKey widgets using a query
+        # on the 'other' database.
+        return super().formfield_for_foreignkey(db_field, request, using=self.using, **kwargs)
+
+    def formfield_for_manytomany(self, db_field, request, **kwargs):
+        # Tell Django to populate ManyToMany widgets using a query
+        # on the 'other' database.
+        return super().formfield_for_manytomany(db_field, request, using=self.using, **kwargs)
+
+
+class DirectoryAdmin(MultiDBModelAdmin):
     raw_id_fields = ['parent_directory', 'container_file']
 
 
-class FileAdmin(admin.ModelAdmin):
+class FileAdmin(MultiDBModelAdmin):
     raw_id_fields = ['parent_directory', 'original', 'blob']
     list_display = ['__str__', 'size', 'mime_type',
                     'original_blob_link', 'blob_link']
@@ -142,17 +184,19 @@ class FileAdmin(admin.ModelAdmin):
         return obj.original.mime_type
 
     def original_blob_link(self, obj):
-        return blob_link(obj.original.pk)
+        with self.collection.set_current():
+            return blob_link(obj.original.pk)
 
     original_blob_link.short_description = 'original blob'
 
     def blob_link(self, obj):
-        return blob_link(obj.blob.pk)
+        with self.collection.set_current():
+            return blob_link(obj.blob.pk)
 
     blob_link.short_description = 'blob'
 
 
-class BlobAdmin(admin.ModelAdmin):
+class BlobAdmin(MultiDBModelAdmin):
     list_display = ['__str__', 'mime_type', 'mime_encoding', 'created']
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
@@ -162,20 +206,21 @@ class BlobAdmin(admin.ModelAdmin):
     change_form_template = 'snoop/admin_blob_change_form.html'
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
-        extra_context = extra_context or {}
+        with self.collection.set_current():
+            extra_context = extra_context or {}
 
-        if object_id:
-            blob = models.Blob.objects.get(pk=object_id)
-            if blob.mime_type in ['text/plain', 'application/json']:
-                extra_context['preview'] = True
+            if object_id:
+                blob = models.Blob.objects.get(pk=object_id)
+                if blob.mime_type in ['text/plain', 'application/json']:
+                    extra_context['preview'] = True
 
-                if request.GET.get('preview'):
-                    content = self.get_preview_content(blob)
-                    extra_context['preview_content'] = content
+                    if request.GET.get('preview'):
+                        content = self.get_preview_content(blob)
+                        extra_context['preview_content'] = content
 
-        return super().change_view(
-            request, object_id, form_url, extra_context=extra_context,
-        )
+            return super().change_view(
+                request, object_id, form_url, extra_context=extra_context,
+            )
 
     def created(self, obj):
         return naturaltime(obj.date_created)
@@ -193,7 +238,7 @@ class BlobAdmin(admin.ModelAdmin):
             return ''
 
 
-class TaskAdmin(admin.ModelAdmin):
+class TaskAdmin(MultiDBModelAdmin):
     raw_id_fields = ['blob_arg', 'result']
     list_display = ['pk', 'func', 'args', 'created', 'finished',
                     'status', 'details']
@@ -212,15 +257,16 @@ class TaskAdmin(admin.ModelAdmin):
     }
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
-        extra_context = extra_context or {}
+        with self.collection.set_current():
+            extra_context = extra_context or {}
 
-        if object_id:
-            obj = models.Task.objects.get(pk=object_id)
-            extra_context['task_dependency_links'] = self.dependency_links(obj)
+            if object_id:
+                obj = models.Task.objects.get(pk=object_id)
+                extra_context['task_dependency_links'] = self.dependency_links(obj)
 
-        return super().change_view(
-            request, object_id, form_url, extra_context=extra_context,
-        )
+            return super().change_view(
+                request, object_id, form_url, extra_context=extra_context,
+            )
 
     def created(self, obj):
         return naturaltime(obj.date_created)
@@ -235,7 +281,7 @@ class TaskAdmin(admin.ModelAdmin):
     def dependency_links(self, obj):
         def link(dep):
             task = dep.prev
-            url = reverse('admin:data_task_change', args=[task.pk])
+            url = reverse(f'{self.collection.name}:data_task_change', args=[task.pk])
             style = self.LINK_STYLE[task.status]
             return f'<a href="{url}" style="{style}">{dep.name}</a>'
 
@@ -253,56 +299,90 @@ class TaskAdmin(admin.ModelAdmin):
         self.message_user(request, f"requeued {queryset.count()} tasks")
 
 
-class TaskDependencyAdmin(admin.ModelAdmin):
+class TaskDependencyAdmin(MultiDBModelAdmin):
     raw_id_fields = ['prev', 'next']
 
 
-class DigestAdmin(admin.ModelAdmin):
+class DigestAdmin(MultiDBModelAdmin):
     raw_id_fields = ['blob', 'result']
-    list_display = ['pk', 'blob__mime_type', 'blob_link',
-                    'result_link', 'date_modified']
-    list_filter = ['blob__mime_type']
+    list_display = ['pk', 'blob__mime_type', 'blob_link', 'result_link', 'date_modified']
     search_fields = ['pk', 'blob__pk', 'result__pk']
+    # TODO subclass django.contrib.admin.filters.AllValuesFieldListFilter.choices()
+    # to set the current collection
+    # list_filter = ['blob__mime_type']
 
     def blob__mime_type(self, obj):
-        return obj.blob.mime_type
+        with self.collection.set_current():
+            return obj.blob.mime_type
 
     def blob_link(self, obj):
-        return blob_link(obj.blob.pk)
+        with self.collection.set_current():
+            return blob_link(obj.blob.pk)
 
     def result_link(self, obj):
-        return blob_link(obj.result.pk)
+        with self.collection.set_current():
+            return blob_link(obj.result.pk)
 
 
-class SnoopAminSite(admin.AdminSite):
-
+class SnoopAdminSite(admin.AdminSite):
     site_header = "Snoop Mk2"
+    index_template = 'snoop/admin_index_default.html'
 
+    def each_context(self, request):
+        context = super().each_context(request)
+        context['collection_links'] = get_admin_links()
+        return context
+
+
+class CollectionAdminSite(SnoopAdminSite):
     index_template = 'snoop/admin_index.html'
+
+    def __init__(self, *args, **kwargs):
+        self.collection = collections.current()
+        return super().__init__(*args, **kwargs)
 
     def get_urls(self):
         return super().get_urls() + [
             path('stats', self.stats),
         ]
 
-    @method_decorator(staff_member_required)
+    def admin_view(self, *args, **kwargs):
+        with self.collection.set_current():
+            return super().admin_view(*args, **kwargs)
+
     def stats(self, request):
-        context = dict(self.each_context(request))
-        context.update(get_stats())
-        return render(request, 'snoop/admin_stats.html', context)
+        with self.collection.set_current():
+            context = dict(self.each_context(request))
+            context.update(get_stats())
+            return render(request, 'snoop/admin_stats.html', context)
 
 
-site = SnoopAminSite(name='snoopadmin')
+def make_collection_admin_site(collection):
+    with collection.set_current():
+        site = CollectionAdminSite(name=collection.name)
+        site.site_header = f'collection "{collection.name}"'
+        site.index_title = "task stats, logs, results"
+
+        site.register(models.Directory, DirectoryAdmin)
+        site.register(models.File, FileAdmin)
+        site.register(models.Blob, BlobAdmin)
+        site.register(models.Task, TaskAdmin)
+        site.register(models.TaskDependency, TaskDependencyAdmin)
+        site.register(models.Digest, DigestAdmin)
+        site.register(models.OcrSource, MultiDBModelAdmin)
+        site.register(models.OcrDocument, MultiDBModelAdmin)
+        return site
 
 
-site.register(auth_models.User, auth_admin.UserAdmin)
-site.register(auth_models.Group, auth_admin.GroupAdmin)
+def get_admin_links():
+    global sites
+    for name in sorted(sites.keys()):
+        yield name, f'/{settings.URL_PREFIX}admin/{name}/'
 
-site.register(models.Directory, DirectoryAdmin)
-site.register(models.File, FileAdmin)
-site.register(models.Blob, BlobAdmin)
-site.register(models.Task, TaskAdmin)
-site.register(models.TaskDependency, TaskDependencyAdmin)
-site.register(models.Digest, DigestAdmin)
-site.register(models.OcrSource)
-site.register(models.OcrDocument)
+
+DEFAULT_ADMIN_NAME = '_default'
+sites = {}
+for collection in collections.ALL.values():
+    sites[collection.name] = make_collection_admin_site(collection)
+
+sites[DEFAULT_ADMIN_NAME] = admin.site

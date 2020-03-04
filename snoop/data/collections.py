@@ -57,7 +57,8 @@ class Collection:
 
     @contextmanager
     def set_current(self):
-        assert getattr(threadlocal, 'collection', None) is None, \
+        old = getattr(threadlocal, 'collection', None)
+        assert old in (None, self), \
             "There is already a current collection"
         try:
             threadlocal.collection = self
@@ -67,7 +68,7 @@ class Collection:
             logger.debug("WITH collectio = %s END", self)
             assert threadlocal.collection is self, \
                 "Current collection has changed!"
-            threadlocal.collection = None
+            threadlocal.collection = old
 
 
 ALL = {}
