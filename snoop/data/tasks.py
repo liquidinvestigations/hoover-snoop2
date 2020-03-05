@@ -328,7 +328,7 @@ def dispatch_tasks(status):
 
     task_count = task_query.count()
     if not task_count:
-        logger.info('No tasks to dispatch')
+        logger.info(f'No {status} tasks to dispatch')
         return False
     logger.info('Dispatching remaining %s tasks.', task_count)
 
@@ -443,8 +443,7 @@ def run_dispatcher():
     logger.info('running run_dispatcher')
 
     for collection in collections.ALL.values():
-        if dispatch_for(collection):
-            return
+        dispatch_for(collection)
 
 
 def dispatch_for(collection):
