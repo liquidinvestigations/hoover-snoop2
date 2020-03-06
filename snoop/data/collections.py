@@ -38,7 +38,7 @@ class Collection:
     def base_path(self):
         if settings.SNOOP_COLLECTION_ROOT is None:
             raise RuntimeError("settings.SNOOP_COLLECTION_ROOT not configured")
-        return Path(settings.SNOOP_COLLECTION_ROOT) / col.name
+        return Path(settings.SNOOP_COLLECTION_ROOT) / self.name
 
     @property
     def data_path(self):
