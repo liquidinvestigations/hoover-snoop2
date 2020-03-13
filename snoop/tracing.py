@@ -3,7 +3,7 @@ from contextlib import contextmanager
 
 from django.conf import settings
 from opencensus.ext.zipkin import trace_exporter as zipkin
-from opencensus.trace.samplers import always_on, always_off
+from opencensus.trace.samplers import AlwaysOnSampler, AlwaysOffSampler
 from opencensus.trace.tracer import Tracer
 from opencensus.trace import execution_context
 
@@ -36,9 +36,9 @@ def get_exporter(service_name):
 
 # If enabled configure 100% sample rate, otherwise, 0% sample rate
 if is_enabled():
-    sampler = always_on.AlwaysOnSampler()
+    sampler = AlwaysOnSampler()
 else:
-    sampler = always_off.AlwaysOffSampler()
+    sampler = AlwaysOffSampler()
 
 
 _threadlocal_parent = 'snoop2.parent'

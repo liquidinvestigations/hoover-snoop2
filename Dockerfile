@@ -1,10 +1,10 @@
-FROM python:3.6-stretch
+FROM python:3-buster
 ENV PYTHONUNBUFFERED 1
 
 RUN set -e \
- && echo 'deb http://deb.debian.org/debian stretch non-free' >> /etc/apt/sources.list \
- && echo 'deb http://deb.debian.org/debian stretch-updates non-free' >> /etc/apt/sources.list \
- && echo 'deb http://security.debian.org stretch/updates non-free' >> /etc/apt/sources.list \
+ && echo 'deb http://deb.debian.org/debian buster non-free' >> /etc/apt/sources.list \
+ && echo 'deb http://deb.debian.org/debian buster-updates non-free' >> /etc/apt/sources.list \
+ && echo 'deb http://security.debian.org buster/updates non-free' >> /etc/apt/sources.list \
  && apt-get update \
  && apt-get install -y --no-install-recommends \
      p7zip-full p7zip-rar \
@@ -30,10 +30,12 @@ RUN cd /opt \
 ENV PATH="/opt/magic-definitions/file/bin:${PATH}"
 ENV MAGIC_FILE="/opt/magic-definitions/magic.mgc"
 
-RUN wget http://www.five-ten-sg.com/libpst/packages/libpst-0.6.71.tar.gz --progress=dot:giga \
-  && tar zxvf libpst-0.6.71.tar.gz \
-  && rm -f libpst-0.6.71.tar.gz \
-  && mv libpst-0.6.71 /opt/libpst \
+ENV LIBPST_VERSION libpst-0.6.74
+
+RUN wget http://www.five-ten-sg.com/libpst/packages/$LIBPST_VERSION.tar.gz --progress=dot:giga \
+  && tar zxvf $LIBPST_VERSION.tar.gz \
+  && rm -f $LIBPST_VERSION.tar.gz \
+  && mv $LIBPST_VERSION /opt/libpst \
   && cd /opt/libpst \
   && ./configure --disable-python --prefix="`pwd`" \
   && make \

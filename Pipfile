@@ -66,4 +66,4 @@ opencensus-ext-prometheus = "*"
 opencensus-ext-zipkin = "*"
 
 [requires]
-python_version = "3.6"
+python_version = "3.8"
