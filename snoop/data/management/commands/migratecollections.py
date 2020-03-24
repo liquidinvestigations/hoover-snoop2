@@ -12,3 +12,4 @@ class Command(BaseCommand):
         collections.create_databases()
         collections.migrate_databases()
         collections.create_es_indexes()
+        collections.create_blob_roots()
