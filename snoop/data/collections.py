@@ -101,11 +101,22 @@ def create_es_indexes():
                 indexing.create_index()
 
 
-def create_blob_roots():
-    from .models import blob_root
+def create_roots():
+    """
+    Creates a root directory (bucket) for the collection in the blob directory.
+    Also creates a root document entry for the input data, so we have something to export.
+    """
+
+    from .models import blob_root, Directory
+
     for col in ALL.values():
         with col.set_current():
             blob_root().mkdir(exist_ok=True, parents=True)
+
+            root = Directory.root()
+            if not root:
+                root = Directory.objects.create()
+                logger.debug(f'info root document {root} for collection {col.name}')
 
 
 class CollectionsRouter:
