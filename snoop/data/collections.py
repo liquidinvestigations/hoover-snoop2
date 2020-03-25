@@ -6,6 +6,7 @@ from pathlib import Path
 from django.conf import settings
 from django.db import connection
 from django.core import management
+from django.db import transaction
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -110,13 +111,13 @@ def create_roots():
     from .models import blob_root, Directory
 
     for col in ALL.values():
-        with col.set_current():
+        with transaction.atomic(using=col.db_alias), col.set_current():
             blob_root().mkdir(exist_ok=True, parents=True)
 
             root = Directory.root()
             if not root:
                 root = Directory.objects.create()
-                logger.debug(f'info root document {root} for collection {col.name}')
+                logger.debug(f'Creating root document {root} for collection {col.name}')
 
 
 class CollectionsRouter:

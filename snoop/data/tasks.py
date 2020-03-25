@@ -11,7 +11,6 @@ from django.utils import timezone
 
 from . import collections
 from . import celery
-from . import indexing
 from . import models
 from ..profiler import profile
 from .utils import run_once
@@ -425,13 +424,7 @@ def has_any_tasks():
 def dispatch_walk_tasks():
     from .filesystem import walk
     root = models.Directory.root()
-    if not root:
-        try:
-            indexing.create_index()
-        except RuntimeError:
-            # already created?
-            pass
-        root = models.Directory.objects.create()
+    assert root, "root document not created"
     walk.laterz(root.pk)
 
 
