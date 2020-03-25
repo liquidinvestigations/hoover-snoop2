@@ -20,8 +20,8 @@ class Collection:
 
     def __init__(self, name, process=False, sync=False):
         self.name = name
-        self.process = process or sync
-        self.sync = sync
+        self.process = process
+        self.sync = sync and process
 
     def __repr__(self):
         return f"<Collection {self.name} process={self.process} sync={self.sync}>"
