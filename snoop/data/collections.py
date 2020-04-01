@@ -112,7 +112,11 @@ def create_roots():
 
     for col in ALL.values():
         with transaction.atomic(using=col.db_alias), col.set_current():
-            blob_root().mkdir(exist_ok=True, parents=True)
+            root_path = blob_root()
+            # Avoid to run mkdir over a symlink.
+            # This will still error out if there's a file at that location.
+            if not root_path.is_symlink():
+                root_path.mkdir(exist_ok=True, parents=True)
 
             root = Directory.root()
             if not root:
