@@ -1,3 +1,0 @@
-workers: {{ workers_command }}
-beat: celery -A snoop.data beat -l INFO --pidfile=
-flower: flower -A snoop.data -l INFO
