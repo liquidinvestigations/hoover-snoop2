@@ -7,8 +7,7 @@ pytestmark = [pytest.mark.django_db]
 
 
 def test_pdf_ocr(fakedata, taskmanager, client):
-    ocr1_path = TESTDATA.parent / 'ocr/one'
-    ocr.create_ocr_source('ocr1', ocr1_path)
+    source = ocr.create_ocr_source('one')
 
     root = fakedata.init()
     mof1_1992_233 = TESTDATA / 'disk-files/pdf-for-ocr/mof1_1992_233.pdf'
@@ -22,19 +21,18 @@ def test_pdf_ocr(fakedata, taskmanager, client):
     digest = api.get_digest(blob.pk)['content']
     assert "Hotărlre privind stabilirea cantităţii de gaze" in digest['text']
 
-    ocr_pdf = ocr1_path / 'foo/bar/f/d/fd41b8f1fe19c151517b3cda2a615fa8.pdf'
+    ocr_pdf = source.root / 'foo/bar/f/d/fd41b8f1fe19c151517b3cda2a615fa8.pdf'
     with ocr_pdf.open('rb') as f:
         ocr_pdf_data = f.read()
 
     with mask_out_current_collection():
-        resp = client.get(f'/collections/testdata/{blob.pk}/ocr/ocr1/')
+        resp = client.get(f'/collections/testdata/{blob.pk}/ocr/one/')
     assert b''.join(resp.streaming_content) == ocr_pdf_data
     assert resp['Content-Type'] == 'application/pdf'
 
 
 def test_txt_ocr(fakedata, taskmanager, client):
-    ocr2_path = TESTDATA.parent / 'ocr/two'
-    ocr.create_ocr_source('ocr2', ocr2_path)
+    ocr.create_ocr_source('two')
     ocr.dispatch_ocr_tasks()
     taskmanager.run()
 

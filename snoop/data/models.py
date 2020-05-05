@@ -357,10 +357,26 @@ class Digest(models.Model):
             models.Index(fields=['date_modified']),
         ]
 
+    def __str__(self):
+        return f'{self.blob} -> {self.result}'
+
+    __repr__ = __str__
+
 
 class OcrSource(models.Model):
     name = models.CharField(max_length=1024)
-    root = models.CharField(max_length=4096)
+
+    @property
+    def root(self):
+        col = collections.current()
+        path = Path(settings.SNOOP_COLLECTION_ROOT) / col.name / 'ocr' / self.name
+        assert path.is_dir()
+        return path
+
+    def __str__(self):
+        return f"{self.pk}: {self.name}"
+
+    __repr__ = __str__
 
 
 class OcrDocument(models.Model):

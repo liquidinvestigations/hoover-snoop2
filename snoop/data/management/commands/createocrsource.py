@@ -13,5 +13,4 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         ocr.create_ocr_source(
             name=options['name'],
-            root=options['root'].resolve(),
         )
