@@ -18,7 +18,6 @@ from requests.exceptions import ConnectionError
 from snoop import tracing
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
 shaormerie = {}
 
@@ -394,19 +393,30 @@ def returns_json_blob(func):
 
 
 def count_tasks(tasks_status, excluded=[]):
+    def task_name(task):
+        func = task['delivery_info']['routing_key']
+        args = task['args']
+        return f'{func} {args}'
+
     if not tasks_status:
         return 0
 
     count = 0
     for tasks in tasks_status.values():
         for task in tasks:
-            if task['name'] not in excluded:
+            task_str = task_name(task)
+            if any(e in task['delivery_info']['routing_key'] for e in excluded):
+                logger.info('NOT counting task ' + task_str)
+            else:
                 count += 1
+                if count < 10:
+                    logger.info('counting task ' + task_str)
+
     return count
 
 
 def has_any_tasks():
-    excluded = ['snoop.data.tasks.run_dispatcher']
+    excluded = ['run_dispatcher']
 
     inspector = inspect(celery.app)
     active = inspector.call(method='active', arguments={})

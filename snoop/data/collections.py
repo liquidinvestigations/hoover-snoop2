@@ -1,4 +1,5 @@
 import logging
+import subprocess
 import threading
 from contextlib import contextmanager
 from pathlib import Path
@@ -11,6 +12,7 @@ from django.db import transaction
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+ALL_TESSERACT_LANGS = subprocess.check_output(['tesseract', '--list-langs']).decode().split()
 threadlocal = threading.local()
 
 
@@ -19,10 +21,15 @@ class Collection:
     DATA_DIR = 'data'
     GPGHOME_DIR = 'gpghome'
 
-    def __init__(self, name, process=False, sync=False):
+    def __init__(self, name, process=False, sync=False, **opt):
         self.name = name
         self.process = process
         self.sync = sync and process
+        self.ocr_languages = opt.get('ocr_languages', [])
+
+        for lang in self.ocr_languages:
+            assert lang in ALL_TESSERACT_LANGS, \
+                f'language code "{lang}" not in available'
 
     def __repr__(self):
         return f"<Collection {self.name} process={self.process} sync={self.sync}>"

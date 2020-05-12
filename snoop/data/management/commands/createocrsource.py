@@ -1,16 +1,17 @@
 from pathlib import Path
 from django.core.management.base import BaseCommand
-from ... import ocr
+from ... import ocr, collections
 
 
 class Command(BaseCommand):
     help = "Creates an OCR source"
 
     def add_arguments(self, parser):
-        parser.add_argument('name', help="OCR source name.")
-        parser.add_argument('root', type=Path, help="Valid filesystem path.")
+        parser.add_argument('collection', help="collection name")
+        parser.add_argument('name', type=Path, help="OCR source name. "
+                            "Files will be searched under $collections/$collection/ocr/$name.")
 
-    def handle(self, *args, **options):
-        ocr.create_ocr_source(
-            name=options['name'],
-        )
+    def handle(self, collection, name, *args, **options):
+        assert collection in collections.ALL, 'collection does not exist'
+        with collections.ALL[collection].set_current():
+            ocr.create_ocr_source(name=name)

@@ -14,9 +14,15 @@ RUN set -e \
      postgresql-client \
      python-numpy \
      libicu-dev \
+     imagemagick \
+     tesseract-ocr tesseract-ocr-all \
+     libtiff-tools \
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
  && pip install pipenv
+
+# disable tesseract multithreading
+ENV OMP_THREAD_LIMIT 1
 
 RUN mkdir -p /opt/hoover/snoop
 WORKDIR /opt/hoover/snoop

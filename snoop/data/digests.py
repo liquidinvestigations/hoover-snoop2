@@ -10,11 +10,16 @@ from .utils import zulu
 from .analyzers import email
 from .analyzers import tika
 from .analyzers import exif
-from ._file_types import FILE_TYPES
 from . import ocr
+from ._file_types import FILE_TYPES
 from . import indexing
 
 log = logging.getLogger(__name__)
+
+
+def get_collection_langs():
+    from .collections import current
+    return current().ocr_languages
 
 
 @shaorma('digests.launch', priority=3)
@@ -29,6 +34,10 @@ def launch(blob):
 
     if exif.can_extract(blob):
         depends_on['exif_data'] = exif.extract.laterz(blob)
+
+    if blob.mime_type.startswith('image/'):
+        for lang in get_collection_langs():
+            depends_on[f'ocr_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
     gather_task = gather.laterz(blob, depends_on=depends_on)
     index.laterz(blob, depends_on={'digests_gather': gather_task})
@@ -68,12 +77,20 @@ def gather(blob, **depends_on):
             rv['email'] = email_parse
 
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
+    if blob.mime_type.startswith('image/'):
+        for lang in get_collection_langs():
+            ocr_blob = depends_on[f'ocr_{lang}']
+            if isinstance(ocr_blob, ShaormaBroken):
+                log.warning(f'tesseract ocr result missing for lang {lang}')
+                continue
+            with ocr_blob.open(encoding='utf-8') as f:
+                ocr_results[f'tesseract_{lang}'] = f.read().strip()
     if ocr_results:
-        text = rv.get('text', "")
-        for _, ocr_text in sorted(ocr_results.items()):
-            text += ' ' + ocr_text
-        rv['text'] = text
-        rv['ocr'] = True
+        # text = rv.get('text', "")
+        # for _, ocr_text in sorted(ocr_results.items()):
+        #     text += '\n\n' + ocr_text
+        # rv['text'] = text
+        rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
         rv['ocrtext'] = ocr_results
 
     exif_data_blob = depends_on.get('exif_data')

@@ -25,10 +25,15 @@ MBOX_KNOWN_TYPES = {
     'application/mbox',
 }
 
+PDF_KNOWN_TYPES = {
+    'application/pdf',
+}
+
 KNOWN_TYPES = (
     SEVENZIP_KNOWN_TYPES
     .union(READPST_KNOWN_TYPES)
     .union(MBOX_KNOWN_TYPES)
+    .union(PDF_KNOWN_TYPES)
 )
 
 
@@ -95,6 +100,40 @@ def unpack_mbox(mbox_path, output_dir):
                 f.write(message)
 
 
+def unpack_pdf(pdf_path, output_dir):
+    try:
+        subprocess.check_call(
+            [
+                'pdfimages',
+                str(pdf_path),
+                '-all',
+                '-p',
+                'page',
+            ],
+            stderr=subprocess.STDOUT,
+            cwd=output_dir,
+        )
+
+        # As per pdfimages help text, use
+        # fax2tiff to re-create the tiff files from .ccitt.
+        # Using its own tiff convertor outputs images with reversed color.
+        fax = (Path(output_dir) / 'fax.tif')
+        for ccitt in Path(output_dir).glob('*.ccitt'):
+            params = ccitt.with_suffix('.params')
+            with params.open('r') as f:
+                params = f.read().strip()
+            subprocess.check_call(f'fax2tiff {str(ccitt)} {params}',
+                                  cwd=output_dir, shell=True)
+
+            tif = ccitt.with_suffix('.tif')
+            fax.rename(tif)
+            ccitt.unlink()
+            params.unlink()
+
+    except subprocess.CalledProcessError:
+        raise ShaormaBroken("pdfimages extraction failed", 'pdfimages_error')
+
+
 def check_recursion(listing, blob_pk):
     for item in listing:
         if item['type'] == 'file':
@@ -115,6 +154,8 @@ def unarchive(blob):
             call_readpst(blob.path(), temp_dir)
         elif blob.mime_type in MBOX_KNOWN_TYPES:
             unpack_mbox(blob.path(), temp_dir)
+        elif blob.mime_type in PDF_KNOWN_TYPES:
+            unpack_pdf(blob.path(), temp_dir)
 
         listing = sorted(
             list(archive_walk(Path(temp_dir))),

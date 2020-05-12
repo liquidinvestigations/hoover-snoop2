@@ -60,7 +60,7 @@ class TaskManager:
     def add(self, task):
         self.queue.append(task.pk)
 
-    def run(self, limit=100):
+    def run(self, limit=300):
         count = 0
         while self.queue:
             count += 1

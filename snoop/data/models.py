@@ -364,7 +364,7 @@ class Digest(models.Model):
 
 
 class OcrSource(models.Model):
-    name = models.CharField(max_length=1024)
+    name = models.CharField(max_length=1024, unique=True)
 
     @property
     def root(self):

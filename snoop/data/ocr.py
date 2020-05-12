@@ -2,6 +2,8 @@ import re
 import json
 import logging
 import string
+import subprocess
+
 from . import models
 from .tasks import shaorma, require_dependency, retry_tasks
 from .analyzers import tika
@@ -11,8 +13,14 @@ log = logging.getLogger(__name__)
 
 
 def create_ocr_source(name):
-    ocr_source = models.OcrSource.objects.create(name=name)
+    ocr_source, created = models.OcrSource.objects.get_or_create(name=name)
+    if created:
+        log.info(f'OCR source "{name}" has been created')
+    else:
+        log.info(f'OCR source "{name}" already exists')
+
     walk_source.laterz(ocr_source.pk)
+    log.info('ocr.walk_source task dispatched')
     return ocr_source
 
 
@@ -86,3 +94,20 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
             func='digests.gather',
             blob_arg=blob,
         ))
+
+
+@shaorma('ocr.run_tesseract')
+def run_tesseract(image_blob, lang):
+    args = [
+        'tesseract',
+        '--oem', '1',
+        '--psm', '1',
+        '-l', lang,
+        str(image_blob.path()),
+        'stdout'
+    ]
+    data = subprocess.check_output(args)
+
+    with models.Blob.create() as output:
+        output.write(data)
+    return output.blob
