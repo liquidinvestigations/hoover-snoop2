@@ -106,7 +106,8 @@ def unpack_pdf(pdf_path, output_dir):
             [
                 'pdfimages',
                 str(pdf_path),
-                '-all',
+                # '-all',  # only output common image types
+                '-j', '-png',
                 '-p',
                 'page',
             ],
@@ -117,18 +118,18 @@ def unpack_pdf(pdf_path, output_dir):
         # As per pdfimages help text, use
         # fax2tiff to re-create the tiff files from .ccitt.
         # Using its own tiff convertor outputs images with reversed color.
-        fax = (Path(output_dir) / 'fax.tif')
-        for ccitt in Path(output_dir).glob('*.ccitt'):
-            params = ccitt.with_suffix('.params')
-            with params.open('r') as f:
-                params_text = f.read().strip()
-            subprocess.check_call(f'fax2tiff {str(ccitt)} {params_text}',
-                                  cwd=output_dir, shell=True)
+        # fax = (Path(output_dir) / 'fax.tif')
+        # for ccitt in Path(output_dir).glob('*.ccitt'):
+        #     params = ccitt.with_suffix('.params')
+        #     with params.open('r') as f:
+        #         params_text = f.read().strip()
+        #     subprocess.check_call(f'fax2tiff {str(ccitt)} {params_text}',
+        #                           cwd=output_dir, shell=True)
 
-            tif = ccitt.with_suffix('.tif')
-            fax.rename(tif)
-            ccitt.unlink()
-            params.unlink()
+        #     tif = ccitt.with_suffix('.tif')
+        #     fax.rename(tif)
+        #     ccitt.unlink()
+        #     params.unlink()
 
     except subprocess.CalledProcessError:
         raise ShaormaBroken("pdfimages extraction failed", 'pdfimages_error')
