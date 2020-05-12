@@ -19,7 +19,7 @@ def test_pdf_ocr(fakedata, taskmanager, client):
 
     api = CollectionApiClient(client)
     digest = api.get_digest(blob.pk)['content']
-    assert "Hotărlre privind stabilirea cantităţii de gaze" in digest['text']
+    assert "Hotărlre privind stabilirea cantităţii de gaze" in digest['ocrtext']['one']
 
     ocr_pdf = source.root / 'foo/bar/f/d/fd41b8f1fe19c151517b3cda2a615fa8.pdf'
     with ocr_pdf.open('rb') as f:

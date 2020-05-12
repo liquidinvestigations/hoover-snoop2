@@ -121,8 +121,8 @@ def unpack_pdf(pdf_path, output_dir):
         for ccitt in Path(output_dir).glob('*.ccitt'):
             params = ccitt.with_suffix('.params')
             with params.open('r') as f:
-                params = f.read().strip()
-            subprocess.check_call(f'fax2tiff {str(ccitt)} {params}',
+                params_text = f.read().strip()
+            subprocess.check_call(f'fax2tiff {str(ccitt)} {params_text}',
                                   cwd=output_dir, shell=True)
 
             tif = ccitt.with_suffix('.tif')
