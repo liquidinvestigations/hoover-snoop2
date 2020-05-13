@@ -79,17 +79,14 @@ def gather(blob, **depends_on):
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
     if blob.mime_type.startswith('image/'):
         for lang in get_collection_langs():
-            ocr_blob = depends_on[f'ocr_{lang}']
-            if isinstance(ocr_blob, ShaormaBroken):
+            ocr_blob = depends_on.get(f'ocr_{lang}')
+            if not ocr_blob or isinstance(ocr_blob, ShaormaBroken):
                 log.warning(f'tesseract ocr result missing for lang {lang}')
+                ocr_results[f'tesseract_{lang}'] = ""
                 continue
             with ocr_blob.open(encoding='utf-8') as f:
                 ocr_results[f'tesseract_{lang}'] = f.read().strip()
     if ocr_results:
-        # text = rv.get('text', "")
-        # for _, ocr_text in sorted(ocr_results.items()):
-        #     text += '\n\n' + ocr_text
-        # rv['text'] = text
         rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
         rv['ocrtext'] = ocr_results
 
