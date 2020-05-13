@@ -108,14 +108,15 @@ SNOOP_COLLECTION_ROOT = os.environ.get('SNOOP_COLLECTION_ROOT')
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
 
-# task count to be picked up by 1 worker
-WORKER_TASK_LIMIT = 500
+# max tasks count to be picked up by 1 worker
+WORKER_TASK_LIMIT = 1000
 # limit for queueing large counts of children tasks
 CHILD_QUEUE_LIMIT = 100
-# count of pending tasks to trigger when finding an empty queue.
+# Count of pending tasks to trigger per collection when finding an empty queue.
+DISPATCH_QUEUE_LIMIT = 12000
 # If there are no pending tasks, this is how many directories
 # will be retried by sync every minute.
-DISPATCH_QUEUE_LIMIT = 5000
+SYNC_RETRY_LIMIT = 1000
 
 # url prefix for all the views, for example "snoop/"
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')

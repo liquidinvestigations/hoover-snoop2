@@ -476,6 +476,6 @@ def dispatch_for(collection):
             queryset = (
                 models.Task.objects
                 .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
-                .order_by('date_modified')[:settings.DISPATCH_QUEUE_LIMIT]
+                .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT]
             )
             retry_tasks(queryset)
