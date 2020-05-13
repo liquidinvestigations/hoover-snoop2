@@ -105,12 +105,18 @@ def document_download(request, hash, filename):
 def document_ocr(request, hash, ocrname):
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
 
-    ocr_source = get_object_or_404(models.OcrSource, name=ocrname)
-    ocr_queryset = ocr.ocr_documents_for_blob(digest.blob)
-    ocr_document = get_object_or_404(ocr_queryset, source=ocr_source)
+    if models.OcrSource.objects.filter(name=ocrname).exists():
+        # serve file from external OCR import
+        ocr_source = get_object_or_404(models.OcrSource, name=ocrname)
+        ocr_queryset = ocr.ocr_documents_for_blob(digest.blob)
+        ocr_document = get_object_or_404(ocr_queryset, source=ocr_source)
 
-    blob = ocr_document.ocr
-    return FileResponse(blob.open(), content_type=blob.content_type)
+        blob = ocr_document.ocr
+        return FileResponse(blob.open(), content_type=blob.content_type)
+    else:
+        # serve extracted text with ocr
+        text = digests.get_document_data(digest)['content']['ocrtext'][ocrname]
+        return HttpResponse(text, content_type="text/plain")
 
 
 @collection_view
