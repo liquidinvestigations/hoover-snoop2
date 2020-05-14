@@ -292,21 +292,22 @@ def shaorma(name, priority=5):
                 blob_arg=blob_arg,
             )
 
+            if depends_on:
+                for dep_name, dep in depends_on.items():
+                    _, created = task.prev_set.get_or_create(
+                        prev=dep,
+                        name=dep_name,
+                    )
+                    if created:
+                        retry = True
+
             if task.date_finished:
                 if retry:
                     retry_task(task)
                 return task
 
-            if depends_on:
-                for dep_name, dep in depends_on.items():
-                    task.prev_set.get_or_create(
-                        prev=dep,
-                        name=dep_name,
-                    )
-
             if queue_now:
                 queue_task(task)
-
             return task
 
         func.laterz = laterz
