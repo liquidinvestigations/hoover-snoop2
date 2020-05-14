@@ -12,7 +12,9 @@ from django.db import transaction
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-ALL_TESSERACT_LANGS = subprocess.check_output(['tesseract', '--list-langs']).decode().split()
+ALL_TESSERACT_LANGS = subprocess.check_output(
+    "tesseract --list-langs | tail -n +2",
+    shell=True).decode().split()
 threadlocal = threading.local()
 
 
@@ -28,8 +30,10 @@ class Collection:
         self.ocr_languages = opt.get('ocr_languages', [])
 
         for lang in self.ocr_languages:
-            assert lang in ALL_TESSERACT_LANGS, \
-                f'language code "{lang}" not in available'
+            assert lang.strip() != ''
+            for l in lang.split('+'):
+                assert l in ALL_TESSERACT_LANGS, \
+                    f'language code "{l}" is not available'
 
     def __repr__(self):
         return f"<Collection {self.name} process={self.process} sync={self.sync}>"
