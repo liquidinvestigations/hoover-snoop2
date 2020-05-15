@@ -7,7 +7,7 @@ steps:
   commands:
   - flake8
 
-- name: build 0-base docker image
+- name: build base docker image
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2

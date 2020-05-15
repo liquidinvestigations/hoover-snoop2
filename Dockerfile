@@ -1,4 +1,4 @@
-From liquidinvestigations/hoover-snoop2:0-base
+From liquidinvestigations/hoover-snoop2:base
 
 # download others
 ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.3.0/wait /wait
