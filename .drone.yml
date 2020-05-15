@@ -7,6 +7,25 @@ steps:
   commands:
   - flake8
 
+- name: build 0-base docker image
+  image: plugins/docker
+  settings:
+    repo: liquidinvestigations/hoover-snoop2
+    # https://0-8-0.docs.drone.io/substitution/
+    auto_tag: true
+    auto_tag_suffix: base
+    dockerfile: Dockerfile.base
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+  when:
+    event:
+    - push
+    - tag
+    branch:
+    - master
+
 - name: download testdata
   image: alpine/git:1.0.7
   commands:
