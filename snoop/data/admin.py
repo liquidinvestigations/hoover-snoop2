@@ -51,24 +51,24 @@ def get_task_matrix(task_queryset):
     for bucket in task_buckets_query:
         task_matrix[bucket['func']][bucket['status']] = bucket['count']
 
-    one_minute_ago = timezone.now() - timedelta(minutes=1)
-    task_1m_query = (
+    mins = 5
+    task_5m_query = (
         task_queryset
-        .filter(date_finished__gt=one_minute_ago)
+        .filter(date_finished__gt=timezone.now() - timedelta(minutes=mins))
         .values('func')
         .annotate(count=Count('*'))
         .annotate(avg_duration=Avg(F('date_finished') - F('date_started')))
     )
-    for bucket in task_1m_query:
+    for bucket in task_5m_query:
         row = task_matrix[bucket['func']]
         pending = row.get('pending', 0)
         count = bucket['count']
         avg_duration = bucket['avg_duration'].total_seconds()
-        rate = (count / 60)
+        rate = (count / (mins * 60))
         fill = avg_duration * rate * 100
-        row['1m'] = count
-        row['1m_duration'] = avg_duration
-        row['1m_fill'] = f'{fill:.02f}%'
+        row['5m'] = count
+        row['5m_duration'] = avg_duration
+        row['5m_fill'] = f'{fill:.02f}%'
         if pending and rate > 0:
             row['eta'] = timedelta(seconds=int(pending / rate))
 
@@ -92,8 +92,23 @@ def get_stats():
                     'count': row[2],
                 }
 
+    def get_progress_str():
+        task_states = defaultdict(int)
+        zero = timedelta(seconds=0)
+        eta = sum((row.get('eta', zero) for row in task_matrix.values()), start=zero) * 2
+        eta_str = ', ETA: ' + str(eta) if eta.total_seconds() > 1 else ''
+        task_states['eta'] = timedelta(seconds=0)
+        for row in task_matrix.values():
+            for state in row:
+                task_states[state] += row[state]
+        del task_states['eta']
+        count_finished = task_states['success'] + task_states['broken']
+        count_all = sum(task_states.values())
+        return '%0.2f%% processed %s' % (100.0 * count_finished / count_all, eta_str)
+
     return {
         'task_matrix': sorted(task_matrix.items()),
+        'progress_str': get_progress_str(),
         'counts': {
             'files': models.File.objects.count(),
             'directories': models.Directory.objects.count(),

@@ -439,6 +439,15 @@ def dispatch_walk_tasks():
     walk.laterz(root.pk)
 
 
+def save_collection_stats():
+    from snoop.data.admin import get_stats
+    t0 = time()
+    s, _ = models.Statistics.objects.get_or_create(key='stats')
+    s.value = get_stats()
+    s.save()
+    logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
+
+
 @celery.app.task
 def run_dispatcher():
     if has_any_tasks():
@@ -448,6 +457,10 @@ def run_dispatcher():
 
     for collection in collections.ALL.values():
         dispatch_for(collection)
+
+    for collection in collections.ALL.values():
+        with collection.set_current():
+            save_collection_stats()
 
 
 def dispatch_for(collection):

@@ -388,3 +388,8 @@ class OcrDocument(models.Model):
 
     class Meta:
         unique_together = ('source', 'original_hash')
+
+
+class Statistics(models.Model):
+    key = models.CharField(max_length=64, unique=True)
+    value = JSONField()
