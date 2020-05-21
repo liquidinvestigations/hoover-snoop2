@@ -130,7 +130,8 @@ def unpack_pdf(pdf_path, output_dir):
             ccitt.unlink()
             params.unlink()
 
-            subprocess.check_call(f'convert {str(fax)} {str(png)}')
+            subprocess.check_call(f'convert {str(fax)} {str(png)}',
+                                  shell=True, cwd=output_dir)
             fax.unlink()
 
     except subprocess.CalledProcessError:

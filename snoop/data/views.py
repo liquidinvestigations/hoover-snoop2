@@ -112,11 +112,10 @@ def document_ocr(request, hash, ocrname):
         ocr_document = get_object_or_404(ocr_queryset, source=ocr_source)
 
         blob = ocr_document.ocr
-        return FileResponse(blob.open(), content_type=blob.content_type)
     else:
-        # serve extracted text with ocr
-        text = digests.get_document_data(digest)['content']['ocrtext'][ocrname]
-        return HttpResponse(text, content_type="text/plain")
+        task = get_object_or_404(models.Task.objects, func='digests.gather', args=[hash])
+        blob = task.result
+    return FileResponse(blob.open(), content_type=blob.content_type)
 
 
 @collection_view

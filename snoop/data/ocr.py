@@ -1,8 +1,10 @@
+import tempfile
 import re
 import json
 import logging
 import string
 import subprocess
+import multiprocessing
 
 from . import models
 from .tasks import shaorma, require_dependency, retry_tasks
@@ -96,8 +98,7 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
         ))
 
 
-@shaorma('ocr.run_tesseract')
-def run_tesseract(image_blob, lang):
+def run_tesseract_on_image(image_blob, lang):
     args = [
         'tesseract',
         '--oem', '1',
@@ -111,3 +112,23 @@ def run_tesseract(image_blob, lang):
     with models.Blob.create() as output:
         output.write(data)
     return output.blob
+
+
+def run_tesseract_on_pdf(pdf_blob, lang):
+    with tempfile.NamedTemporaryFile() as f:
+        args = [
+            'pdf2pdfocr.py', '-i', pdf_blob.path(), '-o', f.name,
+            '-l', lang,
+            '-x', '--oem 1 --psm 1',
+            '-j', "%0.4f" % (1.0 / multiprocessing.cpu_count()),
+        ]
+        subprocess.check_call(args)
+        return models.Blob.create_from_file(f.name)
+
+
+@shaorma('ocr.run_tesseract')
+def run_tesseract(blob, lang):
+    if blob.mime_type.startswith('image/'):
+        return run_tesseract_on_image(blob, lang)
+    elif blob.mime_type == 'application/pdf':
+        return run_tesseract_on_pdf(blob, lang)

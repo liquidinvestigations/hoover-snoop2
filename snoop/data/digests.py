@@ -22,6 +22,10 @@ def get_collection_langs():
     return current().ocr_languages
 
 
+def is_ocr_mime_type(mime_type):
+    return mime_type.startswith('image/') or mime_type == 'application/pdf'
+
+
 @shaorma('digests.launch', priority=3)
 def launch(blob):
     depends_on = {}
@@ -35,7 +39,7 @@ def launch(blob):
     if exif.can_extract(blob):
         depends_on['exif_data'] = exif.extract.laterz(blob)
 
-    if blob.mime_type.startswith('image/'):
+    if is_ocr_mime_type(blob.mime_type):
         for lang in get_collection_langs():
             depends_on[f'ocr_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
@@ -77,7 +81,7 @@ def gather(blob, **depends_on):
             rv['email'] = email_parse
 
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
-    if blob.mime_type.startswith('image/'):
+    if is_ocr_mime_type(blob.mime_type):
         for lang in get_collection_langs():
             ocr_blob = depends_on.get(f'ocr_{lang}')
             if not ocr_blob or isinstance(ocr_blob, ShaormaBroken):
