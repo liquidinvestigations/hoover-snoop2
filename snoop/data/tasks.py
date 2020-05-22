@@ -429,7 +429,7 @@ def has_any_tasks():
         + count_tasks(reserved, excluded)
     )
     logger.info('has_any_tasks found %s active tasks', count)
-    return count > 0
+    return count >= settings.TOTAL_WORKER_COUNT
 
 
 def dispatch_walk_tasks():
@@ -443,13 +443,22 @@ def save_collection_stats():
     from snoop.data.admin import get_stats
     t0 = time()
     s, _ = models.Statistics.objects.get_or_create(key='stats')
-    s.value = get_stats()
+    stats = get_stats()
+    for row in stats['task_matrix']:
+        for stat in row[1]:
+            row[1][stat] = str(row[1][stat])
+    s.value = stats
     s.save()
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
 @celery.app.task
 def run_dispatcher():
+    logger.info('saving stats')
+    for collection in collections.ALL.values():
+        with collection.set_current():
+            save_collection_stats()
+
     if has_any_tasks():
         logger.info('skipping run_dispatcher -- already have tasks')
         return
@@ -457,10 +466,6 @@ def run_dispatcher():
 
     for collection in collections.ALL.values():
         dispatch_for(collection)
-
-    for collection in collections.ALL.values():
-        with collection.set_current():
-            save_collection_stats()
 
 
 def dispatch_for(collection):

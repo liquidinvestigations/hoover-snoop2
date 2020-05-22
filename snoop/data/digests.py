@@ -1,6 +1,7 @@
 import logging
 import json
 import re
+import subprocess
 
 from django.conf import settings
 
@@ -88,8 +89,13 @@ def gather(blob, **depends_on):
                 log.warning(f'tesseract ocr result missing for lang {lang}')
                 ocr_results[f'tesseract_{lang}'] = ""
                 continue
-            with ocr_blob.open(encoding='utf-8') as f:
-                ocr_results[f'tesseract_{lang}'] = f.read().strip()
+            if ocr_blob.mime_type == 'application/pdf':
+                ocr_results[f'tesseract_{lang}'] = \
+                    subprocess.check_output(f'pdftotext -enc UTF-8 {ocr_blob.path()} -',
+                                            shell=True).decode('utf8')
+            else:
+                with ocr_blob.open(encoding='utf-8') as f:
+                    ocr_results[f'tesseract_{lang}'] = f.read().strip()
     if ocr_results:
         rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
         rv['ocrtext'] = ocr_results

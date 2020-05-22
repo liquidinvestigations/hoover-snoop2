@@ -97,14 +97,21 @@ def get_stats():
         zero = timedelta(seconds=0)
         eta = sum((row.get('eta', zero) for row in task_matrix.values()), start=zero) * 2
         eta_str = ', ETA: ' + str(eta) if eta.total_seconds() > 1 else ''
-        task_states['eta'] = timedelta(seconds=0)
         for row in task_matrix.values():
             for state in row:
-                task_states[state] += row[state]
-        del task_states['eta']
-        count_finished = task_states['success'] + task_states['broken']
+                if state in models.Task.ALL_STATUS_CODES:
+                    task_states[state] += row[state]
+        count_finished = (task_states[models.Task.STATUS_SUCCESS]
+                          + task_states[models.Task.STATUS_BROKEN]
+                          + task_states[models.Task.STATUS_ERROR])
+        count_error = (task_states[models.Task.STATUS_BROKEN]
+                       + task_states[models.Task.STATUS_ERROR])
         count_all = sum(task_states.values())
-        return '%0.2f%% processed %s' % (100.0 * count_finished / count_all, eta_str)
+        if count_all == 0:
+            return 'empty'
+        error_str = ', %0.2f%% errors' % (
+            100.0 * count_error / count_all,) if count_error > 0 else ''
+        return '%0.0f%% processed%s%s' % (100.0 * count_finished / count_all, error_str, eta_str)
 
     return {
         'task_matrix': sorted(task_matrix.items()),
@@ -386,6 +393,7 @@ def make_collection_admin_site(collection):
         site.register(models.Digest, DigestAdmin)
         site.register(models.OcrSource, MultiDBModelAdmin)
         site.register(models.OcrDocument, MultiDBModelAdmin)
+        site.register(models.Statistics, MultiDBModelAdmin)
         return site
 
 

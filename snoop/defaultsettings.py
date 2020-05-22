@@ -107,6 +107,7 @@ SNOOP_FEED_PAGE_SIZE = 100
 SNOOP_COLLECTION_ROOT = os.environ.get('SNOOP_COLLECTION_ROOT')
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
+TOTAL_WORKER_COUNT = int(os.environ.get('SNOOP_TOTAL_WORKER_COUNT', WORKER_COUNT))
 
 # max tasks count to be picked up by 1 worker
 WORKER_TASK_LIMIT = 1000

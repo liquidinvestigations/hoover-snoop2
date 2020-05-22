@@ -261,6 +261,8 @@ class Task(models.Model):
     STATUS_ERROR = 'error'
     STATUS_DEFERRED = 'deferred'
     STATUS_BROKEN = 'broken'
+    ALL_STATUS_CODES = [STATUS_PENDING, STATUS_BROKEN,
+                        STATUS_DEFERRED, STATUS_ERROR, STATUS_SUCCESS]
 
     func = models.CharField(max_length=1024)
     blob_arg = models.ForeignKey(Blob, null=True, blank=True,
@@ -392,4 +394,4 @@ class OcrDocument(models.Model):
 
 class Statistics(models.Model):
     key = models.CharField(max_length=64, unique=True)
-    value = JSONField()
+    value = JSONField(default=dict)

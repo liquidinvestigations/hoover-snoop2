@@ -26,12 +26,14 @@ def collection_view(func):
 @collection_view
 def collection(request):
     col = collections.current()
+    stats, _ = models.Statistics.objects.get_or_create(key='stats')
     return JsonResponse({
         'name': col.name,
         'title': col.name,
         'description': col.name,
         'feed': 'feed',
         'data_urls': '{id}/json',
+        'stats': stats.value,
     })
 
 
