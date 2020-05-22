@@ -42,7 +42,7 @@ def launch(blob):
 
     if is_ocr_mime_type(blob.mime_type):
         for lang in get_collection_langs():
-            depends_on[f'ocr_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
+            depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
     gather_task = gather.laterz(blob, depends_on=depends_on)
     index.laterz(blob, depends_on={'digests_gather': gather_task})
@@ -84,7 +84,7 @@ def gather(blob, **depends_on):
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
     if is_ocr_mime_type(blob.mime_type):
         for lang in get_collection_langs():
-            ocr_blob = depends_on.get(f'ocr_{lang}')
+            ocr_blob = depends_on.get(f'tesseract_{lang}')
             if not ocr_blob or isinstance(ocr_blob, ShaormaBroken):
                 log.warning(f'tesseract ocr result missing for lang {lang}')
                 ocr_results[f'tesseract_{lang}'] = ""

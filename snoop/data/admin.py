@@ -1,4 +1,5 @@
 import json
+from math import trunc
 from datetime import timedelta
 from collections import defaultdict
 from django.urls import reverse
@@ -111,7 +112,8 @@ def get_stats():
             return 'empty'
         error_str = ', %0.2f%% errors' % (
             100.0 * count_error / count_all,) if count_error > 0 else ''
-        return '%0.0f%% processed%s%s' % (100.0 * count_finished / count_all, error_str, eta_str)
+        return '%0.0f%% processed%s%s' % (
+            trunc(100.0 * count_finished / count_all), error_str, eta_str)
 
     return {
         'task_matrix': sorted(task_matrix.items()),

@@ -429,7 +429,7 @@ def has_any_tasks():
         + count_tasks(reserved, excluded)
     )
     logger.info('has_any_tasks found %s active tasks', count)
-    return count >= settings.TOTAL_WORKER_COUNT
+    return count >= max(1, int(settings.TOTAL_WORKER_COUNT / 2))
 
 
 def dispatch_walk_tasks():

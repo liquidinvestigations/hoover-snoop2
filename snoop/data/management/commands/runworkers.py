@@ -60,5 +60,5 @@ class Command(BaseCommand):
             argv = celery_argv(
                 queues=[f'{prefix}.{queue}' for queue in queues] + system_queues,
             )
-            log.debug('+' + ' '.join(argv))
+            log.info('+' + ' '.join(argv))
             os.execv(argv[0], argv)

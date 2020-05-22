@@ -17,6 +17,7 @@ RUN set -e \
      imagemagick \
      tesseract-ocr tesseract-ocr-all \
      libtiff-tools \
+     ghostscript \
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
  && pip install pipenv

@@ -115,8 +115,9 @@ def document_ocr(request, hash, ocrname):
 
         blob = ocr_document.ocr
     else:
-        task = get_object_or_404(models.Task.objects, func='digests.gather', args=[hash])
-        blob = task.result
+        digest_task = get_object_or_404(models.Task.objects, func='digests.gather', args=[hash])
+        tesseract_task = digest_task.prev_set.get(name=ocrname).prev
+        blob = tesseract_task.result
     return FileResponse(blob.open(), content_type=blob.content_type)
 
 
