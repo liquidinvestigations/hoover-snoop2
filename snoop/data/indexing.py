@@ -43,6 +43,9 @@ MAPPINGS = {
             "suffix": {"type": "keyword"},
             "thread-index": {"type": "keyword"},
             "word-count": {"type": "integer"},
+            "ocr": {"type": "boolean"},
+            "ocrpdf": {"type": "boolean"},
+            "ocrimage": {"type": "boolean"},
         }
     }
 }

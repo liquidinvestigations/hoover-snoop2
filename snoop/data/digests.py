@@ -98,6 +98,11 @@ def gather(blob, **depends_on):
                     ocr_results[f'tesseract_{lang}'] = f.read().strip()
     if ocr_results:
         rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
+        if rv['ocr']:
+            if blob.mime_type == 'application/pdf':
+                rv['ocrpdf'] = True
+            else:
+                rv['ocrimage'] = True
         rv['ocrtext'] = ocr_results
 
     exif_data_blob = depends_on.get('exif_data')
@@ -297,6 +302,8 @@ def _get_document_content(digest):
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
         'ocrtext': digest_data.get('ocrtext'),
+        'ocrpdf': digest_data.get('ocrpdf'),
+        'ocrimage': digest_data.get('ocrimage'),
         'date': digest_data.get('date'),
         'date-created': digest_data.get('date-created'),
         'md5': original.md5,
