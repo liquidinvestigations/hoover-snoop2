@@ -119,6 +119,9 @@ DISPATCH_QUEUE_LIMIT = 12000
 # will be retried by sync every minute.
 SYNC_RETRY_LIMIT = 1000
 
+# Only run pdf2pdfocr if pdf text word count less than this value:
+PDF2PDFOCR_MAX_WORD_COUNT = 666
+
 # url prefix for all the views, for example "snoop/"
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')
 if URL_PREFIX:

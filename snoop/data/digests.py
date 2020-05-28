@@ -91,7 +91,7 @@ def gather(blob, **depends_on):
                 continue
             if ocr_blob.mime_type == 'application/pdf':
                 ocr_results[f'tesseract_{lang}'] = \
-                    subprocess.check_output(f'pdftotext -enc UTF-8 {ocr_blob.path()} -',
+                    subprocess.check_output(f'pdftotext -q -enc UTF-8 {ocr_blob.path()} -',
                                             shell=True).decode('utf8')
             else:
                 with ocr_blob.open(encoding='utf-8') as f:

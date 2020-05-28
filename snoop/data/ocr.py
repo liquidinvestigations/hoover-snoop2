@@ -6,6 +6,7 @@ import string
 import subprocess
 import multiprocessing
 
+from django.conf import settings
 from . import models
 from .tasks import snoop_task, require_dependency, retry_tasks
 from .analyzers import tika
@@ -115,6 +116,14 @@ def run_tesseract_on_image(image_blob, lang):
 
 
 def run_tesseract_on_pdf(pdf_blob, lang):
+    pdfstrlen = int(
+        subprocess.check_output(f'pdftotext -q -env UTF-8 {pdf_blob.path()} - | wc -w',
+                                shell=True).decode('utf8')
+    )
+    if pdfstrlen > settings.PDF2PDFOCR_MAX_WORD_COUNT:
+        log.warning(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} words of text')  # noqa: E501
+        return None
+
     with tempfile.NamedTemporaryFile() as f:
         args = [
             'pdf2pdfocr.py', '-i', pdf_blob.path(), '-o', f.name,
