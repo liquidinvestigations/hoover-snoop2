@@ -5,7 +5,7 @@ import subprocess
 
 from django.conf import settings
 
-from .tasks import shaorma, ShaormaBroken
+from .tasks import snoop_task, SnoopTaskBroken
 from . import models
 from .utils import zulu
 from .analyzers import email
@@ -27,7 +27,7 @@ def is_ocr_mime_type(mime_type):
     return mime_type.startswith('image/') or mime_type == 'application/pdf'
 
 
-@shaorma('digests.launch', priority=3)
+@snoop_task('digests.launch', priority=3)
 def launch(blob):
     depends_on = {}
 
@@ -48,7 +48,7 @@ def launch(blob):
     index.laterz(blob, depends_on={'digests_gather': gather_task})
 
 
-@shaorma('digests.gather', priority=8)
+@snoop_task('digests.gather', priority=8)
 def gather(blob, **depends_on):
     rv = {'broken': []}
     text_blob = depends_on.get('text')
@@ -59,7 +59,7 @@ def gather(blob, **depends_on):
 
     tika_rmeta_blob = depends_on.get('tika_rmeta')
     if tika_rmeta_blob:
-        if isinstance(tika_rmeta_blob, ShaormaBroken):
+        if isinstance(tika_rmeta_blob, SnoopTaskBroken):
             rv['broken'].append(tika_rmeta_blob.reason)
             log.debug("tika_rmeta task is broken; skipping")
 
@@ -72,7 +72,7 @@ def gather(blob, **depends_on):
 
     email_parse_blob = depends_on.get('email_parse')
     if email_parse_blob:
-        if isinstance(email_parse_blob, ShaormaBroken):
+        if isinstance(email_parse_blob, SnoopTaskBroken):
             rv['broken'].append(email_parse_blob.reason)
             log.debug("email_parse task is broken; skipping")
 
@@ -85,7 +85,7 @@ def gather(blob, **depends_on):
     if is_ocr_mime_type(blob.mime_type):
         for lang in get_collection_langs():
             ocr_blob = depends_on.get(f'tesseract_{lang}')
-            if not ocr_blob or isinstance(ocr_blob, ShaormaBroken):
+            if not ocr_blob or isinstance(ocr_blob, SnoopTaskBroken):
                 log.warning(f'tesseract ocr result missing for lang {lang}')
                 ocr_results[f'tesseract_{lang}'] = ""
                 continue
@@ -107,7 +107,7 @@ def gather(blob, **depends_on):
 
     exif_data_blob = depends_on.get('exif_data')
     if exif_data_blob:
-        if isinstance(exif_data_blob, ShaormaBroken):
+        if isinstance(exif_data_blob, SnoopTaskBroken):
             rv['broken'].append(exif_data_blob.reason)
             log.debug("exif_data task is broken; skipping")
 
@@ -130,9 +130,9 @@ def gather(blob, **depends_on):
     return writer.blob
 
 
-@shaorma('digests.index', priority=9)
+@snoop_task('digests.index', priority=9)
 def index(blob, digests_gather):
-    if isinstance(digests_gather, ShaormaBroken):
+    if isinstance(digests_gather, SnoopTaskBroken):
         raise digests_gather
 
     digest = models.Digest.objects.get(blob=blob)

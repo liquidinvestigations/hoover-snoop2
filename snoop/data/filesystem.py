@@ -10,7 +10,7 @@ from . import collections
 from .analyzers import archives
 from .analyzers import email
 from .analyzers import emlx
-from .tasks import shaorma, require_dependency, ShaormaBroken
+from .tasks import snoop_task, require_dependency, SnoopTaskBroken
 from .utils import time_from_unix
 
 log = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ def directory_absolute_path(directory):
     return path
 
 
-@shaorma('filesystem.walk', priority=1)
+@snoop_task('filesystem.walk', priority=1)
 @profile()
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
@@ -73,7 +73,7 @@ def walk(directory_pk):
                 handle_file.laterz(file.pk, queue_now=False)
 
 
-@shaorma('filesystem.handle_file', priority=2)
+@snoop_task('filesystem.handle_file', priority=2)
 @profile()
 def handle_file(file_pk, **depends_on):
     file = models.File.objects.get(pk=file_pk)
@@ -92,7 +92,7 @@ def handle_file(file_pk, **depends_on):
                 'msg_to_eml', depends_on,
                 lambda: email.msg_to_eml.laterz(file.original),
             )
-        except ShaormaBroken:
+        except SnoopTaskBroken:
             pass
 
     elif file.original.mime_type == 'message/x-emlx':
@@ -113,10 +113,10 @@ def handle_file(file_pk, **depends_on):
     digests.launch.laterz(file.blob)
 
 
-@shaorma('filesystem.create_archive_files', priority=3)
+@snoop_task('filesystem.create_archive_files', priority=3)
 @profile()
 def create_archive_files(file_pk, archive_listing):
-    if isinstance(archive_listing, ShaormaBroken):
+    if isinstance(archive_listing, SnoopTaskBroken):
         log.debug("Unarchive task is broken; returning without doing anything")
         return
 
@@ -163,7 +163,7 @@ def create_archive_files(file_pk, archive_listing):
 
 
 def get_email_attachments(parsed_email):
-    if isinstance(parsed_email, ShaormaBroken):
+    if isinstance(parsed_email, SnoopTaskBroken):
         log.debug("Email task is broken; returning without doing anything")
         return
 
@@ -181,7 +181,7 @@ def get_email_attachments(parsed_email):
             yield part_attachment
 
 
-@shaorma('filesystem.create_attachment_files')
+@snoop_task('filesystem.create_attachment_files')
 @profile()
 def create_attachment_files(file_pk, email_parse):
     attachments = list(get_email_attachments(email_parse))

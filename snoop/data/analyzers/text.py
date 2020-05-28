@@ -1,8 +1,8 @@
 from .. import models
-from ..tasks import shaorma
+from ..tasks import snoop_task
 
 
-@shaorma('text.extract')
+@snoop_task('text.extract')
 def extract_text(blob):
     with models.Blob.create() as output:
         with blob.open() as src:

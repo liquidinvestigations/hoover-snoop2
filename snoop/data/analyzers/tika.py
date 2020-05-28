@@ -2,7 +2,7 @@ from urllib.parse import urljoin
 from django.conf import settings
 import requests
 from dateutil import parser
-from ..tasks import shaorma, ShaormaBroken, returns_json_blob
+from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from ..utils import zulu
 from snoop import tracing
 
@@ -60,7 +60,7 @@ def call_tika_server(endpoint, data):
     resp = session.put(url, data=data)
 
     if resp.status_code == 422:
-        raise ShaormaBroken("tika returned http 422, corrupt?", "tika_http_422")
+        raise SnoopTaskBroken("tika returned http 422, corrupt?", "tika_http_422")
 
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'application/json'):
@@ -69,7 +69,7 @@ def call_tika_server(endpoint, data):
     return resp
 
 
-@shaorma('tika.rmeta')
+@snoop_task('tika.rmeta')
 @returns_json_blob
 def rmeta(blob):
     with blob.open() as f, tracing.span('tika.rmeta'):

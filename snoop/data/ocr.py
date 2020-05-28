@@ -7,7 +7,7 @@ import subprocess
 import multiprocessing
 
 from . import models
-from .tasks import shaorma, require_dependency, retry_tasks
+from .tasks import snoop_task, require_dependency, retry_tasks
 from .analyzers import tika
 
 
@@ -44,7 +44,7 @@ def ocr_texts_for_blob(original):
         yield (ocr_document.source.name, text)
 
 
-@shaorma('ocr.walk_source')
+@snoop_task('ocr.walk_source')
 def walk_source(ocr_source_pk, dir_path=''):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
     for item in (ocr_source.root / dir_path).iterdir():
@@ -60,7 +60,7 @@ def walk_source(ocr_source_pk, dir_path=''):
             walk_file.laterz(ocr_source.pk, f'{dir_path}{item.name}')
 
 
-@shaorma('ocr.walk_file')
+@snoop_task('ocr.walk_file')
 def walk_file(ocr_source_pk, file_path, **depends_on):
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
     path = ocr_source.root / file_path
@@ -126,7 +126,7 @@ def run_tesseract_on_pdf(pdf_blob, lang):
         return models.Blob.create_from_file(f.name)
 
 
-@shaorma('ocr.run_tesseract')
+@snoop_task('ocr.run_tesseract')
 def run_tesseract(blob, lang):
     if blob.mime_type.startswith('image/'):
         return run_tesseract_on_image(blob, lang)

@@ -1,7 +1,7 @@
 import subprocess
 
 from .. import collections
-from ..tasks import ShaormaBroken
+from ..tasks import SnoopTaskBroken
 
 
 def is_encrypted(data):
@@ -11,7 +11,7 @@ def is_encrypted(data):
 def decrypt(data):
     gpghome = collections.current().gpghome_path
     if not gpghome.exists():
-        raise ShaormaBroken("No gpghome folder", 'gpg_not_configured')
+        raise SnoopTaskBroken("No gpghome folder", 'gpg_not_configured')
 
     result = subprocess.run(
         ['gpg', '--home', gpghome, '--decrypt'],

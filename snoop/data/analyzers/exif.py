@@ -1,7 +1,7 @@
 from datetime import datetime
 from django.utils.timezone import utc
 import exifread
-from ..tasks import shaorma, returns_json_blob
+from ..tasks import snoop_task, returns_json_blob
 from ..utils import zulu
 
 
@@ -46,7 +46,7 @@ def convert_exif_date(str):
     return zulu(utc.fromutc(date))
 
 
-@shaorma('exif.extract')
+@snoop_task('exif.extract')
 @returns_json_blob
 def extract(blob):
     # details=False removes thumbnails and MakerNote (manufacturer specific

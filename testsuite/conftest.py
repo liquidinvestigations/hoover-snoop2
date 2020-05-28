@@ -72,7 +72,7 @@ class TaskManager:
             )
             log.debug(f"TaskManager #{count}: {task}")
             with mask_out_current_collection():
-                tasks.laterz_shaorma(self.collection.name, task_pk)
+                tasks.laterz_snoop_task(self.collection.name, task_pk)
             if count >= limit:
                 raise RuntimeError(f"Task limit exceeded ({limit})")
         return count

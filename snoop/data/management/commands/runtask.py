@@ -14,4 +14,4 @@ class Command(BaseCommand):
     def handle(self, *args, collection, task_pk, **options):
         logging_for_management_command()
         col = collections.ALL[collection]
-        tasks.laterz_shaorma(col.db_alias, task_pk, raise_exceptions=True)
+        tasks.laterz_snoop_task(col.db_alias, task_pk, raise_exceptions=True)

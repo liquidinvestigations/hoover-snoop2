@@ -1,19 +1,19 @@
 import pytest
-from snoop.data.tasks import shaorma, require_dependency, ShaormaBroken
+from snoop.data.tasks import snoop_task, require_dependency, SnoopTaskBroken
 from snoop.data import models
 
 pytestmark = [pytest.mark.django_db]
 
 
 def test_dependent_task(taskmanager):
-    @shaorma('test_one')
+    @snoop_task('test_one')
     def one():
         with models.Blob.create() as writer:
             writer.write(b'foo')
 
         return writer.blob
 
-    @shaorma('test_two')
+    @snoop_task('test_two')
     def two(one_result):
         return one_result
 
@@ -28,7 +28,7 @@ def test_dependent_task(taskmanager):
 
 
 def test_blob_arg(taskmanager):
-    @shaorma('test_with_blob')
+    @snoop_task('test_with_blob')
     def with_blob(blob, a):
         with blob.open(encoding='utf8') as src:
             data = src.read()
@@ -52,14 +52,14 @@ def test_blob_arg(taskmanager):
 
 
 def test_missing_dependency(taskmanager):
-    @shaorma('test_one')
+    @snoop_task('test_one')
     def one(message):
         with models.Blob.create() as writer:
             writer.write(message.encode('utf8'))
 
         return writer.blob
 
-    @shaorma('test_two')
+    @snoop_task('test_two')
     def two(**depends_on):
         return require_dependency(
             'foo', depends_on,
@@ -76,11 +76,11 @@ def test_missing_dependency(taskmanager):
 
 
 def test_broken_dependency(taskmanager):
-    @shaorma('test_one')
+    @snoop_task('test_one')
     def one(message):
-        raise ShaormaBroken(message, 'justbecause')
+        raise SnoopTaskBroken(message, 'justbecause')
 
-    @shaorma('test_two')
+    @snoop_task('test_two')
     def two(**depends_on):
         try:
             require_dependency(
@@ -88,7 +88,7 @@ def test_broken_dependency(taskmanager):
                 lambda: one.laterz('hello'),
             )
 
-        except ShaormaBroken as e:
+        except SnoopTaskBroken as e:
             assert 'hello' in e.args[0]
             assert e.reason == 'justbecause'
 

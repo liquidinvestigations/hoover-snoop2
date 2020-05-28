@@ -57,7 +57,7 @@ def test_broken_if_no_gpg_home(gpg_blob, monkeypatch):
         Path('/tmp/no-such-gpghome'),
     )
 
-    with pytest.raises(tasks.ShaormaBroken) as e:
+    with pytest.raises(tasks.SnoopTaskBroken) as e:
         email.parse(gpg_blob)
 
     assert e.value.reason == 'gpg_not_configured'

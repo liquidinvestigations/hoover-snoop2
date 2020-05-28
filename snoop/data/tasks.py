@@ -22,14 +22,14 @@ logger = logging.getLogger(__name__)
 shaormerie = {}
 
 
-class ShaormaError(Exception):
+class SnoopTaskError(Exception):
 
     def __init__(self, message, details):
         super().__init__(message)
         self.details = details
 
 
-class ShaormaBroken(Exception):
+class SnoopTaskBroken(Exception):
 
     def __init__(self, message, reason):
         super().__init__(message)
@@ -44,18 +44,18 @@ class MissingDependency(Exception):
 
 
 def queue_task(task):
-    import_shaormas()
+    import_snoop_tasks()
 
     def send_to_celery():
         col = collections.from_object(task)
         try:
-            laterz_shaorma.apply_async(
+            laterz_snoop_task.apply_async(
                 (col.name, task.pk,),
                 queue=f'{settings.TASK_PREFIX}.{task.func}',
                 priority=shaormerie[task.func].priority,
                 retry=False,
             )
-        except laterz_shaorma.OperationalError as e:
+        except laterz_snoop_task.OperationalError as e:
             logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
 
     transaction.on_commit(send_to_celery)
@@ -78,7 +78,7 @@ def queue_next_tasks(task, reset=False):
 
 
 @run_once
-def import_shaormas():
+def import_snoop_tasks():
     from . import filesystem  # noqa
     from .analyzers import archives  # noqa
     from .analyzers import text  # noqa
@@ -90,7 +90,7 @@ def is_completed(task):
 
 
 @contextmanager
-def shaorma_log_handler(level=logging.DEBUG):
+def snoop_task_log_handler(level=logging.DEBUG):
     stream = StringIO()
     handler = logging.StreamHandler(stream)
     handler.setLevel(level)
@@ -103,11 +103,11 @@ def shaorma_log_handler(level=logging.DEBUG):
 
 
 @celery.app.task
-def laterz_shaorma(col_name, task_pk, raise_exceptions=False):
-    import_shaormas()
+def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
+    import_snoop_tasks()
     col = collections.ALL[col_name]
     with transaction.atomic(using=col.db_alias), col.set_current():
-        with shaorma_log_handler() as handler:
+        with snoop_task_log_handler() as handler:
             try:
                 task = (
                     models.Task.objects
@@ -170,7 +170,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 if prev_task.status == models.Task.STATUS_SUCCESS:
                     prev_result = prev_task.result
                 elif prev_task.status == models.Task.STATUS_BROKEN:
-                    prev_result = ShaormaBroken(
+                    prev_result = SnoopTaskBroken(
                         prev_task.error,
                         prev_task.broken_reason
                     )
@@ -217,7 +217,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     )
                     queue_task(task)
 
-            except ShaormaBroken as e:
+            except SnoopTaskBroken as e:
                 task.update(
                     status=models.Task.STATUS_BROKEN,
                     error="{}: {}".format(e.reason, e.args[0]),
@@ -239,7 +239,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 )
 
             except Exception as e:
-                if isinstance(e, ShaormaError):
+                if isinstance(e, SnoopTaskError):
                     error = "{} ({})".format(e.args[0], e.details)
                 else:
                     error = repr(e)
@@ -274,7 +274,7 @@ def run_task(task, log_handler, raise_exceptions=False):
         queue_next_tasks(task, reset=True)
 
 
-def shaorma(name, priority=5):
+def snoop_task(name, priority=5):
 
     def decorator(func):
 
@@ -351,7 +351,7 @@ def retry_task(task, fg=False):
 
     if fg:
         col = collections.from_object(task)
-        laterz_shaorma(col.name, task.pk, raise_exceptions=True)
+        laterz_snoop_task(col.name, task.pk, raise_exceptions=True)
     else:
         queue_task(task)
 
@@ -374,7 +374,7 @@ def require_dependency(name, depends_on, callback):
     raise MissingDependency(name, task)
 
 
-@shaorma('do_nothing')
+@snoop_task('do_nothing')
 def do_nothing(name):
     pass
 

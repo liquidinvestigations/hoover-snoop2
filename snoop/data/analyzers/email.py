@@ -8,7 +8,7 @@ import email
 import codecs
 import chardet
 from .. import models
-from ..tasks import shaorma, ShaormaError, ShaormaBroken, require_dependency
+from ..tasks import snoop_task, SnoopTaskError, SnoopTaskBroken, require_dependency
 from ..tasks import returns_json_blob
 from . import tika
 from . import pgp
@@ -76,7 +76,7 @@ def dump_part(message, depends_on):
         payload_bytes = message.get_payload(decode=True)
     except:  # noqa: E722
         log.exception("Error getting email payload")
-        raise ShaormaBroken("Error getting payload", "email_get_payload")
+        raise SnoopTaskBroken("Error getting payload", "email_get_payload")
 
     if pgp.is_encrypted(payload_bytes):
         payload_bytes = pgp.decrypt(payload_bytes)
@@ -116,7 +116,7 @@ def dump_part(message, depends_on):
     return rv
 
 
-@shaorma('email.parse')
+@snoop_task('email.parse')
 @returns_json_blob
 def parse(blob, **depends_on):
     with blob.open() as f:
@@ -131,7 +131,7 @@ def parse(blob, **depends_on):
     return data
 
 
-@shaorma('email.msg_to_eml')
+@snoop_task('email.msg_to_eml')
 def msg_to_eml(blob):
     with tempfile.TemporaryDirectory() as temp_dir:
         msg_path = Path(temp_dir) / 'email.msg'
@@ -146,7 +146,7 @@ def msg_to_eml(blob):
             )
         except subprocess.CalledProcessError as e:
             log.exception(e)
-            raise ShaormaError("msgconvert failed", e.output.decode('latin1'))
+            raise SnoopTaskError("msgconvert failed", e.output.decode('latin1'))
 
         return models.Blob.create_from_file(eml_path)
 

@@ -48,7 +48,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         logging_for_management_command()
         with Profiler():
-            tasks.import_shaormas()
+            tasks.import_snoop_tasks()
             if options.get('prefix'):
                 prefix = options['prefix']
                 settings.TASK_PREFIX = prefix

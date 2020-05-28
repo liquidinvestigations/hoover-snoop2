@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 from hashlib import sha1
 import re
-from ..tasks import shaorma, ShaormaBroken, returns_json_blob
+from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
 
 
@@ -55,7 +55,7 @@ def call_readpst(pst_path, output_dir):
         ], stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError:
-        raise ShaormaBroken('readpst failed', 'readpst_error')
+        raise SnoopTaskBroken('readpst failed', 'readpst_error')
 
 
 def call_7z(archive_path, output_dir):
@@ -70,7 +70,7 @@ def call_7z(archive_path, output_dir):
         ], stderr=subprocess.STDOUT)
 
     except subprocess.CalledProcessError:
-        raise ShaormaBroken("7z extraction failed", '7z_error')
+        raise SnoopTaskBroken("7z extraction failed", '7z_error')
 
 
 def unpack_mbox(mbox_path, output_dir):
@@ -135,7 +135,7 @@ def unpack_pdf(pdf_path, output_dir):
             fax.unlink()
 
     except subprocess.CalledProcessError:
-        raise ShaormaBroken("pdfimages extraction failed", 'pdfimages_error')
+        raise SnoopTaskBroken("pdfimages extraction failed", 'pdfimages_error')
 
 
 def check_recursion(listing, blob_pk):
@@ -148,7 +148,7 @@ def check_recursion(listing, blob_pk):
             check_recursion(item['children'], blob_pk)
 
 
-@shaorma('archives.unarchive')
+@snoop_task('archives.unarchive')
 @returns_json_blob
 def unarchive(blob):
     with tempfile.TemporaryDirectory() as temp_dir:

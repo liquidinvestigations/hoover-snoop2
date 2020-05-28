@@ -2,13 +2,13 @@ import re
 import email
 import logging
 from .. import models
-from ..tasks import shaorma
+from ..tasks import snoop_task
 from .email import iter_parts
 
 log = logging.getLogger(__name__)
 
 
-@shaorma('emlx.reconstruct')
+@snoop_task('emlx.reconstruct')
 def reconstruct(file_pk, **depends_on):
     from .. import filesystem  # noqa: F401
 
