@@ -55,6 +55,7 @@ def queue_task(task):
                 priority=shaormerie[task.func].priority,
                 retry=False,
             )
+            logger.debug(f'queued task {task.func}(pk {task.pk})')
         except laterz_snoop_task.OperationalError as e:
             logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
 
@@ -358,9 +359,15 @@ def retry_task(task, fg=False):
 
 def retry_tasks(queryset):
     logger.info('Retrying %s tasks...', queryset.count())
-    for task in queryset.iterator():
-        retry_task(task)
-    logger.info('Done submitting %s tasks.', queryset.count())
+    queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
+    to_queue = list(queryset.all()[:settings.DISPATCH_QUEUE_LIMIT])
+    queryset.update(status=models.Task.STATUS_PENDING)
+
+    logger.info('Submitting %s tasks...', len(to_queue))
+    for task in to_queue:
+        queue_task(task)
+
+    logger.info('Done submitting tasks.')
 
 
 def require_dependency(name, depends_on, callback):

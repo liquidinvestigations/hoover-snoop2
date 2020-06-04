@@ -30,6 +30,8 @@ class Command(BaseCommand):
             if status:
                 queryset = queryset.filter(status=status)
 
+            queryset = queryset.order_by('date_modified')
+
             if options.get('dry_run'):
                 print("Tasks to retry:", queryset.count())
 
