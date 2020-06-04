@@ -358,13 +358,26 @@ def retry_task(task, fg=False):
 
 
 def retry_tasks(queryset):
-    logger.info('Retrying %s tasks...', queryset.count())
     queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
-    to_queue = list(queryset.all()[:settings.DISPATCH_QUEUE_LIMIT])
-    queryset.update(status=models.Task.STATUS_PENDING)
+    count0 = queryset.count()
+    logger.info('Retrying %s tasks...', count0)
 
-    logger.info('Submitting %s tasks...', len(to_queue))
-    for task in to_queue:
+    first_batch = []
+    count = count0
+    while count > 0:
+        batch = list(queryset.all()[:settings.DISPATCH_QUEUE_LIMIT])
+        if not first_batch:
+            first_batch = batch
+        for task in batch:
+            task.status = models.Task.STATUS_PENDING
+        models.Task.objects.bulk_update(batch, ['status'], batch_size=3000)
+
+        count = queryset.count()
+        progress = int(100.0 * (count0 - count) / count0)
+        logger.info('%s%% done: %s / %s' % (progress, count0 - count, count0))
+
+    logger.info('Queueing %s tasks...', len(batch))
+    for task in first_batch:
         queue_task(task)
 
     logger.info('Done submitting tasks.')
