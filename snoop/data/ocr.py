@@ -76,7 +76,7 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
 
     else:
         rmeta_blob = require_dependency(
-            f'tika', depends_on,
+            'tika', depends_on,
             lambda: tika.rmeta.laterz(ocr_blob),
         )
         with rmeta_blob.open(encoding='utf8') as f:

@@ -29,11 +29,11 @@ class Collection:
         self.sync = sync and process
         self.ocr_languages = opt.get('ocr_languages', [])
 
-        for lang in self.ocr_languages:
-            assert lang.strip() != ''
-            for l in lang.split('+'):
-                assert l in ALL_TESSERACT_LANGS, \
-                    f'language code "{l}" is not available'
+        for lang_grp in self.ocr_languages:
+            assert lang_grp.strip() != ''
+            for lang in lang_grp.split('+'):
+                assert lang in ALL_TESSERACT_LANGS, \
+                    f'language code "{lang}" is not available'
 
     def __repr__(self):
         return f"<Collection {self.name} process={self.process} sync={self.sync}>"

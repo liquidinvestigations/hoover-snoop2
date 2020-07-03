@@ -83,7 +83,7 @@ def test_unarchive_pst(taskmanager, testdata_current):
         "type": "file",
         "name": "5.eml",
         "blob_pk": "9c007ccf1720d6279fc64389321fd83e053c9c4abc885a1745e9bc6793d515c9"
-        }
+    }
 
     [root_dir] = listing
     assert root_dir['name'] == 'pst-test-2@aranetic.com'

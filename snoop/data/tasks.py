@@ -376,7 +376,7 @@ def retry_tasks(queryset):
         progress = int(100.0 * (count0 - count) / count0)
         logger.info('%s%% done: %s / %s' % (progress, count0 - count, count0))
 
-    logger.info('Queueing %s tasks...', len(batch))
+    logger.info('Queueing first %s tasks...', len(first_batch))
     for task in first_batch:
         queue_task(task)
 
