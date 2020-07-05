@@ -2,7 +2,7 @@ from contextlib import contextmanager
 from io import StringIO
 import json
 import logging
-from time import time
+from time import time, sleep
 
 from celery.bin.control import inspect
 from django.conf import settings
@@ -19,7 +19,7 @@ from snoop import tracing
 
 logger = logging.getLogger(__name__)
 
-shaormerie = {}
+task_map = {}
 
 
 class SnoopTaskError(Exception):
@@ -51,8 +51,8 @@ def queue_task(task):
         try:
             laterz_snoop_task.apply_async(
                 (col.name, task.pk,),
-                queue=f'{settings.TASK_PREFIX}.{task.func}',
-                priority=shaormerie[task.func].priority,
+                queue=col.queue_name,
+                priority=task_map[task.func].priority,
                 retry=False,
             )
             logger.debug(f'queued task {task.func}(pk {task.pk})')
@@ -190,7 +190,7 @@ def run_task(task, log_handler, raise_exceptions=False):
             logger.info("Running %r", task)
             t0 = time()
             try:
-                func = shaormerie[task.func]
+                func = task_map[task.func]
                 with tracing.span('call func'):
                     with tracing.trace(name=task.func, service_name='func'):
                         result = func(*args, **depends_on)
@@ -313,7 +313,7 @@ def snoop_task(name, priority=5):
 
         func.laterz = laterz
         func.priority = priority
-        shaormerie[name] = func
+        task_map[name] = func
         return func
 
     return decorator
@@ -330,13 +330,10 @@ def dispatch_tasks(status):
     if not task_count:
         logger.info(f'No {status} tasks to dispatch')
         return False
-    logger.info('Dispatching remaining %s tasks.', task_count)
+    logger.info(f'Dispatching {task_count} "{status}" tasks for collection "{collections.current().name}"')  # noqa: E501
 
     for task in task_query.iterator():
-        logger.info("Dispatching %r", task)
         queue_task(task)
-
-    logger.info('Done dispatching pending tasks!')
     return True
 
 
@@ -358,29 +355,31 @@ def retry_task(task, fg=False):
 
 
 def retry_tasks(queryset):
-    queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
-    count0 = queryset.count()
-    logger.info('Retrying %s tasks...', count0)
+    logger.info('Retrying %s tasks...', queryset.count())
 
+    all_tasks = queryset.all()
     first_batch = []
-    count = count0
-    while count > 0:
-        batch = list(queryset.all()[:settings.DISPATCH_QUEUE_LIMIT])
-        if not first_batch:
-            first_batch = batch
+    for i in range(0, len(all_tasks), settings.DISPATCH_QUEUE_LIMIT):
+        batch = all_tasks[i:i + settings.DISPATCH_QUEUE_LIMIT]
         for task in batch:
             task.status = models.Task.STATUS_PENDING
-        models.Task.objects.bulk_update(batch, ['status'], batch_size=3000)
+            task.error = ''
+            task.broken_reason = ''
+            task.log = ''
+        models.Task.objects.bulk_update(batch,
+                                        ['status', 'error', 'broken_reason', 'log'],
+                                        batch_size=2000)
 
-        count = queryset.count()
-        progress = int(100.0 * (count0 - count) / count0)
-        logger.info('%s%% done: %s / %s' % (progress, count0 - count, count0))
+        if not first_batch:
+            first_batch = batch
+            logger.info('Queueing first %s tasks...', len(first_batch))
+            for task in first_batch:
+                queue_task(task)
 
-    logger.info('Queueing first %s tasks...', len(first_batch))
-    for task in first_batch:
-        queue_task(task)
+        progress = int(100.0 * (i / len(all_tasks)))
+        logger.info('%s%% done' % (progress,))
 
-    logger.info('Done submitting tasks.')
+    logger.info('100% done submitting tasks.')
 
 
 def require_dependency(name, depends_on, callback):
@@ -413,45 +412,6 @@ def returns_json_blob(func):
     return wrapper
 
 
-def count_tasks(tasks_status, excluded=[]):
-    def task_name(task):
-        func = task['delivery_info']['routing_key']
-        args = task['args']
-        return f'{func} {args}'
-
-    if not tasks_status:
-        return 0
-
-    count = 0
-    for tasks in tasks_status.values():
-        for task in tasks:
-            task_str = task_name(task)
-            if any(e in task['delivery_info']['routing_key'] for e in excluded):
-                logger.info('NOT counting task ' + task_str)
-            else:
-                count += 1
-                if count < 10:
-                    logger.info('counting task ' + task_str)
-
-    return count
-
-
-def has_any_tasks():
-    excluded = ['run_dispatcher']
-
-    inspector = inspect(celery.app)
-    active = inspector.call(method='active', arguments={})
-    scheduled = inspector.call(method='scheduled', arguments={})
-    reserved = inspector.call(method='reserved', arguments={})
-    count = (
-        count_tasks(active, excluded)
-        + count_tasks(scheduled, excluded)
-        + count_tasks(reserved, excluded)
-    )
-    logger.info('has_any_tasks found %s active tasks', count)
-    return count >= max(1, int(settings.TOTAL_WORKER_COUNT / 2))
-
-
 def dispatch_walk_tasks():
     from .filesystem import walk
     root = models.Directory.root()
@@ -472,49 +432,105 @@ def save_collection_stats():
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
+def single_dispatcher_running():
+    def count_tasks(method, routing_key):
+        count = 0
+        inspector = inspect(celery.app)
+        task_list_map = inspector.call(method=method, arguments={})
+        if task_list_map is None:
+            logger.warning('no workers present!')
+            return 0
+
+        for tasks in task_list_map.values():
+            for task in tasks:
+                task_key = task['delivery_info']['routing_key']
+                if task_key != routing_key:
+                    continue
+
+                count += 1
+                logger.info(f'counting {method} task: {str(task)}')
+
+        return count
+
+    return 1 >= count_tasks('active', routing_key='run_dispatcher') and \
+        0 == count_tasks('scheduled', routing_key='run_dispatcher') and \
+        0 == count_tasks('reserved', routing_key='run_dispatcher')
+
+
 @celery.app.task
 def run_dispatcher():
-    logger.info('saving stats')
-    for collection in collections.ALL.values():
-        with collection.set_current():
-            save_collection_stats()
-
-    if has_any_tasks():
-        logger.info('skipping run_dispatcher -- already have tasks')
+    if not single_dispatcher_running():
+        logger.warning('run_dispatcher function already running in celery, exiting')
         return
-    logger.info('running run_dispatcher')
 
     for collection in collections.ALL.values():
-        dispatch_for(collection)
+        logger.info(f'\n{"=" * 10} collection "{collection.name}" {"=" * 10}')
+
+        # save statistics
+        if collection.process or not models.Statistics.objects.filter(key='stats').exists():
+            with collection.set_current():
+                save_collection_stats()
+
+        # dispatch tasks
+        try:
+            dispatch_for(collection)
+        except Exception as e:
+            logger.exception(e)
+        finally:
+            # combined with the checks above, this
+            # roughly limits `dispatch_for` to 30 calls per minute
+            sleep(2)
+
+    # Kill a little bit of time, in case there are a lot of older
+    # `run_dispatcher` messages queued up, they have time to fail in the above
+    # check.
+    sleep(5)
+
+
+def get_rabbitmq_queue_length(q):
+    from pyrabbit.api import Client
+
+    cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL, 'guest', 'guest')
+    return cl.get_queue_depth('/', q)
 
 
 def dispatch_for(collection):
+    queue_len = get_rabbitmq_queue_length(collection.queue_name)
+    if queue_len > 0:
+        logger.info(f'dispatch: skipping "{collection}", already has {queue_len} queued tasks')
+        return
+
+    if not collection.process:
+        logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')
+        return
+
     logger.info('Dispatching for %r', collection)
     from .ocr import dispatch_ocr_tasks
 
     with collection.set_current():
-        if collection.process:
-            if dispatch_tasks(models.Task.STATUS_PENDING):
-                logger.info('%r found PENDING tasks, exiting...', collection)
-                return True
+        if dispatch_tasks(models.Task.STATUS_PENDING):
+            logger.info('%r found PENDING tasks, exiting...', collection)
+            return True
 
-            if dispatch_tasks(models.Task.STATUS_DEFERRED):
-                logger.info('%r found DEFERRED tasks, exiting...', collection)
-                return True
+        if dispatch_tasks(models.Task.STATUS_DEFERRED):
+            logger.info('%r found DEFERRED tasks, exiting...', collection)
+            return True
 
-            count_before = models.Task.objects.count()
-            dispatch_walk_tasks()
-            dispatch_ocr_tasks()
-            count_after = models.Task.objects.count()
-            if count_before != count_after:
-                logger.info('%r initial dispatch added new tasks, exiting...', collection)
-                return True
+        count_before = models.Task.objects.count()
+        dispatch_walk_tasks()
+        dispatch_ocr_tasks()
+        count_after = models.Task.objects.count()
+        if count_before != count_after:
+            logger.info('%r initial dispatch added new tasks, exiting...', collection)
+            return True
 
         if collection.sync:
             logger.info("sync: retrying all walk tasks")
+            # retry up oldest non-pending walk tasks
             queryset = (
                 models.Task.objects
                 .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
+                .exclude(status=models.Task.STATUS_PENDING)
                 .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT]
             )
             retry_tasks(queryset)

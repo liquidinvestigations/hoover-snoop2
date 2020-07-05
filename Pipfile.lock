@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "b4e5da152476c21a906e0fa3f4fe352a344e8f96d6342bb3c4f69b51c48bed3d"
+            "sha256": "593deebde683c2c5a003b3c00cf7de9823d154fa6898c494b3e421e7935d83c9"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -148,6 +148,13 @@
             "index": "pypi",
             "version": "==0.9.3"
         },
+        "future": {
+            "hashes": [
+                "sha256:b1bead90b70cf6ec3f0710ae53a525360fa360d306a86583adc6bf83a4db537d"
+            ],
+            "markers": "python_version >= '2.6' and python_version not in '3.0, 3.1, 3.2, 3.3'",
+            "version": "==0.18.2"
+        },
         "google-api-core": {
             "hashes": [
                 "sha256:859f7392676761f2b160c6ee030c3422135ada4458f0948c5690a6a7c8d86294",
@@ -185,6 +192,13 @@
             ],
             "index": "pypi",
             "version": "==1.0.1"
+        },
+        "httplib2": {
+            "hashes": [
+                "sha256:8af66c1c52c7ffe1aa5dc4bcd7c769885254b0756e6e69f953c7f0ab49a70ba3",
+                "sha256:ca2914b015b6247791c4866782fa6042f495b94401a0f0bd3e1d6e0ba2236782"
+            ],
+            "version": "==0.18.1"
         },
         "humanize": {
             "hashes": [
@@ -459,6 +473,13 @@
             ],
             "version": "==2.4.7"
         },
+        "pyrabbit": {
+            "hashes": [
+                "sha256:50b8995fbfde14820ddc97292312c8f0c77054748c2b018138d03d94e400c39c"
+            ],
+            "index": "pypi",
+            "version": "==1.1.0"
+        },
         "pytest": {
             "hashes": [
                 "sha256:48c891b40d391ec824477c13d10d5eadf698c83a1671aba491f6db222035d6da",
@@ -522,6 +543,13 @@
             ],
             "index": "pypi",
             "version": "==0.3.1"
+        },
+        "toml": {
+            "hashes": [
+                "sha256:926b612be1e5ce0634a2ca03470f95169cf16f939018233a670519cb4ac58b0f",
+                "sha256:bda89d5935c2eac546d648028b9901107a595863cb36bae0c73ac804a9b4ce88"
+            ],
+            "version": "==0.10.1"
         },
         "tornado": {
             "hashes": [

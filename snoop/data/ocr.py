@@ -117,7 +117,7 @@ def run_tesseract_on_image(image_blob, lang):
 
 def run_tesseract_on_pdf(pdf_blob, lang):
     pdfstrlen = int(
-        subprocess.check_output(f'pdftotext -q -env UTF-8 {pdf_blob.path()} - | wc -w',
+        subprocess.check_output(f'pdftotext -q -enc UTF-8 "{pdf_blob.path()}" - | wc -w',
                                 shell=True).decode('utf8')
     )
     if pdfstrlen > settings.PDF2PDFOCR_MAX_WORD_COUNT:

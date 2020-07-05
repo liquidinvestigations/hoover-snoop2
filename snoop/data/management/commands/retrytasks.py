@@ -20,16 +20,18 @@ class Command(BaseCommand):
 
         col = collections.ALL[collection]
         with col.set_current():
-            queryset = models.Task.objects
-
             func = options.get('func')
+            status = options.get('status')
+
+            # assert status != models.Task.STATUS_PENDING, \
+            #     "cannot use this on pending tasks"
+
+            queryset = models.Task.objects
             if func:
                 queryset = queryset.filter(func=func)
-
-            status = options.get('status')
             if status:
                 queryset = queryset.filter(status=status)
-
+            # queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
             queryset = queryset.order_by('date_modified')
 
             if options.get('dry_run'):

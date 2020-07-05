@@ -114,7 +114,7 @@ WORKER_TASK_LIMIT = 1000
 # limit for queueing large counts of children tasks
 CHILD_QUEUE_LIMIT = 100
 # Count of pending tasks to trigger per collection when finding an empty queue.
-DISPATCH_QUEUE_LIMIT = 12000
+DISPATCH_QUEUE_LIMIT = 15000
 # If there are no pending tasks, this is how many directories
 # will be retried by sync every minute.
 SYNC_RETRY_LIMIT = 1000
@@ -142,6 +142,10 @@ _amqp_url = os.getenv('SNOOP_AMQP_URL')
 if _amqp_url:
     CELERY_BROKER_URL = _amqp_url
 
+# Of the form "1.2.3.4:1234/_path/" (no "http://" prefix).
+# Used to query queue lengths. Assumes user/password guest/guest.
+SNOOP_RABBITMQ_HTTP_URL = os.getenv('SNOOP_RABBITMQ_HTTP_URL')
+
 _tracing_url = os.environ.get('TRACING_URL')
 if _tracing_url:
     trm = re.match(r'http://(?P<host>[^:]+):(?P<port>\d+)', _tracing_url)
@@ -156,7 +160,7 @@ if _tracing_url:
 celery.app.conf.beat_schedule = {
     'run_dispatcher': {
         'task': 'snoop.data.tasks.run_dispatcher',
-        'schedule': timedelta(seconds=30),
+        'schedule': timedelta(seconds=50),
     },
 }
 

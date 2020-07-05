@@ -47,6 +47,10 @@ class Collection:
         return f"collection_{self.name}"
 
     @property
+    def queue_name(self):
+        return f"collection_{self.name}"
+
+    @property
     def base_path(self):
         if settings.SNOOP_COLLECTION_ROOT is None:
             raise RuntimeError("settings.SNOOP_COLLECTION_ROOT not configured")

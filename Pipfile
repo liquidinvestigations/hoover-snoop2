@@ -63,6 +63,7 @@ Pygments = '*'
 PyICU = '*'
 opencensus-ext-prometheus = "*"
 opencensus-ext-zipkin = "*"
+pyrabbit = "*"
 
 [requires]
 python_version = "3.8"
