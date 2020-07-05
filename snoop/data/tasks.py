@@ -3,6 +3,7 @@ from io import StringIO
 import json
 import logging
 from time import time, sleep
+from datetime import timedelta
 
 from celery.bin.control import inspect
 from django.conf import settings
@@ -361,14 +362,16 @@ def retry_tasks(queryset):
     first_batch = []
     for i in range(0, len(all_tasks), settings.DISPATCH_QUEUE_LIMIT):
         batch = all_tasks[i:i + settings.DISPATCH_QUEUE_LIMIT]
+        now = timezone.now()
+        fields = ['status', 'error', 'broken_reason', 'log', 'date_modified']
+
         for task in batch:
             task.status = models.Task.STATUS_PENDING
             task.error = ''
             task.broken_reason = ''
             task.log = ''
-        models.Task.objects.bulk_update(batch,
-                                        ['status', 'error', 'broken_reason', 'log'],
-                                        batch_size=2000)
+            task.date_modified = now
+        models.Task.objects.bulk_update(batch, fields, batch_size=2000)
 
         if not first_batch:
             first_batch = batch
@@ -526,11 +529,23 @@ def dispatch_for(collection):
 
         if collection.sync:
             logger.info("sync: retrying all walk tasks")
-            # retry up oldest non-pending walk tasks
-            queryset = (
+            # retry up oldest non-pending walk tasks that are older than 2 mins
+            retry_tasks(
                 models.Task.objects
                 .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
+                .filter(date_modified__lt=timezone.now() - timedelta(minutes=1))
                 .exclude(status=models.Task.STATUS_PENDING)
                 .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT]
             )
-            retry_tasks(queryset)
+
+        # retry old errors, don't exit before running sync too
+        error_date = timezone.now() - timedelta(days=settings.TASK_RETRY_AFTER_DAYS)
+        old_error_qs = (
+            models.Task.objects
+            .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
+            .filter(date_modified__lt=error_date)
+            .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT]
+        )
+        if old_error_qs.exists():
+            logger.info(f'{collection} found {old_error_qs.count()} ERROR|BROKEN tasks to retry')
+            retry_tasks(old_error_qs)
