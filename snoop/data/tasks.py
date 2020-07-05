@@ -470,8 +470,8 @@ def run_dispatcher():
         logger.info(f'{"=" * 10} collection "{collection.name}" {"=" * 10}')
 
         # save statistics
-        if collection.process or not models.Statistics.objects.filter(key='stats').exists():
-            with collection.set_current():
+        with collection.set_current():
+            if collection.process or not models.Statistics.objects.filter(key='stats').exists():
                 save_collection_stats()
 
         # dispatch tasks
