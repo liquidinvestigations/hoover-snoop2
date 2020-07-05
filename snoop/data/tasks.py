@@ -467,7 +467,7 @@ def run_dispatcher():
         return
 
     for collection in collections.ALL.values():
-        logger.info(f'\n{"=" * 10} collection "{collection.name}" {"=" * 10}')
+        logger.info(f'{"=" * 10} collection "{collection.name}" {"=" * 10}')
 
         # save statistics
         if collection.process or not models.Statistics.objects.filter(key='stats').exists():
@@ -549,3 +549,5 @@ def dispatch_for(collection):
         if old_error_qs.exists():
             logger.info(f'{collection} found {old_error_qs.count()} ERROR|BROKEN tasks to retry')
             retry_tasks(old_error_qs)
+
+    logger.info(f'dispatch for collection "{collection.name}" done\n')
