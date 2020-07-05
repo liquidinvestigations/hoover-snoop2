@@ -111,11 +111,11 @@ TOTAL_WORKER_COUNT = int(os.environ.get('SNOOP_TOTAL_WORKER_COUNT', WORKER_COUNT
 TASK_RETRY_AFTER_DAYS = 10
 
 # max tasks count to be picked up by 1 worker
-WORKER_TASK_LIMIT = 1000
+WORKER_TASK_LIMIT = 666
 # limit for queueing large counts of children tasks
 CHILD_QUEUE_LIMIT = 100
 # Count of pending tasks to trigger per collection when finding an empty queue.
-DISPATCH_QUEUE_LIMIT = 15000
+DISPATCH_QUEUE_LIMIT = 25000
 # If there are no pending tasks, this is how many directories
 # will be retried by sync every minute.
 SYNC_RETRY_LIMIT = 1000
@@ -161,10 +161,17 @@ if _tracing_url:
 celery.app.conf.beat_schedule = {
     'run_dispatcher': {
         'task': 'snoop.data.tasks.run_dispatcher',
-        'schedule': timedelta(seconds=50),
+        'schedule': timedelta(seconds=25),
+    },
+    'save_stats': {
+        'task': 'snoop.data.tasks.save_stats',
+        'schedule': timedelta(seconds=100),
     },
 }
 
 celery.app.conf.task_routes = {
     'snoop.data.tasks.run_dispatcher': {'queue': 'run_dispatcher'},
+    'snoop.data.tasks.save_stats': {'queue': 'save_stats'},
 }
+
+SYSTEM_QUEUES = ['run_dispatcher', 'save_stats']

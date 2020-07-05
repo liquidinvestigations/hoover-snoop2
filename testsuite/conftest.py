@@ -83,7 +83,7 @@ def taskmanager(monkeypatch):
     taskmanager = TaskManager(collections.ALL['testdata'])
     monkeypatch.setattr(tasks, 'queue_task', taskmanager.add)
     monkeypatch.setattr(tasks, 'get_rabbitmq_queue_length', lambda _: 0)
-    monkeypatch.setattr(tasks, 'single_dispatcher_running', lambda: True)
+    monkeypatch.setattr(tasks, 'single_task_running', lambda _: True)
     return taskmanager
 
 

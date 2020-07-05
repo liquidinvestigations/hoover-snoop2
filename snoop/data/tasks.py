@@ -435,7 +435,7 @@ def save_collection_stats():
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
-def single_dispatcher_running():
+def single_task_running(key):
     def count_tasks(method, routing_key):
         count = 0
         inspector = inspect(celery.app)
@@ -455,38 +455,45 @@ def single_dispatcher_running():
 
         return count
 
-    return 1 >= count_tasks('active', routing_key='run_dispatcher') and \
-        0 == count_tasks('scheduled', routing_key='run_dispatcher') and \
-        0 == count_tasks('reserved', routing_key='run_dispatcher')
+    return 1 >= count_tasks('active', routing_key=key) and \
+        0 == count_tasks('scheduled', routing_key=key) and \
+        0 == count_tasks('reserved', routing_key=key)
+
+
+@celery.app.task
+def save_stats():
+    if not single_task_running('save_stats'):
+        logger.warning('save_stats function already running, exiting')
+        return
+
+    for collection in collections.ALL.values():
+        with collection.set_current():
+            try:
+                if collection.process or \
+                        not models.Statistics.objects.filter(key='stats').exists():
+                    save_collection_stats()
+            except Exception as e:
+                logger.exception(e)
+
+    # Kill a little bit of time, in case there are a lot of older
+    # messages queued up, they have time to fail in the above
+    # check.
+    sleep(5)
 
 
 @celery.app.task
 def run_dispatcher():
-    if not single_dispatcher_running():
-        logger.warning('run_dispatcher function already running in celery, exiting')
+    if not single_task_running('run_dispatcher'):
+        logger.warning('run_dispatcher function already running, exiting')
         return
 
     for collection in collections.ALL.values():
         logger.info(f'{"=" * 10} collection "{collection.name}" {"=" * 10}')
-
-        # save statistics
-        with collection.set_current():
-            if collection.process or not models.Statistics.objects.filter(key='stats').exists():
-                save_collection_stats()
-
-        # dispatch tasks
         try:
             dispatch_for(collection)
         except Exception as e:
             logger.exception(e)
-        finally:
-            # combined with the checks above, this
-            # roughly limits `dispatch_for` to 30 calls per minute
-            sleep(2)
 
-    # Kill a little bit of time, in case there are a lot of older
-    # `run_dispatcher` messages queued up, they have time to fail in the above
-    # check.
     sleep(5)
 
 
@@ -498,13 +505,13 @@ def get_rabbitmq_queue_length(q):
 
 
 def dispatch_for(collection):
+    if not collection.process:
+        logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')
+        return
+
     queue_len = get_rabbitmq_queue_length(collection.queue_name)
     if queue_len > 0:
         logger.info(f'dispatch: skipping "{collection}", already has {queue_len} queued tasks')
-        return
-
-    if not collection.process:
-        logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')
         return
 
     logger.info('Dispatching for %r', collection)
@@ -529,7 +536,7 @@ def dispatch_for(collection):
 
         if collection.sync:
             logger.info("sync: retrying all walk tasks")
-            # retry up oldest non-pending walk tasks that are older than 2 mins
+            # retry up oldest non-pending walk tasks that are older than 1 min
             retry_tasks(
                 models.Task.objects
                 .filter(func__in=['filesystem.walk', 'ocr.walk_source'])

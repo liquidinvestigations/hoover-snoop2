@@ -45,8 +45,7 @@ class Command(BaseCommand):
         with Profiler():
             tasks.import_snoop_tasks()
 
-            argv = celery_argv(
-                queues=[c.queue_name for c in ALL.values()] + ['run_dispatcher']
-            )
+            all_queues = [c.queue_name for c in ALL.values()] + settings.SYSTEM_QUEUES
+            argv = celery_argv(queues=all_queues)
             log.info('+' + ' '.join(argv))
             os.execv(argv[0], argv)
