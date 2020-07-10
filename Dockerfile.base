@@ -17,10 +17,10 @@ RUN set -e \
      imagemagick \
      tesseract-ocr tesseract-ocr-all \
      libtiff-tools \
-     ghostscript \
+     ghostscript qpdf \
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
- && pip install pipenv
+ && pip3 install pipenv
 
 # disable tesseract multithreading
 ENV OMP_THREAD_LIMIT 1
@@ -48,6 +48,7 @@ ENV PATH="/opt/libpst/bin:${PATH}"
 # install pdf2pdfocr
 RUN pip3 install --upgrade Pillow reportlab \
  && pip3 install --upgrade lxml beautifulsoup4 \
+ && pip3 install --upgrade wheel \
  && pip3 install --upgrade https://github.com/mstamy2/PyPDF2/archive/master.zip
 RUN rm /etc/ImageMagick-6/policy.xml
 RUN git clone https://github.com/liquidinvestigations/pdf2pdfocr --branch master /opt/pdf2pdfocr \

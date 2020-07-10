@@ -1,10 +1,11 @@
-import tempfile
-import re
 import json
 import logging
+import multiprocessing
+import os
+import re
 import string
 import subprocess
-import multiprocessing
+import tempfile
 
 from django.conf import settings
 from . import models
@@ -122,15 +123,26 @@ def run_tesseract_on_pdf(pdf_blob, lang):
         log.warning(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} words of text')  # noqa: E501
         return None
 
-    with tempfile.NamedTemporaryFile() as f:
+    tmp_f = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+    tmp_f.close()
+    tmp = tmp_f.name
+    try:
         args = [
-            'pdf2pdfocr.py', '-i', pdf_blob.path(), '-o', f.name,
+            'pdf2pdfocr.py',
+            '-i', str(pdf_blob.path()),
+            '-o', tmp,
             '-l', lang,
+            '-v', '-a',
             '-x', '--oem 1 --psm 1',
-            '-j', "%0.4f" % (1.0 / multiprocessing.cpu_count()),
+            '-j', "%0.4f" % (1.0 / max(1, multiprocessing.cpu_count())),
         ]
         subprocess.check_call(args)
-        return models.Blob.create_from_file(f.name)
+        return models.Blob.create_from_file(tmp)
+    except Exception as e:
+        log.exception(e)
+        raise
+    finally:
+        os.remove(tmp)
 
 
 @snoop_task('ocr.run_tesseract')
