@@ -435,6 +435,13 @@ def save_collection_stats():
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
+def get_rabbitmq_queue_length(q):
+    from pyrabbit.api import Client
+
+    cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL, 'guest', 'guest')
+    return cl.get_queue_depth('/', q)
+
+
 def single_task_running(key):
     def count_tasks(method, routing_key):
         count = 0
@@ -454,6 +461,9 @@ def single_task_running(key):
                 logger.info(f'counting {method} task: {str(task)}')
 
         return count
+
+    if get_rabbitmq_queue_length(key) > 0:
+        return False
 
     return 1 >= count_tasks('active', routing_key=key) and \
         0 == count_tasks('scheduled', routing_key=key) and \
@@ -495,13 +505,6 @@ def run_dispatcher():
             logger.exception(e)
 
     sleep(5)
-
-
-def get_rabbitmq_queue_length(q):
-    from pyrabbit.api import Client
-
-    cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL, 'guest', 'guest')
-    return cl.get_queue_depth('/', q)
 
 
 def dispatch_for(collection):

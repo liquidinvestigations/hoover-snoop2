@@ -3,6 +3,7 @@ import re
 from datetime import timedelta
 from pathlib import Path
 import json
+from multiprocessing import cpu_count
 
 from snoop.data import celery
 
@@ -106,16 +107,22 @@ SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 SNOOP_FEED_PAGE_SIZE = 100
 SNOOP_COLLECTION_ROOT = os.environ.get('SNOOP_COLLECTION_ROOT')
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
-WORKER_COUNT = int(os.environ.get('SNOOP_WORKER_COUNT', '1'))
-TOTAL_WORKER_COUNT = int(os.environ.get('SNOOP_TOTAL_WORKER_COUNT', WORKER_COUNT))
+
+SNOOP_MIN_WORKERS = int(os.environ.get('SNOOP_MIN_WORKERS', '2'))
+SNOOP_MAX_WORKERS = int(os.environ.get('SNOOP_MAX_WORKERS', '8'))
+SNOOP_CPU_MULTIPLIER = float(os.environ.get('SNOOP_CPU_MULTIPLIER', '0.85'))
+WORKER_COUNT = min(SNOOP_MAX_WORKERS,
+                   max(SNOOP_MIN_WORKERS,
+                       int(SNOOP_CPU_MULTIPLIER * cpu_count())))
+
 TASK_RETRY_AFTER_DAYS = 10
 
 # max tasks count to be picked up by 1 worker
-WORKER_TASK_LIMIT = 666
+WORKER_TASK_LIMIT = 111
 # limit for queueing large counts of children tasks
 CHILD_QUEUE_LIMIT = 100
 # Count of pending tasks to trigger per collection when finding an empty queue.
-DISPATCH_QUEUE_LIMIT = 25000
+DISPATCH_QUEUE_LIMIT = 50000
 # If there are no pending tasks, this is how many directories
 # will be retried by sync every minute.
 SYNC_RETRY_LIMIT = 1000
@@ -165,7 +172,7 @@ celery.app.conf.beat_schedule = {
     },
     'save_stats': {
         'task': 'snoop.data.tasks.save_stats',
-        'schedule': timedelta(seconds=100),
+        'schedule': timedelta(seconds=60),
     },
 }
 

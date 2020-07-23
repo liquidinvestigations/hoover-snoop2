@@ -377,7 +377,8 @@ class CollectionAdminSite(SnoopAdminSite):
     def stats(self, request):
         with self.collection.set_current():
             context = dict(self.each_context(request))
-            context.update(get_stats())
+            stats, _ = models.Statistics.objects.get_or_create(key='stats')
+            context.update(stats.value)
             return render(request, 'snoop/admin_stats.html', context)
 
 
