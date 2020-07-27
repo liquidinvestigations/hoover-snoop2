@@ -30,6 +30,10 @@ def celery_argv(queues):
         'worker',
         '-Ofair',
         '--max-tasks-per-child', str(settings.WORKER_TASK_LIMIT),
+        '--max-memory-per-child', str(settings.WORKER_MEMORY_LIMIT * 1024),
+        '--prefetch-multiplier', str(24),
+        '--soft-time-limit', '90000',  # 25h
+        '--time-limit', '100000',  # 28h
         '-Q', ','.join(queues),
         '-c', str(settings.WORKER_COUNT),
     ]

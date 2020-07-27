@@ -117,8 +117,10 @@ WORKER_COUNT = min(SNOOP_MAX_WORKERS,
 
 TASK_RETRY_AFTER_DAYS = 10
 
-# max tasks count to be picked up by 1 worker
-WORKER_TASK_LIMIT = 111
+# max tasks count to be finished by 1 worker before restarting it
+WORKER_TASK_LIMIT = 1111
+# memory limit for each worker (in mb)
+WORKER_MEMORY_LIMIT = 5000
 # limit for queueing large counts of children tasks
 CHILD_QUEUE_LIMIT = 100
 # Count of pending tasks to trigger per collection when finding an empty queue.
