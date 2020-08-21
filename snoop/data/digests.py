@@ -186,16 +186,20 @@ def directory_id(directory):
     return f'_directory_{directory.pk}'
 
 
+def file_id(file_query):
+    return f'_file_{file_query.pk}'
+
+
 def parent_id(file):
     parent = file.parent
 
     if isinstance(parent, models.File):
-        return parent.blob.pk
+        return file_id(parent)
 
     if isinstance(parent, models.Directory):
         # skip over the dirs that are the children of container files
         if parent.container_file:
-            return parent.container_file.blob.pk
+            return file_id(parent.container_file)
         return directory_id(parent)
 
     return None
@@ -359,12 +363,14 @@ def get_document_locations(digest):
     def location(file):
         parent_path = full_path(file.parent_directory.container_file or file.parent_directory)
         return {
+            'id': file_id(file),
             'filename': file.name,
             'parent_id': parent_id(file),
             'parent_path': parent_path,
         }
 
     queryset = digest.blob.file_set.order_by('pk')
+
     queryset = queryset[:settings.SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT + 1]
     return [location(file) for file in queryset]
 
@@ -372,7 +378,8 @@ def get_document_locations(digest):
 def child_file_to_dict(file):
     blob = file.blob
     return {
-        'id': blob.pk,
+        'id': file_id(file),
+        'digest': blob.pk,
         'content_type': blob.mime_type,
         'filename': file.name,
     }
@@ -411,6 +418,21 @@ def get_directory_data(directory):
             'filename': directory.name,
             'path': full_path(directory),
         },
+        'children': children,
+        'incomplete_children_list': incomplete_children_list,
+    }
+
+
+def get_file_data(file):
+    children = None
+    incomplete_children_list = False
+    child_directory = file.child_directory_set.first()
+    if child_directory:
+        children, incomplete_children_list = get_directory_children(child_directory)
+    return {
+        'id': file_id(file),
+        'parent_id': directory_id(file.parent_directory),
+        'digest': file.original.pk,
         'children': children,
         'incomplete_children_list': incomplete_children_list,
     }

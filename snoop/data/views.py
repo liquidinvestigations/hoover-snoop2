@@ -62,6 +62,12 @@ def feed(request):
 
 
 @collection_view
+def file_view(request, pk):
+    file_query = get_object_or_404(models.File.objects, pk=pk)
+    return JsonResponse(digests.get_file_data(file_query))
+
+
+@collection_view
 def directory(request, pk):
     directory = get_object_or_404(models.Directory.objects, pk=pk)
     return JsonResponse(digests.get_directory_data(directory))
