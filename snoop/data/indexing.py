@@ -104,12 +104,16 @@ def index(id, data):
     check_response(resp)
 
 
-def delete_index():
-    es_index = collections.current().es_index
-    url = f'{ES_URL}/{es_index}'
+def delete_index_by_name(name):
+    url = f'{ES_URL}/{name}'
     log.info("DELETE %s", url)
     delete_resp = requests.delete(url)
     log.debug('Response: %r', delete_resp)
+
+
+def delete_index():
+    es_index = collections.current().es_index
+    delete_index_by_name(es_index)
 
 
 def index_exists():
@@ -124,6 +128,11 @@ def create_index():
     log.info("PUT %s", url)
     put_resp = put_json(url, CONFIG)
     check_response(put_resp)
+
+
+def all_indices():
+    indices = requests.get(f'{ES_URL}/_cat/indices?format=json').json()
+    return [a['index'] for a in indices if not a['index'].startswith('.monitoring')]
 
 
 @contextmanager
