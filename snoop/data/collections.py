@@ -93,13 +93,23 @@ for item in settings.SNOOP_COLLECTIONS:
     ALL[col.name] = col
 
 
-def create_databases():
+def all_collection_dbs():
     with connection.cursor() as conn:
         conn.execute('SELECT datname FROM pg_database WHERE datistemplate = false')
-        dbs = [name for (name,) in conn.fetchall()]
-        for col in ALL.values():
-            if col.db_name not in dbs:
-                logger.info(f'Creating database {col.db_name}')
+        return [name for (name,) in conn.fetchall() if name.startswith('collection_')]
+
+
+def drop_db(db_name):
+    with connection.cursor() as conn:
+        conn.execute(f'DROP DATABASE "{db_name}"')
+
+
+def create_databases():
+    dbs = all_collection_dbs()
+    for col in ALL.values():
+        if col.db_name not in dbs:
+            logger.info(f'Creating database {col.db_name}')
+            with connection.cursor() as conn:
                 conn.execute(f'CREATE DATABASE "{col.db_name}"')
 
 
