@@ -429,10 +429,18 @@ def get_file_data(file):
     child_directory = file.child_directory_set.first()
     if child_directory:
         children, incomplete_children_list = get_directory_children(child_directory)
-    return {
+
+    blob = file.blob
+
+    rv = {
         'id': file_id(file),
-        'parent_id': directory_id(file.parent_directory),
-        'digest': file.original.pk,
+        'digest': blob.pk,
+        'parent_id': parent_id(file),
+        'has_locations': True,
+        'version': _get_document_version(blob.digest),
+        'content': _get_document_content(blob.digest),
         'children': children,
         'incomplete_children_list': incomplete_children_list,
     }
+
+    return rv
