@@ -51,6 +51,7 @@ steps:
     path: /var/run
   commands:
   - cd testsuite
+  - whoami
   - docker-compose run --rm snoop bash -c '/wait && py.test -vv'
 
 services:
