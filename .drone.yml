@@ -32,7 +32,6 @@ steps:
   - mkdir -p testsuite/volumes/collections
   - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
   - chown 666:666 testsuite/volumes/collections/testdata
-  - ls -l testsuite/volumes/collections/testdata
 
 - name: do the docker setup
   image: docker/compose:1.24.0

@@ -10,4 +10,5 @@ chown $UID:$GID -R $DATA_DIR/blobs
 
 whoami
 
-sudo -Eu $USER_NAME "$@"
+# sudo -Eu $USER_NAME "$@"
+"$@"
