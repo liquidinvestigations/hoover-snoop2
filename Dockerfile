@@ -1,5 +1,11 @@
 From liquidinvestigations/hoover-snoop2:base
 
+ARG UNAME=liquid
+ARG UID=666
+ARG GID=666
+RUN groupadd -g $GID -o $UNAME
+RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
+
 # install snoop
 RUN mkdir -p /opt/hoover/snoop
 WORKDIR /opt/hoover/snoop
@@ -15,7 +21,14 @@ RUN set -e \
  && echo 'waitress-serve --threads $THREAD_COUNT --port 80 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver
 
+ENV DATA_DIR "/opt/hoover/snoop"
+ENV USER_NAME $UNAME
+ENV UID $UID
+ENV GID $GID
+
 RUN set -e \
  && SECRET_KEY=temp SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
+
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
 
 CMD /wait && /runserver
