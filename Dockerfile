@@ -29,6 +29,6 @@ ENV GID $GID
 RUN set -e \
  && SECRET_KEY=temp SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
-ENTRYPOINT ["/app/docker-entrypoint.sh"]
+ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
 
 CMD /wait && /runserver
