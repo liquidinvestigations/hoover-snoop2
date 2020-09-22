@@ -378,7 +378,8 @@ def get_document_locations(digest):
 def child_file_to_dict(file):
     blob = file.blob
     return {
-        'id': file_id(file),
+        'id': blob.pk,
+        'file': file_id(file),
         'digest': blob.pk,
         'content_type': blob.mime_type,
         'filename': file.name,
