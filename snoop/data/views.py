@@ -68,44 +68,6 @@ def file_view(request, pk):
 
 
 @collection_view
-def file_download(request, pk, filename):
-    file = get_object_or_404(models.File.objects, pk=pk)
-    blob = file.blob
-
-    if html.is_html(blob):
-        clean_html = html.clean(blob)
-        return HttpResponse(clean_html, content_type='text/html')
-
-    return FileResponse(blob.open(), content_type=blob.content_type)
-
-
-@collection_view
-def file_ocr(request, pk, ocrname):
-    file = get_object_or_404(models.File.objects, pk=pk)
-
-    if models.OcrSource.objects.filter(name=ocrname).exists():
-        # serve file from external OCR import
-        ocr_source = get_object_or_404(models.OcrSource, name=ocrname)
-        ocr_queryset = ocr.ocr_documents_for_blob(file.blob)
-        ocr_document = get_object_or_404(ocr_queryset, source=ocr_source)
-
-        blob = ocr_document.ocr
-    else:
-        digest_task = get_object_or_404(models.Task.objects, func='digests.gather', args=[hash])
-        tesseract_task = digest_task.prev_set.get(name=ocrname).prev
-        blob = tesseract_task.result
-    return FileResponse(blob.open(), content_type=blob.content_type)
-
-
-@collection_view
-def file_locations(request, pk):
-    file = get_object_or_404(models.File.objects, pk=pk)
-    digest = get_object_or_404(models.Digest.objects, blob__pk=file.blob.pk)
-    locations = digests.get_document_locations(digest)
-    return JsonResponse({'locations': locations})
-
-
-@collection_view
 def directory(request, pk):
     directory = get_object_or_404(models.Directory.objects, pk=pk)
     return JsonResponse(digests.get_directory_data(directory))
