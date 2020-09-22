@@ -2,8 +2,7 @@
 
 echo "Running in $PWD"
 
-chown $UID:$GID $DATA_DIR/*
-chown $UID:$GID ./volumes/snoop-pg/data
+chown $UID:$GID -R $DATA_DIR/blobs
 
 whoami
 
