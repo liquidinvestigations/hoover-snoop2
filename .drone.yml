@@ -52,7 +52,7 @@ steps:
   commands:
   - cd testsuite
   - whoami
-  - docker-compose run --rm snoop bash -c '/wait && py.test -vv'
+  - sudo -Eu 666 whoami && docker-compose run --rm snoop bash -c '/wait && py.test -vv'
 
 services:
 - name: docker daemon in docker
