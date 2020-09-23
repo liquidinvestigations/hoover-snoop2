@@ -28,9 +28,9 @@ ENV USER_NAME $UNAME
 ENV UID $UID
 ENV GID $GID
 
-ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
-
 RUN set -e \
- && sudo -Eu $USER_NAME SECRET_KEY=temp SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
+ && SECRET_KEY=temp SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
+
+ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
 
 CMD sudo -Eu $USER_NAME /wait && sudo -Eu $USER_NAME /runserver
