@@ -30,9 +30,11 @@ ENV GID $GID
 
 ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
 
+RUN whoami
+
 RUN set -e \
  && SECRET_KEY=temp SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
-
+RUN whoami
 
 CMD /wait && /runserver
