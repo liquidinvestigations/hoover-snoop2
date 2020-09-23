@@ -33,4 +33,4 @@ RUN set -e \
 
 ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
 
-CMD sudo -Eu $USER_NAME /wait && sudo -Eu $USER_NAME /runserver
+CMD /wait && /runserver
