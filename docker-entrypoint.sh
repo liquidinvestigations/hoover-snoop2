@@ -2,6 +2,9 @@
 
 echo "Running in $PWD"
 
+mkdir -p /opt/hoover/snoop/testsuite/volumes/snoop-pg/data
+chown $UID:$GID -R /opt/hoover/snoop/testsuite/volumes/snoop-pg/data
+
 chown $UID:$GID $DATA_DIR/*
 
 whoami
