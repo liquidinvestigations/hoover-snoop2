@@ -382,6 +382,7 @@ def child_file_to_dict(file):
         'file': file_id(file),
         'digest': blob.pk,
         'content_type': blob.mime_type,
+        'filetype': get_filetype(blob.mime_type),
         'filename': file.name,
     }
 
@@ -390,6 +391,7 @@ def child_dir_to_dict(directory):
     return {
         'id': directory_id(directory),
         'content_type': 'application/x-directory',
+        'filetype': 'folder',
         'filename': directory.name,
     }
 
