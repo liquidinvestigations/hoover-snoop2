@@ -321,21 +321,26 @@ def snoop_task(name, priority=5):
 
 
 def dispatch_tasks(status):
-    task_query = (
-        models.Task.objects
-        .filter(status=status)
-        .order_by('-date_modified')  # newest pending tasks first
-    )[:settings.DISPATCH_QUEUE_LIMIT]
+    all_functions = [x['func'] for x in models.Task.objects.values('func').distinct()]
+    found_something = False
 
-    task_count = task_query.count()
-    if not task_count:
-        logger.info(f'No {status} tasks to dispatch')
-        return False
-    logger.info(f'Dispatching {task_count} "{status}" tasks for collection "{collections.current().name}"')  # noqa: E501
+    for func in all_functions:
+        task_query = (
+            models.Task.objects
+            .filter(status=status, func=func)
+            .order_by('-date_modified')  # newest pending tasks first
+        )[:settings.DISPATCH_QUEUE_LIMIT]
 
-    for task in task_query.iterator():
-        queue_task(task)
-    return True
+        task_count = task_query.count()
+        if not task_count:
+            logger.info(f'collection "{collections.current().name}": No {status} {func} tasks to dispatch')  # noqa: E501
+            continue
+        logger.info(f'collection "{collections.current().name}": Dispatching {task_count} {status} {func} tasks')  # noqa: E501
+
+        for task in task_query.iterator():
+            queue_task(task)
+        found_something = True
+    return found_something
 
 
 def retry_task(task, fg=False):
