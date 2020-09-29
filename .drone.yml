@@ -71,7 +71,8 @@ services:
 - name: search-es
   image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
   volumes:
-    path: ./volumes/search-es/data:/usr/share/elasticsearch/data
+  - name: search-es-v
+    path: /usr/share/elasticsearch/data
   environment:
     discovery.type: single-node
 
@@ -82,12 +83,19 @@ services:
     POSTGRES_DATABASE: snoop
     POSTGRES_PASSWORD: snoop
   volumes:
-    path: ./volumes/snoop-pg/data:/var/lib/postgresql/data
+  - name: snoop-pg-v
+    path: /var/lib/postgresql/data
 
 
 volumes:
 - name: dockersock
   temp: {}
+- name: snoop-pg-v
+  host:
+    path: ./volumes/snoop-pg/data
+- name: search-es-v
+  host:
+    path: ./volumes/search-es/data
 
 ---
 kind: pipeline
