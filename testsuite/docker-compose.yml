@@ -26,7 +26,7 @@ services:
   snoop:
     build: ..
     command: tail -f /dev/null
-    user: liquid
+    user: root
     volumes:
       - ..:/opt/hoover/snoop:cached
       - ./volumes/gnupg:/opt/hoover/gnupg
