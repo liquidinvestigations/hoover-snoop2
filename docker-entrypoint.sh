@@ -12,5 +12,6 @@ chown $UID:$GID $DATA_DIR/*
 
 whoami
 
-sudo -Eu $USER_NAME "$@"
+exec gosu $USER_NAME “/bin/bash “$@”
+#sudo -Eu $USER_NAME "$@"
 #sudo -Eu $USER_NAME /wait && /runserver
