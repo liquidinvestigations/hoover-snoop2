@@ -50,9 +50,9 @@ steps:
   - name: dockersock
     path: /var/run
   commands:
-  - cd testsuite
-  - whoami
-  - docker-compose run --rm snoop bash -c '/wait && whoami && py.test -vv'
+  #- cd testsuite
+  #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
+  - docker build --tag test:test
 
 services:
 - name: docker daemon in docker
@@ -61,6 +61,29 @@ services:
   volumes:
   - name: dockersock
     path: /var/run
+
+- name: snoop-rabbitmq
+  image: rabbitmq:3.7.3
+
+- name: snoop-tika
+  image: logicalspark/docker-tikaserver
+
+- name: search-es
+  image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+  volumes:
+    path: ./volumes/search-es/data:/usr/share/elasticsearch/data
+  environment:
+    discovery.type: single-node
+
+- name: snoop-pg
+  image: postgres:12.2
+  environment:
+    POSTGRES_USER: snoop
+    POSTGRES_DATABASE: snoop
+    POSTGRES_PASSWORD: snoop
+  volumes:
+    path: ./volumes/snoop-pg/data:/var/lib/postgresql/data
+
 
 volumes:
 - name: dockersock
