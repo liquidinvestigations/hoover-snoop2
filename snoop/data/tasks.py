@@ -1,3 +1,4 @@
+import random
 from contextlib import contextmanager
 from io import StringIO
 import json
@@ -322,6 +323,7 @@ def snoop_task(name, priority=5):
 
 def dispatch_tasks(status):
     all_functions = [x['func'] for x in models.Task.objects.values('func').distinct()]
+    random.shuffle(all_functions)
     found_something = False
 
     for func in all_functions:
@@ -493,7 +495,7 @@ def save_stats():
     # Kill a little bit of time, in case there are a lot of older
     # messages queued up, they have time to fail in the above
     # check.
-    sleep(5)
+    sleep(3)
 
 
 @celery.app.task
@@ -502,14 +504,16 @@ def run_dispatcher():
         logger.warning('run_dispatcher function already running, exiting')
         return
 
-    for collection in collections.ALL.values():
+    collection_list = list(collections.ALL.values())
+    random.shuffle(collection_list)
+    for collection in collection_list:
         logger.info(f'{"=" * 10} collection "{collection.name}" {"=" * 10}')
         try:
             dispatch_for(collection)
         except Exception as e:
             logger.exception(e)
 
-    sleep(5)
+    sleep(3)
 
 
 def dispatch_for(collection):
