@@ -64,13 +64,15 @@ def feed(request):
 @collection_view
 def file_view(request, pk):
     file = get_object_or_404(models.File.objects, pk=pk)
-    return JsonResponse(trim_text(digests.get_file_data(file)))
+    children_page = int(request.GET.get('children_page', 1))
+    return JsonResponse(trim_text(digests.get_file_data(file, children_page)))
 
 
 @collection_view
 def directory(request, pk):
     directory = get_object_or_404(models.Directory.objects, pk=pk)
-    return JsonResponse(digests.get_directory_data(directory))
+    children_page = int(request.GET.get('children_page', 1))
+    return JsonResponse(digests.get_directory_data(directory, children_page))
 
 
 def trim_text(data):
@@ -91,7 +93,8 @@ def trim_text(data):
 @collection_view
 def document(request, hash):
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
-    return JsonResponse(trim_text(digests.get_document_data(digest)))
+    children_page = int(request.GET.get('children_page', 1))
+    return JsonResponse(trim_text(digests.get_document_data(digest, children_page)))
 
 
 @collection_view
