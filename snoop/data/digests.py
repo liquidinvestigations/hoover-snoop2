@@ -4,6 +4,7 @@ import re
 import subprocess
 
 from django.conf import settings
+from django.core.paginator import Paginator
 
 from .tasks import snoop_task, SnoopTaskBroken
 from . import models
@@ -337,14 +338,14 @@ def _get_document_version(digest):
     return zulu(digest.date_modified)
 
 
-def get_document_data(digest):
+def get_document_data(digest, children_page=1):
     first_file = _get_first_file(digest)
 
     children = None
     incomplete_children_list = False
     child_directory = first_file.child_directory_set.first()
     if child_directory:
-        children, incomplete_children_list = get_directory_children(child_directory)
+        children, incomplete_children_list = get_directory_children(child_directory, children_page)
 
     rv = {
         'id': digest.blob.pk,
@@ -396,22 +397,24 @@ def child_dir_to_dict(directory):
     }
 
 
-def get_directory_children(directory):
-    limit = settings.SNOOP_DOCUMENT_CHILD_QUERY_LIMIT + 1
-    child_directory_queryset = directory.child_directory_set.order_by('name_bytes')[:limit]
-    child_directory_queryset = child_directory_queryset[:limit]
+def get_directory_children(directory, page_index=1):
+    limit = settings.SNOOP_DOCUMENT_CHILD_QUERY_LIMIT
+    child_directory_queryset = directory.child_directory_set.order_by('name_bytes')
     child_file_queryset = directory.child_file_set.order_by('name_bytes')
-    child_file_queryset = child_file_queryset[:limit]
-    incomplete = len(child_directory_queryset) == limit or \
-        len(child_file_queryset) == limit
+    p1 = Paginator(child_directory_queryset, limit)
+    p2 = Paginator(child_file_queryset, limit)
+    dir_page = p1.get_page(page_index)
+    file_page = p2.get_page(page_index)
+    incomplete = dir_page.has_next() or file_page.has_next()
+
     return (
-        [child_dir_to_dict(d) for d in child_directory_queryset][:limit - 1]
-        + [child_file_to_dict(f) for f in child_file_queryset][:limit - 1]
+        [child_dir_to_dict(d) for d in dir_page.object_list]
+        + [child_file_to_dict(f) for f in file_page.object_list]
     ), incomplete
 
 
-def get_directory_data(directory):
-    children, incomplete_children_list = get_directory_children(directory)
+def get_directory_data(directory, children_page=1):
+    children, incomplete_children_list = get_directory_children(directory, children_page)
     return {
         'id': directory_id(directory),
         'parent_id': parent_id(directory),
@@ -426,12 +429,12 @@ def get_directory_data(directory):
     }
 
 
-def get_file_data(file):
+def get_file_data(file, children_page=1):
     children = None
     incomplete_children_list = False
     child_directory = file.child_directory_set.first()
     if child_directory:
-        children, incomplete_children_list = get_directory_children(child_directory)
+        children, incomplete_children_list = get_directory_children(child_directory, children_page)
 
     blob = file.blob
 
