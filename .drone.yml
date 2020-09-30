@@ -65,7 +65,9 @@ steps:
   commands:
   #- cd testsuite
   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
+  - echo $SNOOP_DB
   - docker build . -f Dockerfile --tag test:test
+  - echo $SNOOP_DB
   - docker run test:test py.test
 
 #
