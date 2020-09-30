@@ -59,9 +59,6 @@ steps:
 
 - name: py.test
   image: docker/compose:1.24.0
-  volumes:
-  - name: dockersock
-    path: /var/run
   environment:
     WAIT_HOSTS: search-es:9200, snoop-pg:5432
     WAIT_HOSTS_TIMEOUT: 60
@@ -72,6 +69,9 @@ steps:
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
+  volumes:
+  - name: dockersock
+    path: /var/run
   commands:
   #- cd testsuite
   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
