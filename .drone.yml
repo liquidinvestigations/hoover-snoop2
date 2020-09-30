@@ -75,7 +75,7 @@ steps:
   - docker run -e WAIT_HOSTS:'search-es:9200, snoop-pg:5432' \
   -e WAIT_HOSTS_TIMEOUT:'60' \
   -e SNOOP_DB:'postgresql:'//snoop:snoop@snoop-pg:5432/snoop' \
-  -e SNOOP_COLLECTIONS:'[{"name": "testdata", "process": true}]' \
+  -e SNOOP_COLLECTIONS:'[{"name":"testdata", "process":true}]' \
   -e SNOOP_AMQP_URL:"amqp://snoop-rabbitmq" \
   -e SNOOP_TIKA_URL:"http://snoop-tika:9998" \
   -e SNOOP_ES_URL:"http://search-es:9200" \
