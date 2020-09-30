@@ -19,12 +19,12 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-  when:
-    event:
-    - push
-    - tag
-    branch:
-    - master
+  # when:
+  #   event:
+  #   - push
+  #   - tag
+  #   branch:
+  #   - master
 
 - name: download testdata
   image: alpine/git:1.0.7
