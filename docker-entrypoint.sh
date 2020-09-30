@@ -12,6 +12,8 @@ chown $UID:$GID $DATA_DIR/*
 
 whoami
 
+echo $SNOOP_DB
+
 exec gosu $USER_NAME "$@"
 #sudo -Eu $USER_NAME "$@"
 #sudo -Eu $USER_NAME /wait && /runserver
