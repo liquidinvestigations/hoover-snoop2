@@ -19,12 +19,12 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-  # when:
-  #   event:
-  #   - push
-  #   - tag
-  #   branch:
-  #   - master
+  when:
+    event:
+    - push
+    - tag
+    branch:
+    - master
 
 - name: download testdata
   image: alpine/git:1.0.7
@@ -34,17 +34,34 @@ steps:
   #- chown 666:666 testsuite/volumes/collections/testdata
 
 
-- name: build docker image
-  image: plugins/docker
-  settings:
-    repo: liquidinvestigations/hoover-snoop2
-    # https://0-8-0.docs.drone.io/substitution/
-    auto_tag: true
-    dockerfile: Dockerfile
-    username:
-      from_secret: docker_username
-    password:
-      from_secret: docker_password
+# - name: docker setup
+#   image: plugins/docker
+#   settings:
+#     repo: liquidinvestigations/hoover-snoop2
+#     dockerfile: Dockerfile
+#   commands:
+#     - docker build Dockerfile --tag test:test
+
+
+- name: do the docker setup
+  image: docker/compose:1.24.0
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  - cd testsuite
+  - mkdir -p volumes/search-es/data
+  - chmod 777 volumes/search-es/data
+  #- docker-compose up -d --scale snoop=0
+  - cd ..
+  - ls
+  - docker build . -f Dockerfile --tag test:test
+
+- name: py.test
+  image: docker/compose:1.24.0
+  volumes:
+  - name: dockersock
+    path: /var/run
   environment:
     WAIT_HOSTS: search-es:9200, snoop-pg:5432
     WAIT_HOSTS_TIMEOUT: 60
@@ -56,67 +73,10 @@ steps:
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
   commands:
-    - docker build . -f Dockerfile --tag test:test
-  # when:
-  #   event:
-  #   - push
-  #   - tag
-  #   branch:
-  #   - master
-
-  # - name: build base docker image
-  #   image: plugins/docker
-  #   settings:
-  #     repo: liquidinvestigations/hoover-snoop2
-  #     # https://0-8-0.docs.drone.io/substitution/
-  #     auto_tag: true
-  #     auto_tag_suffix: base
-  #     dockerfile: Dockerfile.base
-  #     username:
-  #       from_secret: docker_username
-  #     password:
-  #       from_secret: docker_password
-  #   # when:
-  #   #   event:
-  #   #   - push
-  #   #   - tag
-  #   #   branch:
-  #   #   - master
-
-
-# - name: do the docker setup
-#   image: docker/compose:1.24.0
-#   volumes:
-#   - name: dockersock
-#     path: /var/run
-#   commands:
-#   - cd testsuite
-#   - mkdir -p volumes/search-es/data
-#   - chmod 777 volumes/search-es/data
-#   #- docker-compose up -d --scale snoop=0
-#   - cd ..
-#   - ls
-#   - docker build . -f Dockerfile --tag test:test
-#
-# - name: py.test
-#   image: docker/compose:1.24.0
-#   environment:
-#     WAIT_HOSTS: search-es:9200, snoop-pg:5432
-#     WAIT_HOSTS_TIMEOUT: 60
-#     SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
-#     SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
-#     SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
-#     SNOOP_TIKA_URL: "http://snoop-tika:9998"
-#     SNOOP_ES_URL: "http://search-es:9200"
-#     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
-#     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
-#   volumes:
-#   - name: dockersock
-#     path: /var/run
-#   commands:
-#   #- cd testsuite
-#   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
-#   - docker run test:test py.test
+  #- cd testsuite
+  #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
+  - echo $SNOOP_DB
+  - docker run test:test py.test
 
 services:
 - name: docker daemon in docker
