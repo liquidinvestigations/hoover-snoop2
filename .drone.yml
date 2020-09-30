@@ -34,7 +34,7 @@ steps:
   #- chown 666:666 testsuite/volumes/collections/testdata
 
 
-- name: build base docker image
+- name: build docker image
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
