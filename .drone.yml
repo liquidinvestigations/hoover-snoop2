@@ -68,7 +68,7 @@ services:
   command: [ -vv ]
 
 - name: snoop-tika
-  image: logicalspark/docker-tikaserver
+  image: memcached:logicalspark/docker-tikaserver
   command: [ -vv ]
 
 - name: search-es
