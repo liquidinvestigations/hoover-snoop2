@@ -42,7 +42,7 @@ steps:
   - cd testsuite
   - mkdir -p volumes/search-es/data
   - chmod 777 volumes/search-es/data
-  - docker-compose up -d --scale snoop=0
+  #- docker-compose up -d --scale snoop=0
 
 - name: py.test
   image: docker/compose:1.24.0
@@ -52,6 +52,7 @@ steps:
   commands:
   #- cd testsuite
   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
+  - /opt/hoover/snoop
   - docker build --tag test:test
 
 services:
