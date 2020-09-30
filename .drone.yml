@@ -44,13 +44,13 @@ steps:
   - chmod 777 volumes/search-es/data
   #- docker-compose up -d --scale snoop=0
 
-- name: do tests
-  image: ubuntu
-  commands:
-  - apt-get update -qq
-  - apt-get install -y -qq telnet > /dev/null
-  - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-pg 5432 || true
-  - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-es 9200 || true
+# - name: do tests
+#   image: ubuntu
+#   commands:
+#   - apt-get update -qq
+#   - apt-get install -y -qq telnet > /dev/null
+#   - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-pg 5432 || true
+#   - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-es 9200 || true
 
 - name: py.test
   image: docker/compose:1.24.0
