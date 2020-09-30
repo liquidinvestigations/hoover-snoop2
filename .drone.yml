@@ -44,6 +44,14 @@ steps:
   - chmod 777 volumes/search-es/data
   #- docker-compose up -d --scale snoop=0
 
+- name: test
+  image: ubuntu
+  commands:
+  - apt-get update -qq
+  - apt-get install -y -qq telnet > /dev/null
+  - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-pg 5432 || true
+  - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-es 9200 || true
+
 - name: py.test
   image: docker/compose:1.24.0
   volumes:
@@ -52,7 +60,7 @@ steps:
   commands:
   #- cd testsuite
   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
-  - cd /opt/hoover/snoop 
+  - cd /opt/hoover/snoop
   - docker build --tag test:test
 
 services:
@@ -64,13 +72,13 @@ services:
     path: /var/run
 
 - name: snoop-rabbitmq
-  image: rabbitmq:3.7.3
+  image: memchached:rabbitmq:3.7.3
 
 - name: snoop-tika
-  image: logicalspark/docker-tikaserver
+  image: memchached:logicalspark/docker-tikaserver
 
 - name: search-es
-  image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+  image: memchached:docker.elastic.co/elasticsearch/elasticsearch:6.2.4
   volumes:
   - name: search-es-v
     path: /usr/share/elasticsearch/data
@@ -78,7 +86,7 @@ services:
     discovery.type: single-node
 
 - name: snoop-pg
-  image: postgres:12.2
+  image: memchached:postgres:12.2
   environment:
     POSTGRES_USER: snoop
     POSTGRES_DATABASE: snoop
