@@ -52,7 +52,7 @@ steps:
   commands:
   #- cd testsuite
   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
-  - /opt/hoover/snoop
+  - cd /opt/hoover/snoop 
   - docker build --tag test:test
 
 services:
