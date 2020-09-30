@@ -56,17 +56,16 @@ steps:
   - cd ..
   - ls
   - docker build . -f Dockerfile --tag test:test
-#
-# - name: py.test
-#   image: docker/compose:1.24.0
-#   volumes:
-#   - name: dockersock
-#     path: /var/run
-#   commands:
-#   #- cd testsuite
-#   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
-#   - cd /opt/hoover/snoop
-#   - docker build --tag test:test
+
+- name: py.test
+  image: docker/compose:1.24.0
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  #- cd testsuite
+  #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
+  - docker run test:test py.test
 
 services:
 - name: docker daemon in docker
