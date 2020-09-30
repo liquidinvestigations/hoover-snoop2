@@ -56,6 +56,10 @@ steps:
   environment:
     WAIT_HOSTS: search-es:9200, snoop-pg:5432
     WAIT_HOSTS_TIMEOUT: 60
+    SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
+    SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
+    SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
+    SNOOP_TIKA_URL: "http://snoop-tika:9998"
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
