@@ -64,13 +64,16 @@ services:
     path: /var/run
 
 - name: snoop-rabbitmq
-  image: rabbitmq:3.7.3
+  image: memcached:rabbitmq:3.7.3
+  command: [ -vv ]
 
 - name: snoop-tika
   image: logicalspark/docker-tikaserver
+  command: [ -vv ]
 
 - name: search-es
-  image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+  image: memcached:docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+  command: [ -vv ]
   volumes:
   - name: search-es-v
     path: /usr/share/elasticsearch/data
@@ -78,7 +81,8 @@ services:
     discovery.type: single-node
 
 - name: snoop-pg
-  image: postgres:12.2
+  image: memcached:postgres:12.2
+  command: [ -vv ]
   environment:
     POSTGRES_USER: snoop
     POSTGRES_DATABASE: snoop
