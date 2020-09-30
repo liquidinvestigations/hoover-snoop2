@@ -34,25 +34,28 @@ steps:
   #- chown 666:666 testsuite/volumes/collections/testdata
 
 
-- name: docker setup
-  image: plugins/docker
-  settings:
-    repo: liquidinvestigations/hoover-snoop2
-    dockerfile: Dockerfile
-  commands:
-    - docker build Dockerfile --tag test:test
-
-
-# - name: do the docker setup
-#   image: docker/compose:1.24.0
-#   volumes:
-#   - name: dockersock
-#     path: /var/run
+# - name: docker setup
+#   image: plugins/docker
+#   settings:
+#     repo: liquidinvestigations/hoover-snoop2
+#     dockerfile: Dockerfile
 #   commands:
-#   - cd testsuite
-#   - mkdir -p volumes/search-es/data
-#   - chmod 777 volumes/search-es/data
-#   #- docker-compose up -d --scale snoop=0
+#     - docker build Dockerfile --tag test:test
+
+
+- name: do the docker setup
+  image: docker/compose:1.24.0
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  - cd testsuite
+  - mkdir -p volumes/search-es/data
+  - chmod 777 volumes/search-es/data
+  #- docker-compose up -d --scale snoop=0
+  - cd ..
+  - ls
+  - docker build Dockerfile --tag test:test
 #
 # - name: py.test
 #   image: docker/compose:1.24.0
