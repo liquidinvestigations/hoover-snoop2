@@ -44,28 +44,24 @@ steps:
   - chmod 777 volumes/search-es/data
   #- docker-compose up -d --scale snoop=0
 
-- name: test
-  image: plugins/docker
-  settings:
-    repo: liquidinvestigations/hoover-snoop2
-    dockerfile: Dockerfile
+- name: do tests
+  image: ubuntu
   commands:
-  # - apt-get update -qq
-  # - apt-get install -y -qq telnet > /dev/null
-  # - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-pg 5432 || true
-  # - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-es 9200 || true
-  - docker build --tag test:test
+  - apt-get update -qq
+  - apt-get install -y -qq telnet > /dev/null
+  - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-pg 5432 || true
+  - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-es 9200 || true
 
-# - name: py.test
-#   image: docker/compose:1.24.0
-#   volumes:
-#   - name: dockersock
-#     path: /var/run
-#   commands:
-#   #- cd testsuite
-#   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
-#   - cd /opt/hoover/snoop
-#   - docker build --tag test:test
+- name: py.test
+  image: docker/compose:1.24.0
+  volumes:
+  - name: dockersock
+    path: /var/run
+  commands:
+  #- cd testsuite
+  #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
+  - cd /opt/hoover/snoop
+  - docker build --tag test:test
 
 services:
 - name: docker daemon in docker
