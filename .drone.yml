@@ -50,10 +50,10 @@ steps:
     repo: liquidinvestigations/hoover-snoop2
     dockerfile: Dockerfile
   commands:
-  - apt-get update -qq
-  - apt-get install -y -qq telnet > /dev/null
-  - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-pg 5432 || true
-  - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-es 9200 || true
+  # - apt-get update -qq
+  # - apt-get install -y -qq telnet > /dev/null
+  # - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-pg 5432 || true
+  # - (sleep 1; echo "stats"; sleep 2; echo "quit";) | telnet snoop-es 9200 || true
   - docker build --tag test:test
 
 # - name: py.test
