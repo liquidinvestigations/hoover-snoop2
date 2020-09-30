@@ -72,16 +72,15 @@ steps:
   - echo $SNOOP_DB
   - docker build . -f Dockerfile --tag test:test
   - echo $SNOOP_DB
-  - docker run #-e WAIT_HOSTS:'search-es:9200, snoop-pg:5432'
+  - docker run -e SNOOP_DB:'postgresql://snoop:snoop@snoop-pg:5432/snoop' test:test py.test
+               # -e WAIT_HOSTS:'search-es:9200, snoop-pg:5432'
                # -e WAIT_HOSTS_TIMEOUT:'60'
-                -e SNOOP_DB:'postgresql://snoop:snoop@snoop-pg:5432/snoop'
                # -e SNOOP_COLLECTIONS:'[{"name":"testdata", "process":true}]'
                # -e SNOOP_AMQP_URL:"amqp://snoop-rabbitmq"
                # -e SNOOP_TIKA_URL:"http://snoop-tika:9998"
                # -e SNOOP_ES_URL:"http://search-es:9200"
                # -e SNOOP_COLLECTION_ROOT:"/opt/hoover/collections"
                # -e SNOOP_BLOB_STORAGE:"/opt/hoover/snoop/blobs"
-               test:test py.test
 
 #
 # - name: do the docker setup
