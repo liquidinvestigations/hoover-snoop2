@@ -92,10 +92,10 @@ volumes:
   temp: {}
 - name: snoop-pg-v
   host:
-    path: ./volumes/snoop-pg/data
+    path: /opt/node/volumes/snoop-pg/data
 - name: search-es-v
   host:
-    path: ./volumes/search-es/data
+    path: /opt/node/volumes/search-es/data
 
 ---
 kind: pipeline
