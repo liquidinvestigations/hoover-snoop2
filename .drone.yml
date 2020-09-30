@@ -55,7 +55,7 @@ steps:
   #- docker-compose up -d --scale snoop=0
   - cd ..
   - ls
-  - docker build Dockerfile --tag test:test
+  - docker build . -f Dockerfile --tag test:test
 #
 # - name: py.test
 #   image: docker/compose:1.24.0
