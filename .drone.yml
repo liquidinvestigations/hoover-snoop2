@@ -108,7 +108,7 @@ volumes:
   host:
     path: /opt/node/volumes/search-es/data
 
----
+#---
 # kind: pipeline
 # name: publish to docker hub
 #
