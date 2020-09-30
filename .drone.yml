@@ -63,7 +63,7 @@ services:
   - name: dockersock
     path: /var/run
 
-- name: snoop-rabbitmq
+- name: cache
   image: memcached:rabbitmq:3.7.3
   command: [ -vv ]
 
