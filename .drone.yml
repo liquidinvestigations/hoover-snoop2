@@ -67,6 +67,7 @@ steps:
   - name: dockersock
     path: /var/run
   commands:
+  - ls 
   #- cd testsuite
   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
   # - echo $SNOOP_DB
