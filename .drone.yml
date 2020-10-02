@@ -166,7 +166,7 @@ volumes:
     path: /opt/node/volumes/search-es/data
 - name: test-collections-v
   host:
-    path: testsuite/volumes/collections
+    path: /opt/hoover/snoop/testsuite/volumes/collections
 
 #---
 # kind: pipeline
