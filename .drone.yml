@@ -31,7 +31,8 @@ steps:
   commands:
   - mkdir -p testsuite/volumes/collections
   - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
-  #- chown 666:666 testsuite/volumes/collections/testdata
+  - pwd
+  - chown 666:666 testsuite/volumes/collections/testdata
 
 
 # - name: docker setup
