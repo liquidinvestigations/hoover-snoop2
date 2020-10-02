@@ -63,11 +63,11 @@ steps:
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
-  volumes:
-  - name: dockersock
-    path: /var/run
-  commands:
-  - ls 
+  # volumes:
+  # - name: dockersock
+  #   path: /var/run
+  # commands:
+  # - ls 
   #- cd testsuite
   #- docker-compose run --rm snoop bash -c '/wait && py.test -vv'
   # - echo $SNOOP_DB
