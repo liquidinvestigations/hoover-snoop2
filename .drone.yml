@@ -74,8 +74,8 @@ steps:
   - docker build . -f Dockerfile --tag test:test
   - echo $SNOOP_DB
   - docker run --env WAIT_HOSTS:'search-es:9200, snoop-pg:5432'
-               --env WAIT_HOSTS_TIMEOUT:'60'
-               --env SNOOP_DB:'postgresql://snoop:snoop@snoop-pg:5432/snoop'
+               --env WAIT_HOSTS_TIMEOUT:60
+               --env SNOOP_DB:postgresql://snoop:snoop@snoop-pg:5432/snoop
                --env SNOOP_COLLECTIONS:'[{"name":"testdata", "process":true}]'
                --env SNOOP_AMQP_URL:"amqp://snoop-rabbitmq"
                --env SNOOP_TIKA_URL:"http://snoop-tika:9998"
