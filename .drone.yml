@@ -35,7 +35,7 @@ steps:
   - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
   - pwd
   - ls ./testsuite/volumes/collections/
-  - chown 666:666 testsuite/volumes/collections/testdata
+  #- chown 666:666 testsuite/volumes/collections/testdata
   - pwd
   - ls -l ./testsuite/volumes/collections/
 
@@ -171,16 +171,16 @@ volumes:
 #     password:
 #       from_secret: docker_password
 #
-# ---
-# kind: secret
-# name: docker_username
-# get:
-#   path: liquid/ci/drone.docker
-#   name: username
-#
-# ---
-# kind: secret
-# name: docker_password
-# get:
-#   path: liquid/ci/drone.docker
-#   name: password
+---
+kind: secret
+name: docker_username
+get:
+  path: liquid/ci/drone.docker
+  name: username
+
+---
+kind: secret
+name: docker_password
+get:
+  path: liquid/ci/drone.docker
+  name: password
