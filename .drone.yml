@@ -120,7 +120,7 @@ volumes:
     path: /opt/node/volumes/search-es/data
 - name: test-collections-v
   host:
-    path: /drone/src/testsuite/volumes/collections
+    path: /drone/src/testsuite/volumes/collections/testdata
 - name: gnupg-v
   host:
     path: /drone/src/volumes/gnupg
