@@ -29,9 +29,15 @@ steps:
 - name: download testdata
   image: alpine/git:1.0.7
   commands:
+  - pwd
   - mkdir -p testsuite/volumes/collections
+  - ls ./testsuite/volumes/collections/
   - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
+  - pwd
+  - ls ./testsuite/volumes/collections/
   - chown 666:666 testsuite/volumes/collections/testdata
+  - pwd
+  - ls -l ./testsuite/volumes/collections/
 
 - name: build docker image
   image: docker
