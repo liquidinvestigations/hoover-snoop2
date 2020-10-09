@@ -28,6 +28,9 @@ steps:
 
 - name: download testdata
   image: alpine/git:1.0.7
+  volumes:
+  - name: test-collections-v
+    path: /drone/src/testsuite/volumes/collections
   commands:
   - pwd
   - mkdir -p testsuite/volumes/collections
@@ -118,15 +121,17 @@ volumes:
 - name: search-es-v
   host:
     path: /opt/node/volumes/search-es/data
-- name: test-collections-v
-  host:
-    path: /drone/src/testsuite/volumes/collections/testdata
+# - name: test-collections-v
+#   host:
+#     path: /drone/src/testsuite/volumes/collections
 - name: gnupg-v
   host:
     path: /drone/src/volumes/gnupg
 - name: snoop-blobs-v
   host:
     path: /drone/src/volumes/snoop-blobs
+- name: test-collections-v
+  temp: {}
     # path: /opt/hoover/snoop/testsuite/volumes/collections
 
 #---
