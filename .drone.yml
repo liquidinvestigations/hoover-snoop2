@@ -117,10 +117,10 @@ volumes:
     path: /var/run/docker.sock
 - name: snoop-pg-v
   host:
-    path: /opt/node/volumes/snoop-pg/data
+    path: /drone/src/volumes/snoop-pg/data
 - name: search-es-v
   host:
-    path: /opt/node/volumes/search-es/data
+    path: /drone/src/volumes/search-es/data
 # - name: test-collections-v
 #   host:
 #     path: /drone/src/testsuite/volumes/collections
