@@ -75,7 +75,7 @@ steps:
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
   commands:
-  # - cd /opt/hoover/snoop
+  - cd /opt/hoover/snoop
   - py.test -vv
 
 services:
