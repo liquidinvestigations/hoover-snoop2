@@ -107,6 +107,7 @@ def index(id, data):
 def delete_index_by_name(name):
     print(f'ES_URL: {ES_URL}')
     url = f'{ES_URL}/{name}'
+    print(url)
     log.info("DELETE %s", url)
     delete_resp = requests.delete(url)
     log.debug('Response: %r', delete_resp)
