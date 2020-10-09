@@ -109,7 +109,7 @@ def delete_index_by_name(name):
     url = f'{ES_URL}/{name}'
     print(url)
     log.info("DELETE %s", url)
-    delete_resp = requests.delete(url)
+    delete_resp = requests.delete("http://search-es:9200/testdata")
     log.debug('Response: %r', delete_resp)
 
 
