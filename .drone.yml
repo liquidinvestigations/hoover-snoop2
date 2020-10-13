@@ -90,7 +90,7 @@ services:
   image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
   volumes:
   - name: search-es-v
-    path: /usr/share/elasticsearch/data
+    path: /drone/src/volumes/search-es/data
   environment:
     discovery.type: single-node
 
@@ -114,7 +114,7 @@ volumes:
     path: /drone/src/volumes/snoop-pg/data
 - name: search-es-v
   host:
-    path: /drone/src/volumes/search-es/data
+    path: /usr/share/elasticsearch/data
 # - name: test-collections-v
 #   host:
 #     path: /drone/src/testsuite/volumes/collections
