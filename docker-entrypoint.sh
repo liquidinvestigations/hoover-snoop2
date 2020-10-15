@@ -9,6 +9,11 @@ chown -R 666:666 /runserver
 chown -R 666:666 /opt/magic-definitions
 chown -R 666:666 /opt/libpst
 
+if [ -f ./celerybeat-schedule ]; then
+    chown 666:666 ./celerybeat-schedule
+fi
+
+
 chown $UID:$GID $DATA_DIR/*
 
 whoami
