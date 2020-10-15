@@ -18,6 +18,16 @@ if [ -f celerybeat-schedule ]; then
   chown 666:666 celerybeat-schedule
 fi
 
+if -f celerybeat-schedule; then
+  echo "celerybeat-schedule found"
+  chown 666:666 celerybeat-schedule
+fi
+
+if -f "celerybeat-schedule"; then
+  echo "celerybeat-schedule found mit ho"
+  chown 666:666 celerybeat-schedule
+fi
+
 
 
 chown $UID:$GID $DATA_DIR/*
