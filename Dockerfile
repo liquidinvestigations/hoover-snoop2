@@ -21,7 +21,7 @@ COPY . .
 ENV THREAD_COUNT 20
 RUN set -e \
  && echo '#!/bin/bash -e' > /runserver \
- && echo 'waitress-serve --threads $THREAD_COUNT --port 80 snoop.wsgi:application' >> /runserver \
+ && echo 'waitress-serve --threads $THREAD_COUNT --port 8080 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver
 
 ENV DATA_DIR "/opt/hoover/snoop"
