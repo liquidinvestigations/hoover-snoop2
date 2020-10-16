@@ -9,26 +9,23 @@ chown -R 666:666 /runserver
 chown -R 666:666 /opt/magic-definitions
 chown -R 666:666 /opt/libpst
 
-if [ -f ./celerybeat-schedule ]; then
-  echo "./celerybeat-schedule found"
-  chown 666:666 ./celerybeat-schedule
-fi
-if [ -f celerybeat-schedule ]; then
-  echo "celerybeat-schedule found"
-  chown 666:666 celerybeat-schedule
-fi
-
-if -f celerybeat-schedule; then
-  echo "celerybeat-schedule found"
-  chown 666:666 celerybeat-schedule
+file="celerybeat-schedule"
+if [ -f "$file" ]
+then
+	echo "$file found."
+else
+	echo "$file not found."
 fi
 
-if -f "celerybeat-schedule"; then
-  echo "celerybeat-schedule found mit ho"
-  chown 666:666 celerybeat-schedule
+file="./celerybeat-schedule"
+if [ -f "$file" ]
+then
+	echo "$file found."
+else
+	echo "$file not found."
 fi
 
-
+ls
 
 chown $UID:$GID $DATA_DIR/*
 
