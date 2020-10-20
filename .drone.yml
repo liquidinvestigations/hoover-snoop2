@@ -102,7 +102,7 @@ services:
     POSTGRES_PASSWORD: snoop
   volumes:
   - name: snoop-pg-v
-    path: /var/lib/postgresql/data
+    path: /drone/src/volumes/snoop-pg/data
 
 
 volumes:
@@ -111,7 +111,7 @@ volumes:
     path: /var/run/docker.sock
 - name: snoop-pg-v
   host:
-    path: /drone/src/volumes/snoop-pg/data
+    path: /var/lib/postgresql/data
 - name: search-es-v
   host:
     path: /usr/share/elasticsearch/data
