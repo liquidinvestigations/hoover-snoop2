@@ -115,19 +115,25 @@ WORKER_COUNT = min(SNOOP_MAX_WORKERS,
                    max(SNOOP_MIN_WORKERS,
                        int(SNOOP_CPU_MULTIPLIER * cpu_count())))
 
-TASK_RETRY_AFTER_DAYS = 10
+TASK_RETRY_AFTER_DAYS = 35
 
 # max tasks count to be finished by 1 worker before restarting it
-WORKER_TASK_LIMIT = 1111
-# memory limit for each worker (in mb)
+WORKER_TASK_LIMIT = 10 ** 5
+# memory limit for each worker (in mb),
+# not enforced - worker gets restarted after it uses more than this value.
 WORKER_MEMORY_LIMIT = 5000
+
+# average worker count to scale the queue limits by
+_scale_coef = int((1 + SNOOP_MIN_WORKERS + SNOOP_MAX_WORKERS) / 2)
 # limit for queueing large counts of children tasks
-CHILD_QUEUE_LIMIT = 100
+CHILD_QUEUE_LIMIT = 50 * _scale_coef
 # Count of pending tasks to trigger per collection when finding an empty queue.
-DISPATCH_QUEUE_LIMIT = 50000
+# A single worker core running zero-length tasks gets at most around 40
+# tasks/s, so to keep them all occupied for 6min:
+DISPATCH_QUEUE_LIMIT = 14400 * _scale_coef
 # If there are no pending tasks, this is how many directories
 # will be retried by sync every minute.
-SYNC_RETRY_LIMIT = 1000
+SYNC_RETRY_LIMIT = 60 * _scale_coef
 
 # Only run pdf2pdfocr if pdf text word count less than this value:
 PDF2PDFOCR_MAX_WORD_COUNT = 666
@@ -170,11 +176,11 @@ if _tracing_url:
 celery.app.conf.beat_schedule = {
     'run_dispatcher': {
         'task': 'snoop.data.tasks.run_dispatcher',
-        'schedule': timedelta(seconds=25),
+        'schedule': timedelta(seconds=55),
     },
     'save_stats': {
         'task': 'snoop.data.tasks.save_stats',
-        'schedule': timedelta(seconds=60),
+        'schedule': timedelta(seconds=66),
     },
 }
 

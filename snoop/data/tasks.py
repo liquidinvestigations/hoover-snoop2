@@ -1,3 +1,4 @@
+import random
 from contextlib import contextmanager
 from io import StringIO
 import json
@@ -321,21 +322,27 @@ def snoop_task(name, priority=5):
 
 
 def dispatch_tasks(status):
-    task_query = (
-        models.Task.objects
-        .filter(status=status)
-        .order_by('-date_modified')  # newest pending tasks first
-    )[:settings.DISPATCH_QUEUE_LIMIT]
+    all_functions = [x['func'] for x in models.Task.objects.values('func').distinct()]
+    random.shuffle(all_functions)
+    found_something = False
 
-    task_count = task_query.count()
-    if not task_count:
-        logger.info(f'No {status} tasks to dispatch')
-        return False
-    logger.info(f'Dispatching {task_count} "{status}" tasks for collection "{collections.current().name}"')  # noqa: E501
+    for func in all_functions:
+        task_query = (
+            models.Task.objects
+            .filter(status=status, func=func)
+            .order_by('-date_modified')  # newest pending tasks first
+        )[:settings.DISPATCH_QUEUE_LIMIT]
 
-    for task in task_query.iterator():
-        queue_task(task)
-    return True
+        task_count = task_query.count()
+        if not task_count:
+            logger.info(f'collection "{collections.current().name}": No {status} {func} tasks to dispatch')  # noqa: E501
+            continue
+        logger.info(f'collection "{collections.current().name}": Dispatching {task_count} {status} {func} tasks')  # noqa: E501
+
+        for task in task_query.iterator():
+            queue_task(task)
+        found_something = True
+    return found_something
 
 
 def retry_task(task, fg=False):
@@ -488,7 +495,7 @@ def save_stats():
     # Kill a little bit of time, in case there are a lot of older
     # messages queued up, they have time to fail in the above
     # check.
-    sleep(5)
+    sleep(3)
 
 
 @celery.app.task
@@ -497,14 +504,16 @@ def run_dispatcher():
         logger.warning('run_dispatcher function already running, exiting')
         return
 
-    for collection in collections.ALL.values():
+    collection_list = list(collections.ALL.values())
+    random.shuffle(collection_list)
+    for collection in collection_list:
         logger.info(f'{"=" * 10} collection "{collection.name}" {"=" * 10}')
         try:
             dispatch_for(collection)
         except Exception as e:
             logger.exception(e)
 
-    sleep(5)
+    sleep(3)
 
 
 def dispatch_for(collection):
