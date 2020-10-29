@@ -9,21 +9,23 @@ chown -R 666:666 /runserver
 chown -R 666:666 /opt/magic-definitions
 chown -R 666:666 /opt/libpst
 
-file="celerybeat-schedule"
-if [ -f "$file" ]
-then
-	echo "$file found."
-else
-	echo "$file not found."
-fi
+chown -R 666:666 /opt/hoover
 
-file="./celerybeat-schedule"
-if [ -f "$file" ]
-then
-	echo "$file found."
-else
-	echo "$file not found."
-fi
+# file="celerybeat-schedule"
+# if [ -f "$file" ]
+# then
+# 	echo "$file found."
+# else
+# 	echo "$file not found."
+# fi
+#
+# file="./celerybeat-schedule"
+# if [ -f "$file" ]
+# then
+# 	echo "$file found."
+# else
+# 	echo "$file not found."
+# fi
 
 ls
 
