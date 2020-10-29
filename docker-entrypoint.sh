@@ -9,7 +9,8 @@ chown -R 666:666 /runserver
 chown -R 666:666 /opt/magic-definitions
 chown -R 666:666 /opt/libpst
 
-chown -R 666:666 /opt/hoover
+chown 666:666 /opt/hoover
+chown -R 666:666 /opt/hoover/snoop
 
 # file="celerybeat-schedule"
 # if [ -f "$file" ]
