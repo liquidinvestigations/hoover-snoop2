@@ -43,7 +43,7 @@ steps:
     path: /var/run
   commands:
   #- docker build . -f Dockerfile --tag liquidinvestigations/hoover-snoop2:test
-  - docker build . -f Dockerfile --tag test:test
+  - docker build . -f Dockerfile --tag test-collections-v:/opt/hoover/collections test:test
 
 - name: run tests
   image: docker
@@ -74,7 +74,7 @@ steps:
   commands:
   # - cd /opt/hoover/snoop
   # - py.test -vv
-  - docker run --env-file env.env test:test py.test
+  - docker run --env-file env.env -v test:test py.test
 
 
 services:
@@ -112,7 +112,8 @@ services:
 volumes:
 - name: dockersock
   temp: {}
-
+- name: test-collections-v
+  temp: {}
 
 # volumes:
 # - name: dockersock
@@ -133,8 +134,6 @@ volumes:
 # - name: snoop-blobs-v
 #   host:
 #     path: /drone/src/volumes/snoop-blobs
-# - name: test-collections-v
-#   temp: {}
 #     # path: /opt/hoover/snoop/testsuite/volumes/collections
 
 # ---

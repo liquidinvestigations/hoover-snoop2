@@ -2,8 +2,6 @@ import os
 
 from snoop.defaultsettings import *
 
-# print(f'SNOOP_ES_URL: {SNOOP_ES_URL}')
-print(f'SNOOP_COLLECTIONS_ELASTICSEARCH_URL: {SNOOP_COLLECTIONS_ELASTICSEARCH_URL}')
 SNOOP_TESTDATA = SNOOP_COLLECTION_ROOT + '/testdata'
 assert os.path.isdir(SNOOP_TESTDATA)
 
