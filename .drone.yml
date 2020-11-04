@@ -37,7 +37,7 @@ steps:
   - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
   - chown -R 666:666 testsuite/volumes/collections/testdata
   - pwd && ls
-  - pwd /drone/src/testsuite/volumes/collections
+  - pwd && ls /drone/src/testsuite/volumes/collections
 
 - name: build docker image
   image: docker
