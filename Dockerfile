@@ -1,14 +1,11 @@
 From liquidinvestigations/hoover-snoop2:base
 
-# merge
-
 ARG UNAME=liquid
 ARG UID=666
 ARG GID=666
 RUN groupadd -g $GID -o $UNAME
 RUN useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
 
-RUN apt-get update && apt-get install sudo
 RUN apt-get update && apt-get install -y gosu
 
 # install snoop
@@ -25,6 +22,10 @@ RUN set -e \
  && echo '#!/bin/bash -e' > /runserver \
  && echo 'waitress-serve --threads $THREAD_COUNT --port 8080 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver
+
+chown -R 666:666 /runserver
+chown -R 666:666 /opt/magic-definitions
+chown -R 666:666 /opt/libpst
 
 ENV DATA_DIR "/opt/hoover/snoop"
 ENV USER_NAME $UNAME

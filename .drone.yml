@@ -34,7 +34,7 @@ steps:
   commands:
   - mkdir -p testsuite/volumes/collections
   - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
-  - chown 666:666 testsuite/volumes/collections/testdata
+  - chown -R 666:666 testsuite/volumes/collections/testdata
 
 - name: build docker image
   image: docker
@@ -48,14 +48,14 @@ steps:
   image: liquidinvestigations/hoover-snoop2:test
   pull: if-not-exists
   volumes:
-  - name: dockersock
-    path: /var/run/docker.sock
-  - name: gnupg-v
-    path: /opt/hoover/gnupg
-  - name: test-collections-v
-    path: /opt/hoover/collections
-  - name: snoop-blobs-v
-    path: /opt/hoover/snoop/blobs
+  # - name: dockersock
+  #   path: /var/run/docker.sock
+  # - name: gnupg-v
+  #   path: /opt/hoover/gnupg
+  # - name: test-collections-v
+  #   path: /opt/hoover/collections
+  # - name: snoop-blobs-v
+  #   path: /opt/hoover/snoop/blobs
   # - name: search-v-testing
   #   path: /opt/hoover/search/hoover/site/settings/testing_local.py
   environment:
@@ -69,8 +69,10 @@ steps:
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
   commands:
-  - cd /opt/hoover/snoop
-  - py.test -vv
+  # - cd /opt/hoover/snoop
+  # - py.test -vv
+  - docker run test:test py.test
+
 
 services:
 - name: docker daemon in docker
@@ -104,71 +106,75 @@ services:
   - name: snoop-pg-v
     path: /drone/src/volumes/snoop-pg/data
 
-
 volumes:
 - name: dockersock
-  host:
-    path: /var/run/docker.sock
-- name: snoop-pg-v
-  host:
-    path: /var/lib/postgresql/data
-- name: search-es-v
-  host:
-    path: /usr/share/elasticsearch/data
-# - name: test-collections-v
-#   host:
-#     path: /drone/src/testsuite/volumes/collections
-- name: gnupg-v
-  host:
-    path: /drone/src/volumes/gnupg
-- name: snoop-blobs-v
-  host:
-    path: /drone/src/volumes/snoop-blobs
-- name: test-collections-v
   temp: {}
-    # path: /opt/hoover/snoop/testsuite/volumes/collections
 
----
-kind: pipeline
-name: publish to docker hub
 
-trigger:
-  status:
-  - success
-  event:
-  - push
-  - tag
+# volumes:
+# - name: dockersock
+#   host:
+#     path: /var/run/docker.sock
+# - name: snoop-pg-v
+#   host:
+#     path: /var/lib/postgresql/data
+# - name: search-es-v
+#   host:
+#     path: /usr/share/elasticsearch/data
+# # - name: test-collections-v
+# #   host:
+# #     path: /drone/src/testsuite/volumes/collections
+# - name: gnupg-v
+#   host:
+#     path: /drone/src/volumes/gnupg
+# - name: snoop-blobs-v
+#   host:
+#     path: /drone/src/volumes/snoop-blobs
+# - name: test-collections-v
+#   temp: {}
+#     # path: /opt/hoover/snoop/testsuite/volumes/collections
 
-depends_on:
-- test
-
-steps:
-- name: docker push branch ${DRONE_COMMIT_BRANCH}
-  image: plugins/docker
-  settings:
-    repo: liquidinvestigations/hoover-snoop2
-    # https://0-8-0.docs.drone.io/substitution/
-    tags: ${DRONE_COMMIT_BRANCH}
-    username:
-      from_secret: docker_username
-    password:
-      from_secret: docker_password
-  when:
-    event:
-    - push
-    branch:
-      exclude:
-      - dependabot/**
-
-- name: docker push autotag + latest
-  image: plugins/docker
-  settings:
-    repo: liquidinvestigations/hoover-snoop2
-    auto_tag: true
-    username:
-      from_secret: docker_username
-    password:
-      from_secret: docker_password
+# ---
+# kind: pipeline
+# name: publish to docker hub
+#
+# trigger:
+#   status:
+#   - success
+#   event:
+#   - push
+#   - tag
+#
+# depends_on:
+# - test
+#
+# steps:
+# - name: docker push branch ${DRONE_COMMIT_BRANCH}
+#   image: plugins/docker
+#   settings:
+#     repo: liquidinvestigations/hoover-snoop2
+#     # https://0-8-0.docs.drone.io/substitution/
+#     tags: ${DRONE_COMMIT_BRANCH}
+#     username:
+#       from_secret: docker_username
+#     password:
+#       from_secret: docker_password
+#   when:
+#     event:
+#     - push
+#     branch:
+#       exclude:
+#       - dependabot/**
+#
+# - name: docker push autotag + latest
+#   image: plugins/docker
+#   settings:
+#     repo: liquidinvestigations/hoover-snoop2
+#     auto_tag: true
+#     username:
+#       from_secret: docker_username
+#     password:
+#       from_secret: docker_password
 
 ---
 kind: secret
