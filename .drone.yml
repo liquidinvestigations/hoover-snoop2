@@ -43,7 +43,7 @@ steps:
     path: /var/run
   commands:
   #- docker build . -f Dockerfile --tag liquidinvestigations/hoover-snoop2:test
-  - docker build . -f Dockerfile --tag test-collections-v:/opt/hoover/collections test:test
+  - docker build . -f Dockerfile --tag test:test
 
 - name: run tests
   image: docker
@@ -74,7 +74,7 @@ steps:
   commands:
   # - cd /opt/hoover/snoop
   # - py.test -vv
-  - docker run --env-file env.env -v test:test py.test
+  - docker run --env-file env.env -v  test-collections-v:/opt/hoover/collections test:test py.test
 
 
 services:
