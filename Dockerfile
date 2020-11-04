@@ -23,9 +23,9 @@ RUN set -e \
  && echo 'waitress-serve --threads $THREAD_COUNT --port 8080 snoop.wsgi:application' >> /runserver \
  && chmod +x /runserver
 
-chown -R 666:666 /runserver
-chown -R 666:666 /opt/magic-definitions
-chown -R 666:666 /opt/libpst
+RUN chown -R 666:666 /runserver
+RUN chown -R 666:666 /opt/magic-definitions
+RUN chown -R 666:666 /opt/libpst
 
 ENV DATA_DIR "/opt/hoover/snoop"
 ENV USER_NAME $UNAME
