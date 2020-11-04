@@ -42,11 +42,12 @@ steps:
   - name: dockersock
     path: /var/run
   commands:
-  - docker build . -f Dockerfile --tag liquidinvestigations/hoover-snoop2:test
+  #- docker build . -f Dockerfile --tag liquidinvestigations/hoover-snoop2:test
+  - docker build . -f Dockerfile --tag test:test
 
 - name: run tests
-  image: liquidinvestigations/hoover-snoop2:test
-  pull: if-not-exists
+  image: docker
+  #pull: if-not-exists
   volumes:
   - name: dockersock
     path: /var/run
