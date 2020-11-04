@@ -40,7 +40,7 @@ steps:
   image: docker
   volumes:
   - name: dockersock
-    path: /var/run/docker.sock
+    path: /var/run
   commands:
   - docker build . -f Dockerfile --tag liquidinvestigations/hoover-snoop2:test
 
@@ -48,6 +48,8 @@ steps:
   image: liquidinvestigations/hoover-snoop2:test
   pull: if-not-exists
   volumes:
+  - name: dockersock
+    path: /var/run
   # - name: dockersock
   #   path: /var/run/docker.sock
   # - name: gnupg-v
@@ -80,7 +82,7 @@ services:
   privileged: true
   volumes:
   - name: dockersock
-    path: /var/run/docker.sock
+    path: /var/run
 
 - name: snoop-rabbitmq
   image: rabbitmq:3.7.3
