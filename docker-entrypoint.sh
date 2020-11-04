@@ -7,25 +7,7 @@ echo "Running in $PWD"
 
 chown 666:666 /opt/hoover
 chown -R 666:666 /opt/hoover/snoop
-
-# file="celerybeat-schedule"
-# if [ -f "$file" ]
-# then
-# 	echo "$file found."
-# else
-# 	echo "$file not found."
-# fi
-#
-# file="./celerybeat-schedule"
-# if [ -f "$file" ]
-# then
-# 	echo "$file found."
-# else
-# 	echo "$file not found."
-# fi
-
-ls
-
+ 
 chown $UID:$GID $DATA_DIR/*
 
 whoami

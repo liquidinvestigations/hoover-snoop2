@@ -74,7 +74,7 @@ steps:
   commands:
   # - cd /opt/hoover/snoop
   # - py.test -vv
-  - docker run --env-file env.txt test:test py.test
+  - docker run --env-file env.env test:test py.test
 
 
 services:
