@@ -32,9 +32,12 @@ steps:
   - name: test-collections-v
     path: /drone/src/testsuite/volumes/collections
   commands:
+  - pwd && ls
   - mkdir -p testsuite/volumes/collections
   - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
   - chown -R 666:666 testsuite/volumes/collections/testdata
+  - pwd && ls
+  - pwd /drone/src/testsuite/volumes/collections
 
 - name: build docker image
   image: docker
