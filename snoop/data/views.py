@@ -133,5 +133,6 @@ def document_ocr(request, hash, ocrname):
 @collection_view
 def document_locations(request, hash):
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
-    locations = digests.get_document_locations(digest)
-    return JsonResponse({'locations': locations})
+    page = int(request.GET.get('page', 1))
+    locations, has_next = digests.get_document_locations(digest, page)
+    return JsonResponse({'locations': locations, 'page': page, 'has_next_page': has_next})
