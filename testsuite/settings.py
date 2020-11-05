@@ -2,6 +2,7 @@ import os
 
 from snoop.defaultsettings import *
 # m
+print("ls test output:")
 print(os.listdir("/opt/hoover"))
 print(os.listdir("/opt/hoover/collections"))
 print(os.listdir("/opt/hoover/collections/testdata"))
