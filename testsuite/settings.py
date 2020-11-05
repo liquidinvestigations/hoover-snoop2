@@ -1,7 +1,7 @@
 import os
 
 from snoop.defaultsettings import *
-
+# m
 print(os.listdir("/opt/hoover"))
 SNOOP_TESTDATA = SNOOP_COLLECTION_ROOT + '/testdata'
 assert os.path.isdir(SNOOP_TESTDATA)
