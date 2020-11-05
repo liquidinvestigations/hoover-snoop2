@@ -191,19 +191,52 @@ def file_id(file_query):
     return f'_file_{file_query.pk}'
 
 
-def parent_id(file):
-    parent = file.parent
+def _get_parent(item):
+    parent = item.parent
+
+    if isinstance(parent, models.File):
+        return parent
+
+    if isinstance(parent, models.Directory):
+        # skip over the dirs that are the children of container files
+        if parent.container_file:
+            return parent.container_file
+        return parent
+
+    return None
+
+
+def parent_id(item):
+    parent = _get_parent(item)
 
     if isinstance(parent, models.File):
         return file_id(parent)
 
     if isinstance(parent, models.Directory):
-        # skip over the dirs that are the children of container files
-        if parent.container_file:
-            return file_id(parent.container_file)
         return directory_id(parent)
 
     return None
+
+
+def parent_children_page(item):
+    # don't use _get_parent --> don't skip parents when for polling children
+    parent = item.parent
+    if isinstance(item, models.Directory) and item.container_file:  # dummy archive directory
+        return 1
+    if not parent:  # root document, no parent
+        return 1
+    assert isinstance(parent, models.Directory)
+
+    if isinstance(item, models.File):
+        children = parent.child_file_set
+
+    if isinstance(item, models.Directory):
+        children = parent.child_directory_set
+
+    children_before_item = children.filter(name_bytes__lt=item.name_bytes).count()
+    page_index = 1 + int(children_before_item / settings.SNOOP_DOCUMENT_CHILD_QUERY_LIMIT)
+
+    return page_index
 
 
 def email_meta(digest_data):
@@ -285,8 +318,9 @@ def _get_first_file(digest):
     return first_file
 
 
-def _get_document_content(digest):
-    first_file = _get_first_file(digest)
+def _get_document_content(digest, the_file=None):
+    if not the_file:
+        the_file = _get_first_file(digest)
 
     with digest.result.open() as f:
         digest_data = json.loads(f.read().decode('utf8'))
@@ -294,11 +328,11 @@ def _get_document_content(digest):
     attachments = None
     filetype = get_filetype(digest.blob.mime_type)
     if filetype == 'email':
-        if first_file.child_directory_set.count() > 0:
+        if the_file.child_directory_set.count() > 0:
             attachments = True
 
-    original = first_file.original
-    path = full_path(first_file)
+    original = the_file.original
+    path = full_path(the_file)
 
     content = {
         'content-type': original.mime_type,
@@ -314,7 +348,7 @@ def _get_document_content(digest):
         'md5': original.md5,
         'sha1': original.sha1,
         'size': original.size,
-        'filename': first_file.name,
+        'filename': the_file.name,
         'path': path,
         'path-text': path,
         'path-parts': path_parts(path),
@@ -354,13 +388,16 @@ def get_document_data(digest, children_page=1):
         'version': _get_document_version(digest),
         'content': _get_document_content(digest),
         'children': children,
-        'incomplete_children_list': incomplete_children_list,
+        'children_page': children_page,
+        'children_has_next_page': incomplete_children_list,
+        'parent_children_page': parent_children_page(first_file),
     }
 
     return rv
 
 
-def get_document_locations(digest):
+def get_document_locations(digest, page_index):
+
     def location(file):
         parent_path = full_path(file.parent_directory.container_file or file.parent_directory)
         return {
@@ -371,15 +408,17 @@ def get_document_locations(digest):
         }
 
     queryset = digest.blob.file_set.order_by('pk')
+    paginator = Paginator(queryset, settings.SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT)
+    page = paginator.get_page(page_index)
 
-    queryset = queryset[:settings.SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT + 1]
-    return [location(file) for file in queryset]
+    return [location(file) for file in page.object_list], page.has_next()
 
 
 def child_file_to_dict(file):
     blob = file.blob
     return {
-        'id': blob.pk,
+        # 'id': blob.pk,
+        'id': file_id(file),
         'file': file_id(file),
         'digest': blob.pk,
         'content_type': blob.mime_type,
@@ -425,7 +464,9 @@ def get_directory_data(directory, children_page=1):
             'path': full_path(directory),
         },
         'children': children,
-        'incomplete_children_list': incomplete_children_list,
+        'children_page': children_page,
+        'children_has_next_page': incomplete_children_list,
+        'parent_children_page': parent_children_page(directory),
     }
 
 
@@ -444,9 +485,11 @@ def get_file_data(file, children_page=1):
         'parent_id': parent_id(file),
         'has_locations': True,
         'version': _get_document_version(blob.digest),
-        'content': _get_document_content(blob.digest),
+        'content': _get_document_content(blob.digest, file),
         'children': children,
-        'incomplete_children_list': incomplete_children_list,
+        'children_page': children_page,
+        'children_has_next_page': incomplete_children_list,
+        'parent_children_page': parent_children_page(file),
     }
 
     return rv

@@ -110,7 +110,7 @@ TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 
 SNOOP_MIN_WORKERS = int(os.environ.get('SNOOP_MIN_WORKERS', '2'))
 SNOOP_MAX_WORKERS = int(os.environ.get('SNOOP_MAX_WORKERS', '8'))
-SNOOP_CPU_MULTIPLIER = float(os.environ.get('SNOOP_CPU_MULTIPLIER', '0.85'))
+SNOOP_CPU_MULTIPLIER = float(os.environ.get('SNOOP_CPU_MULTIPLIER', '0.66'))
 WORKER_COUNT = min(SNOOP_MAX_WORKERS,
                    max(SNOOP_MIN_WORKERS,
                        int(SNOOP_CPU_MULTIPLIER * cpu_count())))
@@ -145,8 +145,8 @@ def bool_env(value):
     return (value or '').lower() in ['on', 'true']
 
 
-SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT = 300
-SNOOP_DOCUMENT_CHILD_QUERY_LIMIT = 300
+SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT = 200
+SNOOP_DOCUMENT_CHILD_QUERY_LIMIT = 200
 
 _amqp_url = os.getenv('SNOOP_AMQP_URL')
 if _amqp_url:
