@@ -58,8 +58,8 @@ steps:
   #   path: /var/run/docker.sock
   # - name: gnupg-v
   #   path: /opt/hoover/gnupg
-  # - name: test-collections-v
-  #   path: /opt/hoover/collections
+  - name: test-collections-v
+    path: /opt/hoover/collections
   # - name: snoop-blobs-v
   #   path: /opt/hoover/snoop/blobs
   # - name: search-v-testing
@@ -77,7 +77,7 @@ steps:
   commands:
   # - cd /opt/hoover/snoop
   # - py.test -vv
-  - docker run --env-file env.env --mount 'type=volume,src=/drone/src/testsuite/volumes/collections,dst=/opt/hoover/collections' test:test py.test
+  - docker run --env-file env.env -v test-collection-v:/opt/hoover/collections test:test py.test
 
 
 services:
