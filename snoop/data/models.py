@@ -6,7 +6,7 @@ import hashlib
 from django.db import models
 from django.conf import settings
 from django.template.defaultfilters import truncatechars
-from django.contrib.postgres.fields import JSONField
+from django.db.models import JSONField
 from django.core.exceptions import ObjectDoesNotExist
 from .magic import Magic, looks_like_email, looks_like_emlx_email, \
     looks_like_mbox
