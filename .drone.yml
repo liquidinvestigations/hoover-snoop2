@@ -30,7 +30,7 @@ steps:
   image: alpine/git:1.0.7
   volumes:
   - name: test-collections-v
-    path: /drone/src/testsuite/volumes/collections
+    path: /drone/src/testsuite/volumes/collections/testdata
   commands:
   - pwd && ls
   - mkdir -p testsuite/volumes/collections
@@ -59,7 +59,7 @@ steps:
   # - name: gnupg-v
   #   path: /opt/hoover/gnupg
   - name: test-collections-v
-    path: /opt/hoover/collections
+    path: /opt/hoover/collections/testdata
   # - name: snoop-blobs-v
   #   path: /opt/hoover/snoop/blobs
   # - name: search-v-testing
@@ -77,7 +77,7 @@ steps:
   commands:
   # - cd /opt/hoover/snoop
   # - py.test -vv
-  - docker run --env-file env.env -v test-collections-v:/opt/hoover/collections test:test py.test
+  - docker run --env-file env.env -v test-collections-v:/opt/hoover/collections/testdata test:test py.test
 
 
 services:
