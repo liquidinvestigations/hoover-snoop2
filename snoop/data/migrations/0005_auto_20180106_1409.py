@@ -14,6 +14,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='directory',
             name='parent_directory',
-            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.DO_NOTHING, related_name='child_directory_set', to='data.Directory'),
+            field=models.ForeignKey(null=True, on_delete=django.db.models.deletion.DO_NOTHING,
+                                    related_name='child_directory_set', to='data.Directory'),
         ),
     ]

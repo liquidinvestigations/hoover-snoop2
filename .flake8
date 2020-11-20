@@ -1,5 +1,6 @@
 [flake8]
 ignore = W503
+max-line-length = 109
 
 exclude =
     snoop/wsgi.py

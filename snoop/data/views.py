@@ -1,11 +1,14 @@
 from django.http import HttpResponse, JsonResponse, FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.conf import settings
+from rest_framework import viewsets
 from . import models
 from . import digests
 from . import ocr
 from . import collections
+from . import serializers
 from .analyzers import html
+from django.db.models import Q
 
 TEXT_LIMIT = 10 ** 7  # ten million characters
 
@@ -19,6 +22,20 @@ def collection_view(func):
 
         with col.set_current():
             return func(request, *args, **kwargs)
+
+    return view
+
+
+def drf_collection_view(func):
+    def view(self, *args, **kwargs):
+        try:
+            collection = self.kwargs['collection']
+            col = collections.ALL[collection]
+        except KeyError:
+            raise Http404("Collection does not exist")
+
+        with col.set_current():
+            return func(self, *args, **kwargs)
 
     return view
 
@@ -138,3 +155,66 @@ def document_locations(request, hash):
     page = int(request.GET.get('page', 1))
     locations, has_next = digests.get_document_locations(digest, page)
     return JsonResponse({'locations': locations, 'page': page, 'has_next_page': has_next})
+
+
+@collection_view
+def users_with_private_tags(request):
+    q = models.DocumentUserTag.objects.filter(public=False).values('user').distinct()
+    return JsonResponse({'users': list(i['user'] for i in q.iterator())})
+
+
+class TagViewSet(viewsets.ModelViewSet):
+    serializer_class = serializers.DocumentUserTagSerializer
+    permission_classes = []
+
+    @drf_collection_view
+    def get_serializer(self, *args, **kwargs):
+        context = {
+            'collection': self.kwargs['collection'],
+            'blob': self.kwargs['hash'],
+            'user': self.kwargs['username'],
+            'digest_id': models.Digest.objects.filter(blob=self.kwargs['hash']).get().id,
+        }
+        return super().get_serializer(*args, **kwargs, context=context)
+
+    @drf_collection_view
+    def dispatch(self, *args, **kwargs):
+        return super().dispatch(*args, **kwargs)
+
+    @drf_collection_view
+    def get_queryset(self):
+        user = self.kwargs['username']
+        blob = self.kwargs['hash']
+        assert models.Digest.objects.filter(blob=blob).exists(), 'hash is not digest'
+        return models.DocumentUserTag.objects.filter(Q(user=user) | Q(public=True), Q(digest__blob=blob))
+
+#    @drf_collection_view
+#    def create(self, request, **kwargs):
+#        log.error('create request kwargs ' + str(self.kwargs))
+#        log.error('function kwargs ' + str(kwargs))
+#
+#        blob = self.kwargs['hash']
+#        user = self.kwargs['username']
+#        digest_id = models.Digest.objects.get(blob=blob).id
+#        return super().create(request)
+#
+#    @drf_collection_view
+#    def update(self, request, pk=None):
+#        blob = self.kwargs['hash']
+#        request.data['user'] = self.kwargs['username']
+#        request.data['digest_id'] = models.Digest.objects.get(blob=blob).id
+#        return super().update(request, pk)
+#
+#    @drf_collection_view
+#    def partial_update(self, request, pk=None):
+#        blob = self.kwargs['hash']
+#        request.data['user'] = self.kwargs['username']
+#        request.data['digest_id'] = models.Digest.objects.get(blob=blob).id
+#        return super().partial_update(request, pk)
+#
+#    @drf_collection_view
+#    def destroy(self, request, pk=None):
+#        blob = self.kwargs['hash']
+#        request.data['user'] = self.kwargs['username']
+#        request.data['digest_id'] = models.Digest.objects.get(blob=blob).id
+#        return super().destroy(request, pk)

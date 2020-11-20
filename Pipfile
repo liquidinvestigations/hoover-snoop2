@@ -64,6 +64,12 @@ opencensus-ext-prometheus = "*"
 opencensus-ext-zipkin = "*"
 pyrabbit = "*"
 prompt_toolkit = "*"
+djangorestframework = "*"
+markdown = "*"
+django-filter = "*"
+pyyaml = "*"
+drf-yasg = "*"
+uritemplate = "*"
 
 [requires]
 python_version = "3.9"

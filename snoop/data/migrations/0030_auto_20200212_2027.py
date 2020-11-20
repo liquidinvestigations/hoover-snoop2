@@ -12,7 +12,8 @@ class Migration(migrations.Migration):
     operations = [
         migrations.AddIndex(
             model_name='task',
-            index=models.Index(fields=['status', 'date_modified'], name='data_task_status_6689af_idx'),
+            index=models.Index(fields=['status', 'date_modified'],
+                               name='data_task_status_6689af_idx'),
         ),
         migrations.AddIndex(
             model_name='task',

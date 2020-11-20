@@ -46,6 +46,8 @@ MAPPINGS = {
             "ocr": {"type": "boolean"},
             "ocrpdf": {"type": "boolean"},
             "ocrimage": {"type": "boolean"},
+            "public-tags": {"type": "keyword"},
+            "private-tags": {"properties": {}},
         }
     }
 }

@@ -1,7 +1,7 @@
 from django.contrib.auth.models import User
 
 
-class Middleware():
+class AutoLogin():
     def __init__(self, get_response):
         self.get_response = get_response
 
@@ -17,3 +17,8 @@ class Middleware():
 
         request.user = root
         return self.get_response(request)
+
+
+class DisableCSRF():
+    def process_request(self, request):
+        setattr(request, '_dont_enforce_csrf_checks', True)

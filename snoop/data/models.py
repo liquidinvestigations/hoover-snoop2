@@ -380,6 +380,41 @@ class Digest(models.Model):
     __repr__ = __str__
 
 
+class DocumentUserTag(models.Model):
+    digest = models.ForeignKey(Digest, on_delete=models.DO_NOTHING)
+    user = models.CharField(max_length=256)
+    tag = models.CharField(max_length=512)
+    public = models.BooleanField()
+
+    class Meta:
+        unique_together = ('digest', 'user', 'tag', 'public')
+
+    def __str__(self):
+        return f'user tag {self.pk}: tag={self.tag} user={self.user} doc={self.blob.pk[:5]}...'
+
+    @property
+    def blob(self):
+        return self.digest.blob
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+
+        try:
+            from snoop.data.digests import index
+            index(self.blob, None)
+        except Exception as e:
+            print(e)
+
+    def delete(self, *args, **kwargs):
+        super().delete(*args, **kwargs)
+
+        try:
+            from snoop.data.digests import index
+            index(self.blob, None)
+        except Exception as e:
+            print(e)
+
+
 class OcrSource(models.Model):
     name = models.CharField(max_length=1024, unique=True)
 

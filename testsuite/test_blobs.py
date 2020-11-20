@@ -81,7 +81,8 @@ def test_make_blob_from_first_eml_file():
     # .odt
     ("/data/no-extension/file_odt", "application/vnd.oasis.opendocument.text"),
     ("/data/disk-files/pdf-doc-txt/easychair.odt", "application/vnd.oasis.opendocument.text"),
-    ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Attachments/1498/2/Legea-299-2015-informatiile-publice.odt", "application/vnd.oasis.opendocument.text"),
+    ("/data/lists.mbox/F2D0D67E-7B19-4C30-B2E9-B58FE4789D51/Data/1/Attachments/1498/2/Legea-299-2015-informatiile-publice.odt",
+     "application/vnd.oasis.opendocument.text"),
     # .html
     ("/data/no-extension/file_html", "text/html"),
     ("/data/disk-files/bad-html/alert.html", "text/html"),
@@ -89,7 +90,8 @@ def test_make_blob_from_first_eml_file():
     ("/data/disk-files/html-encodings/xml_declaration_latin1.html", "text/xml"),
     # .docx
     ("/data/no-extension/file_docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
-    ("/data/disk-files/pdf-doc-txt/easychair.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ("/data/disk-files/pdf-doc-txt/easychair.docx",
+     "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     # .zip
     ("/data/no-extension/file_zip", "application/zip"),
     ("/data/disk-files/archives/zip-with-docx-and-doc.zip", "application/zip"),
@@ -110,7 +112,8 @@ def test_make_blob_from_first_eml_file():
     ("/data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz", "application/gzip"),
     # .msg
     ("/data/no-extension/file_msg", "application/vnd.ms-outlook"),
-    ("/data/msg-5-outlook/DISEARĂ-Te-așteptăm-la-discuția-despre-finanțarea-culturii.msg", "application/vnd.ms-outlook"),
+    ("/data/msg-5-outlook/DISEARĂ-Te-așteptăm-la-discuția-despre-finanțarea-culturii.msg",
+     "application/vnd.ms-outlook"),
     # .pst
     ("/data/no-extension/file_pst", "application/x-hoover-pst"),
     ("/data/pst/flags_jane_doe.pst", "application/x-hoover-pst"),

@@ -14,31 +14,37 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='digest',
             name='collection',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='data.Collection'),
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to='data.Collection'),
         ),
         migrations.AlterField(
             model_name='directory',
             name='collection',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='data.Collection'),
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to='data.Collection'),
         ),
         migrations.AlterField(
             model_name='directory',
             name='container_file',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='child_directory_set', to='data.File'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE,
+                                    related_name='child_directory_set', to='data.File'),
         ),
         migrations.AlterField(
             model_name='directory',
             name='parent_directory',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='child_directory_set', to='data.Directory'),
+            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE,
+                                    related_name='child_directory_set', to='data.Directory'),
         ),
         migrations.AlterField(
             model_name='file',
             name='collection',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='data.Collection'),
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE, to='data.Collection'),
         ),
         migrations.AlterField(
             model_name='file',
             name='parent_directory',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='child_file_set', to='data.Directory'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE,
+                                    related_name='child_file_set', to='data.Directory'),
         ),
     ]

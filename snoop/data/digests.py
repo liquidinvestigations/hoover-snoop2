@@ -133,6 +133,24 @@ def gather(blob, **depends_on):
     return writer.blob
 
 
+def _get_public_doc_tags(blob):
+    q = blob.documentusertag_set.filter(public=True)
+    q = q.values("tag").distinct()
+    ret = list(i['tag'] for i in q.iterator())
+    log.error(ret)
+    return ret
+
+
+def _get_private_doc_tags(blob):
+    q = blob.documentusertag_set.filter(public=False)
+    users = q.values("user").distinct()
+    ret = {}
+    for user in users.iterator():
+        ret[user] = list(i['tag'] for i in q.filter(user=user).values("tag").iterator())
+    log.error(ret)
+    return ret
+
+
 @snoop_task('digests.index', priority=8)
 def index(blob, digests_gather):
     if isinstance(digests_gather, SnoopTaskBroken):
@@ -140,6 +158,12 @@ def index(blob, digests_gather):
 
     digest = models.Digest.objects.get(blob=blob)
     content = _get_document_content(digest)
+
+    # inject tags at indexing stage, so the private ones won't get spilled in
+    # the document/file endpoints
+    content['public-tags'] = _get_public_doc_tags(blob)
+    content['private-tags'] = _get_private_doc_tags(blob)
+
     version = _get_document_version(digest)
     body = dict(content, _hoover={'version': version})
 

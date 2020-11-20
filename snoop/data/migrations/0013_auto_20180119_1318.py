@@ -19,7 +19,8 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='file',
             name='original',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING, related_name='+', to='data.Blob'),
+            field=models.ForeignKey(on_delete=django.db.models.deletion.DO_NOTHING,
+                                    related_name='+', to='data.Blob'),
         ),
         migrations.RunSQL(
             'ALTER INDEX data_file_blob_id_8cd0a4e2 rename TO data_file_original_id_8cd0a4e2',

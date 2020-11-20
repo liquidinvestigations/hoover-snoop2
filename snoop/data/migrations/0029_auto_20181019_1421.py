@@ -43,7 +43,8 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='digest',
             name='blob',
-            field=models.OneToOneField(on_delete=django.db.models.deletion.DO_NOTHING, to='data.Blob'),
+            field=models.OneToOneField(
+                on_delete=django.db.models.deletion.DO_NOTHING, to='data.Blob'),
         ),
         migrations.AlterUniqueTogether(
             name='digest',

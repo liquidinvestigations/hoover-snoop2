@@ -349,6 +349,11 @@ class DigestAdmin(MultiDBModelAdmin):
             return blob_link(obj.result.pk)
 
 
+class DocumentUserTagAdmin(MultiDBModelAdmin):
+    list_display = ['pk', 'user', 'blob', 'tag', 'public']
+    search_fields = ['pk', 'user', 'blob', 'tag', 'user']
+
+
 class SnoopAdminSite(admin.AdminSite):
     site_header = "Snoop Mk2"
     index_template = 'snoop/admin_index_default.html'
@@ -395,6 +400,7 @@ def make_collection_admin_site(collection):
         site.register(models.Task, TaskAdmin)
         site.register(models.TaskDependency, TaskDependencyAdmin)
         site.register(models.Digest, DigestAdmin)
+        site.register(models.DocumentUserTag, DocumentUserTagAdmin)
         site.register(models.OcrSource, MultiDBModelAdmin)
         site.register(models.OcrDocument, MultiDBModelAdmin)
         site.register(models.Statistics, MultiDBModelAdmin)
