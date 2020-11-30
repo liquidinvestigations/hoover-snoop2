@@ -21,19 +21,20 @@ def celery_argv(queues):
         .strip()
     )
 
+    loglevel = 'info' if settings.DEBUG else 'warning'
     argv = [
         celery_binary,
         '-A', 'snoop.data',
         '-E',
         '--pidfile=',
-        '--loglevel=info',
+        f'--loglevel={loglevel}',
         'worker',
         '-Ofair',
         '--max-tasks-per-child', str(settings.WORKER_TASK_LIMIT),
         '--max-memory-per-child', str(settings.WORKER_MEMORY_LIMIT * 1024),
-        '--prefetch-multiplier', str(24),
-        '--soft-time-limit', '90000',  # 25h
-        '--time-limit', '100000',  # 28h
+        '--prefetch-multiplier', str(14),
+        '--soft-time-limit', '190000',  # 52h
+        '--time-limit', '200000',  # 55h
         '-Q', ','.join(queues),
         '-c', str(settings.WORKER_COUNT),
     ]

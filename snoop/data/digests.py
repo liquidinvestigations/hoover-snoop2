@@ -28,7 +28,7 @@ def is_ocr_mime_type(mime_type):
     return mime_type.startswith('image/') or mime_type == 'application/pdf'
 
 
-@snoop_task('digests.launch', priority=3)
+@snoop_task('digests.launch', priority=4)
 def launch(blob):
     depends_on = {}
 
@@ -49,7 +49,7 @@ def launch(blob):
     index.laterz(blob, depends_on={'digests_gather': gather_task})
 
 
-@snoop_task('digests.gather', priority=8)
+@snoop_task('digests.gather', priority=7)
 def gather(blob, **depends_on):
     rv = {'broken': []}
     text_blob = depends_on.get('text')
@@ -131,7 +131,7 @@ def gather(blob, **depends_on):
     return writer.blob
 
 
-@snoop_task('digests.index', priority=9)
+@snoop_task('digests.index', priority=8)
 def index(blob, digests_gather):
     if isinstance(digests_gather, SnoopTaskBroken):
         raise digests_gather

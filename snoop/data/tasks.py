@@ -381,7 +381,7 @@ def retry_tasks(queryset):
         models.Task.objects.bulk_update(batch, fields, batch_size=2000)
 
         if not first_batch:
-            first_batch = batch
+            first_batch = batch[:5000]
             logger.info('Queueing first %s tasks...', len(first_batch))
             for task in first_batch:
                 queue_task(task)

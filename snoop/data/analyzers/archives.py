@@ -148,7 +148,7 @@ def check_recursion(listing, blob_pk):
             check_recursion(item['children'], blob_pk)
 
 
-@snoop_task('archives.unarchive')
+@snoop_task('archives.unarchive', priority=2)
 @returns_json_blob
 def unarchive(blob):
     with tempfile.TemporaryDirectory() as temp_dir:

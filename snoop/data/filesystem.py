@@ -31,7 +31,7 @@ def directory_absolute_path(directory):
     return path
 
 
-@snoop_task('filesystem.walk', priority=1)
+@snoop_task('filesystem.walk', priority=9)
 @profile()
 def walk(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
@@ -73,7 +73,7 @@ def walk(directory_pk):
                 handle_file.laterz(file.pk, queue_now=False)
 
 
-@snoop_task('filesystem.handle_file', priority=2)
+@snoop_task('filesystem.handle_file', priority=1)
 @profile()
 def handle_file(file_pk, **depends_on):
     file = models.File.objects.get(pk=file_pk)
@@ -181,7 +181,7 @@ def get_email_attachments(parsed_email):
             yield part_attachment
 
 
-@snoop_task('filesystem.create_attachment_files')
+@snoop_task('filesystem.create_attachment_files', priority=2)
 @profile()
 def create_attachment_files(file_pk, email_parse):
     attachments = list(get_email_attachments(email_parse))

@@ -116,7 +116,7 @@ def dump_part(message, depends_on):
     return rv
 
 
-@snoop_task('email.parse')
+@snoop_task('email.parse', priority=3)
 @returns_json_blob
 def parse(blob, **depends_on):
     with blob.open() as f:
@@ -131,7 +131,7 @@ def parse(blob, **depends_on):
     return data
 
 
-@snoop_task('email.msg_to_eml')
+@snoop_task('email.msg_to_eml', priority=2)
 def msg_to_eml(blob):
     with tempfile.TemporaryDirectory() as temp_dir:
         msg_path = Path(temp_dir) / 'email.msg'

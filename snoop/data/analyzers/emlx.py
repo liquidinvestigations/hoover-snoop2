@@ -8,7 +8,7 @@ from .email import iter_parts
 log = logging.getLogger(__name__)
 
 
-@snoop_task('emlx.reconstruct')
+@snoop_task('emlx.reconstruct', priority=2)
 def reconstruct(file_pk, **depends_on):
     from .. import filesystem  # noqa: F401
 
