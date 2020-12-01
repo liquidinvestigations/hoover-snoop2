@@ -25,10 +25,10 @@ def celery_argv(queues):
     argv = [
         celery_binary,
         '-A', 'snoop.data',
+        'worker',
         '-E',
         '--pidfile=',
         f'--loglevel={loglevel}',
-        'worker',
         '-Ofair',
         '--max-tasks-per-child', str(settings.WORKER_TASK_LIMIT),
         '--max-memory-per-child', str(settings.WORKER_MEMORY_LIMIT * 1024),
