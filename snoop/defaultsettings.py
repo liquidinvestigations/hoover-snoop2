@@ -176,11 +176,11 @@ if _tracing_url:
 celery.app.conf.beat_schedule = {
     'run_dispatcher': {
         'task': 'snoop.data.tasks.run_dispatcher',
-        'schedule': timedelta(seconds=55),
+        'schedule': timedelta(seconds=54),
     },
     'save_stats': {
         'task': 'snoop.data.tasks.save_stats',
-        'schedule': timedelta(seconds=66),
+        'schedule': timedelta(seconds=57),
     },
 }
 

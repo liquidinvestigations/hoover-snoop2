@@ -6,7 +6,6 @@ import logging
 from time import time, sleep
 from datetime import timedelta
 
-from celery.bin.control import inspect
 from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.utils import timezone
@@ -452,8 +451,8 @@ def get_rabbitmq_queue_length(q):
 def single_task_running(key):
     def count_tasks(method, routing_key):
         count = 0
-        inspector = inspect(celery.app)
-        task_list_map = inspector.call(method=method, arguments={})
+        inspector = celery.app.control.inspect()
+        task_list_map = getattr(inspector, method)()
         if task_list_map is None:
             logger.warning('no workers present!')
             return 0
