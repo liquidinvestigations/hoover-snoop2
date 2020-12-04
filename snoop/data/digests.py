@@ -409,7 +409,7 @@ def get_document_locations(digest, page_index):
 
     queryset = digest.blob.file_set.order_by('pk')
     paginator = Paginator(queryset, settings.SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT)
-    page = paginator.get_page(page_index)
+    page = paginator.page(page_index)
 
     return [location(file) for file in page.object_list], page.has_next()
 
@@ -437,19 +437,26 @@ def child_dir_to_dict(directory):
 
 
 def get_directory_children(directory, page_index=1):
+    def get_list(paginator, page_index):
+        if page_index > paginator.num_pages:
+            return []
+        return paginator.page(page_index).object_list
+
+    def has_next(paginator, page_index):
+        if page_index >= paginator.num_pages:
+            return False
+        return paginator.page(page_index).has_next()
+
     limit = settings.SNOOP_DOCUMENT_CHILD_QUERY_LIMIT
     child_directory_queryset = directory.child_directory_set.order_by('name_bytes')
     child_file_queryset = directory.child_file_set.order_by('name_bytes')
     p1 = Paginator(child_directory_queryset, limit)
     p2 = Paginator(child_file_queryset, limit)
-    dir_page = p1.get_page(page_index)
-    file_page = p2.get_page(page_index)
-    incomplete = dir_page.has_next() or file_page.has_next()
 
     return (
-        [child_dir_to_dict(d) for d in dir_page.object_list]
-        + [child_file_to_dict(f) for f in file_page.object_list]
-    ), incomplete
+        [child_dir_to_dict(d) for d in get_list(p1, page_index)]
+        + [child_file_to_dict(f) for f in get_list(p2, page_index)]
+    ), (has_next(p1, page_index) or has_next(p2, page_index))
 
 
 def get_directory_data(directory, children_page=1):
