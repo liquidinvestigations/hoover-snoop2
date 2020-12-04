@@ -227,14 +227,19 @@ def parent_children_page(item):
         return 1
     assert isinstance(parent, models.Directory)
 
+    page_index = 1
     if isinstance(item, models.File):
         children = parent.child_file_set
+        dir_paginator = Paginator(children, settings.SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT)
+        page_index -= 1
+        page_index += dir_paginator.num_pages
 
     if isinstance(item, models.Directory):
+        # last page of dirs also contains first page of files
         children = parent.child_directory_set
 
     children_before_item = children.filter(name_bytes__lt=item.name_bytes).count()
-    page_index = 1 + int(children_before_item / settings.SNOOP_DOCUMENT_CHILD_QUERY_LIMIT)
+    page_index += int(children_before_item / settings.SNOOP_DOCUMENT_CHILD_QUERY_LIMIT)
 
     return page_index
 
@@ -376,10 +381,11 @@ def get_document_data(digest, children_page=1):
     first_file = _get_first_file(digest)
 
     children = None
-    incomplete_children_list = False
+    has_next = False
+    total = 0
     child_directory = first_file.child_directory_set.first()
     if child_directory:
-        children, incomplete_children_list = get_directory_children(child_directory, children_page)
+        children, has_next, total = get_directory_children(child_directory, children_page)
 
     rv = {
         'id': digest.blob.pk,
@@ -389,7 +395,8 @@ def get_document_data(digest, children_page=1):
         'content': _get_document_content(digest),
         'children': children,
         'children_page': children_page,
-        'children_has_next_page': incomplete_children_list,
+        'children_has_next_page': has_next,
+        'children_count_total': total,
         'parent_children_page': parent_children_page(first_file),
     }
 
@@ -437,30 +444,38 @@ def child_dir_to_dict(directory):
 
 
 def get_directory_children(directory, page_index=1):
-    def get_list(paginator, page_index):
-        if page_index > paginator.num_pages:
-            return []
-        return paginator.page(page_index).object_list
+    def get_list(p1, p1f, p2, p2f, idx):
+        if idx < p1.num_pages:
+            return [p1f(x) for x in p1.page(idx).object_list]
 
-    def has_next(paginator, page_index):
-        if page_index >= paginator.num_pages:
-            return False
-        return paginator.page(page_index).has_next()
+        # last page of dirs continues with first page of files
+        if idx == p1.num_pages:
+            return ([p1f(x) for x in p1.page(idx).object_list]
+                    + [p2f(x) for x in p2.page(1).object_list])
+
+        # skip the 1 page we added above
+        idx -= p1.num_pages - 1
+
+        if idx <= p2.num_pages:
+            return [p2f(x) for x in p2.page(idx).object_list]
+        return []
+
+    def has_next(p1, p2, page_index):
+        return page_index < (p1.num_pages + p2.num_pages - 1)
 
     limit = settings.SNOOP_DOCUMENT_CHILD_QUERY_LIMIT
     child_directory_queryset = directory.child_directory_set.order_by('name_bytes')
     child_file_queryset = directory.child_file_set.order_by('name_bytes')
     p1 = Paginator(child_directory_queryset, limit)
+    p1f = child_dir_to_dict
     p2 = Paginator(child_file_queryset, limit)
-
-    return (
-        [child_dir_to_dict(d) for d in get_list(p1, page_index)]
-        + [child_file_to_dict(f) for f in get_list(p2, page_index)]
-    ), (has_next(p1, page_index) or has_next(p2, page_index))
+    p2f = child_file_to_dict
+    total = child_directory_queryset.count() + child_file_queryset.count()
+    return get_list(p1, p1f, p2, p2f, page_index), has_next(p1, p2, page_index), total
 
 
 def get_directory_data(directory, children_page=1):
-    children, incomplete_children_list = get_directory_children(directory, children_page)
+    children, has_next, total = get_directory_children(directory, children_page)
     return {
         'id': directory_id(directory),
         'parent_id': parent_id(directory),
@@ -472,17 +487,19 @@ def get_directory_data(directory, children_page=1):
         },
         'children': children,
         'children_page': children_page,
-        'children_has_next_page': incomplete_children_list,
+        'children_has_next_page': has_next,
+        'children_count_total': total,
         'parent_children_page': parent_children_page(directory),
     }
 
 
 def get_file_data(file, children_page=1):
     children = None
-    incomplete_children_list = False
+    has_next = False
+    total = 0
     child_directory = file.child_directory_set.first()
     if child_directory:
-        children, incomplete_children_list = get_directory_children(child_directory, children_page)
+        children, has_next, total = get_directory_children(child_directory, children_page)
 
     blob = file.blob
 
@@ -495,7 +512,8 @@ def get_file_data(file, children_page=1):
         'content': _get_document_content(blob.digest, file),
         'children': children,
         'children_page': children_page,
-        'children_has_next_page': incomplete_children_list,
+        'children_has_next_page': has_next,
+        'children_count_total': total,
         'parent_children_page': parent_children_page(file),
     }
 
