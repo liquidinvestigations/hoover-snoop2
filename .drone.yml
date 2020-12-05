@@ -29,6 +29,7 @@ steps:
 - name: download testdata
   image: alpine/git:1.0.7
   commands:
+  - if [[ -d 'testsuite/volumes/collections/testdata' ]]; then exit 0; fi
   - mkdir -p testsuite/volumes/collections
   - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
 

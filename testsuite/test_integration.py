@@ -8,8 +8,9 @@ from django.conf import settings
 from snoop.data import models
 from snoop.data import tasks
 from snoop.data import indexing
+from snoop.data import digests
 
-from conftest import mask_out_current_collection
+from conftest import mask_out_current_collection, CollectionApiClient
 
 pytestmark = [pytest.mark.django_db]
 
@@ -25,6 +26,20 @@ ID = {
 }
 
 
+def check_api_page(api, item_id, parent_id):
+    item = api.get_digest(item_id)
+    page = item['parent_children_page']
+    if not parent_id:
+        return
+
+    parent = api.get_digest(parent_id, page)
+    assert parent['children_page'] == page
+    assert parent['children_count'] > 0
+    assert parent['children_page_count'] > 0
+    children = list(c['id'] for c in parent['children'])
+    assert item['id'] in children
+
+
 def test_complete_lifecycle(client, taskmanager):
     blobs_path = settings.SNOOP_BLOB_STORAGE
     subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
@@ -36,7 +51,7 @@ def test_complete_lifecycle(client, taskmanager):
     with mask_out_current_collection():
         tasks.run_dispatcher()
 
-    taskmanager.run(limit=10000)
+    taskmanager.run(limit=20000)
 
     with mask_out_current_collection():
         col_url = '/collections/testdata/json'
@@ -85,3 +100,12 @@ def test_complete_lifecycle(client, taskmanager):
     # `encrypted-hushmail-smashed-bytes.eml` is broken
     assert index_failed == [(['66a3a6bb9b8d86b7ce2be5e9f3a794a778a85fb58b8550a54b7e2821d602e1f1'],
                              'broken')]
+
+    # check that all files and directories are contained in their parent lists
+    api = CollectionApiClient(client)
+    for f in models.File.objects.all():
+        check_api_page(api, digests.file_id(f), digests.parent_id(f))
+    for d in models.Directory.objects.all():
+        if d.container_file:
+            continue
+        check_api_page(api, digests.directory_id(d), digests.parent_id(d))

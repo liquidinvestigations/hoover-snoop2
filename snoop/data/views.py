@@ -77,8 +77,10 @@ def directory(request, pk):
 
 def trim_text(data):
     """ Trim the text fields to TEXT_LIMIT chars """
+    if not data.get('content'):
+        return data
 
-    text = data['content']['text']
+    text = data['content'].get('text')
 
     # For images and the like, text is None.
     if not text:

@@ -148,7 +148,7 @@ class CollectionApiClient:
     def __init__(self, client):
         self.client = client
 
-    def get(self, url):
+    def get(self, url, params={}):
         col = collections.current()
         url = f'/collections/{col.name}{url}'
         with mask_out_current_collection():
@@ -156,8 +156,8 @@ class CollectionApiClient:
         assert resp.status_code == 200
         return resp.json()
 
-    def get_digest(self, blob_hash):
-        return self.get(f'/{blob_hash}/json')
+    def get_digest(self, blob_hash, children_page=1):
+        return self.get(f'/{blob_hash}/json?children_page={children_page}')
 
-    def get_locations(self, blob_hash):
-        return self.get(f'/{blob_hash}/locations')
+    def get_locations(self, blob_hash, page=1):
+        return self.get(f'/{blob_hash}/locations?page={page}')

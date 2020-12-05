@@ -230,12 +230,15 @@ def parent_children_page(item):
     page_index = 1
     if isinstance(item, models.File):
         children = parent.child_file_set
-        dir_paginator = Paginator(children, settings.SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT)
-        page_index -= 1
-        page_index += dir_paginator.num_pages
+        dir_paginator = Paginator(parent.child_directory_set,
+                                  settings.SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT)
+        dir_pages = dir_paginator.num_pages
+        page_index += dir_pages
+        # last page of dirs also contains first page of files
+        if dir_pages:
+            page_index -= 1
 
     if isinstance(item, models.Directory):
-        # last page of dirs also contains first page of files
         children = parent.child_directory_set
 
     children_before_item = children.filter(name_bytes__lt=item.name_bytes).count()
@@ -383,9 +386,10 @@ def get_document_data(digest, children_page=1):
     children = None
     has_next = False
     total = 0
+    pages = 0
     child_directory = first_file.child_directory_set.first()
     if child_directory:
-        children, has_next, total = get_directory_children(child_directory, children_page)
+        children, has_next, total, pages = get_directory_children(child_directory, children_page)
 
     rv = {
         'id': digest.blob.pk,
@@ -396,7 +400,8 @@ def get_document_data(digest, children_page=1):
         'children': children,
         'children_page': children_page,
         'children_has_next_page': has_next,
-        'children_count_total': total,
+        'children_count': total,
+        'children_page_count': pages,
         'parent_children_page': parent_children_page(first_file),
     }
 
@@ -470,12 +475,17 @@ def get_directory_children(directory, page_index=1):
     p1f = child_dir_to_dict
     p2 = Paginator(child_file_queryset, limit)
     p2f = child_file_to_dict
+    pages = p1.num_pages + p2.num_pages - 1
+    assert page_index > 0
+    assert page_index <= pages
+
     total = child_directory_queryset.count() + child_file_queryset.count()
-    return get_list(p1, p1f, p2, p2f, page_index), has_next(p1, p2, page_index), total
+    return get_list(p1, p1f, p2, p2f, page_index), \
+        has_next(p1, p2, page_index), total, pages
 
 
 def get_directory_data(directory, children_page=1):
-    children, has_next, total = get_directory_children(directory, children_page)
+    children, has_next, total, pages = get_directory_children(directory, children_page)
     return {
         'id': directory_id(directory),
         'parent_id': parent_id(directory),
@@ -488,7 +498,8 @@ def get_directory_data(directory, children_page=1):
         'children': children,
         'children_page': children_page,
         'children_has_next_page': has_next,
-        'children_count_total': total,
+        'children_count': total,
+        'children_page_count': pages,
         'parent_children_page': parent_children_page(directory),
     }
 
@@ -497,23 +508,35 @@ def get_file_data(file, children_page=1):
     children = None
     has_next = False
     total = 0
+    pages = 0
     child_directory = file.child_directory_set.first()
     if child_directory:
-        children, has_next, total = get_directory_children(child_directory, children_page)
+        children, has_next, total, pages = get_directory_children(child_directory, children_page)
 
     blob = file.blob
+
+    digest = None
+    version = None
+    content = None
+    try:
+        digest = blob.digest
+        version = _get_document_version(digest)
+        content = _get_document_content(digest, file)
+    except models.Blob.digest.RelatedObjectDoesNotExist:
+        pass
 
     rv = {
         'id': file_id(file),
         'digest': blob.pk,
         'parent_id': parent_id(file),
         'has_locations': True,
-        'version': _get_document_version(blob.digest),
-        'content': _get_document_content(blob.digest, file),
+        'version': version,
+        'content': content,
         'children': children,
         'children_page': children_page,
         'children_has_next_page': has_next,
-        'children_count_total': total,
+        'children_count': total,
+        'children_page_count': pages,
         'parent_children_page': parent_children_page(file),
     }
 
