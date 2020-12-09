@@ -12,7 +12,9 @@ SEVENZIP_KNOWN_TYPES = {
     'application/zip',
     'application/x-zip',
     'application/x-rar',
+    'application/rar',
     'application/x-gzip',
+    'application/gzip',
     'application/x-bzip2',
     'application/x-tar',
 }

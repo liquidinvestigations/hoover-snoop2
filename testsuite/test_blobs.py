@@ -106,8 +106,8 @@ def test_make_blob_from_first_eml_file():
     # .rar
     ("/data/disk-files/archives/rar-with-pdf-doc-docx.rar", "application/x-rar"),
     # .tar.gz
-    ("/data/no-extension/file_tar_gz", "application/x-gzip"),
-    ("/data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz", "application/x-gzip"),
+    ("/data/no-extension/file_tar_gz", "application/gzip"),
+    ("/data/disk-files/archives/targz-with-pdf-doc-docx.tar.gz", "application/gzip"),
     # .msg
     ("/data/no-extension/file_msg", "application/vnd.ms-outlook"),
     ("/data/msg-5-outlook/DISEARĂ-Te-așteptăm-la-discuția-despre-finanțarea-culturii.msg", "application/vnd.ms-outlook"),

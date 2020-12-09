@@ -8,8 +8,7 @@ from django.conf import settings
 from django.template.defaultfilters import truncatechars
 from django.db.models import JSONField
 from django.core.exceptions import ObjectDoesNotExist
-from .magic import Magic, looks_like_email, looks_like_emlx_email, \
-    looks_like_mbox
+from .magic import Magic
 
 from . import collections
 
@@ -41,25 +40,19 @@ class BlobWriter:
             'sha3_256': hashlib.sha3_256(),
             'sha256': hashlib.sha256(),
         }
-        self.magic = Magic()
         self.size = 0
 
     def write(self, chunk):
         for h in self.hashes.values():
             h.update(chunk)
-        self.magic.update(chunk)
         self.file.write(chunk)
         self.size += len(chunk)
 
     def finish(self):
-        self.magic.finish()
         fields = {
             name: hash.hexdigest()
             for name, hash in self.hashes.items()
         }
-        fields['mime_type'] = self.magic.mime_type
-        fields['mime_encoding'] = self.magic.mime_encoding
-        fields['magic'] = self.magic.magic_output
         fields['size'] = self.size
         return fields
 
@@ -95,15 +88,19 @@ class Blob(models.Model):
 
     @classmethod
     @contextmanager
-    def create(cls):
+    def create(cls, fs_path=None):
         blob_tmp = blob_root() / 'tmp'
         blob_tmp.mkdir(exist_ok=True, parents=True)
 
+        fields = {}
+        if fs_path:
+            m = Magic(fs_path)
+            fields = m.fields
         with tempfile.NamedTemporaryFile(dir=blob_tmp, delete=False) as f:
             writer = BlobWriter(f)
             yield writer
 
-        fields = writer.finish()
+        fields.update(writer.finish())
         pk = fields.pop('sha3_256')
 
         blob_path = blob_repo_path(pk)
@@ -112,20 +109,20 @@ class Blob(models.Model):
         temp_blob_path.chmod(0o444)
         temp_blob_path.rename(blob_path)
 
-        if fields['mime_type'].startswith('text/'):
-            if looks_like_email(blob_path):
-                if looks_like_emlx_email(blob_path):
-                    fields['mime_type'] = 'message/x-emlx'
-                elif looks_like_mbox(blob_path):
-                    fields['mime_type'] = 'application/mbox'
-                else:
-                    fields['mime_type'] = 'message/rfc822'
-
-        if fields['magic'].startswith('Microsoft Outlook email folder'):
-            fields['mime_type'] = 'application/x-hoover-pst'
+        m = Magic(blob_path)
+        fields.update(m.fields)
 
         (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
         writer.blob = blob
+
+    def update_magic(self, path=None):
+        if not path:
+            path = blob_repo_path(self.pk)
+        f = Magic(path).fields
+        self.mime_type = f['mime_type']
+        self.mime_encoding = f['magic']
+        self.magic = f['magic']
+        self.save()
 
     @classmethod
     def create_from_bytes(cls, data):
@@ -133,7 +130,9 @@ class Blob(models.Model):
         sha3_256.update(data)
 
         try:
-            return Blob.objects.get(pk=sha3_256.hexdigest())
+            b = Blob.objects.get(pk=sha3_256.hexdigest())
+            b.update_magic()
+            return b
 
         except ObjectDoesNotExist:
             with cls.create() as writer:
@@ -143,16 +142,19 @@ class Blob(models.Model):
 
     @classmethod
     def create_from_file(cls, path):
+        path = Path(path).resolve().absolute()
         file_sha3_256 = hashlib.sha3_256()
         with open(path, 'rb') as f:
             for block in chunks(f):
                 file_sha3_256.update(block)
 
         try:
-            return Blob.objects.get(pk=file_sha3_256.hexdigest())
+            b = Blob.objects.get(pk=file_sha3_256.hexdigest())
+            b.update_magic(path)
+            return b
 
         except ObjectDoesNotExist:
-            with cls.create() as writer:
+            with cls.create(path) as writer:
                 with open(path, 'rb') as f:
                     for block in chunks(f):
                         writer.write(block)

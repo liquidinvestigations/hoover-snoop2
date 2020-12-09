@@ -63,6 +63,7 @@ PyICU = '*'
 opencensus-ext-prometheus = "*"
 opencensus-ext-zipkin = "*"
 pyrabbit = "*"
+prompt_toolkit = "*"
 
 [requires]
 python_version = "3.9"

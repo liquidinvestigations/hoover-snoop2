@@ -1,93 +1,74 @@
-import os
 import subprocess
 import re
-from pathlib import Path
 from .utils import read_exactly
 
-MAGIC_URL = 'https://github.com/liquidinvestigations/magic-definitions/raw/master/magic.mgc'
-MAGIC_FILE = Path(os.getenv('MAGIC_FILE'))
-assert MAGIC_FILE.exists()
+MIME_PROCESS_CMD = [
+    'file',
+    '--mime-type',
+    '--mime-encoding',
+    '-kbp',
+]
+MIME_REGEX = re.compile(
+    r'(?P<mime_type>[^;].+); '
+    r'charset=(?P<mime_encoding>\S+)',
+)
+MAGIC_PROCESS_CMD = [
+    'file', '-kbp',
+]
+MAGIC_REGEX = re.compile(
+    r'(?P<magic_output>.+)',
+)
+
+
+def _parse_mime(output):
+    output = output.decode('latin1')
+    m = re.match(
+        MIME_REGEX,
+        output
+    )
+    mime_type = m.group('mime_type')
+    mime_type = mime_type.split(r'\012-')[0]
+    mime_encoding = m.group('mime_encoding')
+    return mime_type, mime_encoding
+
+
+def _parse_magic(output):
+    output = output.decode('latin1')
+    output = output.split(r'\012-')[0]
+    m = re.match(
+        MAGIC_REGEX,
+        output,
+    )
+    return m.group('magic_output')
 
 
 class Magic:
+    @property
+    def fields(self):
+        return {
+            'mime_type': self.mime_type,
+            'mime_encoding': self.mime_encoding,
+            'magic': self.magic_output,
+        }
 
-    def __init__(self):
-        self.mime_process = subprocess.Popen(
-            [
-                'file', '-', '--mime-type', '--mime-encoding', '-k',
-                '-m', str(MAGIC_FILE),
-            ],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-        )
-        self.magic_process = subprocess.Popen(
-            ['file', '-', '-k', '-m', str(MAGIC_FILE)],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-        )
+    def __init__(self, path):
+        mime_output = _parse_mime(subprocess.check_output(MIME_PROCESS_CMD + [path]))
+        self.mime_type, self.mime_encoding = mime_output
 
-    def finish_mime(self):
-        if self.mime_process:
-            try:
-                self.mime_process.stdin.close()
-            except IOError:
-                pass
-            output = self.mime_process.stdout.read().decode('latin1')
-            m = re.match(
-                r'/dev/stdin: (?P<mime_type>[^;].+); '
-                r'charset=(?P<mime_encoding>\S+)',
-                output,
-            )
-            self.mime_type = m.group('mime_type')
-            self.mime_encoding = m.group('mime_encoding')
-            # file's -k option separates multiple findings with \012-
-            # Keep only the first finding
-            self.mime_type = self.mime_type.split(r'\012-')[0]
+        magic_output = _parse_magic(subprocess.check_output(MAGIC_PROCESS_CMD + [path]))
+        self.magic_output = magic_output
 
-            exit_code = self.mime_process.wait()
-            if exit_code != 0:
-                msg = f"`file` exited with {exit_code}: {output}"
-                raise RuntimeError(msg)
+        if self.mime_type.startswith('text/'):
+            if looks_like_email(path):
+                if looks_like_emlx_email(path):
+                    self.mime_type = 'message/x-emlx'
+                elif looks_like_mbox(path):
+                    self.mime_type = 'application/mbox'
+                else:
+                    self.mime_type = 'message/rfc822'
 
-            self.mime_process = None
-
-    def finish_magic(self):
-        if self.magic_process:
-            try:
-                self.magic_process.stdin.close()
-            except IOError:
-                pass
-            output = self.magic_process.stdout.read().decode('latin1')
-            output = output.split(r'\012-')[0]
-            m = re.match(
-                r'/dev/stdin: (?P<magic_output>.+)',
-                output,
-            )
-            self.magic_output = m.group('magic_output')
-
-            exit_code = self.magic_process.wait()
-            if exit_code != 0:
-                msg = f"`file` exited with {exit_code}: {self.magic_output}"
-                raise RuntimeError(msg)
-
-            self.magic_process = None
-
-    def finish(self):
-        self.finish_mime()
-        self.finish_magic()
-
-    def update(self, buffer):
-        if self.mime_process:
-            try:
-                self.mime_process.stdin.write(buffer)
-            except IOError:
-                self.finish_mime()
-
-        if self.magic_process:
-            try:
-                self.magic_process.stdin.write(buffer)
-            except IOError:
-                self.finish_mime()
+        if self.magic_output.startswith('Microsoft Outlook email folder'):
+            self.mime_type = 'application/x-hoover-pst'
 
 
 def looks_like_email(path):

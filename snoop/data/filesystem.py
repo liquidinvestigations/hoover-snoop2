@@ -65,6 +65,9 @@ def walk(directory_pk):
                     blob=original,
                 ),
             )
+            if not created:
+                original.update_mime(path)
+
             # if file is already loaded, and size+mtime are the same,
             # don't dispatch remaining tasks
             if created or file.mtime != time_from_unix(stat.st_mtime) or file.size != stat.st_size:
