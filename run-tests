@@ -1,0 +1,4 @@
+#!/bin/bash -ex
+cd "$(dirname ${BASH_SOURCE[0]})"
+
+drone exec --branch $(git branch --show-current) --pipeline test

@@ -13,3 +13,4 @@ celerybeat*
 /Procfile
 /wait
 /testsuite/volumes
+/.test-args

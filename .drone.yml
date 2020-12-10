@@ -58,6 +58,9 @@ depends_on:
 services:
 - name: snoop-rabbitmq
   image: rabbitmq:3.7.3
+  volumes:
+  - name: rabbit-v
+    path: /var/lib/rabbitmq
 
 - name: snoop-tika
   image: logicalspark/docker-tikaserver
@@ -66,6 +69,9 @@ services:
   image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
   environment:
     discovery.type: single-node
+  volumes:
+  - name: es-v
+    path: /var/lib/elasticsearch/data
 
 - name: snoop-pg
   image: postgres:12.2
@@ -73,16 +79,19 @@ services:
     POSTGRES_USER: snoop
     POSTGRES_DATABASE: snoop
     POSTGRES_PASSWORD: snoop
+  volumes:
+  - name: pg-v
+    path: /var/lib/postgresql/data
 
 steps:
 - name: download testdata
   image: alpine/git:1.0.7
   volumes:
   - name: test-collections-v
-    path: /drone/src/testsuite/volumes/collections/testdata
+    path: /testdata
   commands:
-  - mkdir -p testsuite/volumes/collections
-  - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
+  - cd /testdata
+  - git clone https://github.com/hoover/testdata .
 
 - name: run tests
   image: liquidinvestigations/hoover-snoop2:${DRONE_COMMIT_BRANCH}
@@ -103,6 +112,7 @@ steps:
   commands:
   - whoami
   - cd /opt/hoover/snoop
+  - chown -R 666:666 /opt/hoover/collections
   - py.test -vv
   trigger:
     events:
@@ -110,6 +120,10 @@ steps:
 
 volumes:
 - name: test-collections-v
+  temp: {}
+- name: es-v
+  temp: {}
+- name: pg-v
   temp: {}
 
 ---
