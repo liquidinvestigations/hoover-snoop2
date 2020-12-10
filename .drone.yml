@@ -87,7 +87,6 @@ steps:
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
     USER_MODE: "TEST"
   commands:
-  - whoami
   - cd /opt/hoover/snoop
   - py.test -vv
   trigger:
