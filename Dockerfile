@@ -24,7 +24,6 @@ RUN set -e \
  && chmod +x /runserver
 
 RUN chown -R $UID:$GID /runserver
-# RUN chown -R $UID:$GID /opt/magic-definitions
 RUN chown -R $UID:$GID /opt/libpst
 
 ENV DATA_DIR "/opt/hoover/snoop"
