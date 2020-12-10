@@ -1,5 +1,5 @@
 kind: pipeline
-name: publish to docker hub
+name: publish
 
 steps:
 - name: flake8
@@ -11,7 +11,6 @@ steps:
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
-    # https://0-8-0.docs.drone.io/substitution/
     auto_tag: true
     auto_tag_suffix: base
     dockerfile: Dockerfile.base
@@ -30,7 +29,6 @@ steps:
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
-    # https://0-8-0.docs.drone.io/substitution/
     tags: ${DRONE_COMMIT_BRANCH}
     username:
       from_secret: docker_username
@@ -39,9 +37,6 @@ steps:
   when:
     event:
     - push
-    branch:
-      exclude:
-      - dependabot/**
 
 - name: docker push autotag + latest
   image: plugins/docker
@@ -58,7 +53,26 @@ kind: pipeline
 name: test
 
 depends_on:
-- publish to docker hub
+- publish
+
+services:
+- name: snoop-rabbitmq
+  image: rabbitmq:3.7.3
+
+- name: snoop-tika
+  image: logicalspark/docker-tikaserver
+
+- name: search-es
+  image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+  environment:
+    discovery.type: single-node
+
+- name: snoop-pg
+  image: postgres:12.2
+  environment:
+    POSTGRES_USER: snoop
+    POSTGRES_DATABASE: snoop
+    POSTGRES_PASSWORD: snoop
 
 steps:
 - name: download testdata
@@ -76,7 +90,7 @@ steps:
   - name: test-collections-v
     path: /opt/hoover/collections/testdata
   environment:
-    WAIT_HOSTS: search-es:9200, snoop-pg:5432
+    WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998
     WAIT_HOSTS_TIMEOUT: 60
     SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
     SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
@@ -94,38 +108,8 @@ steps:
     events:
     - push
 
-services:
-- name: snoop-rabbitmq
-  image: rabbitmq:3.7.3
-
-- name: snoop-tika
-  image: logicalspark/docker-tikaserver
-
-- name: search-es
-  image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
-  volumes:
-  - name: search-es-v
-    path: /drone/src/volumes/search-es/data
-  environment:
-    discovery.type: single-node
-
-- name: snoop-pg
-  image: postgres:12.2
-  environment:
-    POSTGRES_USER: snoop
-    POSTGRES_DATABASE: snoop
-    POSTGRES_PASSWORD: snoop
-  volumes:
-  - name: snoop-pg-v
-    # path: /drone/src/volumes/snoop-pg/data
-    path: /var/lib/postgresql/data
-
 volumes:
 - name: test-collections-v
-  temp: {}
-- name: snoop-pg-v
-  temp: {}
-- name: search-es-v
   temp: {}
 
 ---
