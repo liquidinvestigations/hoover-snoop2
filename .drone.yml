@@ -95,6 +95,7 @@ steps:
 
 - name: run tests
   image: liquidinvestigations/hoover-snoop2:${DRONE_COMMIT_BRANCH}
+  pull: always
   volumes:
   - name: test-collections-v
     path: /opt/hoover/collections/testdata
