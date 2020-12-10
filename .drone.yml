@@ -1,5 +1,5 @@
 kind: pipeline
-name: test
+name: publish to docker hub
 
 steps:
 - name: flake8
@@ -26,60 +26,6 @@ steps:
     branch:
     - master
 
-- name: download testdata
-  image: alpine/git:1.0.7
-  commands:
-  - if [[ -d 'testsuite/volumes/collections/testdata' ]]; then exit 0; fi
-  - mkdir -p testsuite/volumes/collections
-  - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
-
-- name: do the docker setup
-  image: docker/compose:1.24.0
-  volumes:
-  - name: dockersock
-    path: /var/run
-  commands:
-  - cd testsuite
-  - mkdir -p volumes/search-es/data
-  - chmod 777 volumes/search-es/data
-  - docker-compose up -d --scale snoop=0
-
-- name: py.test
-  image: docker/compose:1.24.0
-  volumes:
-  - name: dockersock
-    path: /var/run
-  commands:
-  - cd testsuite
-  - docker-compose run --rm snoop bash -c '/wait && py.test -vv'
-
-services:
-- name: docker daemon in docker
-  image: docker:dind
-  privileged: true
-  volumes:
-  - name: dockersock
-    path: /var/run
-
-volumes:
-- name: dockersock
-  temp: {}
-
----
-kind: pipeline
-name: publish to docker hub
-
-trigger:
-  status:
-  - success
-  event:
-  - push
-  - tag
-
-depends_on:
-- test
-
-steps:
 - name: docker push branch ${DRONE_COMMIT_BRANCH}
   image: plugins/docker
   settings:
@@ -106,6 +52,81 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
+
+---
+kind: pipeline
+name: test
+
+depends_on:
+- publish to docker hub
+
+steps:
+- name: download testdata
+  image: alpine/git:1.0.7
+  volumes:
+  - name: test-collections-v
+    path: /drone/src/testsuite/volumes/collections/testdata
+  commands:
+  - mkdir -p testsuite/volumes/collections
+  - git clone https://github.com/hoover/testdata testsuite/volumes/collections/testdata
+
+- name: run tests
+  image: liquidinvestigations/hoover-snoop2:${DRONE_COMMIT_BRANCH}
+  volumes:
+  - name: test-collections-v
+    path: /opt/hoover/collections/testdata
+  environment:
+    WAIT_HOSTS: search-es:9200, snoop-pg:5432
+    WAIT_HOSTS_TIMEOUT: 60
+    SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
+    SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
+    SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
+    SNOOP_TIKA_URL: "http://snoop-tika:9998"
+    SNOOP_ES_URL: "http://search-es:9200"
+    SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
+    SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
+    USER_MODE: "TEST"
+  commands:
+  - whoami
+  - cd /opt/hoover/snoop
+  - py.test -vv
+  trigger:
+    events:
+    - push
+
+services:
+- name: snoop-rabbitmq
+  image: rabbitmq:3.7.3
+
+- name: snoop-tika
+  image: logicalspark/docker-tikaserver
+
+- name: search-es
+  image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
+  volumes:
+  - name: search-es-v
+    path: /drone/src/volumes/search-es/data
+  environment:
+    discovery.type: single-node
+
+- name: snoop-pg
+  image: postgres:12.2
+  environment:
+    POSTGRES_USER: snoop
+    POSTGRES_DATABASE: snoop
+    POSTGRES_PASSWORD: snoop
+  volumes:
+  - name: snoop-pg-v
+    # path: /drone/src/volumes/snoop-pg/data
+    path: /var/lib/postgresql/data
+
+volumes:
+- name: test-collections-v
+  temp: {}
+- name: snoop-pg-v
+  temp: {}
+- name: search-es-v
+  temp: {}
 
 ---
 kind: secret
