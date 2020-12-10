@@ -1,4 +1,4 @@
-FROM liquidinvestigations/hoover-snoop2:base
+FROM liquidinvestigations/hoover-snoop2:0.13-base
 
 ARG USER_NAME=liquid
 ARG UID=666
