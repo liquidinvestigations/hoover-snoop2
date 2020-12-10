@@ -363,8 +363,12 @@ def _get_document_content(digest, the_file=None):
         'ocrtext': digest_data.get('ocrtext'),
         'ocrpdf': digest_data.get('ocrpdf'),
         'ocrimage': digest_data.get('ocrimage'),
-        'date': digest_data.get('date') or zulu(the_file.mtime),
-        'date-created': digest_data.get('date-created') or zulu(the_file.ctime),
+        'date': digest_data.get('date'),
+        'date-created': digest_data.get('date-created'),
+        # TODO 7zip, unzip, all of these will list the correct access/creation
+        # times when listing, but don't preserve them when unpacking.
+        # 'date': digest_data.get('date') or zulu(the_file.mtime),
+        # 'date-created': digest_data.get('date-created') or zulu(the_file.ctime),
         'md5': original.md5,
         'sha1': original.sha1,
         'size': original.size,

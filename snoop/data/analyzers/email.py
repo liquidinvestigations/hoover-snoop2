@@ -152,4 +152,8 @@ def msg_to_eml(blob):
 
 
 def parse_date(raw_date):
-    return email.utils.parsedate_to_datetime(raw_date)
+    try:
+        return email.utils.parsedate_to_datetime(raw_date)
+    except TypeError as e:
+        log.exception(f'error in parsing date: "{raw_date}"  {str(e)}')
+        return None
