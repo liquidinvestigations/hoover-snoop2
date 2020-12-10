@@ -57,7 +57,8 @@ def gather(blob, **depends_on):
     if text_blob:
         with text_blob.open() as f:
             text_bytes = f.read()
-        rv['text'] = text_bytes.decode(text_blob.mime_encoding)
+        encoding = 'latin1' if blob.mime_encoding == 'binary' else blob.mime_encoding
+        rv['text'] = text_bytes.decode(encoding)
 
     tika_rmeta_blob = depends_on.get('tika_rmeta')
     if tika_rmeta_blob:

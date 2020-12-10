@@ -251,7 +251,8 @@ class BlobAdmin(MultiDBModelAdmin):
 
     def get_preview_content(self, blob):
         if blob.mime_type == 'text/plain':
-            with blob.open(encoding=blob.mime_encoding) as f:
+            encoding = 'latin1' if blob.mime_encoding == 'binary' else blob.mime_encoding
+            with blob.open(encoding=encoding) as f:
                 return f.read()
 
         elif blob.mime_type == 'application/json':
