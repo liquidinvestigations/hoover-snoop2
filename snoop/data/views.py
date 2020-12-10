@@ -105,7 +105,7 @@ def document_download(request, hash, filename):
         models.Digest.objects.only('blob'),
         blob__pk=hash,
     )
-    blob = digest.blob
+    blob = digest.blob.file_set.first().original
 
     if html.is_html(blob):
         clean_html = html.clean(blob)

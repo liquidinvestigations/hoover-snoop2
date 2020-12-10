@@ -17,6 +17,7 @@ from ._file_types import FILE_TYPES
 from . import indexing
 
 log = logging.getLogger(__name__)
+ES_MAX_INTEGER = 2 ** 31 - 1
 
 
 def get_collection_langs():
@@ -140,6 +141,14 @@ def index(blob, digests_gather):
     content = _get_document_content(digest)
     version = _get_document_version(digest)
     body = dict(content, _hoover={'version': version})
+
+    # es 6.8 "integer" has max size 2^31-1
+    # and we managed to set "size" as an "integer" field
+    # instead of a long field
+    size = body.get('size', 0)
+    if size > ES_MAX_INTEGER:
+        body['size'] = ES_MAX_INTEGER
+
     try:
         indexing.index(digest.blob.pk, body)
     except RuntimeError:
@@ -330,11 +339,13 @@ def _get_document_content(digest, the_file=None):
     if not the_file:
         the_file = _get_first_file(digest)
 
-    with digest.result.open() as f:
-        digest_data = json.loads(f.read().decode('utf8'))
+    digest_data = {}
+    if digest is not None:
+        with digest.result.open() as f:
+            digest_data = json.loads(f.read().decode('utf8'))
 
     attachments = None
-    filetype = get_filetype(digest.blob.mime_type)
+    filetype = get_filetype(the_file.blob.mime_type)
     if filetype == 'email':
         if the_file.child_directory_set.count() > 0:
             attachments = True
@@ -351,8 +362,8 @@ def _get_document_content(digest, the_file=None):
         'ocrtext': digest_data.get('ocrtext'),
         'ocrpdf': digest_data.get('ocrpdf'),
         'ocrimage': digest_data.get('ocrimage'),
-        'date': digest_data.get('date'),
-        'date-created': digest_data.get('date-created'),
+        'date': digest_data.get('date') or zulu(the_file.mtime),
+        'date-created': digest_data.get('date-created') or zulu(the_file.ctime),
         'md5': original.md5,
         'sha1': original.sha1,
         'size': original.size,
@@ -364,7 +375,7 @@ def _get_document_content(digest, the_file=None):
         'attachments': attachments,
     }
 
-    if digest.blob.mime_type == 'message/rfc822':
+    if the_file.blob.mime_type == 'message/rfc822':
         content.update(email_meta(digest_data))
 
     if 'location' in digest_data:
@@ -523,7 +534,8 @@ def get_file_data(file, children_page=1):
         version = _get_document_version(digest)
         content = _get_document_content(digest, file)
     except models.Blob.digest.RelatedObjectDoesNotExist:
-        pass
+        version = _get_document_version(file)
+        content = _get_document_content(None, file)
 
     rv = {
         'id': file_id(file),
