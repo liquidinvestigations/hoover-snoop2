@@ -127,14 +127,17 @@ def handle_file(file_pk, **depends_on):
 
     # if conversion blob changed from last time, then
     # we want to check if the old one is an orphan.
+    deleted = False
     if file.blob.pk != old_blob.pk:
         if not old_blob.file_set.exists():
             # since it is an orphan, let's remove it from the index.
             log.warning('deleting orphaned blob from index: ' + old_blob.pk)
             delete_doc(old_blob.pk)
+            deleted = True
 
     retry = file.original.mime_type != old_mime \
-        or file.blob.mime_type != old_blob_mime
+        or file.blob.mime_type != old_blob_mime \
+        or deleted
     digests.launch.laterz(file.blob, retry=retry)
 
 
