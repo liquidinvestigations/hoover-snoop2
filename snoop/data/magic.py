@@ -6,14 +6,14 @@ MIME_PROCESS_CMD = [
     'file',
     '--mime-type',
     '--mime-encoding',
-    '-kbp',
+    '-kbpL',
 ]
 MIME_REGEX = re.compile(
     r'(?P<mime_type>[^;].+); '
     r'charset=(?P<mime_encoding>\S+)',
 )
 MAGIC_PROCESS_CMD = [
-    'file', '-kbp',
+    'file', '-kbpL',
 ]
 MAGIC_REGEX = re.compile(
     r'(?P<magic_output>.+)',

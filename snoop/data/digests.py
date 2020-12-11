@@ -33,6 +33,11 @@ def is_ocr_mime_type(mime_type):
 def launch(blob):
     depends_on = {}
 
+    this_task = models.Task
+    # TODO get the keys for depends_on if they already exist. these should be
+    # the prev set for the gather task. If the number of keys changed, retry both
+    # the gather task and the index task.
+
     if blob.mime_type == 'message/rfc822':
         depends_on['email_parse'] = email.parse.laterz(blob)
 
@@ -47,7 +52,7 @@ def launch(blob):
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
     gather_task = gather.laterz(blob, depends_on=depends_on)
-    index.laterz(blob, depends_on={'digests_gather': gather_task})
+    index.laterz(blob, depends_on={'digests_gather': gather_task}, queue_now=False)
 
 
 @snoop_task('digests.gather', priority=7)

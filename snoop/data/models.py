@@ -109,20 +109,36 @@ class Blob(models.Model):
         temp_blob_path.chmod(0o444)
         temp_blob_path.rename(blob_path)
 
-        m = Magic(blob_path)
-        fields.update(m.fields)
+        if not fs_path:
+            m = Magic(blob_path)
+            fields.update(m.fields)
 
         (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
         writer.blob = blob
 
-    def update_magic(self, path=None):
-        if not path:
-            path = blob_repo_path(self.pk)
+    def _do_update_magic(self, path):
         f = Magic(path).fields
         self.mime_type = f['mime_type']
         self.mime_encoding = f['magic']
         self.magic = f['magic']
         self.save()
+
+    def update_magic(self, path=None, filename=None):
+        if filename:
+            # create temp dir;
+            # create symlink to default path, with filename extension
+            # run magic on symlink
+            with tempfile.TemporaryDirectory() as d:
+                filename = "File." + filename.split(b'.')[-1][:100].decode('utf-8')
+                link_path = Path(d) / filename
+                link_path.symlink_to(blob_repo_path(self.pk))
+                self._do_update_magic(link_path)
+                link_path.unlink()
+                return
+
+        if not path:
+            path = blob_repo_path(self.pk)
+        self._do_update_magic(path)
 
     @classmethod
     def create_from_bytes(cls, data):
@@ -131,13 +147,11 @@ class Blob(models.Model):
 
         try:
             b = Blob.objects.get(pk=sha3_256.hexdigest())
-            b.update_magic()
             return b
 
         except ObjectDoesNotExist:
             with cls.create() as writer:
                 writer.write(data)
-
             return writer.blob
 
     @classmethod
@@ -150,7 +164,6 @@ class Blob(models.Model):
 
         try:
             b = Blob.objects.get(pk=file_sha3_256.hexdigest())
-            b.update_magic(path)
             return b
 
         except ObjectDoesNotExist:

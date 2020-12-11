@@ -104,6 +104,13 @@ def index(id, data):
     check_response(resp)
 
 
+def delete_doc(id):
+    es_index = collections.current().es_index
+    index_url = f'{ES_URL}/{es_index}'
+    resp = requests.delete(f'{index_url}/{DOCUMENT_TYPE}/{id}')
+    check_response(resp)
+
+
 def delete_index_by_name(name):
     url = f'{ES_URL}/{name}'
     log.info("DELETE %s", url)

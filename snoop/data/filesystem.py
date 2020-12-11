@@ -12,6 +12,7 @@ from .analyzers import email
 from .analyzers import emlx
 from .tasks import snoop_task, require_dependency, SnoopTaskBroken
 from .utils import time_from_unix
+from .indexing import delete_doc
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +55,6 @@ def walk(directory_pk):
             stat = path.stat()
 
             original = models.Blob.create_from_file(path)
-
             file, created = directory.child_file_set.get_or_create(
                 name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
                 defaults=dict(
@@ -66,9 +66,15 @@ def walk(directory_pk):
                 ),
             )
             # if file is already loaded, and size+mtime are the same,
-            # don't dispatch remaining tasks
-            if created or file.mtime != time_from_unix(stat.st_mtime) or file.size != stat.st_size:
-                handle_file.laterz(file.pk, queue_now=not queue_limit)
+            # don't retry handle task
+            if created \
+                    or file.mtime != time_from_unix(stat.st_mtime) \
+                    or file.size != stat.st_size:
+                file.mtime = time_from_unix(stat.st_mtime)
+                file.size = stat.st_size
+                file.original = original
+                file.save()
+                handle_file.laterz(file.pk, retry=True, queue_now=False)
             else:
                 handle_file.laterz(file.pk, queue_now=False)
 
@@ -77,8 +83,14 @@ def walk(directory_pk):
 @profile()
 def handle_file(file_pk, **depends_on):
     file = models.File.objects.get(pk=file_pk)
+
+    old_mime = file.original.mime_type
+    old_blob_mime = file.blob.mime_type
+    file.original.update_magic(filename=bytes(file.name_bytes))
+    old_blob = file.blob
     file.blob = file.original
 
+    # start choosing a conversion blob for this file
     if archives.is_archive(file.original.mime_type):
         unarchive_task = archives.unarchive.laterz(file.blob)
         create_archive_files.laterz(
@@ -101,6 +113,9 @@ def handle_file(file_pk, **depends_on):
             lambda: emlx.reconstruct.laterz(file.pk),
         )
 
+    if file.blob.pk != file.original.pk:
+        file.blob.update_magic()
+
     if file.blob.mime_type == 'message/rfc822':
         email_parse_task = email.parse.laterz(file.blob)
         create_attachment_files.laterz(
@@ -110,7 +125,17 @@ def handle_file(file_pk, **depends_on):
 
     file.save()
 
-    digests.launch.laterz(file.blob)
+    # if conversion blob changed from last time, then
+    # we want to check if the old one is an orphan.
+    if file.blob.pk != old_blob.pk:
+        if not old_blob.file_set.exists():
+            # since it is an orphan, let's remove it from the index.
+            log.warning('deleting orphaned blob from index: ' + old_blob.pk)
+            delete_doc(old_blob.pk)
+
+    retry = file.original.mime_type != old_mime \
+        or file.blob.mime_type != old_blob_mime
+    digests.launch.laterz(file.blob, retry=retry)
 
 
 @snoop_task('filesystem.create_archive_files', priority=3)
