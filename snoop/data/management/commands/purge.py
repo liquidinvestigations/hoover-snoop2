@@ -9,8 +9,11 @@ from ... import indexing
 from ... import collections
 
 
+PROMPT = 'ALL data printed above will be DELETED (type "yes" to confirm):'
+
+
 def confirm():
-    return input('ALL data printed above will be DELETED (type "yes" to confirm):') == 'yes'
+    return input(PROMPT).strip().lower() == 'yes'
 
 
 class Command(BaseCommand):
