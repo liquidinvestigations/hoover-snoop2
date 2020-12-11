@@ -16,14 +16,13 @@ RUN set -e \
      postgresql-client \
      imagemagick \
      tesseract-ocr \
+     tesseract-ocr-all \
      libtiff-tools \
      ghostscript qpdf \
      wget curl git file gpg gpg-agent \
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
  && pip3 install pipenv
-
-# tesseract-ocr-all \
 
 # disable tesseract multithreading
 ENV OMP_THREAD_LIMIT 1
