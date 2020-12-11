@@ -21,6 +21,7 @@ from snoop import tracing
 logger = logging.getLogger(__name__)
 
 task_map = {}
+ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
 
 
 class SnoopTaskError(Exception):
@@ -308,7 +309,7 @@ def snoop_task(name, priority=5):
                     retry_task(task)
                 return task
 
-            if queue_now:
+            if queue_now or ALWAYS_QUEUE_NOW:
                 queue_task(task)
             return task
 

@@ -74,7 +74,7 @@ def walk(directory_pk):
                 file.size = stat.st_size
                 file.original = original
                 file.save()
-                handle_file.laterz(file.pk, retry=True, queue_now=False)
+                handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
             else:
                 handle_file.laterz(file.pk, queue_now=False)
 

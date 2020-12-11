@@ -1,4 +1,8 @@
 #!/bin/bash -ex
 cd "$(dirname ${BASH_SOURCE[0]})"
 
+docker build . --tag liquidinvestigations/hoover-snoop2:$(git branch --show-current)
+cp .drone.yml .drone.yml.bak
+trap "mv .drone.yml.bak .drone.yml" EXIT
+sed -i 's/pull\: always/pull\: if-not-exists/g' .drone.yml
 drone exec --branch $(git branch --show-current) --pipeline test

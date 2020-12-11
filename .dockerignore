@@ -8,3 +8,5 @@ static
 factory-scripts
 docker-setup
 testsuite/volumes
+.drone.yml
+.drone.yml.bak

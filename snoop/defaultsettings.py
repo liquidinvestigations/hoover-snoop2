@@ -190,3 +190,4 @@ celery.app.conf.task_routes = {
 }
 
 SYSTEM_QUEUES = ['run_dispatcher', 'save_stats']
+ALWAYS_QUEUE_NOW = False
