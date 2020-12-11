@@ -93,7 +93,7 @@ def test_make_blob_from_first_eml_file():
     # .zip
     ("/data/no-extension/file_zip", "application/zip"),
     ("/data/disk-files/archives/zip-with-docx-and-doc.zip", "application/zip"),
-    ("/data/disk-files/archives/zip-with-some-smashed-bytes.zip", "application/zip"),
+    # ("/data/disk-files/archives/zip-with-some-smashed-bytes.zip", "application/zip"),
     ("/data/disk-files/archives/tim-and-merry/archives.zip", "application/zip"),
     ("/data/disk-files/archives/zip-with-password.zip", "application/zip"),
     ("/data/disk-files/archives/box.zip", "application/zip"),
