@@ -385,6 +385,8 @@ class DocumentUserTag(models.Model):
     user = models.CharField(max_length=256)
     tag = models.CharField(max_length=512)
     public = models.BooleanField()
+    date_created = models.DateTimeField(auto_now_add=True)
+    date_modified = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = ('digest', 'user', 'tag', 'public')

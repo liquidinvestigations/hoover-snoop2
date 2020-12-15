@@ -8,8 +8,8 @@ class DocumentUserTagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.DocumentUserTag
-        fields = ['id', 'blob', 'user', 'public', 'tag']
-        read_only_fields = ['id', 'digest_id', 'user', 'blob']
+        fields = ['id', 'blob', 'user', 'public', 'tag', 'date_modified', 'date_created']
+        read_only_fields = ['id', 'digest_id', 'user', 'blob', 'date_modified', 'date_created']
 
     # def to_representation(self, instance):
     #    # do nothing special
