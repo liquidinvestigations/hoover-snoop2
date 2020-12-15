@@ -1,6 +1,9 @@
 kind: pipeline
 name: publish
 
+concurrency:
+  limit: 2
+
 steps:
 - name: flake8
   image: alpine/flake8:3.7.7
@@ -54,6 +57,8 @@ name: test
 
 depends_on:
 - publish
+concurrency:
+  limit: 3
 
 services:
 - name: snoop-rabbitmq
