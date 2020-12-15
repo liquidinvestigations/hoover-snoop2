@@ -375,7 +375,7 @@ class Digest(models.Model):
         ]
 
     def __str__(self):
-        return f'{self.blob} -> {self.result}'
+        return f'{self.blob} -> {self.result.pk[:5]}...'
 
     __repr__ = __str__
 
@@ -404,6 +404,7 @@ class DocumentUserTag(models.Model):
             index(self.blob, None)
         except Exception as e:
             print(e)
+            raise
 
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
@@ -413,6 +414,7 @@ class DocumentUserTag(models.Model):
             index(self.blob, None)
         except Exception as e:
             print(e)
+            raise
 
 
 class OcrSource(models.Model):

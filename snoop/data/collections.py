@@ -125,6 +125,7 @@ def create_es_indexes():
             if not indexing.index_exists():
                 logger.info(f'Creating index {col.es_index}')
                 indexing.create_index()
+            indexing.update_mapping()
 
 
 def create_roots():

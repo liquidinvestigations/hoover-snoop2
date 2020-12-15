@@ -15,8 +15,10 @@ from .analyzers import exif
 from . import ocr
 from ._file_types import FILE_TYPES
 from . import indexing
+from snoop.data import language_detection
 
 log = logging.getLogger(__name__)
+language_detector = language_detection.detectors[settings.LANGUAGE_DETECTOR_NAME]
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
@@ -60,6 +62,7 @@ def gather(blob, **depends_on):
         encoding = 'latin1' if blob.mime_encoding == 'binary' else blob.mime_encoding
         rv['text'] = text_bytes.decode(encoding)
 
+    # extract text and meta with apache tika
     tika_rmeta_blob = depends_on.get('tika_rmeta')
     if tika_rmeta_blob:
         if isinstance(tika_rmeta_blob, SnoopTaskBroken):
@@ -73,6 +76,7 @@ def gather(blob, **depends_on):
             rv['date'] = tika.get_date_modified(tika_rmeta)
             rv['date-created'] = tika.get_date_created(tika_rmeta)
 
+    # parse email headers
     email_parse_blob = depends_on.get('email_parse')
     if email_parse_blob:
         if isinstance(email_parse_blob, SnoopTaskBroken):
@@ -84,6 +88,7 @@ def gather(blob, **depends_on):
                 email_parse = json.load(f)
             rv['email'] = email_parse
 
+    # combine OCR results
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
     if is_ocr_mime_type(blob.mime_type):
         for lang in get_collection_langs():
@@ -108,6 +113,19 @@ def gather(blob, **depends_on):
                 rv['ocrimage'] = True
         rv['ocrtext'] = ocr_results
 
+    # combine texts and detect language
+    if settings.DETECT_LANGUAGE:
+        text = rv.get('text', '')[:2500]
+        ocrtexts = [v[:2500] for v in rv.get('ocrtext', {}).values() if v]
+        if text or ocrtexts:
+            alltext = text + "\n" + "\n".join(ocrtexts)
+            try:
+                rv['lang'] = language_detector(alltext)
+            except Exception as e:
+                log.debug(f'Unable to detect language for document {id}: {e}')
+                rv['lang'] = None
+
+    # try and extract exif data
     exif_data_blob = depends_on.get('exif_data')
     if exif_data_blob:
         if isinstance(exif_data_blob, SnoopTaskBroken):
@@ -143,10 +161,11 @@ def _get_tags(digest):
     # add private tags
     q2 = digest.documentusertag_set.filter(public=False)
     q2_users = q2.values("user").distinct()
-    for user in q2_users.iterator():
+    for u in q2_users.iterator():
+        user = u['user']
         tags_for_user = q2.filter(user=user).values("tag")
         private_list = list(i['tag'] for i in tags_for_user.iterator())
-        ret['tags.' + user] = private_list
+        ret['private-tags.' + user] = private_list
     return ret
 
 
@@ -385,14 +404,17 @@ def _get_document_content(digest, the_file=None):
         'ocrtext': digest_data.get('ocrtext'),
         'ocrpdf': digest_data.get('ocrpdf'),
         'ocrimage': digest_data.get('ocrimage'),
-        'date': digest_data.get('date'),
-        'date-created': digest_data.get('date-created'),
+
         # TODO 7zip, unzip, all of these will list the correct access/creation
         # times when listing, but don't preserve them when unpacking.
         # 'date': digest_data.get('date') or zulu(the_file.mtime),
         # 'date-created': digest_data.get('date-created') or zulu(the_file.ctime),
+        'date': digest_data.get('date'),
+        'date-created': digest_data.get('date-created'),
+
         'md5': original.md5,
         'sha1': original.sha1,
+        'id': original.sha3_256,
         'size': original.size,
         'filename': the_file.name,
         'path': path,

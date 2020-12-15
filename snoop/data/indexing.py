@@ -10,13 +10,11 @@ import time
 
 from django.conf import settings
 import requests
-from snoop.data import language_detection
 from snoop.data import collections
 
 log = logging.getLogger(__name__)
 DOCUMENT_TYPE = 'doc'
 ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
-language_detector = language_detection.detectors[settings.LANGUAGE_DETECTOR_NAME]
 
 MAPPINGS = {
     "doc": {
@@ -46,9 +44,18 @@ MAPPINGS = {
             "ocr": {"type": "boolean"},
             "ocrpdf": {"type": "boolean"},
             "ocrimage": {"type": "boolean"},
-            "public-tags": {"type": "keyword"},
-            "private-tags": {"properties": {}},
-        }
+            "tags": {"type": "keyword"},
+            "private-tags": {"type": "object"},
+        },
+        "dynamic_templates": [
+            {
+                "private_tags_are_keywords": {
+                    "match_mapping_type": "*",
+                    "match": "private-tags.*",
+                    "mapping": {"type": "keyword"},
+                },
+            },
+        ],
     }
 }
 
@@ -86,19 +93,12 @@ def check_response(resp):
     if 200 <= resp.status_code < 300:
         log.debug('Response: %r', resp)
     else:
-        log.error('Response: %r', resp)
-        log.error('Response text:\n%s', resp.text)
+        log.error('Response text: %s', resp.text)
         raise RuntimeError('Put request failed: %r' % resp)
 
 
 def index(id, data):
     es_index = collections.current().es_index
-    if settings.DETECT_LANGUAGE and data.get('text') is not None:
-        try:
-            data['lang'] = language_detector(data['text'][:2500])
-        except Exception as e:
-            log.debug(f'Unable to detect language for document {id}: {e}')
-            data['lang'] = None
 
     index_url = f'{ES_URL}/{es_index}'
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
@@ -136,6 +136,14 @@ def create_index():
     url = f'{ES_URL}/{es_index}'
     log.info("PUT %s", url)
     put_resp = put_json(url, CONFIG)
+    check_response(put_resp)
+
+
+def update_mapping():
+    es_index = collections.current().es_index
+    url = f'{ES_URL}/{es_index}/_mapping/{DOCUMENT_TYPE}'
+    log.info("PUT %s", url)
+    put_resp = put_json(url, MAPPINGS[DOCUMENT_TYPE])
     check_response(put_resp)
 
 
