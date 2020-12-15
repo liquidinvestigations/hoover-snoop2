@@ -398,6 +398,12 @@ class DocumentUserTag(models.Model):
     def blob(self):
         return self.digest.blob
 
+    @property
+    def field(self):
+        if self.public:
+            return 'tags'
+        return 'private-tags.' + self.user
+
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
