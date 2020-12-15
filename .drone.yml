@@ -25,7 +25,7 @@ steps:
     branch:
     - master
 
-- name: docker push branch ${DRONE_COMMIT_BRANCH}
+- name: docker push branch
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
