@@ -50,7 +50,6 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
-
 ---
 kind: pipeline
 name: test
@@ -124,9 +123,11 @@ steps:
   - cd /opt/hoover/snoop
   - chown -R 666:666 /opt/hoover/collections
   - py.test -vv
-  trigger:
-    events:
-    - push
+
+trigger:
+  events:
+  - push
+  - cron
 
 volumes:
 - name: test-collections-v
