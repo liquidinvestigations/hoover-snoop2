@@ -133,21 +133,20 @@ def gather(blob, **depends_on):
     return writer.blob
 
 
-def _get_public_doc_tags(blob):
-    q = blob.documentusertag_set.filter(public=True)
-    q = q.values("tag").distinct()
-    ret = list(i['tag'] for i in q.iterator())
-    log.error(ret)
-    return ret
+def _get_tags(digest):
+    # add public tags
+    q1 = digest.documentusertag_set.filter(public=True)
+    q1 = q1.values("tag").distinct()
+    public_list = list(i['tag'] for i in q1.iterator())
+    ret = {'tags': public_list} if public_list else {}
 
-
-def _get_private_doc_tags(blob):
-    q = blob.documentusertag_set.filter(public=False)
-    users = q.values("user").distinct()
-    ret = {}
-    for user in users.iterator():
-        ret[user] = list(i['tag'] for i in q.filter(user=user).values("tag").iterator())
-    log.error(ret)
+    # add private tags
+    q2 = digest.documentusertag_set.filter(public=False)
+    q2_users = q2.values("user").distinct()
+    for user in q2_users.iterator():
+        tags_for_user = q2.filter(user=user).values("tag")
+        private_list = list(i['tag'] for i in tags_for_user.iterator())
+        ret['tags.' + user] = private_list
     return ret
 
 
@@ -161,8 +160,7 @@ def index(blob, digests_gather):
 
     # inject tags at indexing stage, so the private ones won't get spilled in
     # the document/file endpoints
-    content['public-tags'] = _get_public_doc_tags(blob)
-    content['private-tags'] = _get_private_doc_tags(blob)
+    content.update(_get_tags(digest))
 
     version = _get_document_version(digest)
     body = dict(content, _hoover={'version': version})

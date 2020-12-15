@@ -32,10 +32,10 @@ MIDDLEWARE = [
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     # 'django.middleware.csrf.CsrfViewMiddleware',
+    'snoop.data.middleware.DisableCSRF',
 
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'snoop.data.middleware.AutoLogin',
-    'snoop.data.middleware.DisableCSRF',
 
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -48,6 +48,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         # 'rest_framework.permissions.DjangoModelPermissionsOrAnonReadOnly'
         'rest_framework.permissions.AllowAny'
+    ],
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.SessionAuthentication',
     ],
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
@@ -212,7 +215,8 @@ celery.app.conf.task_routes = {
 SYSTEM_QUEUES = ['run_dispatcher', 'save_stats']
 ALWAYS_QUEUE_NOW = False
 
-# don't connect to the internet to verify my schema pls
-SWAGGER_SETTINGS = {
-    'VALIDATOR_URL': 'http://localhost:8189',
-}
+if not DEBUG:
+    # don't connect to the internet to verify my schema pls
+    SWAGGER_SETTINGS = {
+        'VALIDATOR_URL': None,
+    }
