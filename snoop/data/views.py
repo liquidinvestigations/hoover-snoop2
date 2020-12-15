@@ -191,33 +191,21 @@ class TagViewSet(viewsets.ModelViewSet):
         assert models.Digest.objects.filter(blob=blob).exists(), 'hash is not digest'
         return models.DocumentUserTag.objects.filter(Q(user=user) | Q(public=True), Q(digest__blob=blob))
 
-#    @drf_collection_view
-#    def create(self, request, **kwargs):
-#        log.error('create request kwargs ' + str(self.kwargs))
-#        log.error('function kwargs ' + str(kwargs))
-#
-#        blob = self.kwargs['hash']
-#        user = self.kwargs['username']
-#        digest_id = models.Digest.objects.get(blob=blob).id
-#        return super().create(request)
-#
-#    @drf_collection_view
-#    def update(self, request, pk=None):
-#        blob = self.kwargs['hash']
-#        request.data['user'] = self.kwargs['username']
-#        request.data['digest_id'] = models.Digest.objects.get(blob=blob).id
-#        return super().update(request, pk)
-#
-#    @drf_collection_view
-#    def partial_update(self, request, pk=None):
-#        blob = self.kwargs['hash']
-#        request.data['user'] = self.kwargs['username']
-#        request.data['digest_id'] = models.Digest.objects.get(blob=blob).id
-#        return super().partial_update(request, pk)
-#
-#    @drf_collection_view
-#    def destroy(self, request, pk=None):
-#        blob = self.kwargs['hash']
-#        request.data['user'] = self.kwargs['username']
-#        request.data['digest_id'] = models.Digest.objects.get(blob=blob).id
-#        return super().destroy(request, pk)
+    def check_ownership(self, pk):
+        assert self.kwargs['username'] == self.get_queryset().get(pk=pk).user, \
+            "you can only modify your own tags"
+
+    @drf_collection_view
+    def update(self, request, pk=None, **kwargs):
+        self.check_ownership(pk)
+        return super().update(request, pk, **kwargs)
+
+    @drf_collection_view
+    def partial_update(self, request, pk=None, **kwargs):
+        self.check_ownership(pk)
+        return super().partial_update(request, pk, **kwargs)
+
+    @drf_collection_view
+    def destroy(self, request, pk=None, **kwargs):
+        self.check_ownership(pk)
+        return super().destroy(request, pk, **kwargs)
