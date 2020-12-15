@@ -3,14 +3,13 @@ from rest_framework import serializers
 from . import models
 
 
-class DocumentUserTagSerializer(serializers.HyperlinkedModelSerializer):
-    url = serializers.CharField(source='get_absolute_url', read_only=True)
+class DocumentUserTagSerializer(serializers.ModelSerializer):
     blob = serializers.CharField(source='digest.blob.pk', read_only=True)
 
     class Meta:
         model = models.DocumentUserTag
-        fields = ['id', 'blob', 'user', 'public', 'tag', 'url']
-        read_only_fields = ['id', 'digest_id', 'user']
+        fields = ['id', 'blob', 'user', 'public', 'tag']
+        read_only_fields = ['id', 'digest_id', 'user', 'blob']
 
     # def to_representation(self, instance):
     #    # do nothing special

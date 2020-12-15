@@ -157,24 +157,27 @@ def document_locations(request, hash):
     return JsonResponse({'locations': locations, 'page': page, 'has_next_page': has_next})
 
 
-@collection_view
-def users_with_private_tags(request):
-    q = models.DocumentUserTag.objects.filter(public=False).values('user').distinct()
-    return JsonResponse({'users': list(i['user'] for i in q.iterator())})
-
-
 class TagViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.DocumentUserTagSerializer
     permission_classes = []
 
     @drf_collection_view
     def get_serializer(self, *args, **kwargs):
-        context = {
-            'collection': self.kwargs['collection'],
-            'blob': self.kwargs['hash'],
-            'user': self.kwargs['username'],
-            'digest_id': models.Digest.objects.filter(blob=self.kwargs['hash']).get().id,
-        }
+        fake = getattr(self, 'swagger_fake_view', False)
+        if fake:
+            context = {
+                'collection': "some-collection",
+                'blob': "0006660000000000000000000000000000000000000000000000000000000000",
+                'user': "testuser",
+                'digest_id': 666,
+            }
+        else:
+            context = {
+                'collection': self.kwargs['collection'],
+                'blob': self.kwargs['hash'],
+                'user': self.kwargs['username'],
+                'digest_id': models.Digest.objects.filter(blob=self.kwargs['hash']).get().id,
+            }
         return super().get_serializer(*args, **kwargs, context=context)
 
     @drf_collection_view
