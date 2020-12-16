@@ -243,9 +243,9 @@ class File(models.Model):
     ctime = models.DateTimeField()
     mtime = models.DateTimeField()
     size = models.BigIntegerField()
-    original = models.ForeignKey(Blob, on_delete=models.DO_NOTHING,
+    original = models.ForeignKey(Blob, on_delete=models.RESTRICT,
                                  related_name='+')
-    blob = models.ForeignKey(Blob, on_delete=models.DO_NOTHING)
+    blob = models.ForeignKey(Blob, on_delete=models.RESTRICT)
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
@@ -281,11 +281,11 @@ class Task(models.Model):
 
     func = models.CharField(max_length=1024)
     blob_arg = models.ForeignKey(Blob, null=True, blank=True,
-                                 on_delete=models.DO_NOTHING,
+                                 on_delete=models.CASCADE,
                                  related_name='+')
     args = JSONField()
     result = models.ForeignKey(Blob, null=True, blank=True,
-                               on_delete=models.DO_NOTHING)
+                               on_delete=models.RESTRICT)
 
     # these fields are used for logging and debugging, not for dispatching
     date_created = models.DateTimeField(auto_now_add=True)
@@ -359,10 +359,10 @@ class TaskDependency(models.Model):
 
 
 class Digest(models.Model):
-    blob = models.OneToOneField(Blob, on_delete=models.DO_NOTHING)
+    blob = models.OneToOneField(Blob, on_delete=models.CASCADE)
     result = models.ForeignKey(
         Blob,
-        on_delete=models.DO_NOTHING,
+        on_delete=models.RESTRICT,
         related_name='+',
     )
 
@@ -381,7 +381,7 @@ class Digest(models.Model):
 
 
 class DocumentUserTag(models.Model):
-    digest = models.ForeignKey(Digest, on_delete=models.DO_NOTHING)
+    digest = models.ForeignKey(Digest, on_delete=models.CASCADE)
     user = models.CharField(max_length=256)
     tag = models.CharField(max_length=512)
     public = models.BooleanField()
@@ -442,10 +442,10 @@ class OcrSource(models.Model):
 
 
 class OcrDocument(models.Model):
-    source = models.ForeignKey(OcrSource, on_delete=models.DO_NOTHING)
+    source = models.ForeignKey(OcrSource, on_delete=models.CASCADE)
     original_hash = models.CharField(max_length=64, db_index=True)
-    ocr = models.ForeignKey(Blob, on_delete=models.DO_NOTHING)
-    text = models.ForeignKey(Blob, on_delete=models.DO_NOTHING,
+    ocr = models.ForeignKey(Blob, on_delete=models.RESTRICT)
+    text = models.ForeignKey(Blob, on_delete=models.RESTRICT,
                              related_name='+')
 
     class Meta:

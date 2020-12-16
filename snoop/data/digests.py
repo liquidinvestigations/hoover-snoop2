@@ -48,7 +48,7 @@ def launch(blob):
         for lang in get_collection_langs():
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
-    gather_task = gather.laterz(blob, depends_on=depends_on, retry=True)
+    gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
 
 

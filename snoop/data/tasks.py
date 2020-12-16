@@ -45,6 +45,12 @@ class MissingDependency(Exception):
         self.task = task
 
 
+class ExtraDependency(Exception):
+
+    def __init__(self, name):
+        self.name = name
+
+
 def queue_task(task):
     import_snoop_tasks()
 
@@ -220,6 +226,23 @@ def run_task(task, log_handler, raise_exceptions=False):
                     )
                     queue_task(task)
 
+            except ExtraDependency as dep:
+                with tracing.span('extra dependency'):
+                    msg = '%r requests to remove a dependency: %r [%.03f s]' % (task, dep, time() - t0)
+                    logger.info(msg)
+                    tracing.add_annotation(msg)
+
+                    task.prev_set.filter(
+                        name=dep.name,
+                    ).delete()
+                    task.update(
+                        status=models.Task.STATUS_PENDING,
+                        error='',
+                        broken_reason='',
+                        log=log_handler.stream.getvalue(),
+                    )
+                    queue_task(task)
+
             except SnoopTaskBroken as e:
                 task.update(
                     status=models.Task.STATUS_BROKEN,
@@ -281,7 +304,7 @@ def snoop_task(name, priority=5):
 
     def decorator(func):
 
-        def laterz(*args, depends_on={}, retry=False, queue_now=True):
+        def laterz(*args, depends_on={}, retry=False, queue_now=True, delete_extra_deps=False):
             if args and isinstance(args[0], models.Blob):
                 blob_arg = args[0]
                 args = (blob_arg.pk,) + args[1:]
@@ -304,6 +327,9 @@ def snoop_task(name, priority=5):
                     if created:
                         retry = True
 
+            if delete_extra_deps:
+                task.prev_set.exclude(name__in=depends_on.keys()).delete()
+
             if task.date_finished:
                 if retry:
                     retry_task(task)
@@ -313,7 +339,23 @@ def snoop_task(name, priority=5):
                 queue_task(task)
             return task
 
+        def delete(*args):
+            if args and isinstance(args[0], models.Blob):
+                blob_arg = args[0]
+                args = (blob_arg.pk,) + args[1:]
+
+            else:
+                blob_arg = None
+
+            task = models.Task.objects.get(
+                func=name,
+                args=args,
+                blob_arg=blob_arg,
+            )
+            task.delete()
+
         func.laterz = laterz
+        func.delete = delete
         func.priority = priority
         task_map[name] = func
         return func
@@ -401,6 +443,12 @@ def require_dependency(name, depends_on, callback):
 
     task = callback()
     raise MissingDependency(name, task)
+
+
+def remove_dependency(name, depends_on):
+    if name not in depends_on:
+        return
+    raise ExtraDependency(name)
 
 
 @snoop_task('do_nothing')

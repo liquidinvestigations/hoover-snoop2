@@ -130,6 +130,8 @@ def get_stats():
 
 
 class MultiDBModelAdmin(admin.ModelAdmin):
+    allow_delete = False
+
     # A handy constant for the name of the alternate database.
     def __init__(self, *args, **kwargs):
         self.collection = collections.current()
@@ -178,9 +180,25 @@ class MultiDBModelAdmin(admin.ModelAdmin):
         # on the 'other' database.
         return super().formfield_for_manytomany(db_field, request, using=self.using, **kwargs)
 
+    def has_delete_permission(self, request, obj=None):
+        if not self.allow_delete:
+            return False
+        # otherwise, check the django permissions
+        return super().has_delete_permission(request, obj)
+
 
 class DirectoryAdmin(MultiDBModelAdmin):
     raw_id_fields = ['parent_directory', 'container_file']
+    readonly_fields = [
+        'pk',
+        '__str__',
+        'parent_directory',
+        'container_file',
+        'date_modified',
+        'date_created',
+        'name',
+    ]
+    list_display = ['pk', '__str__', 'name', 'date_created', 'date_modified']
 
 
 class FileAdmin(MultiDBModelAdmin):
@@ -350,8 +368,13 @@ class DigestAdmin(MultiDBModelAdmin):
 
 
 class DocumentUserTagAdmin(MultiDBModelAdmin):
+    allow_delete = True
     list_display = ['pk', 'user', 'blob', 'tag', 'public']
     search_fields = ['pk', 'user', 'blob', 'tag', 'user']
+
+
+class OcrSourceAdmin(MultiDBModelAdmin):
+    allow_delete = True
 
 
 class SnoopAdminSite(admin.AdminSite):
@@ -401,7 +424,7 @@ def make_collection_admin_site(collection):
         site.register(models.TaskDependency, TaskDependencyAdmin)
         site.register(models.Digest, DigestAdmin)
         site.register(models.DocumentUserTag, DocumentUserTagAdmin)
-        site.register(models.OcrSource, MultiDBModelAdmin)
+        site.register(models.OcrSource, OcrSourceAdmin)
         site.register(models.OcrDocument, MultiDBModelAdmin)
         site.register(models.Statistics, MultiDBModelAdmin)
         return site

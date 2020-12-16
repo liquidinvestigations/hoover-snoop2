@@ -10,7 +10,7 @@ from . import collections
 from .analyzers import archives
 from .analyzers import email
 from .analyzers import emlx
-from .tasks import snoop_task, require_dependency, SnoopTaskBroken
+from .tasks import snoop_task, require_dependency, remove_dependency, SnoopTaskBroken
 from .utils import time_from_unix
 from .indexing import delete_doc
 
@@ -98,7 +98,7 @@ def handle_file(file_pk, **depends_on):
             depends_on={'archive_listing': unarchive_task},
         )
 
-    elif file.original.mime_type in email.OUTLOOK_POSSIBLE_MIME_TYPES:
+    if file.original.mime_type in email.OUTLOOK_POSSIBLE_MIME_TYPES:
         try:
             file.blob = require_dependency(
                 'msg_to_eml', depends_on,
@@ -106,12 +106,16 @@ def handle_file(file_pk, **depends_on):
             )
         except SnoopTaskBroken:
             pass
+    else:
+        remove_dependency('msg_to_eml', depends_on)
 
-    elif file.original.mime_type == 'message/x-emlx':
+    if file.original.mime_type == 'message/x-emlx':
         file.blob = require_dependency(
             'emlx_reconstruct', depends_on,
             lambda: emlx.reconstruct.laterz(file.pk),
         )
+    else:
+        remove_dependency('emlx_reconstruct', depends_on)
 
     if file.blob.pk != file.original.pk:
         file.blob.update_magic()
@@ -128,11 +132,15 @@ def handle_file(file_pk, **depends_on):
     # if conversion blob changed from last time, then
     # we want to check if the old one is an orphan.
     deleted = False
-    if file.blob.pk != old_blob.pk:
+    if file.blob.pk != old_blob.pk and old_blob.pk != file.original.pk:
         if not old_blob.file_set.exists():
-            # since it is an orphan, let's remove it from the index.
+            # since it is an orphan, let's remove it from the index
             log.warning('deleting orphaned blob from index: ' + old_blob.pk)
             delete_doc(old_blob.pk)
+
+            # and database - this should cascade into all tasks, Digests, etc
+            old_blob.delete()
+
             deleted = True
 
     retry = file.original.mime_type != old_mime \
