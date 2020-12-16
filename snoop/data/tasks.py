@@ -108,6 +108,7 @@ def snoop_task_log_handler(level=logging.DEBUG):
     try:
         yield handler
     finally:
+        handler.flush()
         root_logger.removeHandler(handler)
 
 
