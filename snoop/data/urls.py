@@ -3,8 +3,8 @@ from rest_framework.routers import SimpleRouter
 from . import views, apps
 
 app_name = apps.DataConfig.name
-tags_router = SimpleRouter()
-tags_router.register('', views.TagViewSet, basename='documentusertag')
+tags_router = SimpleRouter(trailing_slash=False)
+tags_router.register('/?', views.TagViewSet, basename='documentusertag')
 
 urlpatterns = [
     path('<collection>/feed', views.feed),
@@ -18,5 +18,5 @@ urlpatterns = [
     path('<collection>/<hash>/ocr/<ocrname>', views.document_ocr),
     path('<collection>/<hash>/raw/<filename>', views.document_download),
 
-    path('<collection>/<hash>/tags/<username>/', include(tags_router.urls)),
+    path('<collection>/<hash>/tags/<username>', include(tags_router.urls)),
 ]
