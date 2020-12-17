@@ -119,7 +119,7 @@ class Blob(models.Model):
     def _do_update_magic(self, path):
         f = Magic(path).fields
         self.mime_type = f['mime_type']
-        self.mime_encoding = f['magic']
+        self.mime_encoding = f['mime_encoding']
         self.magic = f['magic']
         self.save()
 
@@ -129,7 +129,7 @@ class Blob(models.Model):
             # create symlink to default path, with filename extension
             # run magic on symlink
             with tempfile.TemporaryDirectory() as d:
-                filename = "File." + filename.split(b'.')[-1][:100].decode('utf-8')
+                filename = "File." + filename.split(b'.')[-1][:100].decode('utf-8', errors='surrogateescape')
                 link_path = Path(d) / filename
                 link_path.symlink_to(blob_repo_path(self.pk))
                 self._do_update_magic(link_path)
@@ -330,9 +330,9 @@ class Task(models.Model):
             return "".join(map(_translate, s))
 
         self.status = status
-        self.error = _escape(error)
-        self.broken_reason = _escape(broken_reason)
-        self.log = _escape(log)
+        self.error = _escape(error)[:2**13]  # 8k of error screen
+        self.broken_reason = _escape(broken_reason)[:2**12]  # 4k reason
+        self.log = _escape(log)[:2**14]  # 16k of log space
 
 
 class TaskDependency(models.Model):

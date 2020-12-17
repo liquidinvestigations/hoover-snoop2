@@ -333,7 +333,7 @@ class TaskAdmin(MultiDBModelAdmin):
 
     def details(self, obj):
         if obj.status == models.Task.STATUS_ERROR:
-            return obj.error
+            return obj.error[:100]
 
         return self.dependency_links(obj)
 
