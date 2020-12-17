@@ -52,12 +52,10 @@ def can_process(blob):
     return False
 
 
-session = requests.Session()
-
-
-def call_tika_server(endpoint, data):
+def call_tika_server(endpoint, data, content_type):
+    session = requests.Session()
     url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
-    resp = session.put(url, data=data)
+    resp = session.put(url, data=data, headers={'Content-Type': content_type})
 
     if resp.status_code == 422:
         raise SnoopTaskBroken("tika returned http 422, corrupt?", "tika_http_422")
@@ -73,7 +71,7 @@ def call_tika_server(endpoint, data):
 @returns_json_blob
 def rmeta(blob):
     with blob.open() as f, tracing.span('tika.rmeta'):
-        resp = call_tika_server('rmeta/text', f)
+        resp = call_tika_server('rmeta/text', f, blob.content_type)
 
     return resp.json()
 

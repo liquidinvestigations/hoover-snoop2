@@ -175,10 +175,10 @@ class Blob(models.Model):
             return writer.blob
 
     def open(self, encoding=None):
-        if encoding is not None:
-            mode = 'r'
-        else:
+        if encoding is None:
             mode = 'rb'
+        else:
+            mode = 'r'
         return self.path().open(mode, encoding=encoding)
 
 
