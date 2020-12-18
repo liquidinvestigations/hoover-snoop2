@@ -4,7 +4,7 @@ from . import views, apps
 
 app_name = apps.DataConfig.name
 tags_router = SimpleRouter(trailing_slash=False)
-tags_router.register('', views.TagViewSet, basename='documentusertag')
+tags_router.register('/?', views.TagViewSet, basename='documentusertag')
 
 urlpatterns = [
     path('<collection>/feed', views.feed),
