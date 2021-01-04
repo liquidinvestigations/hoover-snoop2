@@ -45,13 +45,13 @@ MAPPINGS = {
             "ocrpdf": {"type": "boolean"},
             "ocrimage": {"type": "boolean"},
             "tags": {"type": "keyword"},
-            "private-tags": {"type": "object"},
+            "priv-tags": {"type": "object"},
         },
         "dynamic_templates": [
             {
                 "private_tags_are_keywords": {
                     "match_mapping_type": "*",
-                    "match": "private-tags.*",
+                    "path_match": "priv-tags.*",
                     "mapping": {"type": "keyword"},
                 },
             },

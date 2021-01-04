@@ -402,7 +402,7 @@ class DocumentUserTag(models.Model):
     def field(self):
         if self.public:
             return 'tags'
-        return 'private-tags.' + self.user
+        return 'priv-tags.' + self.user
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)

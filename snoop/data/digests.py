@@ -165,7 +165,7 @@ def _get_tags(digest):
         user = u['user']
         tags_for_user = q2.filter(user=user).values("tag")
         private_list = list(i['tag'] for i in tags_for_user.iterator())
-        ret['private-tags.' + user] = private_list
+        ret['priv-tags.' + user] = private_list
     return ret
 
 
