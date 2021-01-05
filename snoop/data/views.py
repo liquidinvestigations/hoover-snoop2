@@ -10,7 +10,7 @@ from . import serializers
 from .analyzers import html
 from django.db.models import Q
 
-TEXT_LIMIT = 10 ** 7  # ten million characters
+TEXT_LIMIT = 10 ** 6  # one million characters
 
 
 def collection_view(func):

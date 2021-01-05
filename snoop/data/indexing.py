@@ -16,6 +16,9 @@ log = logging.getLogger(__name__)
 DOCUMENT_TYPE = 'doc'
 ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
 
+PUBLIC_TAGS_FIELD_NAME = 'tags'
+PRIVATE_TAGS_FIELD_NAME_PREFIX = 'priv-tags.'
+
 MAPPINGS = {
     "doc": {
         "properties": {
@@ -44,14 +47,15 @@ MAPPINGS = {
             "ocr": {"type": "boolean"},
             "ocrpdf": {"type": "boolean"},
             "ocrimage": {"type": "boolean"},
-            "tags": {"type": "keyword"},
-            "priv-tags": {"type": "object"},
+            PUBLIC_TAGS_FIELD_NAME: {"type": "keyword"},
+            # remove the trailing '.' here
+            PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},
         },
         "dynamic_templates": [
             {
                 "private_tags_are_keywords": {
                     "match_mapping_type": "*",
-                    "path_match": "priv-tags.*",
+                    "path_match": PRIVATE_TAGS_FIELD_NAME_PREFIX + "*",
                     "mapping": {"type": "keyword"},
                 },
             },

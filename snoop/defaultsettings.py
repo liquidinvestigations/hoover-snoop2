@@ -12,6 +12,7 @@ base_dir = Path(__file__).resolve().parent.parent
 DEBUG = os.environ.get('DEBUG', '').lower() in ['on', 'true']
 default_secret_key = 'placeholder key for development'
 SECRET_KEY = os.environ.get('SECRET_KEY', default_secret_key)
+SILENCED_SYSTEM_CHECKS = ['urls.W002']
 
 ALLOWED_HOSTS = [os.environ.get('SNOOP_HOSTNAME', '*')]
 
@@ -180,6 +181,7 @@ SNOOP_DOCUMENT_CHILD_QUERY_LIMIT = 200
 _amqp_url = os.getenv('SNOOP_AMQP_URL')
 if _amqp_url:
     CELERY_BROKER_URL = _amqp_url
+CELERYD_HIJACK_ROOT_LOGGER = False
 
 # Of the form "1.2.3.4:1234/_path/" (no "http://" prefix).
 # Used to query queue lengths. Assumes user/password guest/guest.
@@ -205,14 +207,19 @@ celery.app.conf.beat_schedule = {
         'task': 'snoop.data.tasks.save_stats',
         'schedule': timedelta(seconds=57),
     },
+    'update_all_tags': {
+        'task': 'snoop.data.tasks.update_all_tags',
+        'schedule': timedelta(seconds=35),
+    },
 }
 
 celery.app.conf.task_routes = {
     'snoop.data.tasks.run_dispatcher': {'queue': 'run_dispatcher'},
     'snoop.data.tasks.save_stats': {'queue': 'save_stats'},
+    'snoop.data.tasks.update_all_tags': {'queue': 'update_all_tags'},
 }
 
-SYSTEM_QUEUES = ['run_dispatcher', 'save_stats']
+SYSTEM_QUEUES = ['run_dispatcher', 'save_stats', 'update_all_tags']
 ALWAYS_QUEUE_NOW = False
 
 if not DEBUG:

@@ -131,6 +131,7 @@ def get_stats():
 
 class MultiDBModelAdmin(admin.ModelAdmin):
     allow_delete = False
+    allow_change = False
 
     # A handy constant for the name of the alternate database.
     def __init__(self, *args, **kwargs):
@@ -186,6 +187,12 @@ class MultiDBModelAdmin(admin.ModelAdmin):
         # otherwise, check the django permissions
         return super().has_delete_permission(request, obj)
 
+    def has_change_permission(self, request, obj=None):
+        if not self.allow_change:
+            return False
+        # otherwise, check the django permissions
+        return super().has_change_permission(request, obj)
+
 
 class DirectoryAdmin(MultiDBModelAdmin):
     raw_id_fields = ['parent_directory', 'container_file']
@@ -205,6 +212,12 @@ class FileAdmin(MultiDBModelAdmin):
     raw_id_fields = ['parent_directory', 'original', 'blob']
     list_display = ['__str__', 'size', 'mime_type',
                     'original_blob_link', 'blob_link']
+    readonly_fields = [
+        'pk', 'parent_directory', 'original', 'original_blob_link',
+        'blob', 'blob_link', 'mime_type',
+        'ctime', 'mtime', 'size', 'date_created', 'date_modified',
+    ]
+
     search_fields = [
         'original__sha3_256',
         'original__sha256',
@@ -243,7 +256,8 @@ class BlobAdmin(MultiDBModelAdmin):
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
                      'magic', 'mime_type', 'mime_encoding']
-    readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5', 'created']
+    readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5', 'created',
+                       'size', 'magic', 'mime_type', 'mime_encoding']
 
     change_form_template = 'snoop/admin_blob_change_form.html'
 
@@ -283,6 +297,9 @@ class BlobAdmin(MultiDBModelAdmin):
 
 class TaskAdmin(MultiDBModelAdmin):
     raw_id_fields = ['blob_arg', 'result']
+    readonly_fields = ['blob_arg', 'result', 'pk', 'func', 'args',
+                       'date_created', 'date_started', 'date_finished', 'date_modified',
+                       'status', 'details', 'error', 'log', 'broken_reason', 'worker']
     list_display = ['pk', 'func', 'args', 'created', 'finished',
                     'status', 'details']
     list_filter = ['func', 'status']
@@ -344,10 +361,17 @@ class TaskAdmin(MultiDBModelAdmin):
 
 class TaskDependencyAdmin(MultiDBModelAdmin):
     raw_id_fields = ['prev', 'next']
+    readonly_fields = ['prev', 'next', 'name']
+    list_display = ['pk', 'name', 'prev', 'next']
+    search_fields = ['prev', 'next', 'name']
 
 
 class DigestAdmin(MultiDBModelAdmin):
     raw_id_fields = ['blob', 'result']
+    readonly_fields = [
+        'blob', 'blob_link', 'result', 'result_link',
+        'blob__mime_type', 'date_modified',
+    ]
     list_display = ['pk', 'blob__mime_type', 'blob_link', 'result_link', 'date_modified']
     search_fields = ['pk', 'blob__pk', 'result__pk']
     # TODO subclass django.contrib.admin.filters.AllValuesFieldListFilter.choices()
@@ -368,13 +392,17 @@ class DigestAdmin(MultiDBModelAdmin):
 
 
 class DocumentUserTagAdmin(MultiDBModelAdmin):
-    allow_delete = True
-    list_display = ['pk', 'user', 'blob', 'tag', 'public']
+    list_display = ['pk', 'user', 'blob', 'tag', 'public', 'date_indexed']
+    readonly_fields = [
+        'pk', 'user', 'blob', 'tag', 'public', 'date_indexed',
+        'date_modified', 'date_created',
+    ]
     search_fields = ['pk', 'user', 'blob', 'tag', 'user']
 
 
 class OcrSourceAdmin(MultiDBModelAdmin):
     allow_delete = True
+    allow_change = True
 
 
 class SnoopAdminSite(admin.AdminSite):

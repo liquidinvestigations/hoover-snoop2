@@ -2,11 +2,14 @@ import logging
 import json
 import re
 import subprocess
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.paginator import Paginator
+from django.utils import timezone
+from django.db.models import Subquery
 
-from .tasks import snoop_task, SnoopTaskBroken
+from .tasks import snoop_task, SnoopTaskBroken, retry_task, retry_tasks
 from . import models
 from .utils import zulu
 from .analyzers import email
@@ -20,6 +23,7 @@ from snoop.data import language_detection
 log = logging.getLogger(__name__)
 language_detector = language_detection.detectors[settings.LANGUAGE_DETECTOR_NAME]
 ES_MAX_INTEGER = 2 ** 31 - 1
+TAGS_UPDATE_DELAY = timedelta(seconds=20)
 
 
 def get_collection_langs():
@@ -156,7 +160,7 @@ def _get_tags(digest):
     q1 = digest.documentusertag_set.filter(public=True)
     q1 = q1.values("tag").distinct()
     public_list = list(i['tag'] for i in q1.iterator())
-    ret = {'tags': public_list} if public_list else {}
+    ret = {indexing.PUBLIC_TAGS_FIELD_NAME: public_list} if public_list else {}
 
     # add private tags
     q2 = digest.documentusertag_set.filter(public=False)
@@ -165,8 +169,37 @@ def _get_tags(digest):
         user = u['user']
         tags_for_user = q2.filter(user=user).values("tag")
         private_list = list(i['tag'] for i in tags_for_user.iterator())
-        ret['priv-tags.' + user] = private_list
+        ret[indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX + user] = private_list
     return ret
+
+
+def _set_tags_timestamps(digest, body):
+    """ Sets 'date-indexed' on all tagas from the body.
+
+    If other tags have been added since digests.index() ran _get_tags() above,
+    they shouldn't be in the indexed body and shouldn't be picked up by this function.
+    """
+
+    now = timezone.now()
+
+    if indexing.PUBLIC_TAGS_FIELD_NAME in body.keys():
+        q = digest.documentusertag_set.filter(
+            public=True,
+            tag__in=body[indexing.PUBLIC_TAGS_FIELD_NAME],
+            date_indexed__isnull=True,
+        )
+        q.update(date_indexed=now)
+
+    for key, private_tags in body.items():
+        if key.startswith(indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX):
+            user = key[len(indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX):]
+            q = digest.documentusertag_set.filter(
+                public=False,
+                tag__in=private_tags,
+                user=user,
+                date_indexed__isnull=True,
+            )
+            q.update(date_indexed=now)
 
 
 @snoop_task('digests.index', priority=8)
@@ -193,9 +226,44 @@ def index(blob, digests_gather):
 
     try:
         indexing.index(digest.blob.pk, body)
+        _set_tags_timestamps(digest, body)
     except RuntimeError:
         log.exception(repr(body))
         raise
+
+
+def retry_index(blob):
+    try:
+        q = models.Task.objects.filter(func='digests.index', blob_arg=blob)
+        task = q.get()
+        if task.status == models.Task.STATUS_PENDING:
+            return
+        retry_task(q.get())
+    except Exception as e:
+        log.exception(e)
+
+
+def update_all_tags():
+    """Re-runs the index task for all tags that have not been indexed.
+
+    Only works on tags older than TAGS_UPDATE_DELAY, on tasks that are not
+    already PENDING.
+
+    Requires a collection to be selected.
+    """
+
+    # allow some time for tags to be indexed naturally
+    tags = models.DocumentUserTag.objects.filter(
+        date_indexed__isnull=True,
+        date_modified__lt=timezone.now() - TAGS_UPDATE_DELAY,
+    )
+    digests = tags.distinct('digest').values('digest__blob')
+    tasks = models.Task.objects.filter(
+        func='digests.index',
+        blob_arg__pk__in=Subquery(digests),
+    )
+    tasks = tasks.exclude(status=models.Task.STATUS_PENDING)
+    retry_tasks(tasks)
 
 
 def get_filetype(mime_type):

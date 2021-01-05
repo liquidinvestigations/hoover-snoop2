@@ -9,7 +9,7 @@ RUN useradd -m -u $UID -g $GID -o -s /bin/bash $USER_NAME
 RUN apt-get update && apt-get install -y gosu
 
 # install snoop
-RUN mkdir -p /opt/hoover/snoop
+RUN mkdir -p /opt/hoover/snoop/static
 WORKDIR /opt/hoover/snoop
 
 ADD Pipfile Pipfile.lock ./
@@ -32,7 +32,7 @@ ENV UID $UID
 ENV GID $GID
 
 RUN set -e \
- && SECRET_KEY=temp SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
+ && SECRET_KEY=temp SNOOP_URL_PREFIX=static/ SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
 ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
 

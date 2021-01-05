@@ -45,12 +45,20 @@ def celery_argv(queues):
 class Command(BaseCommand):
     help = "Run celery worker"
 
+    def add_arguments(self, parser):
+        parser.add_argument('--system-queues', action='store_true',
+                            help="Run system queues, not data queues (only one instance should exist)")
+
     def handle(self, *args, **options):
         logging_for_management_command()
         with Profiler():
             tasks.import_snoop_tasks()
 
-            all_queues = [c.queue_name for c in ALL.values()] + settings.SYSTEM_QUEUES
+            if options['system_queues']:
+                all_queues = settings.SYSTEM_QUEUES
+            else:
+                all_queues = [c.queue_name for c in ALL.values()]
+
             argv = celery_argv(queues=all_queues)
             log.info('+' + ' '.join(argv))
             os.execv(argv[0], argv)

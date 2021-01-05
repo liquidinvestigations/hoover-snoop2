@@ -8,8 +8,27 @@ class DocumentUserTagSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = models.DocumentUserTag
-        fields = ['id', 'blob', 'field', 'user', 'public', 'tag', 'date_modified', 'date_created']
-        read_only_fields = ['id', 'digest_id', 'field', 'user', 'blob', 'date_modified', 'date_created']
+        fields = [
+            'blob',
+            'date_created',
+            'date_indexed',
+            'date_modified',
+            'field',
+            'id',
+            'public',
+            'tag',
+            'user',
+        ]
+        read_only_fields = [
+            'blob',
+            'date_created',
+            'date_indexed',
+            'date_modified',
+            'digest_id',
+            'field',
+            'id',
+            'user',
+        ]
 
     def create(self, validated_data):
         data = dict(validated_data)

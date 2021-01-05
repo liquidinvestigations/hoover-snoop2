@@ -565,6 +565,24 @@ def run_dispatcher():
     sleep(3)
 
 
+@celery.app.task
+def update_all_tags():
+    # circular import
+    from . import digests
+
+    if not single_task_running('update_all_tags'):
+        logger.warning('run_all_tags function already running, exiting')
+        return
+
+    collection_list = list(collections.ALL.values())
+    random.shuffle(collection_list)
+
+    for collection in collection_list:
+        with collection.set_current():
+            logger.info('collection "%r": updating tags', collection)
+            digests.update_all_tags()
+
+
 def dispatch_for(collection):
     if not collection.process:
         logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')

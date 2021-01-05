@@ -387,9 +387,14 @@ class DocumentUserTag(models.Model):
     public = models.BooleanField()
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
+    date_indexed = models.DateTimeField(null=True)
 
     class Meta:
         unique_together = ('digest', 'user', 'tag', 'public')
+        indexes = [
+            models.Index(fields=['date_indexed']),
+            models.Index(fields=['date_indexed', 'user', 'digest']),
+        ]
 
     def __str__(self):
         return f'user tag {self.pk}: tag={self.tag} user={self.user} doc={self.blob.pk[:5]}...'
@@ -400,29 +405,24 @@ class DocumentUserTag(models.Model):
 
     @property
     def field(self):
+        # circular import
+        from . import indexing
+
         if self.public:
-            return 'tags'
-        return 'priv-tags.' + self.user
+            return indexing.PUBLIC_TAGS_FIELD_NAME
+        return indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX + self.user
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
 
-        try:
-            from snoop.data.digests import index
-            index(self.blob, None)
-        except Exception as e:
-            print(e)
-            raise
+        from . import digests
+        digests.retry_index(self.blob)
 
     def delete(self, *args, **kwargs):
         super().delete(*args, **kwargs)
 
-        try:
-            from snoop.data.digests import index
-            index(self.blob, None)
-        except Exception as e:
-            print(e)
-            raise
+        from . import digests
+        digests.retry_index(self.blob)
 
 
 class OcrSource(models.Model):
@@ -455,3 +455,9 @@ class OcrDocument(models.Model):
 class Statistics(models.Model):
     key = models.CharField(max_length=64, unique=True)
     value = JSONField(default=dict)
+
+    def __str__(self):
+        return self.key
+
+    class Meta:
+        verbose_name_plural = 'statistics'
