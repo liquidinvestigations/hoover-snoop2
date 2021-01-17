@@ -150,6 +150,13 @@ def update_mapping():
     put_resp = put_json(url, MAPPINGS[DOCUMENT_TYPE])
     check_response(put_resp)
 
+    index_settings = {
+        "index": {
+            "refresh_interval": "50s",
+            "max_result_window": collections.current().max_result_window,
+        }
+    }
+
 
 def all_indices():
     indices = requests.get(f'{ES_URL}/_cat/indices?format=json').json()

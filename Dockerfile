@@ -32,7 +32,7 @@ ENV UID $UID
 ENV GID $GID
 
 RUN set -e \
- && SECRET_KEY=temp SNOOP_URL_PREFIX=static/ SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
+ && SECRET_KEY=temp SNOOP_URL_PREFIX=snoop/ SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
 ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
 

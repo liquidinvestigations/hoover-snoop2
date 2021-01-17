@@ -51,7 +51,8 @@ def collection(request):
         'feed': 'feed',
         'data_urls': '{id}/json',
         'stats': stats.value,
-        'max_result_window': 10000,  # TODO backend for https://github.com/CRJI/EIC/issues/595
+        'max_result_window': col.max_result_window,
+        'refresh_interval': col.refresh_interval,
     })
 
 

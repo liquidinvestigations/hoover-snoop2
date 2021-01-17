@@ -28,6 +28,8 @@ class Collection:
         self.process = process
         self.sync = sync and process
         self.ocr_languages = opt.get('ocr_languages', [])
+        self.max_result_window = opt.get('max_result_window', 10000)
+        self.refresh_interval = opt.get('refresh_interval', "5s")
 
         for lang_grp in self.ocr_languages:
             assert lang_grp.strip() != ''
