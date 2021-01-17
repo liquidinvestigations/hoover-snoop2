@@ -31,6 +31,7 @@ ENV USER_NAME $USER_NAME
 ENV UID $UID
 ENV GID $GID
 
+ENV CELERY_DB_REUSE_MAX=0
 RUN set -e \
  && SECRET_KEY=temp SNOOP_URL_PREFIX=snoop/ SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 

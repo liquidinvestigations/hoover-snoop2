@@ -100,6 +100,7 @@ default_db = {
     'NAME': dbm.group('name'),
     'USER': dbm.group('user'),
     'PASSWORD': dbm.group('password'),
+    'CONN_MAX_AGE': 0,
 }
 
 DATABASES = {
@@ -115,6 +116,7 @@ for col in SNOOP_COLLECTIONS:
     DATABASES[db_name] = dict(default_db, NAME=db_name)
 
 DATABASE_ROUTERS = ['snoop.data.collections.CollectionsRouter']
+CELERY_DB_REUSE_MAX = 0
 
 LANGUAGE_CODE = 'en-us'
 DETECT_LANGUAGE = True

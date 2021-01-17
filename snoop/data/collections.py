@@ -7,7 +7,7 @@ from pathlib import Path
 from django.conf import settings
 from django.db import connection
 from django.core import management
-from django.db import transaction
+from django.db import transaction, close_old_connections
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -87,6 +87,8 @@ class Collection:
             assert threadlocal.collection is self, \
                 "Current collection has changed!"
             threadlocal.collection = old
+            if old is None:
+                close_old_connections()
 
 
 ALL = {}

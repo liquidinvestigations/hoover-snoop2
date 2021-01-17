@@ -156,6 +156,10 @@ def update_mapping():
             "max_result_window": collections.current().max_result_window,
         }
     }
+    url = f'{ES_URL}/{es_index}/_settings'
+    log.info("PUT %s", url)
+    put_resp = put_json(url, index_settings)
+    check_response(put_resp)
 
 
 def all_indices():
