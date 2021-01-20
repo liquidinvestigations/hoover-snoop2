@@ -152,7 +152,7 @@ def update_mapping():
 
     index_settings = {
         "index": {
-            "refresh_interval": "50s",
+            "refresh_interval": collections.current().refresh_interval,
             "max_result_window": collections.current().max_result_window,
         }
     }
