@@ -172,6 +172,7 @@ class TagViewSet(viewsets.ModelViewSet):
                 'blob': "0006660000000000000000000000000000000000000000000000000000000000",
                 'user': "testuser",
                 'digest_id': 666,
+                'uuid': 'invalid',
             }
         else:
             context = {
@@ -179,6 +180,7 @@ class TagViewSet(viewsets.ModelViewSet):
                 'blob': self.kwargs['hash'],
                 'user': self.kwargs['username'],
                 'digest_id': models.Digest.objects.filter(blob=self.kwargs['hash']).get().id,
+                'uuid': self.kwargs['uuid'],
             }
         return super().get_serializer(*args, **kwargs, context=context)
 

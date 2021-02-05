@@ -18,5 +18,5 @@ urlpatterns = [
     path('<collection>/<hash>/ocr/<ocrname>', views.document_ocr),
     path('<collection>/<hash>/raw/<filename>', views.document_download),
 
-    path('<collection>/<hash>/tags/<username>', include(tags_router.urls)),
+    path('<collection>/<hash>/tags/<username>/<uuid>', include(tags_router.urls)),
 ]

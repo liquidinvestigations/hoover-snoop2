@@ -28,16 +28,19 @@ class DocumentUserTagSerializer(serializers.ModelSerializer):
             'field',
             'id',
             'user',
+            'uuid',
         ]
 
     def create(self, validated_data):
         data = dict(validated_data)
         data['user'] = self.context['user']
+        data['uuid'] = self.context['uuid']
         data['digest_id'] = self.context['digest_id']
         return super().create(data)
 
     def update(self, instance, validated_data):
         data = dict(validated_data)
         data['user'] = self.context['user']
+        data['uuid'] = self.context['uuid']
         data['digest_id'] = self.context['digest_id']
         return super().update(instance, data)

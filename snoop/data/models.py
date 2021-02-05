@@ -383,6 +383,7 @@ class Digest(models.Model):
 class DocumentUserTag(models.Model):
     digest = models.ForeignKey(Digest, on_delete=models.CASCADE)
     user = models.CharField(max_length=256)
+    uuid = models.CharField(max_length=256, default="invalid")
     tag = models.CharField(max_length=512)
     public = models.BooleanField()
     date_created = models.DateTimeField(auto_now_add=True)
@@ -392,6 +393,10 @@ class DocumentUserTag(models.Model):
     class Meta:
         unique_together = ('digest', 'user', 'tag', 'public')
         indexes = [
+            # in  digests.py _get_tag_timestamps
+            models.Index(fields=['digest', 'tag', 'public', 'uuid', 'date_indexed']),
+            models.Index(fields=['digest', 'public', 'tag', 'date_indexed']),
+            # for paginating thru data
             models.Index(fields=['date_indexed']),
             models.Index(fields=['date_indexed', 'user', 'digest']),
         ]
@@ -410,7 +415,7 @@ class DocumentUserTag(models.Model):
 
         if self.public:
             return indexing.PUBLIC_TAGS_FIELD_NAME
-        return indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX + self.user
+        return indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX + self.uuid
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
