@@ -11,7 +11,7 @@ where `666` is the id of the Task you get from the Admin UI at [snoop.data.admin
 from django.core.management.base import BaseCommand
 from ...logs import logging_for_management_command
 from ... import models, collections
-from ...tasks import retry_task
+from ...tasks import retry_task, import_snoop_tasks
 
 
 class Command(BaseCommand):
@@ -31,6 +31,7 @@ class Command(BaseCommand):
 
         logging_for_management_command()
         assert collection in collections.ALL, 'collection does not exist'
+        import_snoop_tasks()
         with collections.ALL[collection].set_current():
             task = models.Task.objects.get(pk=task_pk)
             retry_task(task, fg=options['fg'])

@@ -33,3 +33,4 @@ djangorestframework
 drf-yasg
 celery
 pillow
+graphene-django

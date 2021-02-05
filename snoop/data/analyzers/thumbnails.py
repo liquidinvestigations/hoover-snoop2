@@ -5,16 +5,22 @@ Three Thumnbails in different sizes are created. The service used can be found h
 """
 
 import logging
-import random
-import time
 
 import requests
 from django.conf import settings
 
 from .. import models
+from .. import utils
 from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
 
 log = logging.getLogger(__name__)
+
+
+THUMBNAIL_TRUNCATE_FILE_SIZE = 20 * (2 ** 20)  # 20 MB
+"""On files larger than this limit, truncate them when sending.
+This ensures thumbnail generation doesn't clog up our pipeline,
+instead preferring to fail after 50/300MB for huge PDFs/Words."""
+
 
 THUMBNAIL_MIME_TYPES = {
     'application/postscript',
@@ -311,25 +317,13 @@ THUMBNAIL_MIME_TYPES = {
 Based on [[https://github.com/algoo/preview-generator/blob/develop/doc/supported_mimetypes.rst]]
 """
 
-RETRY_ON_HTTP_CODES = [404, 500]
-"""List of HTTP status codes that will be retried"""
-
-MAX_RETRY_COUNT = 3
-"""Maximum mumber of retries, when receiving errors from the service."""
-
-RETRY_MIN_SLEEP = 20
-"""Minimum of time that the task will sleep before a retry."""
-
-RETRY_MAX_SLEEP = 45
-"""Maximum of time that the task will sleep before a retry."""
-
 TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
 
-TIMEOUT_MAX = 180
+TIMEOUT_MAX = 200
 """Maximum number of seconds to wait for this service."""
 
-MIN_SPEED_BPS = 27 * 1024  # 27 KB/s
+MIN_SPEED_BPS = 10 * 1024  # 10 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
 file size, and the previous `TIMEOUT_BASE` constant."""
@@ -354,26 +348,19 @@ def call_thumbnails_service(blob, size):
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
     timeout = min(TIMEOUT_MAX, int(TIMEOUT_BASE + blob.size / MIN_SPEED_BPS))
 
-    with blob.open() as data:
+    # instead of streaming the file, just read some 50MB into a bytes string and send that, capping out
+    # the data sent per file for this very slow service.
+
+    with blob.open() as f:
+        data = utils.read_exactly(f, THUMBNAIL_TRUNCATE_FILE_SIZE)
         payload = {'file': data}
-        try:
-            resp = requests.post(url, files=payload, timeout=timeout)
-        except Exception as e:
-            log.exception(e)
-            raise SnoopTaskBroken('timeout and/or connection error, timeout = ' + str(round(timeout)) + 's',
-                                  'thumbnail_timeout')
 
-    log.debug('timestamp service got: %s', resp.status_code)
-
-    if resp.status_code in RETRY_ON_HTTP_CODES:
-        for _ in range(MAX_RETRY_COUNT):
-            time.sleep(random.randint(RETRY_MIN_SLEEP, RETRY_MAX_SLEEP))
-            log.info(resp.status_code)
-            with blob.open() as data:
-                payload['file'] = data
-                resp = requests.post(url, files=payload, timeout=timeout)
-            if resp.status_code == 200:
-                break
+    try:
+        resp = requests.post(url, files=payload, timeout=timeout)
+    except Exception as e:
+        log.exception(e)
+        raise SnoopTaskBroken('timeout and/or connection error, timeout = ' + str(round(timeout)) + 's',
+                              'thumbnail_timeout')
 
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'image/jpeg'):

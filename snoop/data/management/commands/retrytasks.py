@@ -15,7 +15,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         """Arguments for the collection, and selection criteria: functions, statuses."""
 
-        parser.add_argument('collection', type=str)
+        parser.add_argument('collection', type=str, help="collection name, or __ALL__ to run on all of them")
         parser.add_argument('--func', help="Filter by task function")
         parser.add_argument('--status', help="Filter by task status")
         parser.add_argument('--dry-run', action='store_true',
@@ -26,24 +26,31 @@ class Command(BaseCommand):
 
         logging_for_management_command(options['verbosity'])
 
-        col = collections.ALL[collection]
-        with col.set_current():
-            func = options.get('func')
-            status = options.get('status')
+        tasks.import_snoop_tasks()
 
-            # assert status != models.Task.STATUS_PENDING, \
-            #     "cannot use this on pending tasks"
+        if collection == '__ALL__':
+            all_collections = list(collections.ALL.values())
+        else:
+            all_collections = [collections.ALL[collection]]
 
-            queryset = models.Task.objects
-            if func:
-                queryset = queryset.filter(func=func)
-            if status:
-                queryset = queryset.filter(status=status)
-            # queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
-            queryset = queryset.order_by('date_modified')
+        for col in all_collections:
+            with col.set_current():
+                func = options.get('func')
+                status = options.get('status')
 
-            if options.get('dry_run'):
-                print("Tasks to retry:", queryset.count())
+                # assert status != models.Task.STATUS_PENDING, \
+                #     "cannot use this on pending tasks"
 
-            else:
-                tasks.retry_tasks(queryset)
+                queryset = models.Task.objects
+                if func:
+                    queryset = queryset.filter(func=func)
+                if status:
+                    queryset = queryset.filter(status=status)
+                # queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
+                queryset = queryset.order_by('date_modified')
+
+                if options.get('dry_run'):
+                    print("Tasks to retry:", queryset.count())
+
+                else:
+                    tasks.retry_tasks(queryset)

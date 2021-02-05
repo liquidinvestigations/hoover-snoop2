@@ -11,17 +11,19 @@ This module also handles generating the different representations for File, Dire
 indexing data into Elasticsearch.
 """
 
-import logging
-import json
 import subprocess
 import chardet
+
+import logging
 
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.utils import timezone
-from django.db.models import Subquery
+from django.db.models import OuterRef, Subquery, Count
 
-from .tasks import snoop_task, SnoopTaskBroken, retry_task, retry_tasks
+from .tasks import snoop_task, SnoopTaskBroken
+from .tasks import retry_task, retry_tasks, require_dependency
+
 from . import models
 from .utils import zulu, read_exactly
 from .analyzers import email
@@ -30,13 +32,12 @@ from .analyzers import exif
 from .analyzers import thumbnails
 from .analyzers import pdf_preview
 from .analyzers import image_classification
+from .analyzers import entities
 from . import ocr
-from ._file_types import FILE_TYPES
 from . import indexing
-from snoop.data import language_detection
+from ._file_types import FILE_TYPES
 
 log = logging.getLogger(__name__)
-language_detector = language_detection.detectors.get(settings.LANGUAGE_DETECTOR_NAME, None)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
@@ -47,7 +48,7 @@ def get_collection_langs():
     return current().ocr_languages
 
 
-@snoop_task('digests.launch', priority=4, version=4)
+@snoop_task('digests.launch', priority=4, version=6)
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -86,7 +87,11 @@ def launch(blob):
         depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
-    index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
+
+    index_task = index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
+
+    bulk_index.laterz(blob, depends_on={'digests_index': index_task, 'digests_gather': gather_task},
+                      retry=True, queue_now=False)
 
 
 def can_read_text(blob):
@@ -145,7 +150,7 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', priority=7, version=4)
+@snoop_task('digests.gather', priority=7, version=5)
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
@@ -161,8 +166,7 @@ def gather(blob, **depends_on):
             log.debug("tika_rmeta task is broken; skipping")
 
         else:
-            with tika_rmeta_blob.open(encoding='utf8') as f:
-                tika_rmeta = json.load(f)
+            tika_rmeta = tika_rmeta_blob.read_json()
             rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
             rv['date'] = tika.get_date_modified(tika_rmeta)
             rv['date-created'] = tika.get_date_created(tika_rmeta)
@@ -175,8 +179,7 @@ def gather(blob, **depends_on):
             rv['broken'].append(email_parse_blob.reason)
             log.debug("email_parse task is broken; skipping")
         else:
-            with email_parse_blob.open(encoding='utf8') as f:
-                email_parse = json.load(f)
+            email_parse = email_parse_blob.read_json()
             email_meta = email.email_meta(email_parse)
             rv.update(email_meta)
 
@@ -216,18 +219,6 @@ def gather(blob, **depends_on):
                 rv['ocrimage'] = True
         rv['ocrtext'] = ocr_results
 
-    # combine texts and detect language
-    if settings.DETECT_LANGUAGE:
-        text = rv.get('text', '')[:2500]
-        ocrtexts = [v[:2500] for v in rv.get('ocrtext', {}).values() if v]
-        if text or ocrtexts:
-            alltext = text + "\n" + "\n".join(ocrtexts)
-            try:
-                rv['lang'] = language_detector(alltext)
-            except Exception as e:
-                log.debug(f'Unable to detect language for document {id}: {e}')
-                rv['lang'] = None
-
     # try and extract exif data
     exif_data_blob = depends_on.get('exif_data')
     if exif_data_blob:
@@ -236,8 +227,7 @@ def gather(blob, **depends_on):
             log.debug("exif_data task is broken; skipping")
 
         else:
-            with exif_data_blob.open(encoding='utf8') as f:
-                exif_data = json.load(f)
+            exif_data = exif_data_blob.read_json()
             rv['location'] = exif_data.get('location')
             rv['date-created'] = exif_data.get('date-created')
 
@@ -267,8 +257,7 @@ def gather(blob, **depends_on):
             rv['broken'].append(detections.reason)
             log.debug('object_detection task is broken; skipping')
         else:
-            with detections.open() as f:
-                detected_objects = json.load(f)
+            detected_objects = detections.read_json()
             rv['detected-objects'] = detected_objects
 
     rv['image-classes'] = []
@@ -278,22 +267,59 @@ def gather(blob, **depends_on):
             rv['broken'].append(predictions.reason)
             log.debug('image_classification task is broken; skipping')
         else:
-            with predictions.open() as f:
-                image_classes = json.load(f)
+            image_classes = predictions.read_json()
             rv['image-classes'] = image_classes
 
     _delete_empty_keys(rv)
 
-    with models.Blob.create() as writer:
-        writer.write(json.dumps(rv).encode('utf-8'))
+    result_blob = models.Blob.create_json(rv)
 
     _, _ = models.Digest.objects.update_or_create(
         blob=blob,
         defaults=dict(
-            result=writer.blob,
+            result=result_blob,
         ),
     )
-    return writer.blob
+    return result_blob
+
+
+@snoop_task('digests.index', priority=8, version=11)
+def index(blob, **depends_on):
+    """Task used to call the entity extraction for a document.
+
+    Calls entity extraction and/or language detection for a document.
+    If there are no text sources in the document or entity extraction is disabled
+    it will just return the blob and do nothing.
+    This task will create a new task that it depends on, which will call the nlp service and
+    save it's results.
+    """
+
+    if isinstance(depends_on.get('digests_gather'), SnoopTaskBroken):
+        raise depends_on.get('digests_gather')
+
+    digest = models.Digest.objects.get(blob=blob)
+    if not settings.EXTRACT_ENTITIES and not settings.DETECT_LANGUAGE:
+        log.warning('Settings disabled. Exiting')
+        return None
+
+    digest_data = digest.result.read_json()
+
+    if not digest_data.get('text') and not digest_data.get('ocrtext'):
+        log.warning('No text data. Exiting')
+        return None
+
+    entity_service_results = require_dependency('get_entity_results', depends_on,
+                                                lambda: entities.get_entity_results.laterz(blob),)
+
+    if isinstance(entity_service_results, SnoopTaskBroken):
+        log.warning('get_entity_results dependency is BROKEN. Exiting')
+        return None
+
+    result = entities.process_results(digest, entity_service_results.read_json())
+
+    digest.extra_result = models.Blob.create_json(result)
+    digest.save()
+    return digest.extra_result
 
 
 def _get_tags(digest_id):
@@ -356,9 +382,9 @@ def _set_tags_timestamps(digest_id, body):
             q.update(date_indexed=now)
 
 
-@snoop_task('digests.index', priority=8, bulk=True, version=1)
-def index(batch):
-    """Task used to send a many documents to Elasticsearch.
+@snoop_task('digests.bulk_index', priority=9, bulk=True, version=11)
+def bulk_index(batch):
+    """Task used to send many documents to Elasticsearch.
 
     End of the processing pipeline for any document.
     """
@@ -366,6 +392,37 @@ def index(batch):
     # list of (task, body) tuples to send to ES as a single batch request
     result = {}
     documents_to_index = []
+
+    task_query = (
+        models.Task.objects
+        .filter(pk__in=[t.pk for t in batch])
+
+        # Annotate important parameters. Since our only batch task is digests.index(),
+        # we only need to annotate the following:
+        # - dependency digests_gather --> status
+        # - digest object --> ID
+        # - digest tags --> count
+
+        # - digests_gather status (between success and broken)
+        .annotate(digest_gather_status=Subquery(
+            models.TaskDependency.objects
+            .filter(next=OuterRef('pk'), name='digests_gather')
+            .values('prev__status')[:1]
+        ))
+        # - digest ID, for fetching tags
+        .annotate(digest_id=Subquery(
+            models.Digest.objects
+            .filter(blob=OuterRef('blob_arg'))
+            .values('pk')[:1]
+        ))
+        # - and the number of tags. We use these to avoid making a query to fetch them
+        .annotate(tags_count=Count(
+            models.DocumentUserTag.objects
+            .filter(digest=OuterRef('digest_id'))
+            .values('pk')
+        ))
+    )
+    batch = list(task_query.all())
 
     for task in batch:
         blob = task.blob_arg
@@ -401,6 +458,8 @@ def index(batch):
         if size > ES_MAX_INTEGER:
             body['size'] = ES_MAX_INTEGER
 
+        log.info('Bulk Task %s uploading body with keys = %s', task, ", ".join(sorted(list(body.keys()))))
+
         documents_to_index.append((task, body))
 
     rv = indexing.bulk_index([(task.blob_arg.pk, body) for task, body in documents_to_index])
@@ -417,17 +476,19 @@ def index(batch):
 
 
 def retry_index(blob):
-    """Retry the [snoop.data.digests.index][] Task for the given Blob.
+    """Retry the [snoop.data.digests.index][] and [snoop.data.digests.bulk_index][] Task for the given Blob.
 
     Needed by the web process when some user changes the Document tags; this function will be called for the
     affected document."""
-    try:
-        task = models.Task.objects.filter(func='digests.index', blob_arg=blob).get()
-        if task.status == models.Task.STATUS_PENDING:
-            return
-        retry_task(task)
-    except Exception as e:
-        log.exception(e)
+    for func in ['digests.index', 'digests.bulk_index']:
+        try:
+            task = models.Task.objects.filter(func=func, blob_arg=blob).get()
+            if task.status == models.Task.STATUS_PENDING:
+                return
+            retry_task(task)
+
+        except Exception as e:
+            log.exception(e)
 
 
 def update_all_tags():
@@ -640,8 +701,7 @@ def _get_document_content(digest, the_file=None):
 
     digest_data = {}
     if digest is not None:
-        with digest.result.open() as f:
-            digest_data = json.loads(f.read().decode('utf8'))
+        digest_data = digest.result.read_json()
 
     attachments = None
     filetype = get_filetype(the_file.blob.mime_type)
@@ -657,20 +717,7 @@ def _get_document_content(digest, the_file=None):
         'filetype': filetype,
 
         'text': digest_data.get('text'),
-        'pgp': digest_data.get('pgp'),
-        'ocr': digest_data.get('ocr'),
         'ocrtext': {k: v for k, v in digest_data.get('ocrtext', {}).items() if v},
-        'ocrpdf': digest_data.get('ocrpdf'),
-        'ocrimage': digest_data.get('ocrimage'),
-        'has-thumbnails': digest_data.get('has-thumbnails'),
-        'has-pdf-preview': digest_data.get('has-pdf-preview'),
-
-        # TODO 7zip, unzip, all of these will list the correct access/creation
-        # times when listing, but don't preserve them when unpacking.
-        # 'date': digest_data.get('date') or zulu(the_file.mtime),
-        # 'date-created': digest_data.get('date-created') or zulu(the_file.ctime),
-        'date': digest_data.get('date'),
-        'date-created': digest_data.get('date-created'),
 
         'md5': original.md5,
         'sha1': original.sha1,
@@ -678,16 +725,20 @@ def _get_document_content(digest, the_file=None):
         'sha3-256': original.sha3_256,
         'size': original.size,
         'filename': the_file.name,
+
         'path': path,
         'path-text': path,
         'path-parts': path_parts(path),
         'attachments': attachments,
-        'detected-objects': digest_data.get('detected-objects'),
-        'image-classes': digest_data.get('image-classes'),
     }
 
     content.update(digest_data)
     content['word-count'] = get_word_count(content)
+
+    # populate from digests.extra_result if it's set
+    # (data from entities and langauge detection)
+    if digest.extra_result:
+        content.update(digest.extra_result.read_json())
 
     # delete old "email" field that may be left behind on older digest data.
     if 'email' in content:

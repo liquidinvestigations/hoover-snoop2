@@ -75,6 +75,7 @@ uritemplate = "*"
 pillow = "*"
 django-ranged-response = "*"
 pytest-timeout = "*"
+graphene-django = "*"
 
 [requires]
 python_version = "3.9"
