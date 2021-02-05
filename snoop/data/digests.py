@@ -2,7 +2,6 @@ import logging
 import json
 import re
 import subprocess
-from datetime import timedelta
 
 from django.conf import settings
 from django.core.paginator import Paginator
@@ -23,7 +22,6 @@ from snoop.data import language_detection
 log = logging.getLogger(__name__)
 language_detector = language_detection.detectors[settings.LANGUAGE_DETECTOR_NAME]
 ES_MAX_INTEGER = 2 ** 31 - 1
-TAGS_UPDATE_DELAY = timedelta(seconds=20)
 
 
 def get_collection_langs():
@@ -237,11 +235,10 @@ def index(blob, digests_gather):
 
 def retry_index(blob):
     try:
-        q = models.Task.objects.filter(func='digests.index', blob_arg=blob)
-        task = q.get()
+        task = models.Task.objects.filter(func='digests.index', blob_arg=blob).get()
         if task.status == models.Task.STATUS_PENDING:
             return
-        retry_task(q.get())
+        retry_task(task)
     except Exception as e:
         log.exception(e)
 
@@ -249,16 +246,13 @@ def retry_index(blob):
 def update_all_tags():
     """Re-runs the index task for all tags that have not been indexed.
 
-    Only works on tags older than TAGS_UPDATE_DELAY, on tasks that are not
-    already PENDING.
+    Only works on tasks that are not already PENDING.
 
     Requires a collection to be selected.
     """
 
-    # allow some time for tags to be indexed naturally
     tags = models.DocumentUserTag.objects.filter(
         date_indexed__isnull=True,
-        date_modified__lt=timezone.now() - TAGS_UPDATE_DELAY,
     )
     digests = tags.distinct('digest').values('digest__blob')
     tasks = models.Task.objects.filter(
