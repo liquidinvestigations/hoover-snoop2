@@ -167,9 +167,11 @@ def _get_tags(digest):
     q2_users = q2.values("user").distinct()
     for u in q2_users.iterator():
         user = u['user']
-        tags_for_user = q2.filter(user=user).values("tag")
-        private_list = list(i['tag'] for i in tags_for_user.iterator())
-        ret[indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX + user] = private_list
+        tags_for_user = q2.filter(user=user)
+        uuid = tags_for_user.first().uuid
+        assert uuid != 'invalid'
+        private_list = list(i.tag for i in tags_for_user.iterator())
+        ret[indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX + uuid] = private_list
     return ret
 
 
@@ -192,11 +194,12 @@ def _set_tags_timestamps(digest, body):
 
     for key, private_tags in body.items():
         if key.startswith(indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX):
-            user = key[len(indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX):]
+            uuid = key[len(indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX):]
+            assert uuid != 'invalid'
             q = digest.documentusertag_set.filter(
                 public=False,
                 tag__in=private_tags,
-                user=user,
+                uuid=uuid,
                 date_indexed__isnull=True,
             )
             q.update(date_indexed=now)
