@@ -561,6 +561,7 @@ def child_file_to_dict(file):
         'content_type': blob.mime_type,
         'filetype': get_filetype(blob.mime_type),
         'filename': file.name,
+        'size': file.size,
     }
 
 
