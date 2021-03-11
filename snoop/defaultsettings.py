@@ -161,8 +161,10 @@ DISPATCH_QUEUE_LIMIT = 14400 * _scale_coef
 # will be retried by sync every minute.
 SYNC_RETRY_LIMIT = 60 * _scale_coef
 
-# Only run pdf2pdfocr if pdf text word count less than this value:
-PDF2PDFOCR_MAX_WORD_COUNT = 666
+# Only run pdf2pdfocr if pdf text word count less than this value. This should
+# defend us from over-1200-page documents that hang up the processing for days.
+# The english bible has 808k words, at around 6 chars / word we have:
+PDF2PDFOCR_MAX_STRLEN = 808000 * 6  # one bible
 
 # url prefix for all the views, for example "snoop/"
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')

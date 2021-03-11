@@ -466,7 +466,7 @@ def _get_document_content(digest, the_file=None):
         'text': digest_data.get('text'),
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
-        'ocrtext': digest_data.get('ocrtext'),
+        'ocrtext': {k: v for k, v in digest_data.get('ocrtext', {}).items() if v},
         'ocrpdf': digest_data.get('ocrpdf'),
         'ocrimage': digest_data.get('ocrimage'),
 

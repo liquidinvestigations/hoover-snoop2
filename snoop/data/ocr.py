@@ -115,12 +115,12 @@ def run_tesseract_on_image(image_blob, lang):
 
 
 def run_tesseract_on_pdf(pdf_blob, lang):
-    pdfstrlen = int(
+    pdfstrlen = len(
         subprocess.check_output(f'pdftotext -q -enc UTF-8 "{pdf_blob.path()}" - | wc -w',
-                                shell=True).decode('utf8')
+                                shell=True)
     )
-    if pdfstrlen > settings.PDF2PDFOCR_MAX_WORD_COUNT:
-        log.warning(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} words of text')  # noqa: E501
+    if pdfstrlen > settings.PDF2PDFOCR_MAX_STRLEN:
+        log.warning(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes of text')  # noqa: E501
         return None
 
     tmp_f = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
