@@ -4,9 +4,11 @@ import exifread
 from ..tasks import snoop_task, returns_json_blob
 from ..utils import zulu
 
+EXIFREAD_FILETYPES = {'image/tiff', 'image/jpeg' 'image/webp', 'image/heic'}
+
 
 def can_extract(blob):
-    return blob.mime_type.startswith('image/')
+    return blob.mime_type in EXIFREAD_FILETYPES
 
 
 def extract_gps_location(tags):

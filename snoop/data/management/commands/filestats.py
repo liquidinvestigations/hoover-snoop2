@@ -1,14 +1,26 @@
-import sys
 from django.core.management.base import BaseCommand
-from ...logs import logging_for_management_command
 from ... import models
 from ... import collections
 from django.db.models import Count
 from django.db.models import Sum
-import re
-import mimetypes
+from django.db import connections
 
-SUPPORTED_FILETYPES = {
+from ...analyzers import archives
+from ...analyzers import tika
+from ...analyzers import email
+from ...analyzers import exif
+from ...analyzers import html
+from ... import filesystem
+
+SUPPORTED_FILETYPES = (archives.KNOWN_TYPES
+                       .union(set(tika.TIKA_CONTENT_TYPES))
+                       .union(filesystem.EMLX_EMAIL_MIME_TYPE)
+                       .union(email.OUTLOOK_POSSIBLE_MIME_TYPES)
+                       .union(filesystem.RFC822_EMAIL_MIME_TYPE)
+                       .union(exif.EXIFREAD_FILETYPES)
+                       .union(html.HTML_MIME_TYPES))
+
+SUPPORTED_FILETYPES_OLD = {
     'application/x-7z-compressed',
     'application/zip',
     'application/x-zip',
@@ -73,10 +85,53 @@ SUPPORTED_FILETYPES = {
     'message/x-emlx',
 }
 
-def truncateSize(size):
-    exponent = len(str(size))-1
-    divisor = 10**exponent
-    return int((size/divisor))*divisor
+
+def truncate_size(size):
+    return round(size, -((len(str(size))) - 1))
+
+
+def get_top_mime_types(collections_list=collections.ALL, print_supported=True):
+    for col in collections_list:
+        res = {}
+        querysetMime = models.Blob.objects.all().values('mime_type').annotate(total=Count('mime_type')).annotate(size=Sum('size')).order_by('-size')
+        if not print_supported:
+            querysetMime = querysetMime.exclude(mime_type__in=SUPPORTED_FILETYPES)
+        collection = collections.ALL[col]
+        with collection.set_current():
+            for mtype in querysetMime:
+                if mtype['mime_type'] not in res:
+                    res[mtype['mime_type']] = truncate_size(mtype['size'])
+                else:
+                    res[mtype['mime_type']] += truncate_size(mtype['size'])
+    return res
+
+
+def get_top_extensions(collections_list=collections.ALL, print_supported=True):
+    for col in collections_list:
+        query = """select substring(encode(f.name_bytes::bytea, 'escape')::text
+                    from '(\..{1,20})$') as ext,
+                    sum(f.size) as size,
+                    b.mime_type as mime
+                    from data_file f
+                    join data_blob b on f.blob_id = b.sha3_256
+                    group by ext, mime
+                    order by size desc limit 100;"""
+        with connections['collection_' + col].cursor() as cursor:
+            cursor.execute(query)
+            results = cursor.fetchall()
+
+        extDict = {}
+        for entry in results:
+            if not print_supported:
+                if entry[2] in SUPPORTED_FILETYPES:
+                    continue
+            if entry[0] not in extDict:
+                extDict[entry[0]] = {'size': truncate_size(int(entry[1])), 'mtype': set([entry[2]])}
+            else:
+                extDict[entry[0]]['size'] += truncate_size(int(entry[1]))
+                extDict[entry[0]]['mtype'].add(entry[2])
+    return extDict
+
 
 class Command(BaseCommand):
     help = "Display filetype stats."
@@ -84,45 +139,8 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('collection', type=str)
 
-    def handle(self, collection, **options):
-
-        col = collections.ALL[collection]
-        
-        with col.set_current():
-            querysetMime = models.Blob.objects.all().values('mime_type').annotate(total=Count('mime_type')).annotate(size=Sum('size')).order_by('-size')
-            print()
-            print('---- Top 100 Mime-Types by size ----')
-            print()
-            for mtype in querysetMime:
-                print(f'{(mtype["mime_type"]):75} {truncateSize(mtype["size"]):10d}')
-
-            print()
-            print('---- Top Unsupported Mime-Types ----')
-            print()
-            unsuppQuery = querysetMime.exclude(mime_type__in=SUPPORTED_FILETYPES)
-            for mtype in unsuppQuery[:100]:
-                #if mtype['mime_type'] not in SUPPORTED_FILETYPES:
-                extensions = mimetypes.guess_all_extensions(mtype['mime_type'])
-                print(f'{(mtype["mime_type"]):75} {truncateSize(mtype["size"]):10d} Extensions: {extensions}')
-            
-            querysetExt = models.File.objects.all().values('name_bytes', 'size').order_by('-size')
-            extDict = {}
-            for filename in querysetExt:
-                filestr = str(filename['name_bytes'],'utf8')
-
-                try:
-                    fileext = re.match(r'.*?(\..*)', filestr)[1]
-                except TypeError:
-                    continue
-
-                if fileext not in extDict:
-                    extDict[fileext] = filename['size'] 
-                else:
-                    extDict[fileext] += filename['size']
-
-            print()
-            print('---- Top 100 File-Extensions By Size ----')
-            print()
-            for ext,size in sorted(extDict.items(), key=lambda x: x[1], reverse=True)[:100]:
-
-                print(f'{ext:75} {truncateSize(size):10d}')
+    def handle(self, **options):
+        for k, v in get_top_mime_types(print_supported=False).items():
+            print(k, v)
+        for k, v in get_top_extensions(print_supported=False).items():
+            print(k, v)

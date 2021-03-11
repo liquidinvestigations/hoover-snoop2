@@ -16,6 +16,9 @@ from .indexing import delete_doc
 
 log = logging.getLogger(__name__)
 
+RFC822_EMAIL_MIME_TYPE = {'message/rfc822', }
+EMLX_EMAIL_MIME_TYPE = {'message/x-emlx', }
+
 
 def directory_absolute_path(directory):
     path_elements = []
@@ -109,7 +112,7 @@ def handle_file(file_pk, **depends_on):
     else:
         remove_dependency('msg_to_eml', depends_on)
 
-    if file.original.mime_type == 'message/x-emlx':
+    if file.original.mime_type in EMLX_EMAIL_MIME_TYPE:
         file.blob = require_dependency(
             'emlx_reconstruct', depends_on,
             lambda: emlx.reconstruct.laterz(file.pk),
@@ -120,7 +123,7 @@ def handle_file(file_pk, **depends_on):
     if file.blob.pk != file.original.pk:
         file.blob.update_magic()
 
-    if file.blob.mime_type == 'message/rfc822':
+    if file.blob.mime_type in RFC822_EMAIL_MIME_TYPE:
         email_parse_task = email.parse.laterz(file.blob)
         create_attachment_files.laterz(
             file.pk,
