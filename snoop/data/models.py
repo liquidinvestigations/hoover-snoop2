@@ -418,6 +418,7 @@ class DocumentUserTag(models.Model):
         return indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX + self.uuid
 
     def save(self, *args, **kwargs):
+        self.date_indexed = None
         super().save(*args, **kwargs)
 
         from . import digests
