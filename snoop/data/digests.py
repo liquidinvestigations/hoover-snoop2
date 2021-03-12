@@ -1,3 +1,16 @@
+"""Processing pipeline steps for a single document.
+
+After all the files on disk, inside archives, emails and other containers are all ingested and de-duplicated
+by the `snoop.data.filesystem` set of tasks, they end up here in the `launch()` Task. Inside this task we
+decide what kinds of data and metadata extraction tasks we want to run for the document. We queue them all,
+then we queue a `gather()` task that combines their output, and finally we queue the `index()` task to
+upload the result into Elasticsearch.
+
+This module also handles generating the different representations for File, Directory and Digest
+(de-duplicated document) rows in the database; these are used both in API response generation and when
+indexing data into Elasticsearch.
+"""
+
 import logging
 import json
 import re

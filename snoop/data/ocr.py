@@ -1,3 +1,13 @@
+"""Task definitions for ingesting and running OCR.
+
+OCR results can be imported from an external source (supplied on disk) or through running Tesseract directly
+on the workers. The different tasks defined here implement these two methods of obtaining OCR results.
+
+Identifying OCR results with documents is very simple: for external OCR we use the MD5 (which is required to
+be a part of the filename of the files on disk), and for the OCR we run ourselves we use a Task dependency
+(that internally uses the sha3_256 of the document content as the primary key).
+"""
+
 import json
 import logging
 import multiprocessing

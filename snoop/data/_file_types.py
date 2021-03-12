@@ -1,3 +1,14 @@
+"""Constant definitions for mime type - file type mapping.
+
+The mime type is the one returned by `libmagic` in `snoop.data.magic`.
+
+The "file type" is a user-friendly category of a mime type. It's stored on the documents as `filetype`, used
+for logic in switches, and presented in the UI as a first-class attribute of the document. Examples of file
+types: "folder", "email", "archive".
+
+Not all mime types have a file type bound to them.
+"""
+
 FILE_TYPES = {
     'application/x-directory': 'folder',
     'application/pdf': 'pdf',

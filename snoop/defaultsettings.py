@@ -1,3 +1,8 @@
+"""Default settings file.
+
+This file gets imported both on the Docker image and on the testing configuration.
+"""
+
 import os
 import re
 from datetime import timedelta

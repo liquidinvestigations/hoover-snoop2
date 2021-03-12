@@ -1,3 +1,5 @@
+"""Registers the different language detectors from this package in a global.
+"""
 from . import langdetect, polyglot
 
 

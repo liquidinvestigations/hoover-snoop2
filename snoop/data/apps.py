@@ -1,3 +1,7 @@
+"""Django App configuration.
+
+Nothing interesting here; defaults from Django.
+"""
 from django.apps import AppConfig
 from django.contrib.admin.apps import AdminConfig
 

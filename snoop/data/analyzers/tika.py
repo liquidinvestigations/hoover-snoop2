@@ -1,3 +1,15 @@
+"""Tasks to run Apache Tika on documents to extract text and metadata.
+
+Module defines helper methods to work with the Tika HTTP server, as well as converting their output format
+into our set of fields.
+
+The corrected mime type is sent along with the file, since if we don't, Tika will usually fail while running
+"file" and not being able to use the result.
+
+We keep a hard-coded list of what mime types to send to Tika. We should probably send (almost) everything
+and let them surprise us instead.
+"""
+
 from urllib.parse import urljoin
 from django.conf import settings
 import requests

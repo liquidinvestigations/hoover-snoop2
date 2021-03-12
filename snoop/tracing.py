@@ -1,3 +1,8 @@
+"""Settings and breakpoint for remote debugger.
+
+TODO:
+    This is not actively used in the system and should be removed.
+"""
 import logging
 from contextlib import contextmanager
 

@@ -1,3 +1,6 @@
+"""Tasks that handle parsing e-mail.
+"""
+
 import logging
 import json
 import subprocess

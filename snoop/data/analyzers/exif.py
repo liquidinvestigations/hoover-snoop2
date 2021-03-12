@@ -1,3 +1,6 @@
+"""Tasks that extract GPS location and other metadata from images.
+"""
+
 from datetime import datetime
 from django.utils.timezone import utc
 import exifread

@@ -1,3 +1,6 @@
+"""Implementation for language detector using polyglot.
+"""
+
 from polyglot.detect import Detector
 
 

@@ -1,3 +1,9 @@
+"""Elasticsearch index data mapping, settings, management and import/export.
+
+We mentain an append-only document mapping with a number of wildcard fields. One wildcard field mapping
+example is the private tags field - a different field for every user.
+"""
+
 from contextlib import contextmanager
 from datetime import datetime
 import json

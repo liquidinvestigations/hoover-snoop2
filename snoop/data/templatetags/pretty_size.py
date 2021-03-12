@@ -1,3 +1,7 @@
+"""Django template tag for rendering multiple of bytes.
+
+Used in the Admin page.
+"""
 # https://gist.github.com/wreckah/7307294
 
 from math import ceil
@@ -22,8 +26,8 @@ _LIMIT_VALUE = 10 ** _DIGITS
 
 @register.filter
 def pretty_size(size_bytes):
-    """
-    Returns prettified size originally passed in bytes.
+    """ Returns prettified size originally passed in bytes.
+
     >>> pretty_size(1)
     '1 B'
     >>> pretty_size(1024)

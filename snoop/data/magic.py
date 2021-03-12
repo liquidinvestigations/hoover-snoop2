@@ -1,3 +1,15 @@
+"""Guess mime types from content and filename.
+
+Uses the `file` executable (libmagic) to guess the mime type, even if the extension is incorrect.
+In some cases, the correct mime type is only discovered when the extension is present. For example, all
+".docx" and "xlsx" and similar ".***x" Microsoft Office files are actually zips with XMLs inside - so
+impossible for `file` to differentiate from the content alone, without implementing decompression too.
+
+Last, we have our own additions to this sytem, in order to try and differentiate between some ambiguous
+casees even `find` doesn't take into account; such as the difference between a single E-mail file and a MBOX
+collection.
+"""
+
 import subprocess
 import re
 from .utils import read_exactly
@@ -43,6 +55,10 @@ def _parse_magic(output):
 
 
 class Magic:
+    """Wrapper for running various "file" commands over Blobs.
+
+    Used internally when creating `snoop.data.models.Blob` instances.
+    """
     @property
     def fields(self):
         return {

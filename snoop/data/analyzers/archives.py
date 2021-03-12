@@ -1,3 +1,6 @@
+"""Tasks that unpack archives and return their structure and contents.
+"""
+
 import subprocess
 import tempfile
 from pathlib import Path

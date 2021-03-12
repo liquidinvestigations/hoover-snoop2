@@ -1,3 +1,31 @@
+"""Manage data into separate collections (and corresponding indexes, databases, and object storages) under
+one Django instance.
+
+Each Collection is bound to one PostgreSQL database, one Elasticsearch index, and one object storage
+location (known as "blob directory"). This module defines operations to create and remove each of these, as
+well as to list every resource on this server.
+
+
+When writing any data-oriented code, a Collection must be selected (in order to know the correct database,
+index and object storage to use). This is done through the context manager `Collection.set_current()`.
+Inside a collection context, `collection.current()` will return the collection set in the context manager,
+and any `snoop.data.models.MultiDBModel` can be used with Django ORM and will use that collection's
+database.
+
+Internally, this is stored in `threading.local` memory on entering the context manager, and fetched from
+that same local memory whenever required inside the context. This means we can do multi-threaded work on
+different collections at different points in time, from the same process. This also means we sometimes have
+to patch Django's different admin, database and framework classes to either read or write to our current
+collection storage.
+
+The list of collections is static and supplied through a single dict in `settings.SNOOP_COLLECTIONS`.
+This means a Django server restart is required whenever the collection count or configuration is changed.
+
+This module creates Collection instances from the setting and stores them in a global called `ALL`. This
+global is usually used in management commands to select the collection requested by the user.
+"""
+
+
 import logging
 import subprocess
 import threading
@@ -12,6 +40,7 @@ from django.db import transaction
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+ALL = {}
 ALL_TESSERACT_LANGS = subprocess.check_output(
     "tesseract --list-langs | tail -n +2",
     shell=True).decode().split()
@@ -19,6 +48,17 @@ threadlocal = threading.local()
 
 
 class Collection:
+    """Model for managing collection resources: SQL databases, ES indexes, object storage.
+
+    Accepts additional settings for switching off processing, switching on periodic sync of the dataset, OCR
+    language list, index-level settings.
+
+    The collection name is restricted to a very simple format and used directly to obtain: a PG database
+    name, an ES index name, and two folders on disk: one directly under the DATA_DIR, with the initial
+    dataset, and another one directly under the BLOB_DIR, used to store all the binary data for
+    `snoop.data.models.Blob` objects. All these names and paths are retrieved as properties on the
+    Collection object.
+    """
 
     DATA_DIR = 'data'
     GPGHOME_DIR = 'gpghome'
@@ -92,12 +132,6 @@ class Collection:
             #     close_old_connections()
 
 
-ALL = {}
-for item in settings.SNOOP_COLLECTIONS:
-    col = Collection(**item)
-    ALL[col.name] = col
-
-
 def all_collection_dbs():
     with connection.cursor() as conn:
         conn.execute('SELECT datname FROM pg_database WHERE datistemplate = false')
@@ -134,8 +168,8 @@ def create_es_indexes():
 
 
 def create_roots():
-    """
-    Creates a root directory (bucket) for the collection in the blob directory.
+    """Creates a root directory (bucket) for the collection in the blob directory.
+
     Also creates a root document entry for the input data, so we have something to export.
     """
 
@@ -156,6 +190,10 @@ def create_roots():
 
 
 class CollectionsRouter:
+    """Django database router.
+
+    Uses the current collection's `.db_alias` to decide what database to route the reads and writes to.
+    """
 
     snoop_app_labels = ['data']
 
@@ -189,6 +227,15 @@ def from_object(obj):
 
 
 def current():
+    """Get back the Collection that was set in the `Collections.set_current()` context manager.
+
+    Raises if not called from inside the `Collections.set_current()` context.
+    """
     col = getattr(threadlocal, 'collection', None)
     assert col is not None, "There is no current collection set"
     return col
+
+
+for item in settings.SNOOP_COLLECTIONS:
+    col = Collection(**item)
+    ALL[col.name] = col

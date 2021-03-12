@@ -1,3 +1,8 @@
+"""Configuration for Celery.
+
+Logging and Settings for Celery are all handled here.
+"""
+
 import logging
 import os
 

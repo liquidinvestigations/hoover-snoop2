@@ -1,3 +1,8 @@
+"""Various utilities.
+
+Helper functions for singletons, binary file manipulation, timestamps.
+"""
+
 from datetime import datetime
 from django.utils.timezone import utc
 

@@ -1,3 +1,6 @@
+"""Tasks that handle converting modern Apple-format e-mail into RFC-822 format e-mail.
+"""
+
 import re
 import email
 import logging

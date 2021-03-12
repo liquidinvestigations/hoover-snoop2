@@ -1,3 +1,7 @@
+"""Django views, mostly JSON APIs.
+
+
+"""
 from django.http import HttpResponse, JsonResponse, FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.conf import settings
@@ -14,6 +18,11 @@ TEXT_LIMIT = 10 ** 6  # one million characters
 
 
 def collection_view(func):
+    """Decorator for views Django bound to a collection.
+
+    The collection slug is set through an URL path parameter called "collection".
+    """
+
     def view(request, *args, collection, **kwargs):
         try:
             col = collections.ALL[collection]
@@ -27,6 +36,13 @@ def collection_view(func):
 
 
 def drf_collection_view(func):
+    """Decorator for Django Rest Framework viewset methods bound to a collection.
+
+    The collection slug is set through the `kwargs` field on the `rest_framework.viewsets.ModelViewSet`
+    called "collection". The `kwargs` are set by Django Rest Framework from the URL path parameter, so
+    result is similar to `snoop.data.views.collection_view() defined above`.
+    """
+
     def view(self, *args, **kwargs):
         try:
             collection = self.kwargs['collection']
@@ -42,6 +58,11 @@ def drf_collection_view(func):
 
 @collection_view
 def collection(request):
+    """View returns basic stats for a collection as JSON.
+
+    Also loads the "stats" for this collection, as saved by `snoop.data.admin.get_stats`.
+    """
+
     col = collections.current()
     stats, _ = models.Statistics.objects.get_or_create(key='stats')
     return JsonResponse({
@@ -58,6 +79,14 @@ def collection(request):
 
 @collection_view
 def feed(request):
+    """JSON view used to paginate through entire Digest database, sorted by last modification date.
+
+    This was used in the past by another service to pull documents as they are processed and index them
+    elsewhere. This is not used anymore by us, since we now index documents in a snoop Task. See
+    `snoop.data.digests.index` for the Task definition.
+
+    TODO: deprecate and remove this view.
+    """
     limit = settings.SNOOP_FEED_PAGE_SIZE
     query = models.Digest.objects.order_by('-date_modified')
 
@@ -82,6 +111,13 @@ def feed(request):
 
 @collection_view
 def file_view(request, pk):
+    """JSON view with data for a File.
+
+    The primary key of the File is used to fetch it.
+
+    Response is different from, but very similar to, the result of the `document()` view below.
+    """
+
     file = get_object_or_404(models.File.objects, pk=pk)
     children_page = int(request.GET.get('children_page', 1))
     return JsonResponse(trim_text(digests.get_file_data(file, children_page)))
@@ -113,6 +149,14 @@ def trim_text(data):
 
 @collection_view
 def document(request, hash):
+    """JSON view with data for a Digest.
+
+    The primary key of the Digest is used to fetch it.
+
+    These are the de-duplicated variants of the objects returned from `file_view()` above, with some
+    differences. See `snoop.data.digests.get_document_data()` versus `snoop.data.digests.get_file_data()`.
+    """
+
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
     children_page = int(request.GET.get('children_page', 1))
     return JsonResponse(trim_text(digests.get_document_data(digest, children_page)))
@@ -120,6 +164,19 @@ def document(request, hash):
 
 @collection_view
 def document_download(request, hash, filename):
+    """View to download the `.original` Blob for the first File in a Digest's set.
+
+    Since all post-conversion `.blob`s are bound to the same `Digest` object, we assume the `.original`
+    Blobs are all equal too; so we present only the first one for downloading. This might cause problems
+    when this does not happen for various reasons; since users can't actually download all the different
+    original versions present in the dataset.
+
+    In practice, the conversion tools we use generally produce
+    different results every time they're run on the same file, so the chance of this happening are
+    non-existant. This also means we don't de-duplicate properly for files that require conversion.
+    See `snoop.data.filesystem.handle_file()` for more details.
+    """
+
     digest = get_object_or_404(
         models.Digest.objects.only('blob'),
         blob__pk=hash,
@@ -135,6 +192,19 @@ def document_download(request, hash, filename):
 
 @collection_view
 def document_ocr(request, hash, ocrname):
+    """View to download the OCR result binary for a given Document and OCR source combination.
+
+    The file downloaded can either be a PDF document with selectable text imprinted in it, or a text file.
+
+    The OCR source can be either External OCR (added by management command
+    `snoop.data.management.commands.createocrsource` or through the Admin), or managed internally (with the
+    slug called `tesseract_$LANG`).
+
+    The given slug "ocrname" is first looked up in the `snoop.data.models.OcrSource` table. If it's not
+    there, then we look in the Tasks table for dependencies of this document's Digest task, and return the
+    one with name matching the slug.
+    """
+
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
 
     if models.OcrSource.objects.filter(name=ocrname).exists():
@@ -153,6 +223,13 @@ def document_ocr(request, hash, ocrname):
 
 @collection_view
 def document_locations(request, hash):
+    """JSON view to paginate through all locations for a Digest.
+
+    Used to browse between the different apparitions of a File in a dataset.
+
+    Paginated by integers with fixed length pages, starting from 1.
+    """
+
     digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
     page = int(request.GET.get('page', 1))
     locations, has_next = digests.get_document_locations(digest, page)
@@ -160,6 +237,12 @@ def document_locations(request, hash):
 
 
 class TagViewSet(viewsets.ModelViewSet):
+    """Django Rest Framework (DRF) View set for the Tags APIs.
+
+    This is responsible for: capturing the various URL path arguments as the viewset context; setting the
+    current collection with `drf_collection_view()`; restricting private Tags access to correct users.
+    """
+
     serializer_class = serializers.DocumentUserTagSerializer
     permission_classes = []
 

@@ -1,3 +1,9 @@
+"""Settings and breakpoint for remote debugger.
+
+TODO:
+    This is not actively used in the system and should be removed.
+"""
+
 from django.conf import settings
 
 REMOTE_DEBUGGER_DEFAULT_PORT = 5678

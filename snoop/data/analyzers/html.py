@@ -1,3 +1,6 @@
+"""Tasks that sanitize HTML files before sending to front-end.
+"""
+
 import bleach
 
 ALLOWED_TAGS = list(bleach.ALLOWED_TAGS)

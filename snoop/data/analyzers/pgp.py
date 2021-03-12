@@ -1,3 +1,8 @@
+"""Tasks to decrypt gpg email and import keys.
+
+Requires the passphrase be removed from the key and imported into the "gpghome" directory under the
+collection dataset root.
+"""
 import subprocess
 
 from .. import collections
