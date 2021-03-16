@@ -7,8 +7,7 @@ HTML_MIME_TYPES = {'text/html', 'text/xml', 'application/xhtml+xml', 'applicatio
 
 
 def is_html(blob):
-   return blob.mime_type in HTML_MIME_TYPES
-
+    return blob.mime_type in HTML_MIME_TYPES
 
 
 def clean(blob):
