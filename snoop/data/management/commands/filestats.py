@@ -48,7 +48,7 @@ def get_top_mime_types(collections_list=collections.ALL, print_supported=True):
 
 def get_top_extensions(collections_list=collections.ALL, print_supported=True):
     for col in collections_list:
-        query = """select substring(encode(f.name_bytes::bytea, 'escape')::text
+        query = r"""select substring(encode(f.name_bytes::bytea, 'escape')::text
                     from '(\..{1,20})$') as ext,
                     sum(f.size) as size,
                     b.mime_type as mime
