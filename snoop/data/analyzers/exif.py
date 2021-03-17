@@ -4,7 +4,7 @@ import exifread
 from ..tasks import snoop_task, returns_json_blob
 from ..utils import zulu
 
-EXIFREAD_FILETYPES = {'image/tiff', 'image/jpeg' 'image/webp', 'image/heic'}
+EXIFREAD_FILETYPES = {'image/tiff', 'image/jpeg', 'image/webp', 'image/heic'}
 
 
 def can_extract(blob):
