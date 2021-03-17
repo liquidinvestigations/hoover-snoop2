@@ -11,7 +11,7 @@ Snoop is recommended to run in Nomad using [Liquid Investigations][].
 
 ### Run tests locally
 
-Install the drone CLI binary from their website onto your PATH.
+Install the drone CLI binary from their website onto your PATH. Install Docker CE, latest version.
 
 Then, run `./run-tests` with arguments you'd normally pass to `py.test`, like this:
 
