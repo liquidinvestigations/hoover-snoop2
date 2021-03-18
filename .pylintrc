@@ -171,9 +171,6 @@ disable=abstract-method,
         self-cls-assignment, # snoop: bad style, TODO fix
         consider-using-set-comprehension, # snoop: bad style, TODO fix
 
-
-        #missing-class-docstring, # snoop: bad style, TODO fix
-
 [REPORTS]
 
 # Set the output format. Available formats are text, parseable, colorized, msvs

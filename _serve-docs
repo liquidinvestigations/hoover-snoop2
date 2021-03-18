@@ -1,0 +1,6 @@
+#!/bin/bash -ex
+cd "$(dirname ${BASH_SOURCE[0]})"
+
+pip install -r docs/requirements-mkdocs.txt.orig
+set +e
+while true; do mkdocs serve -a 0.0.0.0:8000; sleep 1; done

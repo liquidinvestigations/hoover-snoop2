@@ -4,9 +4,9 @@ Includes routes for the DRF Tags API, and the various document and collection AP
 """
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
-from . import views, apps
+from . import views  # , apps
 
-app_name = apps.DataConfig.name
+# app_name = apps.DataConfig.name
 tags_router = SimpleRouter(trailing_slash=False)
 tags_router.register('/?', views.TagViewSet, basename='documentusertag')
 

@@ -1,0 +1,67 @@
+site_name: "hoover-snoop2"
+site_description: "."
+site_url: "https://hoover-snoop2.readthedocs.io/"
+repo_url: "https://github.com/liquidinvestigations/hoover-snoop2"
+edit_uri: "blob/master/docs/"
+repo_name: "liquidinvestigations/hoover-snoop2"
+
+nav:
+- readme: index.md
+- code reference:
+  - ...
+- documentation: docs-readme.md
+
+markdown_extensions:
+- toc:
+    permalink: "#"
+- admonition
+- codehilite
+- pymdownx.details
+- pymdownx.highlight
+- pymdownx.superfences
+- pymdownx.tabbed
+- pymdownx.tasklist
+#- pymdownx.magiclink
+
+theme:
+  name: material
+  palette:
+    #scheme: preference
+    primary: '#3f51b5'
+    accent: '#f50057'
+
+extra_css:
+- css/style.css
+
+
+plugins:
+- gen-files:
+    scripts:
+    - docs/gen.py
+- mkdocstrings:
+    watch:
+      - snoop
+    handlers:
+      python:
+        setup_commands:
+          - import sys, os
+          - sys.path.append(".")
+          - sys.path.append("docs")
+          - from mock import mock_all
+          - mock_all()
+          - os.environ["SNOOP_DB"] = "postgresql://snoop:snoop@snoop-pg:5432/snoop"
+        rendering:
+          heading_level: 2
+          #show_object_full_path: yes
+          #show_root_members_full_path: yes
+          show_category_heading: yes
+          show_if_no_docstring: yes
+          show_root_heading: yes
+          show_signature_annotations: yes
+        selection:
+          new_path_syntax: yes
+- search
+  #- coverage
+- awesome-pages:
+    collapse_single_pages: true
+          #- section-index

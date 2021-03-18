@@ -12,14 +12,33 @@ from multiprocessing import cpu_count
 
 from snoop.data import celery
 
+# WARNING: Docstrings are placed after the assignment.
+# See the example here:
+# https://mkdocstrings.github.io/troubleshooting/#my-docstrings-in-comments-are-not-picked-up
+# which is probably based off the rejected PEP here: https://www.python.org/dev/peps/pep-0224/
 base_dir = Path(__file__).resolve().parent.parent
+"""Helper pointing to root dir of repository."""
 
 DEBUG = os.environ.get('DEBUG', '').lower() in ['on', 'true']
-default_secret_key = 'placeholder key for development'
-SECRET_KEY = os.environ.get('SECRET_KEY', default_secret_key)
+"""Enable debug logging.
+
+Loaded from environment variabe with same name.
+"""
+
+SECRET_KEY = os.environ.get('SECRET_KEY', 'placeholder')
+"""Django secret key.
+
+Loaded from environment variabe with same name.
+"""
+
 SILENCED_SYSTEM_CHECKS = ['urls.W002']
+"""Used to disable Django warnings."""
 
 ALLOWED_HOSTS = [os.environ.get('SNOOP_HOSTNAME', '*')]
+"""List of domains to allow requests for.
+
+Loaded from environment variable `SNOOP_HOSTNAME`, default is `*` (no restrictions).
+"""
 
 INSTALLED_APPS = [
     'snoop.data.apps.AdminConfig',
@@ -32,6 +51,7 @@ INSTALLED_APPS = [
     'drf_yasg',
     'snoop.data',
 ]
+"""List of Django apps to load."""
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -47,6 +67,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
+"""List of Django middleware to load."""
 
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
@@ -67,6 +88,10 @@ REST_FRAMEWORK = {
         #    'rest_framework.renderers.AdminRenderer',
     ],
 }
+"""Configuration for Django Rest Framework.
+
+Disables authentication, allows all access. Sets JSON as the default input and output.
+"""
 
 ROOT_URLCONF = 'snoop.urls'
 
@@ -111,6 +136,11 @@ default_db = {
 DATABASES = {
     'default': default_db,
 }
+"""Django databases configuration.
+
+Gets populated from the [`SNOOP_COLLECTIONS`](./#snoop.defaultsettings.SNOOP_COLLECTIONS) constant at import
+time.
+"""
 
 SNOOP_COLLECTIONS = json.loads(os.environ.get('SNOOP_COLLECTIONS', '[]'))
 

@@ -510,7 +510,7 @@ def dispatch_tasks(status):
         status: the status used to filter Tasks to dispatch
 
     Returns:
-        True if any tasks have been queued, False if none matching status have been found in current
+        bool: True if any tasks have been queued, False if none matching status have been found in current
         collection.
     """
     all_functions = [x['func'] for x in models.Task.objects.values('func').distinct()]

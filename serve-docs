@@ -1,0 +1,9 @@
+#!/bin/bash -ex
+cd "$(dirname ${BASH_SOURCE[0]})"
+
+docker run --rm \
+  -it -p 8000 \
+  -v $PWD:/app -w /app \
+  -v $TMP/hoover-snoop2-docs:/app/site \
+  -p 8000 \
+  python:3.7 ./_serve-docs

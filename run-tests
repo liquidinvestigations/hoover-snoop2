@@ -1,8 +1,7 @@
 #!/bin/bash -ex
 cd "$(dirname ${BASH_SOURCE[0]})"
 
-flake8
-pylint snoop
+drone exec --branch $(git branch --show-current) --event push --pipeline static-tests .drone.yml
 
 docker build . --tag liquidinvestigations/hoover-snoop2:$(git branch --show-current)
 cp .drone.yml .drone.yml.bak

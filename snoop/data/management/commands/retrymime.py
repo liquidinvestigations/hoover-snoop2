@@ -1,3 +1,9 @@
+"""Fixes known mime-type errors from previous versions.
+
+Used to fix past bugs related to XLS (excel) and CDFV2 (outlook container) mime type detection and parsing,
+Will also fix past bugs where the fields would be set incorrectly.
+"""
+
 import datetime
 
 import logging

@@ -1,9 +1,9 @@
 """Definition for profile() decorator using cProfile.
 
-This uses some undefined and unused django settings (PROFILING_ENABLED, DEFAUILT_PROFILING_FILE) to decide
-when to run and where to dump its output. It seems that it will overwrite the DEFAULT_PROFILING_FILE output
-every time a function decorated with `profile()` will finish running, so it won't keep a history beyond the
-last invocation.
+This uses some undefined and unused django settings (`PROFILING_ENABLED`, `DEFAUILT_PROFILING_FILE`) to
+decide when to run and where to dump its output. It seems that it will overwrite the
+`DEFAULT_PROFILING_FILE` output every time a function decorated with [profile()](./#snoop.profiler.profile)
+will finish running, so it won't keep a history beyond the last invocation.
 
 TODO:
     This system hasn't been used in a while,  but probably still works. We should see if it's of any value,
@@ -19,7 +19,9 @@ from django.conf import settings
 
 
 class Profiler(cProfile.Profile):
-    """Context manager that dumps cProfile stats on __exit__."""
+    """Context manager that dumps cProfile stats on `__exit__`.
+    """
+
     filename = None
 
     def __enter__(self):
@@ -43,7 +45,8 @@ class Profiler(cProfile.Profile):
 
 
 def profile(filename=None):
-    """Decorator that dumps cProfile stats to file after function finished."""
+    """Decorator that dumps cProfile stats to file after function finished.
+    """
 
     def decorator(func):
 

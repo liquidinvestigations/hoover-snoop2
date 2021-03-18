@@ -33,7 +33,7 @@ from . import indexing
 from snoop.data import language_detection
 
 log = logging.getLogger(__name__)
-language_detector = language_detection.detectors[settings.LANGUAGE_DETECTOR_NAME]
+language_detector = language_detection.detectors.get(settings.LANGUAGE_DETECTOR_NAME, None)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 

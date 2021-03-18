@@ -84,7 +84,7 @@ class BlobWriter:
         Does not close file given to constructor.
 
         Returns:
-            dict with fields 'size' and the various hashes
+            dict: with fields 'size' and the various hashes
         """
         fields = {
             name: hash.hexdigest()
@@ -736,6 +736,7 @@ class OcrSource(models.Model):
     def root(self):
         """Returns the absolute path for the External OCR source.
         """
+
         col = collections.current()
         path = Path(settings.SNOOP_COLLECTION_ROOT) / col.name / 'ocr' / self.name
         assert path.is_dir()
