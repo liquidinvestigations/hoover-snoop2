@@ -2,5 +2,6 @@
 cd "$(dirname ${BASH_SOURCE[0]})"
 
 pip install -r docs/requirements-mkdocs.txt
+mkdocs build -c
 set +e
 while true; do mkdocs serve -a 0.0.0.0:8000; sleep 4; done

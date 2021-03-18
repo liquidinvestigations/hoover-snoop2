@@ -46,8 +46,7 @@ plugins:
         setup_commands:
           - import sys, os
           - sys.path.append(".")
-          - sys.path.append("docs")
-          - from mock import mock_all, EmptyClass
+          - from docs.docs_mock import mock_all, EmptyClass
           - mock_all()
           - import django.db.models
           - django.db.models.Model = EmptyClass
