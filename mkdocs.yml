@@ -47,9 +47,16 @@ plugins:
           - import sys, os
           - sys.path.append(".")
           - sys.path.append("docs")
-          - from mock import mock_all
+          - from mock import mock_all, EmptyClass
           - mock_all()
+          - import django.db.models
+          - django.db.models.Model = EmptyClass
           - os.environ["SNOOP_DB"] = "postgresql://snoop:snoop@snoop-pg:5432/snoop"
+          - os.environ["DEBUG"] = "true"
+          - os.environ["DJANGO_SETTINGS_MODULE"] = "snoop.defaultsettings"
+          - import django
+          - django.setup()
+          - import snoop.data.models
         rendering:
           heading_level: 2
           #show_object_full_path: yes

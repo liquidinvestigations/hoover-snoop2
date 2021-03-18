@@ -11,7 +11,6 @@ certifi
 chardet
 click
 django
-django
 django.conf
 django.db
 django.db.models
