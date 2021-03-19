@@ -6,4 +6,4 @@ docker run --rm \
   -v $PWD:/app -w /app \
   -v $TMP/hoover-snoop2-docs:/app/site \
   -p 8000:8000 \
-  python:3.9 ./_serve-docs
+  python:3.8 ./_serve-docs
