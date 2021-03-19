@@ -29,3 +29,5 @@ tqdm
 wcmatch
 wheel
 django
+djangorestframework
+drf-yasg

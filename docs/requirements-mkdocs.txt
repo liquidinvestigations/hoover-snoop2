@@ -12,20 +12,46 @@ bracex==2.1.1
     # via
     #   -r requirements-mkdocs.in
     #   wcmatch
+certifi==2020.12.5
+    # via requests
+chardet==4.0.0
+    # via requests
 click==7.1.2
     # via
     #   -r requirements-mkdocs.in
     #   mkdocs
     #   nltk
+coreapi==2.3.3
+    # via drf-yasg
+coreschema==0.0.4
+    # via
+    #   coreapi
+    #   drf-yasg
 django==3.1.7
+    # via
+    #   -r requirements-mkdocs.in
+    #   djangorestframework
+    #   drf-yasg
+djangorestframework==3.12.2
+    # via
+    #   -r requirements-mkdocs.in
+    #   drf-yasg
+drf-yasg==1.20.0
     # via -r requirements-mkdocs.in
 future==0.18.2
     # via
     #   -r requirements-mkdocs.in
     #   lunr
+idna==2.10
+    # via requests
+inflection==0.5.1
+    # via drf-yasg
+itypes==1.2.0
+    # via coreapi
 jinja2==2.11.3
     # via
     #   -r requirements-mkdocs.in
+    #   coreschema
     #   mkdocs
     #   mkdocstrings
 joblib==1.0.1
@@ -88,6 +114,8 @@ nltk==3.5
     # via
     #   -r requirements-mkdocs.in
     #   lunr
+packaging==20.9
+    # via drf-yasg
 pygments==2.8.1
     # via
     #   -r requirements-mkdocs.in
@@ -97,6 +125,8 @@ pymdown-extensions==8.1.1
     #   -r requirements-mkdocs.in
     #   mkdocs-material
     #   mkdocstrings
+pyparsing==2.4.7
+    # via packaging
 pytkdocs==0.11.0
     # via
     #   -r requirements-mkdocs.in
@@ -111,6 +141,12 @@ regex==2021.3.17
     # via
     #   -r requirements-mkdocs.in
     #   nltk
+requests==2.25.1
+    # via coreapi
+ruamel.yaml.clib==0.2.2
+    # via ruamel.yaml
+ruamel.yaml==0.16.13
+    # via drf-yasg
 six==1.15.0
     # via
     #   -r requirements-mkdocs.in
@@ -128,6 +164,12 @@ tqdm==4.59.0
     # via
     #   -r requirements-mkdocs.in
     #   nltk
+uritemplate==3.0.1
+    # via
+    #   coreapi
+    #   drf-yasg
+urllib3==1.26.4
+    # via requests
 wcmatch==8.1.2
     # via
     #   -r requirements-mkdocs.in
