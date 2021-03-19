@@ -9,7 +9,7 @@ nav:
 - readme: index.md
 - code reference:
   - ...
-- documentation: docs-readme.md
+- about the docs: docs-readme.md
 
 markdown_extensions:
 - toc:
@@ -21,8 +21,17 @@ markdown_extensions:
 - pymdownx.superfences
 - pymdownx.tabbed
 - pymdownx.tasklist
-- pymdownx.magiclink
-- footnotes
+- pymdownx.magiclink:
+    repo_url_shortener: true
+    hide_protocol: true
+    social_url_shortener: true
+    repo_url_shorthand: true
+    social_url_shorthand: true
+    provider: github
+    user: liquidinvestigations
+    repo: hoover-snoop2
+- footnotes:
+    UNIQUE_IDS: true
 
 theme:
   name: material
