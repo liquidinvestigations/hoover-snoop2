@@ -31,16 +31,16 @@ def mock_all():
                 continue
 
             if x.split('.')[0] in libs:
-                print('skip lib=' + x, file=sys.stderr)
+                # print('skip lib=' + x, file=sys.stderr)
                 continue
 
             if x.split('.')[-1][0].isupper():
                 cla = x.split('.')[-1]
                 mod = ".".join(x.split('.')[:-1])
-                print('mod=' + mod, file=sys.stderr)
-                print('cla=' + cla, file=sys.stderr)
+                # print('mod=' + mod, file=sys.stderr)
+                # print('cla=' + cla, file=sys.stderr)
                 setattr(sys.modules[mod], cla, SuperMagicMock())
-            print('mocking: ' + x, file=sys.stderr)
+            # print('mocking: ' + x, file=sys.stderr)
             sys.modules[x] = SuperMagicMock()()
 
     import pytkdocs.loader

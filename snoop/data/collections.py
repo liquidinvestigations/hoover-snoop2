@@ -7,22 +7,24 @@ well as to list every resource on this server.
 
 
 When writing any data-oriented code, a Collection must be selected (in order to know the correct database,
-index and object storage to use). This is done through the context manager `Collection.set_current()`.
-Inside a collection context, `collection.current()` will return the collection set in the context manager,
-and any `snoop.data.models.MultiDBModel` can be used with Django ORM and will use that collection's
-database.
+index and object storage to use). This is done through the context manager
+[`Collection.set_current()`][snoop.data.collections.Collection.set_current]. Inside a collection context,
+[`collection.current()`][snoop.data.collections.current] will return the collection set in the context
+manager, and any Model can be used with Django ORM and will use that collection's database.
 
-Internally, this is stored in `threading.local` memory on entering the context manager, and fetched from
-that same local memory whenever required inside the context. This means we can do multi-threaded work on
-different collections at different points in time, from the same process. This also means we sometimes have
-to patch Django's different admin, database and framework classes to either read or write to our current
-collection storage.
+Internally, this is stored in Python's `threading.local` memory on entering the context manager, and fetched
+from that same local memory whenever required inside the context. This means we can do multi-threaded work
+on different collections at different points in time, from the same process. This also means we sometimes
+have to patch Django's different admin, database and framework classes to either read or write to our
+current collection storage.
 
-The list of collections is static and supplied through a single dict in `settings.SNOOP_COLLECTIONS`.
-This means a Django server restart is required whenever the collection count or configuration is changed.
+The list of collections is static and supplied through a single dict in
+[settings.SNOOP_COLLECTIONS][snoop.defaultsettings.SNOOP_COLLECTIONS]. This means a Django server restart is
+required whenever the collection count or configuration is changed.
 
-This module creates Collection instances from the setting and stores them in a global called `ALL`. This
-global is usually used in management commands to select the collection requested by the user.
+This module creates Collection instances from the setting and stores them in a global called
+[`ALL`][snoop.data.collections.ALL]. This global is usually used in management commands to select the
+collection requested by the user.
 """
 
 
@@ -64,6 +66,12 @@ class Collection:
     GPGHOME_DIR = 'gpghome'
 
     def __init__(self, name, process=False, sync=False, **opt):
+        """Initialize object.
+
+        Raises:
+            AssertionError: if OCR language configuration is incorrect.
+        """
+
         self.name = name
         self.process = process
         self.sync = sync and process
@@ -78,43 +86,83 @@ class Collection:
                     f'language code "{lang}" is not available'
 
     def __repr__(self):
+        """String representation for a Collection.
+        """
+
         return f"<Collection {self.name} process={self.process} sync={self.sync}>"
 
     @property
     def db_name(self):
+        """Name of SQL database for this collection.
+        """
         return f"collection_{self.name}"
 
     @property
     def db_alias(self):
+        """Name of SQL database alias for this collection.
+
+        Identical to `db_name` above.
+
+        TODO:
+            investigate merging this property and `db_name`.
+        """
         return f"collection_{self.name}"
 
     @property
     def queue_name(self):
+        """Name of message queue for this collection.
+        """
+
         return f"collection_{self.name}"
 
     @property
     def base_path(self):
+        """Path pointing to input dataset file structure.
+
+        Must contain a directory called `data` where all the original files are read from.
+
+        May also contain a directory called `ocr` where External OCR is loaded from; see
+        [snoop.data.models.OcrSource][] for more details.
+
+        Statically loaded from [the settings][snoop.defaultsettings.SNOOP_COLLECTION_ROOT].
+        """
+
         if settings.SNOOP_COLLECTION_ROOT is None:
             raise RuntimeError("settings.SNOOP_COLLECTION_ROOT not configured")
         return Path(settings.SNOOP_COLLECTION_ROOT) / self.name
 
     @property
     def data_path(self):
+        """Path pointing to input data files.
+        """
+
         return self.base_path / self.DATA_DIR
 
     @property
     def gpghome_path(self):
+        """Path pointing to input gpghome directory.
+        """
+
         return self.base_path / self.GPGHOME_DIR
 
     @property
     def es_index(self):
+        """Name of elasticsearch index for this collection.
+        """
         return self.name
 
     def migrate(self):
+        """Run `django migrate` on this collection's database."""
+
         management.call_command('migrate', '--database', self.db_alias)
 
     @contextmanager
     def set_current(self):
+        """Creates context where this collection is the current one.
+
+        Running this is required to access any of the collection's data from inside database tables.
+        """
+
         old = getattr(threadlocal, 'collection', None)
         assert old in (None, self), \
             "There is already a current collection"
@@ -133,17 +181,23 @@ class Collection:
 
 
 def all_collection_dbs():
+    """List all the collection databases by asking postgres.
+    """
     with connection.cursor() as conn:
         conn.execute('SELECT datname FROM pg_database WHERE datistemplate = false')
         return [name for (name,) in conn.fetchall() if name.startswith('collection_')]
 
 
 def drop_db(db_name):
+    """Run the SQL `DROP DATABASE SQL` command.
+    """
     with connection.cursor() as conn:
         conn.execute(f'DROP DATABASE "{db_name}"')
 
 
 def create_databases():
+    """Go through [snoop.data.collections.ALL][] and create databases that don't exist yet."""
+
     dbs = all_collection_dbs()
     for col in ALL.values():
         if col.db_name not in dbs:
@@ -153,11 +207,15 @@ def create_databases():
 
 
 def migrate_databases():
+    """Run database migrations for everything in [snoop.data.collections.ALL][]"""
+
     for col in ALL.values():
         col.migrate()
 
 
 def create_es_indexes():
+    """Create elasticsearch indexes for everything in [snoop.data.collections.ALL][]"""
+
     from snoop.data import indexing
     for col in ALL.values():
         with col.set_current():
@@ -221,6 +279,8 @@ class CollectionsRouter:
 
 
 def from_object(obj):
+    """Get the collection from an instance of an object."""
+
     db_alias = obj._state.db
     assert db_alias.startswith('collection_')
     return ALL[db_alias.split('_', 1)[1]]

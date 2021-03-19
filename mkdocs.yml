@@ -7,8 +7,8 @@ repo_name: "liquidinvestigations/hoover-snoop2"
 
 nav:
 - readme: index.md
-- code reference:
-  - ...
+- intro to docs: intro.md
+- ...
 - about the docs: docs-readme.md
 
 markdown_extensions:
@@ -73,8 +73,9 @@ plugins:
           show_signature_annotations: yes
         selection:
           new_path_syntax: yes
-- search
+- search:
+    prebuild_index: python
 - awesome-pages:
-    collapse_single_pages: true
+    collapse_single_pages: false
 #- section-index
 #- coverage

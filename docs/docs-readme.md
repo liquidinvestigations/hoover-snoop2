@@ -1,10 +1,10 @@
 # The Documentation System
 
-We're using MKdocs with various plugins so everything is auto-generated from docstrings inside the code.
-We use Google docstring style [^4] in python code.
+We're using MKdocs with various plugins so everything is auto-generated from
+docstrings inside the code. We use Google docstring style [^4] in python code.
 
 Take a look at the source codes for [this file][snoop.data.models] and [this
-other file][snoop.defaultsettings] for examples of how that looks like in the
+other file][snoop.defaultsettings.DATABASES] for examples of how that looks like in the
 code.
 
 Cross references are made with full qualified object names [^5]. Click the
@@ -36,6 +36,11 @@ There's still some work to do:
   up the build process for readthedocs), the versions for the various libraries
   that we do install (only `django` and `rest_framework` and their
   dependencies) will be out of sync from the main code repository.
+- There are two warnings that we would want to silence, since they're not
+  problems related to the docs and make it harder to keep an eye on the errors:
+
+  - ` Config value: 'dev_addr'. Warning: The use of the IP address '0.0.0.0' suggests ...` -- we're running this with docker, so we must bind to all interfaces
+  - `WARNING -  Overwriting existing registered function lunr-multi-trimmer-en` -- happens when we enable search `prebuilt_index` with the python runner.
 
 [^1]: <https://github.com/mkdocs/mkdocs/issues/1289#issuecomment-331021585>
 [^2]: <https://github.com/mkdocstrings/mkdocstrings/issues/141>

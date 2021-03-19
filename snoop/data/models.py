@@ -105,34 +105,37 @@ class Blob(models.Model):
     from other libraries and services, and the Digests, also in JSON) are also
     stored using this system, with no namespace separation. This means all our
     intermediary tasks tend to be de-duplicated too.
-
-    Fields:
-        sha3_256: hash (primary key)
-        sha256: hash
-        sha1: hash
-        md5: hash
-
-        size: in bytes
-        magic: mime description given by libmagic
-        mime_type: mime type given by libmagic
-        mime_encoding: mime encoding given by libmagic
-
-        date_created: auto-managed timestamp
-        date_modified: auto-managed timestamp
     """
 
     sha3_256 = models.CharField(max_length=64, primary_key=True)
+    """hash of content (primary key)"""
+
     sha256 = models.CharField(max_length=64, db_index=True)
+    """hash of content"""
+
     sha1 = models.CharField(max_length=40, db_index=True)
+    """hash of content"""
+
     md5 = models.CharField(max_length=32, db_index=True)
+    """hash of content"""
 
     size = models.BigIntegerField()
+    """size of content, bytes."""
+
     magic = models.CharField(max_length=4096)
+    """mime description given by libmagic (`man 1 file`)."""
+
     mime_type = models.CharField(max_length=1024)
+    """mime type given by libmagic."""
+
     mime_encoding = models.CharField(max_length=1024)
+    """mime encoding given by libmagic, for text files."""
 
     date_created = models.DateTimeField(auto_now_add=True)
+    """Auto-managed timestamp."""
+
     date_modified = models.DateTimeField(auto_now=True)
+    """Auto-managed timestamp."""
 
     def __str__(self):
         """The string representation for a Blob is just its PK hash.
@@ -168,10 +171,8 @@ class Blob(models.Model):
                 without the extensions present.
 
         Yields:
-            An instance of BlobWriter. Use `.write(byte_string)` on the
-            returned object until finished. The final result can be found at
-            `.blob` on the same object, after exiting this contextmanager's
-            context.
+            BlobWriter: Use `.write(byte_string)` on the returned object until finished. The final result
+                can be found at `.blob` on the same object, after exiting this contextmanager's context.
         """
         blob_tmp = blob_root() / 'tmp'
         blob_tmp.mkdir(exist_ok=True, parents=True)
@@ -293,7 +294,7 @@ class Blob(models.Model):
 
         Args:
             encoding: if set, file is opened in text mode, and argument is used
-            for string encoding. If not set, file is opened as binary.
+                for string encoding. If not set, file is opened as binary.
         """
         if encoding is None:
             mode = 'rb'
@@ -309,21 +310,27 @@ class Directory(models.Model):
     A Directory can be found in two places: in anoter Directory, or as the only
     child of some archive or archive-like file.
 
-    Fields:
-        name_bytes: name of directory on disk, as bytes. We store this as bytes
-            and not as strings because we have to support a multitude of original
-            filesystems and encodings that create mutually invalid results.
         parent_directory: mutually exclusive with container_file
         container_file: mutually exclusive with parent_directory
     """
 
     name_bytes = models.BinaryField(max_length=1024, blank=True)
+    """Name of directory on disk, as bytes.
+
+    We store this as bytes and not as strings because we have to support a multitude of original filesystems
+    and encodings that create mutually invalid results.
+    """
+
     parent_directory = models.ForeignKey(
         'Directory',
         null=True, blank=True,
         on_delete=models.CASCADE,
         related_name='child_directory_set',
     )
+    """The parent, if it is a directory, or NULL.
+
+    Mutually exclusive with container_file."""
+
     container_file = models.ForeignKey(
         'File',
         null=True, blank=True,
@@ -343,7 +350,7 @@ class Directory(models.Model):
         """Get the root of the whole filesystem.
 
         Raises:
-            DoesNotExist if table empty.
+            DoesNotExist: if table empty.
         """
         return cls.objects.filter(
             parent_directory__isnull=True,
@@ -385,34 +392,47 @@ class Directory(models.Model):
 
 class File(models.Model):
     """Database modle for a file found in the dataset.
-
-    Fields:
-        name_bytes: name of directory on disk, as bytes. We store this as bytes
-            and not as strings because we have to support a multitude of original
-            filesystems and encodings that create mutually invalid results.
-        parent_directory: the directory containg this File
-        ctime: taken from stat() or other sources
-        mtime: taken from stat() or other sources
-        size: size, taken from stat(), in bytes
-        original: the original data found for this File
-        blob: the converted data for this File. This is usually identical to
-            `original`, but for some file formats conversion is required before
-            any further processing (like apple email .emlx which is basically
-            .eml with another some binary data prefixed to it).
     """
 
     name_bytes = models.BinaryField(max_length=1024, blank=True)
+    """Name of directory on disk, as bytes.
+
+    We store this as bytes and not as strings because we have to support a multitude of original filesystems
+    and encodings that create mutually invalid results.
+    """
+
     parent_directory = models.ForeignKey(
         Directory,
         on_delete=models.CASCADE,
         related_name='child_file_set',
     )
+    """The directory containg this File.
+    """
+
     ctime = models.DateTimeField()
+    """Taken from stat() or other sources.
+    """
+
     mtime = models.DateTimeField()
+    """Taken from stat() or other sources.
+    """
+
     size = models.BigIntegerField()
+    """Size, taken from stat(), in bytes.
+    """
+
     original = models.ForeignKey(Blob, on_delete=models.RESTRICT,
                                  related_name='+')
+    """The original data found for this File.
+    """
+
     blob = models.ForeignKey(Blob, on_delete=models.RESTRICT)
+    """The converted data for this File.
+
+    This is usually identical to `original`, but for some file formats conversion is required before any
+    further processing (like apple email .emlx which is basically .eml with another some binary data
+    prefixed to it).
+    """
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
@@ -452,63 +472,119 @@ class Task(models.Model):
     Each row in this table tracks an application of a Python function to some
     arguments. Additional arguments can also be supplied as other Tasks that
     must run before this one.
-
-    We keep track of the state of running the function:
-    - "pending" (not run yet, OR started and not finished),
-    - "deferred" (waiting on some other task to finish),
-    - "success",
-    - "error" (temporary error),
-    - "broken" (permanent error)
-
-    Fields:
-        func: string key for Python function. See `snoop.data.tasks`.
-        blob_arg: if the first argument is a Blob, it will be duplicated here.
-        args: JSON containing arguments>
-        result: a Blob with the result of running the function. Is set if
-            finished successfully, and if the function actually returns a Blob
-            value.
-        date_started: timestamp when task started running. This isn't saved on
-            the object when the task actually starts, in order to limit database
-            writes.
-        date_finished: timestamp when task has finished running, be it
-            successfully or not.
-        worker: identifier of the worker that finished this task. Not used.
-        status: string token with task status; see above.
-        error: text with stack trace, if status is "error" or "broken".
-        broken_reason: identifier with reason for this permanent failure.
-        log: text with complete log generated when this task was run.
     """
 
     STATUS_PENDING = 'pending'
+    """Task either wasn't run yet, or was started but not finished.
+
+    Making the difference between `pending` and `running` requires a write to happen inside our transaction,
+    so we can't tell from outside the runner anyway.
+    """
+
     STATUS_SUCCESS = 'success'
+    """Task finished successfully."""
+
     STATUS_ERROR = 'error'
+    """Unexpected error.
+
+    Might be termporary, might be permanent, we don't know.
+    """
+
     STATUS_DEFERRED = 'deferred'
+    """Waiting on some other task to finish."""
+
     STATUS_BROKEN = 'broken'
+    """Permanent error.
+
+    Used to some known type of breakage, such as: encrypted archives, encrypted PDFs, or if dependencies are in an
+    ERROR state too."""
+
     ALL_STATUS_CODES = [STATUS_PENDING, STATUS_BROKEN,
                         STATUS_DEFERRED, STATUS_ERROR, STATUS_SUCCESS]
+    """List of all valid status codes.
+
+    TODO:
+        We should really change these out for Enums at some point.
+    """
 
     func = models.CharField(max_length=1024)
+    """ String key for Python function.
+
+    Supplied as argument in the decorator [snoop.data.tasks.snoop_task][].
+
+    See [snoop.data.tasks][] for general definition and [snoop.data.filesystem][],
+    [snoop.data.analyzers/__init__][] and [snoop.data.digests][] for actual Task implementations.
+    """
+
     blob_arg = models.ForeignKey(Blob, null=True, blank=True,
                                  on_delete=models.CASCADE,
                                  related_name='+')
+    """ If the first argument is a Blob, it will be duplicated here.
+
+    Used to optimize fetching tasks, as most tasks will only process one Blob as input.
+    """
+
     args = JSONField()
+    """JSON containing arguments.
+    """
+
     result = models.ForeignKey(Blob, null=True, blank=True,
                                on_delete=models.RESTRICT)
+    """
+    Binary object with result of running the function.
+
+    Is set if finished successfully, and if the function actually returns a Blob value.
+    """
 
     # these timestamps are used for logging and debugging, not for dispatching
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
+
     date_started = models.DateTimeField(null=True, blank=True)
-    # this timestamp is used for retrying errors
+    """Moment when task started running.
+
+    This isn't saved on the object when the task actually starts, in order to limit database writes.
+    """
+
     date_finished = models.DateTimeField(null=True, blank=True)
+    """Moment when task finished running.
+
+    Used in logic for retrying old errors and re-running sync tasks.
+    """
+
     worker = models.CharField(max_length=4096, blank=True)
+    """Identifier of the worker that finished this task.
+
+    TODO:
+        Not used. Remove, reuse/rename or deprecate.
+    """
 
     status = models.CharField(max_length=16, default=STATUS_PENDING)
+    """String token with task status; see above.
+    """
+
     error = models.TextField(blank=True)
+    """Text with stack trace, if status is "error" or "broken".
+    """
+
     broken_reason = models.CharField(max_length=128, default='', blank=True)
+    """Identifier with reason for this permanent failure.
+    """
+
     log = models.TextField(blank=True)
+    """Text with first few KB of logs generated when this task was run.
+    """
 
     class Meta:
+        """Sets up indexes for the various types of indexes.
+
+        New indexes on this table tend to be quite costly to add (3-4h of downtime per collection with 1M
+        docs), but required for queries that will run a lot.
+
+        Note:
+            all foreign keys and primary keys are indexed by default, so there's no need to worry about
+            those.
+        """
         unique_together = ('func', 'args')
         indexes = [
             models.Index(fields=['status']),
@@ -569,11 +645,6 @@ class Task(models.Model):
 
 class TaskDependency(models.Model):
     """Database model for tracking which Tasks depend on which.
-
-    Fields:
-        prev: the task needed by another task
-        next: the task taht depends on `prev`
-        name: a string used to identify the kwarg name of this dependency
     """
 
     prev = models.ForeignKey(
@@ -581,12 +652,17 @@ class TaskDependency(models.Model):
         on_delete=models.CASCADE,
         related_name='next_set',
     )
+    """the task needed by another task"""
+
     next = models.ForeignKey(
         Task,
         on_delete=models.CASCADE,
         related_name='prev_set',
     )
+    """ the task taht depends on `prev`"""
+
     name = models.CharField(max_length=1024)
+    """ a string used to identify the kwarg name of this dependency"""
 
     class Meta:
         unique_together = ('prev', 'next', 'name')
@@ -607,21 +683,23 @@ class Digest(models.Model):
 
     The data is neatly stored as JSON in the "result" blob, ready for quick
     re-indexing if the need arises.
-
-    Fields:
-        blob: the de-duplicated Document for which processing has happened.
-            This corresponds to `File.blob` not `File.original`.
-        result: the Blob that contains the result of parsing the document,
-            encoded as JSON. This may become huge, so we store it as a blob
-            instead of a JSON field.
     """
 
     blob = models.OneToOneField(Blob, on_delete=models.CASCADE)
+    """The de-duplicated Document for which processing has happened.
+
+    This corresponds to [snoop.data.models.File.blob][], not [snoop.data.models.File.original][].
+    """
+
     result = models.ForeignKey(
         Blob,
         on_delete=models.RESTRICT,
         related_name='+',
     )
+    """The Blob that contains the result of parsing the document, encoded as JSON.
+
+    This may become huge, so we store it as a Blob instead of a JSON field.
+    """
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
@@ -648,24 +726,35 @@ class DocumentUserTag(models.Model):
     user. Tags are referenced both by usernames and user UUIDs, since we can't
     use usernames as parts of the elasticsearch field name (since they can
     contain characters like dot '.' that cannot be part of a field name).
-
-    Fields:
-        digest: document being tagged
-        user: username, as string (to send back in the API)
-        uuid: unique identifier for user, used in elasticsearch field name
-        tag: string with the actual tag
-        public: boolean that decides type of tag
-        date_indexed: moment when document containing this tag was re-indexed
     """
 
     digest = models.ForeignKey(Digest, on_delete=models.CASCADE)
+    """Document being tagged.
+    """
+
     user = models.CharField(max_length=256)
+    """Username, as string (to send back in the API).
+
+    """
+
     uuid = models.CharField(max_length=256, default="invalid")
+    """Unique identifier for user, used in elasticsearch field name.
+    """
+
     tag = models.CharField(max_length=512)
+    """String with the actual tag.
+    """
+
     public = models.BooleanField()
+    """Boolean that decides type of tag
+    """
+
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
+
     date_indexed = models.DateTimeField(null=True)
+    """Moment when document containing this tag was re-indexed.
+    """
 
     class Meta:
         unique_together = ('digest', 'user', 'tag', 'public')
@@ -722,15 +811,13 @@ class DocumentUserTag(models.Model):
 
 class OcrSource(models.Model):
     """Database model for a directory on disk containing External OCR files.
-
-
-    Fields:
-        name: identifier slug for this External OCR source. A directory called
-            the same way must be present under the "ocr" directory in the
-            collection location.
     """
 
     name = models.CharField(max_length=1024, unique=True)
+    """Identifier slug for this External OCR source
+
+    A directory called the same way must be present under the "ocr" directory in the collection location.
+    """
 
     @property
     def root(self):
@@ -749,22 +836,26 @@ class OcrSource(models.Model):
 
 
 class OcrDocument(models.Model):
-    """Database model for External OCR result files found on disk.
-
-    Fields:
-        source: the OcrSource instance this document belongs to
-        original_hash: the MD5 hash found on filesystem. The document targeted
-            by this External OCR document is going to have the same MD5.
-        ocr: a Blob with the data found (probably text or PDF)
-        text: the extracted text for this entry (either read directly, or with
-            pdftotext)
-    """
+    """Database model for External OCR result files found on disk."""
 
     source = models.ForeignKey(OcrSource, on_delete=models.CASCADE)
+    """The OcrSource instance this document belongs to."""
+
     original_hash = models.CharField(max_length=64, db_index=True)
+    """The MD5 hash found on filesystem.
+
+    The document targeted by this External OCR document is going to
+    have the same MD5.
+    """
+
     ocr = models.ForeignKey(Blob, on_delete=models.RESTRICT)
+    """A Blob with the data found (probably text or PDF).
+    """
+
     text = models.ForeignKey(Blob, on_delete=models.RESTRICT,
                              related_name='+')
+    """The extracted text for this entry (either read directly, or with pdftotext).
+    """
 
     class Meta:
         unique_together = ('source', 'original_hash')
@@ -779,15 +870,14 @@ class Statistics(models.Model):
 
     We store here things like task counts, % task progress status.
 
-    Fields:
-        key: string identifier for this statistic
-        value: a JSON with computed result
-
     Scheduling is done separately, so there's no timestamps here.
     """
 
     key = models.CharField(max_length=64, unique=True)
+    """string identifier for this statistic. """
+
     value = JSONField(default=dict)
+    """JSON with computed result."""
 
     def __str__(self):
         return self.key
