@@ -11,7 +11,7 @@ from ... import models
 
 
 class Command(BaseCommand):
-    help = "Write blobs to stdout."
+    """Write blobs to stdout."""
 
     def add_arguments(self, parser):
         parser.add_argument('blob_id', type=str, help="SHA3-256 based blob ID.")

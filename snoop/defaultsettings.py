@@ -143,6 +143,12 @@ time.
 """
 
 SNOOP_COLLECTIONS = json.loads(os.environ.get('SNOOP_COLLECTIONS', '[]'))
+"""Static configuration for the collections list and settings.
+
+Provided througn environment variable at server boot time.
+
+The DATABASES is expanded with the databases for all these collections here.
+"""
 
 for col in SNOOP_COLLECTIONS:
     name = col['name']

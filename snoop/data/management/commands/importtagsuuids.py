@@ -1,3 +1,9 @@
+"""Migration script for importing the user - UUID mapping from other service.
+
+Warning:
+    this is not useful anymore and should be deprecated and/or removed.
+"""
+
 import json
 import sys
 import logging
@@ -33,7 +39,7 @@ def fix(col, mapping):
 
 
 class Command(BaseCommand):
-    help = "Import Tags UUIDs for all collections. JSON content is read from stdin."
+    "Import Tags UUIDs for all collections. JSON content is read from stdin."
 
     def handle(self, **options):
         logging_for_management_command(options['verbosity'])

@@ -73,7 +73,8 @@ def fix(col, dry_run, not_after=None):
 
 
 class Command(BaseCommand):
-    help = "Retry running task"
+    """Fix known problems with mime types guessed in the past.
+    """
 
     def add_arguments(self, parser):
         parser.add_argument('collection_names', type=str, nargs='+',

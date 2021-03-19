@@ -1,3 +1,8 @@
+"""Entrypoint for worker process.
+
+Starts up a variable number of worker processes with Celery, depending on settings and available CPU count.
+"""
+
 import os
 import logging
 import subprocess
@@ -43,7 +48,7 @@ def celery_argv(queues):
 
 
 class Command(BaseCommand):
-    help = "Run celery worker"
+    "Run celery worker"
 
     def add_arguments(self, parser):
         parser.add_argument('--system-queues', action='store_true',

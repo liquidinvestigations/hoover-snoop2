@@ -1,3 +1,9 @@
+"""Extract text form blob.
+
+TODO:
+    This is probably dead code, we should investigate to remove it.
+"""
+
 from .. import models
 from ..tasks import snoop_task
 

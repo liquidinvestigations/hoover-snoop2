@@ -4,21 +4,37 @@
 #
 #    pip-compile requirements-mkdocs.in
 #
+amqp==5.0.5
+    # via kombu
 asgiref==3.3.1
     # via django
 astunparse==1.6.3
     # via -r requirements-mkdocs.in
+billiard==3.6.3.0
+    # via celery
 bracex==2.1.1
     # via
     #   -r requirements-mkdocs.in
     #   wcmatch
+celery==5.0.5
+    # via -r requirements-mkdocs.in
 certifi==2020.12.5
     # via requests
 chardet==4.0.0
     # via requests
+click-didyoumean==0.0.3
+    # via celery
+click-plugins==1.1.1
+    # via celery
+click-repl==0.1.6
+    # via celery
 click==7.1.2
     # via
     #   -r requirements-mkdocs.in
+    #   celery
+    #   click-didyoumean
+    #   click-plugins
+    #   click-repl
     #   mkdocs
     #   nltk
 coreapi==2.3.3
@@ -58,6 +74,8 @@ joblib==1.0.1
     # via
     #   -r requirements-mkdocs.in
     #   nltk
+kombu==5.0.2
+    # via celery
 livereload==2.6.3
     # via
     #   -r requirements-mkdocs.in
@@ -116,6 +134,8 @@ nltk==3.5
     #   lunr
 packaging==20.9
     # via drf-yasg
+prompt-toolkit==3.0.17
+    # via click-repl
 pygments==2.8.1
     # via
     #   -r requirements-mkdocs.in
@@ -132,7 +152,9 @@ pytkdocs==0.11.0
     #   -r requirements-mkdocs.in
     #   mkdocstrings
 pytz==2021.1
-    # via django
+    # via
+    #   celery
+    #   django
 pyyaml==5.4.1
     # via
     #   -r requirements-mkdocs.in
@@ -151,6 +173,7 @@ six==1.15.0
     # via
     #   -r requirements-mkdocs.in
     #   astunparse
+    #   click-repl
     #   livereload
     #   lunr
 sqlparse==0.4.1
@@ -170,10 +193,16 @@ uritemplate==3.0.1
     #   drf-yasg
 urllib3==1.26.4
     # via requests
+vine==5.0.0
+    # via
+    #   amqp
+    #   celery
 wcmatch==8.1.2
     # via
     #   -r requirements-mkdocs.in
     #   mkdocs-awesome-pages-plugin
+wcwidth==0.2.5
+    # via prompt-toolkit
 wheel==0.36.2
     # via
     #   -r requirements-mkdocs.in

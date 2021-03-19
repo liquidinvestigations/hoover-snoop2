@@ -1,3 +1,8 @@
+"""Runs task in the foreground.
+
+Equivalent of using [snoop.data.management.commands.retrytasks][].
+"""
+
 from django.core.management.base import BaseCommand
 from ...logs import logging_for_management_command
 from ... import tasks
@@ -5,7 +10,7 @@ from ... import collections
 
 
 class Command(BaseCommand):
-    help = "Runs a task in foreground"
+    "Runs a task in foreground"
 
     def add_arguments(self, parser):
         parser.add_argument('collection', type=str)

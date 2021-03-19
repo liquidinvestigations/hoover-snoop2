@@ -1,3 +1,6 @@
+"""Print table with task counts.
+"""
+
 import logging
 
 from django.core.management.base import BaseCommand
@@ -9,12 +12,18 @@ log = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
+    """Print task stats."""
     help = "Print task stats"
 
     def add_arguments(self, parser):
+        """Only argument is the collection.
+        """
         parser.add_argument('collection', type=str)
 
     def handle(self, collection, **options):
+        """Runs [snoop.data.collections.get_stats][] and prints result.
+        """
+
         logging_for_management_command(options['verbosity'])
         col = collections.ALL[collection]
         with col.set_current():

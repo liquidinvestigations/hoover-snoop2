@@ -496,8 +496,8 @@ class Task(models.Model):
     STATUS_BROKEN = 'broken'
     """Permanent error.
 
-    Used to some known type of breakage, such as: encrypted archives, encrypted PDFs, or if dependencies are in an
-    ERROR state too."""
+    Used to some known type of breakage, such as: encrypted archives, encrypted PDFs, or if dependencies are
+    in an ERROR state too."""
 
     ALL_STATUS_CODES = [STATUS_PENDING, STATUS_BROKEN,
                         STATUS_DEFERRED, STATUS_ERROR, STATUS_SUCCESS]
@@ -880,7 +880,7 @@ class Statistics(models.Model):
     """JSON with computed result."""
 
     def __str__(self):
-        return self.key
+        return str(self.key)
 
     class Meta:
 

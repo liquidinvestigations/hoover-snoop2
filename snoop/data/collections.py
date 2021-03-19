@@ -43,9 +43,16 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 ALL = {}
+"""Global dictionary storing all the collections.
+"""
+
+
 ALL_TESSERACT_LANGS = subprocess.check_output(
     "tesseract --list-langs | tail -n +2",
     shell=True).decode().split()
+"""Global list with all the available OCR languages.
+"""
+
 threadlocal = threading.local()
 
 
