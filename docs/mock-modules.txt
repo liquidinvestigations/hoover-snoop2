@@ -5,8 +5,7 @@ babel
 billiard
 bleach
 cachetools
-#celery
-#celery
+celery
 certifi
 chardet
 click

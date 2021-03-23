@@ -30,11 +30,14 @@ from . import collections
 
 
 def blob_link(blob_pk):
+    """Return markup with link pointing to the Admin Edit page for this Blob."""
+
     url = reverse(f'{collections.current().name}:data_blob_change', args=[blob_pk])
     return mark_safe(f'<a href="{url}">{blob_pk[:10]}...{blob_pk[-4:]}</a>')
 
 
 def raw_sql(query):
+    """Execute SQL string in current collection database."""
     col = collections.current()
     with connections[col.db_alias].cursor() as cursor:
         cursor.execute(query)
@@ -329,9 +332,16 @@ class BlobAdmin(MultiDBModelAdmin):
             )
 
     def created(self, obj):
+        """Returns user-friendly string with date created (like "3 months ago")."""
         return naturaltime(obj.date_created)
 
     def get_preview_content(self, blob):
+        """Returns string with text for Blobs that are JSON or text.
+
+        Used to peek at the Blob data from the Admin without opening a shell.
+
+        Only works for `text/plain` and `application/json` mime types.
+        """
         if blob.mime_type == 'text/plain':
             encoding = 'latin1' if blob.mime_encoding == 'binary' else blob.mime_encoding
             with blob.open(encoding=encoding) as f:

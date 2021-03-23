@@ -13,6 +13,7 @@ log = logging.getLogger(__name__)
 
 class Command(BaseCommand):
     """Print task stats."""
+
     help = "Print task stats"
 
     def add_arguments(self, parser):
@@ -21,7 +22,7 @@ class Command(BaseCommand):
         parser.add_argument('collection', type=str)
 
     def handle(self, collection, **options):
-        """Runs [snoop.data.collections.get_stats][] and prints result.
+        """Runs [snoop.data.admin.get_stats][] and prints result.
         """
 
         logging_for_management_command(options['verbosity'])

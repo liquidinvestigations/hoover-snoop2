@@ -33,6 +33,8 @@ MAGIC_REGEX = re.compile(
 
 
 def _parse_mime(output):
+    """Parse `file` process output into `mime_type` and `mime_encoding` fields, with a regex.
+    """
     output = output.decode('latin1')
     m = re.match(
         MIME_REGEX,
@@ -45,6 +47,8 @@ def _parse_mime(output):
 
 
 def _parse_magic(output):
+    """Parse `file` process output into `magic_output` field, with a regex.
+    """
     output = output.decode('latin1')
     output = output.split(r'\012-')[0]
     m = re.match(
@@ -88,6 +92,13 @@ class Magic:
 
 
 def looks_like_email(path):
+    """Improvised check to detect RFC 822 emails.
+
+    Will look for usual headers in the first 64K of the file.
+
+    Needed because emails are sometimes detected by `libmagic` as text or something else.
+    """
+
     HEADER_SET = {
         "Relay-Version", "Return-Path", "From", "To",
         "Received", "Message-Id", "Date", "In-Reply-To", "Subject",
@@ -108,6 +119,12 @@ def looks_like_email(path):
 
 
 def looks_like_emlx_email(path):
+    """Improvised check to detect Apple format emails.
+
+    Warning:
+        Only looks at the first byte of the first line of the Apple-specific prefix.
+        We probably want to revisit this and check the remainder of the email message too.
+    """
     with path.open('rb') as f:
         content = read_exactly(f, 20).decode('latin-1')
     first_line = content.splitlines()[0]
@@ -127,6 +144,13 @@ MBOX_MINIMUM_EMAILS = 3
 
 
 def looks_like_mbox(path):
+    """Improvised check to detect MBOX format email archives.
+
+    This is done by counting for usual email headers in the file.
+
+    Warning:
+        this does not detect MBOX files with less than 3 emails inside it.
+    """
     emails = 0
     pending = set(MBOX_PATTERNS)
 

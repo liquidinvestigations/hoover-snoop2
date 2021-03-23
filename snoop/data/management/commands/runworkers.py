@@ -20,6 +20,8 @@ log = logging.getLogger(__name__)
 
 
 def celery_argv(queues):
+    """Builds the command line to run a `celery worker` process."""
+
     celery_binary = (
         subprocess.check_output(['which', 'celery'])
         .decode('latin1')

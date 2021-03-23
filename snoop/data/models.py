@@ -329,7 +329,8 @@ class Directory(models.Model):
     )
     """The parent, if it is a directory, or NULL.
 
-    Mutually exclusive with container_file."""
+    Mutually exclusive with [snoop.data.models.Directory.container_file][].
+    """
 
     container_file = models.ForeignKey(
         'File',
@@ -337,6 +338,10 @@ class Directory(models.Model):
         on_delete=models.CASCADE,
         related_name='child_directory_set',
     )
+    """The parent, if it's a file (archive, email-archive or something else), else NULL.
+
+    Mutually exclusive with [snoop.data.models.Directory.parent_directory][].
+    """
 
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)

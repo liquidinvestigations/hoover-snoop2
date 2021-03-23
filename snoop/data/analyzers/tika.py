@@ -58,6 +58,7 @@ TIKA_CONTENT_TYPES = [
 
 
 def can_process(blob):
+    """Checks if Tika can process this blob's mime type."""
     if blob.mime_type in TIKA_CONTENT_TYPES:
         return True
 
@@ -65,6 +66,14 @@ def can_process(blob):
 
 
 def call_tika_server(endpoint, data, content_type):
+    """Executes HTTP PUT request to Tika server.
+
+    Args:
+        endpoint: the endpoint to be appended to [snoop.defaultsettings.SNOOP_TIKA_URL][].
+        data: the request object to be added to the PUT request
+        content_type: content type detected by our libmagic implementation. If not supplied, Tika will run
+            its own `libmagic` on it, and if that fails it will stop processing the request.
+    """
     session = requests.Session()
     url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
     resp = session.put(url, data=data, headers={'Content-Type': content_type})
@@ -82,6 +91,8 @@ def call_tika_server(endpoint, data, content_type):
 @snoop_task('tika.rmeta')
 @returns_json_blob
 def rmeta(blob):
+    """Task to run Tika on a given Blob."""
+
     with blob.open() as f, tracing.span('tika.rmeta'):
         resp = call_tika_server('rmeta/text', f, blob.content_type)
 
@@ -89,6 +100,11 @@ def rmeta(blob):
 
 
 def get_date_created(rmeta):
+    """Extract date created from returned Tika metadata.
+
+    The date can show up under different keys (depending on mime type and internal Tika analyzer), so we
+    have to try them all and return the first hit.
+    """
     FIELDS_CREATED = ['Creation-Date', 'dcterms:created', 'meta:created',
                       'created']
 
@@ -99,6 +115,11 @@ def get_date_created(rmeta):
 
 
 def get_date_modified(rmeta):
+    """Extract date modified from returned Tika metadata.
+
+    The date can show up under different keys (depending on mime type and internal Tika analyzer), so we
+    have to try them all and return the first hit.
+    """
     FIELDS_MODIFIED = ['Last-Modified', 'Last-Saved-Date', 'dcterms:modified',
                        'meta:modified', 'created']
 

@@ -89,7 +89,6 @@ disable=abstract-method,
         long-suffix,
         map-builtin-not-iterating,
         misplaced-comparison-constant,
-        missing-function-docstring,
         metaclass-assignment,
         next-method-called,
         next-method-defined,
@@ -170,6 +169,7 @@ disable=abstract-method,
         function-redefined, # snoop: bad style, TODO fix
         self-cls-assignment, # snoop: bad style, TODO fix
         consider-using-set-comprehension, # snoop: bad style, TODO fix
+        #missing-function-docstring,
 
 [REPORTS]
 

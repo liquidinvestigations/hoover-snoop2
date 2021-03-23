@@ -18,6 +18,8 @@ log = logging.getLogger(__name__)
 
 
 def fix(col, mapping):
+    """Update the User UUIDs for a single collection."""
+
     log.info('> fixing collection %s', col.name)
     for username, uuid in mapping.items():
         q = models.DocumentUserTag.objects.filter(user=username).exclude(uuid=uuid)

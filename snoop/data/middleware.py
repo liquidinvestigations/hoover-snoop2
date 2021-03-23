@@ -1,6 +1,6 @@
 """Django middlewares for removing framework functionality.
 
-Enforces system-wade disabling of the Login System (automatically logging everyone in as an admin with no
+Enforces system-wide disabling of the Login System (automatically logging everyone in as an admin with no
 password visiting the page) and the CSRF protection system (that requires headers from this server to reach
 the UI and back.
 

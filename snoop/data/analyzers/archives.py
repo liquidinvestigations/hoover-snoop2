@@ -43,10 +43,14 @@ KNOWN_TYPES = (
 
 
 def is_archive(mime_type):
+    """Checks if mime type is a known archive."""
+
     return mime_type in KNOWN_TYPES
 
 
 def call_readpst(pst_path, output_dir):
+    """Helper function that calls a `readpst` process."""
+
     try:
         subprocess.check_output([
             'readpst',
@@ -64,6 +68,8 @@ def call_readpst(pst_path, output_dir):
 
 
 def call_7z(archive_path, output_dir):
+    """Helper function that calls a `7z` process."""
+
     try:
         subprocess.check_output([
             '7z',
@@ -79,6 +85,8 @@ def call_7z(archive_path, output_dir):
 
 
 def unpack_mbox(mbox_path, output_dir):
+    """Split a MBOX into emails."""
+
     def slice(stream):
         last = b''
         while True:
@@ -106,6 +114,8 @@ def unpack_mbox(mbox_path, output_dir):
 
 
 def unpack_pdf(pdf_path, output_dir):
+    """Extract images from pdf by calling `pdfimage`."""
+
     try:
         subprocess.check_call(
             [
@@ -144,6 +154,8 @@ def unpack_pdf(pdf_path, output_dir):
 
 
 def check_recursion(listing, blob_pk):
+    """Raise exception if archive (blob_pk) is contained in itself (listing)."""
+
     for item in listing:
         if item['type'] == 'file':
             if item['blob_pk'] == blob_pk:
@@ -156,6 +168,11 @@ def check_recursion(listing, blob_pk):
 @snoop_task('archives.unarchive', priority=2)
 @returns_json_blob
 def unarchive(blob):
+    """Task to extract from an archive (or archive-looking) file its children.
+
+    Runs on archives, email archives and any other file types that can contain another file (such as
+    documents that embed images).
+    """
     with tempfile.TemporaryDirectory() as temp_dir:
         if blob.mime_type in SEVENZIP_KNOWN_TYPES:
             call_7z(blob.path(), temp_dir)
@@ -177,6 +194,8 @@ def unarchive(blob):
 
 
 def archive_walk(path):
+    """Generates simple dicts with archive listing for the archive. """
+
     for thing in path.iterdir():
         if thing.is_dir():
             yield {

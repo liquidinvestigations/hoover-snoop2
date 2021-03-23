@@ -9,10 +9,12 @@ from ..utils import zulu
 
 
 def can_extract(blob):
+    """Checks if we can extract EXIF data from blob."""
     return blob.mime_type.startswith('image/')
 
 
 def extract_gps_location(tags):
+    """Returns GPS "lat lon" string from dict with tags."""
     def ratio_to_float(ratio):
         return float(ratio.num) / ratio.den
 
@@ -52,6 +54,8 @@ def convert_exif_date(str):
 @snoop_task('exif.extract')
 @returns_json_blob
 def extract(blob):
+    """Task to extract EXIF GPS tags from Blob with image."""
+
     # details=False removes thumbnails and MakerNote (manufacturer specific
     # information). See https://pypi.python.org/pypi/ExifRead#tag-descriptions
 

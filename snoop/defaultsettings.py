@@ -112,6 +112,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'snoop.wsgi.application'
+"""Configure which WSGI application to use, for Django."""
 
 # heroku-style db config
 _snoop_db = os.environ['SNOOP_DB']
@@ -157,63 +158,131 @@ for col in SNOOP_COLLECTIONS:
     DATABASES[db_name] = dict(default_db, NAME=db_name)
 
 DATABASE_ROUTERS = ['snoop.data.collections.CollectionsRouter']
+"""Activate our database router under [snoop.data.collections.CollectionsRouter][].
+"""
+
 CELERY_DB_REUSE_MAX = 0
+"""Instruct Celery to not reuse database connections.
+"""
 
 LANGUAGE_CODE = 'en-us'
+"""Django locale."""
+
 DETECT_LANGUAGE = True
+"""Enable language detection."""
+
 LANGUAGE_DETECTOR_NAME = 'polyglot'
+"""Configure which language detector library to use.
+"""
+
 TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
 
 SNOOP_COLLECTIONS_ELASTICSEARCH_URL = os.environ.get('SNOOP_ES_URL', 'http://localhost:9200')
+"""URL pointing to Elasticsearch server."""
 
 SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
+"""Full disk path pointing to Blobs storage.
+
+A new directory will be created under this path for every collection processed.
+"""
+
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
+"""URL pointing to Apache Tika server."""
+
 SNOOP_FEED_PAGE_SIZE = 100
+"""Pagination size for the /feed URLs.
+
+TODO:
+    remove this value, as the API is not used anymore.
+"""
+
 SNOOP_COLLECTION_ROOT = os.environ.get('SNOOP_COLLECTION_ROOT')
+"""Path on disk pointing to collection source directory.
+
+All collections in the system must have a directory here called the same as the collection name, containing
+a directory called `data` where the actual collection data is fetched from.
+"""
+
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
+"""Prefix to add to all snoop task queues.
+
+TODO:
+    Remove this value, as it's not used anymore.
+"""
+
 
 SNOOP_MIN_WORKERS = int(os.environ.get('SNOOP_MIN_WORKERS', '2'))
+"""Input min worker count."""
+
+
 SNOOP_MAX_WORKERS = int(os.environ.get('SNOOP_MAX_WORKERS', '8'))
+"""Input max worker count."""
+
 SNOOP_CPU_MULTIPLIER = float(os.environ.get('SNOOP_CPU_MULTIPLIER', '0.66'))
+"""Input CPU multiplier."""
+
+
 WORKER_COUNT = min(SNOOP_MAX_WORKERS,
                    max(SNOOP_MIN_WORKERS,
                        int(SNOOP_CPU_MULTIPLIER * cpu_count())))
+"""Computed worker count for this node."""
 
-TASK_RETRY_AFTER_DAYS = 35
+TASK_RETRY_AFTER_DAYS = 45
+"""Errored tasks are retried at most every this number of days."""
 
-# max tasks count to be finished by 1 worker before restarting it
-WORKER_TASK_LIMIT = 10 ** 5
-# memory limit for each worker (in mb),
-# not enforced - worker gets restarted after it uses more than this value.
+WORKER_TASK_LIMIT = 3 * 10 ** 4
+"""Max tasks count to be finished by 1 worker process before restarting it.
+"""
+
 WORKER_MEMORY_LIMIT = 5000
+"""Memory limit for each worker (in mb),
+Not enforced during job -- worker gets restarted after it uses more than this value.
+"""
 
-# average worker count to scale the queue limits by
+
 _scale_coef = int((1 + SNOOP_MIN_WORKERS + SNOOP_MAX_WORKERS) / 2)
-# limit for queueing large counts of children tasks
+""" average worker count to scale the queue limits by
+"""
+
+
 CHILD_QUEUE_LIMIT = 50 * _scale_coef
-# Count of pending tasks to trigger per collection when finding an empty queue.
-# A single worker core running zero-length tasks gets at most around 40
-# tasks/s, so to keep them all occupied for 6min:
+""" Limit for queueing large counts of children tasks.
+"""
+
 DISPATCH_QUEUE_LIMIT = 14400 * _scale_coef
-# If there are no pending tasks, this is how many directories
-# will be retried by sync every minute.
+""" Count of pending tasks to trigger per collection when finding an empty queue.
+A single worker core running zero-length tasks gets at most around 40
+tasks/s, so to keep them all occupied for 6min:
+"""
+
+
 SYNC_RETRY_LIMIT = 60 * _scale_coef
+""" If there are no pending tasks, this is how many directories
+will be retried by sync every minute.
+"""
 
-# Only run pdf2pdfocr if pdf text word count less than this value. This should
-# defend us from over-1200-page documents that hang up the processing for days.
-# The english bible has 808k words, at around 6 chars / word we have:
-PDF2PDFOCR_MAX_STRLEN = 808000 * 6  # one bible
+PDF2PDFOCR_MAX_STRLEN = 4 * (2 ** 20)
+""" Only run pdf2pdfocr if pdf text length less than this value.
 
-# url prefix for all the views, for example "snoop/"
+This should defend us from over-1000-page documents that hang up the processing for days. The english bible
+has about 4 MB of text, so we use that as a simple value of when to stop.
+"""
+
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')
+"""Configuration to set the URL prefix for all service routes. For example: "snoop/".
+"""
 if URL_PREFIX:
     assert URL_PREFIX.endswith('/') and not URL_PREFIX.startswith('/')
 
 STATIC_URL = '/' + URL_PREFIX + 'static/'
+"""Url path pointing to static files, for Django."""
+
+
 STATIC_ROOT = str(base_dir / 'static')
+"""Full disk path to static directory on disk, for Django."""
 
 
 def bool_env(value):
@@ -221,16 +290,24 @@ def bool_env(value):
 
 
 SNOOP_DOCUMENT_LOCATIONS_QUERY_LIMIT = 200
+"""Limit page size when listing document locations.
+"""
+
 SNOOP_DOCUMENT_CHILD_QUERY_LIMIT = 200
+"""Limit page size when listing directory children.
+"""
 
 _amqp_url = os.getenv('SNOOP_AMQP_URL')
 if _amqp_url:
     CELERY_BROKER_URL = _amqp_url
 CELERYD_HIJACK_ROOT_LOGGER = False
 
-# Of the form "1.2.3.4:1234/_path/" (no "http://" prefix).
-# Used to query queue lengths. Assumes user/password guest/guest.
 SNOOP_RABBITMQ_HTTP_URL = os.getenv('SNOOP_RABBITMQ_HTTP_URL')
+"""URL pointing to RabbitMQ message queue.
+
+Of the form "1.2.3.4:1234/_path/" (no "http://" prefix).
+Used to query queue lengths. Assumes user/password guest/guest.
+"""
 
 _tracing_url = os.environ.get('TRACING_URL')
 if _tracing_url:
@@ -265,7 +342,15 @@ celery.app.conf.task_routes = {
 }
 
 SYSTEM_QUEUES = ['run_dispatcher', 'save_stats', 'update_all_tags']
+"""List of "system queues" - celery that must be executed periodically.
+
+One execution of any of these functions will work on all collections under a `for` loop.
+"""
+
 ALWAYS_QUEUE_NOW = False
+"""Setting this to True disables the Task queueing system and executes Task functions in the foregrond. Used
+for testing.
+"""
 
 if not DEBUG:
     # don't connect to the internet to verify my schema pls

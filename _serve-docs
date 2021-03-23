@@ -2,6 +2,7 @@
 cd "$(dirname ${BASH_SOURCE[0]})"
 
 pip install -r docs/requirements-mkdocs.txt
-mkdocs build -c
 set +e
-while true; do mkdocs serve -a 0.0.0.0:8000; sleep 4; done
+# build with strict mode (-s) on; then serve without it
+# (since it outputs stupid warnings because of the -a param)
+while true; do mkdocs build -c -s; mkdocs serve -a 0.0.0.0:8000; sleep 4; done

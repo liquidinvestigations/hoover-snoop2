@@ -25,6 +25,7 @@ import json
 import logging
 from time import time, sleep
 from datetime import timedelta
+from functools import wraps
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
@@ -405,12 +406,6 @@ def snoop_task(name, priority=5):
     """
 
     def decorator(func):
-        """decorator.
-
-        Args:
-            func:
-        """
-
         def laterz(*args, depends_on={}, retry=False, queue_now=True, delete_extra_deps=False):
             """Actual function doing dependency checking and queueing.
 
@@ -643,6 +638,7 @@ def returns_json_blob(func):
         JSON result sizes (>1GB) or dynamically generated results (from a generator).
     """
 
+    @wraps(func)
     def wrapper(*args, **kwargs):
         rv = func(*args, **kwargs)
 
