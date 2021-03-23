@@ -1,6 +1,6 @@
 """Root URL routes file.
 
-Points to global health check, admin sites, API documentation generators and the `snoop.data.urls` app URLs.
+Points to global health check, admin sites, API documentation generators and the [snoop.data.urls][] URLs.
 Also sets global URL prefixes.
 """
 

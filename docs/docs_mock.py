@@ -18,6 +18,8 @@ class SuperMagicMock(MagicMock):
 
 
 def mock_all():
+    """Mock the dependencies listed in the text file, but not the ones that have been installed."""
+
     libs = set()
     with open("./docs/requirements-mkdocs.txt") as f:
         for line in f.readlines():

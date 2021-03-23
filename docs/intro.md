@@ -37,8 +37,8 @@ implementation of indexing.
 ## Tasks
 
 Work done by this service is tracked and scheduled using an improvised system
-for running directed acyclic graphs (DAGs) of [idempotent
-  tasks][snoop.data.models.Task].
+for running directed acyclic graphs (DAGs) of
+[idempotent tasks][snoop.data.models.Task].
 
 
 #### Ingestion and archive extraction tasks
@@ -54,8 +54,8 @@ With the de-duplicated documents identified from the previous step, further
 processing is done in [snoop.data.digests][]. Tasks run here are only concerned
 with extracting metadata from a single document, and then making it available
 through search and API. The [snoop.data.digests.launch][] task schedules more
-tasks from [snoop.data.analyzers.__init__][] to run, and then another task
-[snoop.data.digests.gather][] combines their results.
+tasks from [`snoop.data.analyzers`][snoop.data.analyzers.__init__] to run, and
+then another task [snoop.data.digests.gather][] combines their results.
 
 
 #### Indexing tasks
@@ -64,7 +64,7 @@ After [snoop.data.digests.gather][] finishes running, its result is stored as
 the [Digest result][snoop.data.models.Digest.result]. The last task in the
 chain, [snoop.data.digests.index][], uploads this result to elasticsearch.
 
-The results are stored as Blobs for easy re-indexing and fast API response
+The results are stored as [Blobs][snoop.data.models.Blob] for easy re-indexing and fast API response
 times.
 
 

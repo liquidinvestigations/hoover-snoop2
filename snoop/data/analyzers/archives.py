@@ -114,7 +114,7 @@ def unpack_mbox(mbox_path, output_dir):
 
 
 def unpack_pdf(pdf_path, output_dir):
-    """Extract images from pdf by calling `pdfimage`."""
+    """Extract images from pdf by calling `pdfimages`."""
 
     try:
         subprocess.check_call(

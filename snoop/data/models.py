@@ -1,6 +1,7 @@
 """Django model definitions file.
 
-Also see `snoop.data.Collections` for details on how models are bound to the different databases.
+Also see [snoop.data.collections][] for details on how models are bound to the different
+databases.
 """
 
 import string
@@ -306,12 +307,9 @@ class Blob(models.Model):
 class Directory(models.Model):
     """Database model for a file directory.
 
-    Along with File, this comprises the file tree structure analyzed by Hoover.
-    A Directory can be found in two places: in anoter Directory, or as the only
-    child of some archive or archive-like file.
-
-        parent_directory: mutually exclusive with container_file
-        container_file: mutually exclusive with parent_directory
+    Along with [File][snoop.data.models.File], this comprises the file tree structure analyzed by Hoover. A
+    Directory can be found in two places: in anoter Directory, or as the only child of some archive or
+    archive-like file.
     """
 
     name_bytes = models.BinaryField(max_length=1024, blank=True)
@@ -447,7 +445,7 @@ class File(models.Model):
 
     @property
     def name(self):
-        """Decodes the name of this Directory as UTF-8.
+        """Decodes the name of this File as UTF-8.
 
         Escapes UTF-8 encoding errors with 'surrogateescape' - this has the
         advantage that it's reversible, for bad encodings.
@@ -466,7 +464,7 @@ class File(models.Model):
 
     @property
     def parent(self):
-        """parent.
+        """Returns the ID of the parent directory.
         """
         return self.parent_directory
 

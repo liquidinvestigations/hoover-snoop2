@@ -1,14 +1,15 @@
-"""Definitions for filesystem-related Tasks.
+"""Definitions for filesystem-related [Tasks][snoop.data.models.Task].
 
 These are the first steps in processing any dataset: walking the filesystem and recording files and
 directories in their respective database tables.
 
-The root directory for a dataset is explored by the `walk()` function. This recursively runs `walk()` on the
-directories inside it, and then runs `handle_file()` on all the files inside it.
+The root directory for a dataset is explored by the [snoop.data.filesystem.walk][]
+[Task][snoop.data.models.Task]. This recursively schedules [walk][snoop.data.filesystem.walk][] on the
+directories inside it, and then schedules [snoop.data.filesystem.handle_file][] on all the files inside it.
 
 Files discovered may actually be Archives, Emails or other containers that contain directories too, but
-walking these is treated differently under `snoop.data.analyzers.archives`, `snoop.data.analyzers.email` and
-others.
+walking these is treated differently under [snoop.data.analyzers.archives][], [snoop.data.analyzers.email][]
+and others.
 """
 
 import json
@@ -31,12 +32,17 @@ log = logging.getLogger(__name__)
 
 
 def directory_absolute_path(directory):
-    """Returns absolute Path for a dataset Directory.
+    """Returns absolute Path for a dataset [snoop.data.models.Directory][].
 
-    This is expected to return an invalid Path without failing if supplied with a Directory that is not
-    found directly on the filesystem, but inside some archive or email.
+    Directory supplied must be present on the filesystem.
+
+    Warning:
+        This is expected to return an invalid Path without failing if supplied with a Directory that is not
+        found directly on the filesystem, but inside some archive or email.
+
+    TODO:
+        Throw exception if directory isn't directly on filesystem.
     """
-    # TODO: throw exception if directory isn't directly on filesystem
 
     path_elements = []
     node = directory
@@ -57,22 +63,24 @@ def directory_absolute_path(directory):
 def walk(directory_pk):
     """Scans one level of a directory and recursively ingests all files and directories found.
 
-    Items are iterated in arbitrary order.  When a directory was found, an entry is added to the `Directory`
-    table (if it doesn't exist there already) and another `walk()` task is queued on it. On the other hand,
-    if a file was fonud, a corresponding row is added (or updated, but never removed) from the `File` table,
-    the binary data for the file is stored in a Blob object, and finally the `handle_file()` task is queued
-    for it.
+    Items are iterated in arbitrary order.  When a directory was found, an entry is added to the
+    [snoop.data.models.Directory][]. table (if it doesn't exist there already) and another
+    [snoop.data.filesystem.walk][] Task is queued on it. On the other hand, if a file was fonud, a
+    corresponding row is added (or updated, but never removed) from the [snoop.data.models.File][] table,
+    the binary data for the file is stored in a [snoop.data.models.Blob][] object, and finally the
+    [snoop.data.filesystem.handle_file][] Task is queued for it.
 
-    One of
-    the decorators of this function, `snoop.data.tasks.snoop_task()`, wraps this function in a Django
-    Transaction. Because `snoop.data.tasks.queue_task()` also wraps the queueing operation inside Django's
-    `transaction.on_commit()`, all queueing operations will be handled after the transaction (and function)
-    is finished successfully. This has two effects: we never queue tasks triggered from failing functions
-    (to avoid cascading errors), and we queue all the next tasks after finishing running the current task.
+    One of the decorators of this function, [snoop.data.tasks.snoop_task][], wraps this function in a
+    Django Transaction. Because [snoop.data.tasks.queue_task][] also wraps the queueing operation inside
+    Django's `transaction.on_commit()`, all queueing operations will be handled after the transaction (and
+    function) is finished successfully. This has two effects: we never queue tasks triggered from failing
+    functions (to avoid cascading errors), and we queue all the next tasks after finishing running the
+    current Task.
 
-    The number of tasks queued by this one is limited to a config setting called `CHILD_QUEUE_LIMIT`. Since
-    the tasks to be queued are kept in memory until the function is finished, we are limiting the memory
-    used through this value. We also want to avoid saturating the message queue with writes, a real
+    The number of tasks queued by this one is limited to a config setting called
+    [`CHILD_QUEUE_LIMIT`][snoop.defaultsettings.CHILD_QUEUE_LIMIT]. Since the tasks to be queued are kept in
+    memory until the function is finished, we are limiting the memory used through this value. We also want
+    to avoid saturating the message queue with writes, a real
     I/O bottleneck.
 
     For the `walk() -> handle_file()` queueing, this is the intended behavior, because `handle_file`
@@ -140,17 +148,21 @@ def handle_file(file_pk, **depends_on):
 
     Re-runs `libmagic` in case mime type changed (through updating the library). Switching by the resulting
     mime type, a decision is made if the file needs to be converted to another format, or unpacked into more
-    Files and Directories (in cases like archives, emails with attachments, PDFs with images, etc).
+    [Files][snoop.data.models.File] and [Directories][snoop.data.models.Directory] (in cases like archives,
+    emails with attachments, PDFs with images, etc).
 
-    If a conversion/unpacking is required, then a Task responsible for doing the conversion/unpacking
-    operation is dynamically added as a dependency for this Task (using `require_dependency()`). Previous
-    dependencies that are not valid anymore must also be removed here; this is to fix documents with wront
-    mime types, not to support document deletion.
+    If a conversion/unpacking is required, then a [Task][snoop.data.models.Task] responsible for doing the
+    conversion/unpacking operation is dynamically added as a dependency for this Task (using
+    [`require_dependency()`][snoop.data.tasks.require_dependency]). Previous dependencies that are not valid
+    anymore must also be removed here; this is to fix documents with wront mime types, not to support
+    document deletion.
 
-    Finally, after all unarchiving, unpacking and converting is done, we queue the `digests.launch` Task for
-    the de-duplicated document that the given File is pointing to.  A dependency between this Task and that
-    one is not made, since we have no use for such a dependency and it would only slow down the database.
+    Finally, after all unarchiving, unpacking and converting is done, we queue the
+    [`digests.launch`][snoop.data.digests.launch] Task for the de-duplicated document that the given File is
+    pointing to.  A dependency between this Task and that one is not made, since we have no use for such a
+    dependency and it would only slow down the database.
     """
+
     file = models.File.objects.get(pk=file_pk)
 
     old_mime = file.original.mime_type
@@ -223,11 +235,13 @@ def handle_file(file_pk, **depends_on):
 def create_archive_files(file_pk, archive_listing):
     """Creates the File and Directoty structure after unpacking files.
 
-    Receives a dict (called the "archive_listing") from the `unarchive()` task with the names of the
-    Files and Directories that must be created, as well as the File timestmaps and binary data hashes.
+    Receives a dict (called the "archive_listing") from the [snoop.data.analyzers.unarchive] Task with the
+    names of the Files and Directories that must be created, as well as the File timestmaps and binary data
+    hashes.
 
-    This function serves the role of `walk()`, but inside archives; it queues `handle_file()` for all
-    files unpacked.
+    This function serves half the role of [`walk()`][snoop.data.filesystem.walk], but inside archives; it
+    queues [`handle_file()`][snoop.data.filesystem.handle_file] for all files unpacked. It assumes the
+    `Blob` objects for the files inside have already been created.
     """
 
     if isinstance(archive_listing, SnoopTaskBroken):
@@ -303,7 +317,8 @@ def get_email_attachments(parsed_email):
 def create_attachment_files(file_pk, email_parse):
     """Creates the File and Directoty structure after unpacking email attachments.
 
-    Receives a dict from the `email.parse()` task with the names and bodies of the attachments.
+    Receives a dict from the [`email.parse()`][snoop.data.analyzers.email.parse] task with the names and
+    bodies of the attachments.
 
     This function serves the role of `walk()`, but inside emails; it queues `handle_file()` for all
     files unpacked.
