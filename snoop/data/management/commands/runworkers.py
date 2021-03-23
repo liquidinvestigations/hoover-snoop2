@@ -1,3 +1,8 @@
+"""Entrypoint for worker process.
+
+Starts up a variable number of worker processes with Celery, depending on settings and available CPU count.
+"""
+
 import os
 import logging
 import subprocess
@@ -15,6 +20,8 @@ log = logging.getLogger(__name__)
 
 
 def celery_argv(queues):
+    """Builds the command line to run a `celery worker` process."""
+
     celery_binary = (
         subprocess.check_output(['which', 'celery'])
         .decode('latin1')
@@ -43,13 +50,16 @@ def celery_argv(queues):
 
 
 class Command(BaseCommand):
-    help = "Run celery worker"
+    "Run celery worker"
 
     def add_arguments(self, parser):
+        """Adds flag to switch between running collection workers and system workers."""
         parser.add_argument('--system-queues', action='store_true',
                             help="Run system queues, not data queues (only one instance should exist)")
 
     def handle(self, *args, **options):
+        """Runs workers for either collection processing or system tasks."""
+
         logging_for_management_command()
         with Profiler():
             tasks.import_snoop_tasks()

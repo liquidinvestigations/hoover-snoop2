@@ -1,3 +1,6 @@
+"""Command to check health of running workers.
+"""
+
 import logging
 import subprocess
 
@@ -10,6 +13,12 @@ log = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
+    """Health check looking at worker process count.
+
+    Will fail if we have less than [snoop.defaultsettings.SNOOP_MIN_WORKERS][] workers running on this node.
+    Uses good old `ps` to get process count, then compares with the value above.
+    """
+
     help = "Make sure we have enough workers running in this container"
 
     def handle(self, *args, **options):

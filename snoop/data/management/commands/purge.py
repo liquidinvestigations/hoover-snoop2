@@ -1,3 +1,8 @@
+"""Delete old databases, indexes and blobs.
+
+This command is the only supported way of removing data from Snoop, one collection at a time.
+"""
+
 import os
 import shutil
 
@@ -17,13 +22,18 @@ def confirm():
 
 
 class Command(BaseCommand):
-    help = "Retry running task"
+    "Retry running task"
 
     def add_arguments(self, parser):
+        """One flag called `--force` to avoid being asked for confirmation."""
+
         parser.add_argument('--force', action='store_true',
                             help="Don't ask for confirmation")
 
     def handle(self, **options):
+        """Find and delete databases, indexes and blobs not bound to any collection.
+        """
+
         logging_for_management_command(options['verbosity'])
 
         def print_items(name, items):

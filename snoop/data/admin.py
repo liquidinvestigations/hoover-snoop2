@@ -1,3 +1,15 @@
+"""Django Admin definitions.
+
+This defines MultiDBModelAdmin, the root Admin class required to view models from the different databases.
+
+Specialized admin sites for the different tables also live here; we add links, a table with task statistics,
+and generally try to restrict editing info that should remain read-only. There are still a million ways to
+break or exploit this site from this admin, so we keep it locked under firewall and access it through
+tunneling onto the machine.
+
+All the different admin sites are kept in the global dict `sites`. The default admin site is also part of
+this dict, under the key "_default". The sites are mapped to URLs in `snoop.data.urls` using this global.
+"""
 import json
 from math import trunc
 from datetime import timedelta
@@ -18,11 +30,14 @@ from . import collections
 
 
 def blob_link(blob_pk):
+    """Return markup with link pointing to the Admin Edit page for this Blob."""
+
     url = reverse(f'{collections.current().name}:data_blob_change', args=[blob_pk])
     return mark_safe(f'<a href="{url}">{blob_pk[:10]}...{blob_pk[-4:]}</a>')
 
 
 def raw_sql(query):
+    """Execute SQL string in current collection database."""
     col = collections.current()
     with connections[col.db_alias].cursor() as cursor:
         cursor.execute(query)
@@ -42,6 +57,18 @@ ERROR_STATS_QUERY = (
 
 
 def get_task_matrix(task_queryset):
+    """Runs expensive database aggregation queries to fetch the Task matrix.
+
+    Included here are: counts aggregated by task function and status; average duration and ETA aggregated by
+    function.
+
+    We estimate an ETA for every function type through a naive formula that counts the Tasks remaining and
+    divides them by the average duration of Tasks finished in the previous 5 minutes. This is not precise
+    for tasks that take more than 5 minutes to finish, so this value fluctuates.
+
+    Data is returned in a JSON-serializable python dict.
+    """
+
     task_matrix = defaultdict(dict)
 
     task_buckets_query = (
@@ -77,6 +104,15 @@ def get_task_matrix(task_queryset):
 
 
 def get_stats():
+    """Runs expensive database queries to collect all stats for a collection.
+
+    Fetches the Task matrix with `get_task_matrix`, then combines all the different ETA values into a single
+    user-friendly ETA text with completed percentage and time to finish. Also computes total counts of the
+    different objects (files, directories, de-duplicated documents, blobs) and their total sizes (in the
+    database and on disk).
+
+    Data is returned in a JSON-serializable python dict.
+    """
     task_matrix = get_task_matrix(models.Task.objects)
     blobs = models.Blob.objects
 
@@ -130,6 +166,12 @@ def get_stats():
 
 
 class MultiDBModelAdmin(admin.ModelAdmin):
+    """Base class for an Admin that connects to a database different from "default".
+
+    The database is fetched from the thread-local memory using `snoop.data.collections.current()`. See that
+    module for details on implementation and limitations.
+    """
+
     allow_delete = False
     allow_change = False
 
@@ -195,6 +237,8 @@ class MultiDBModelAdmin(admin.ModelAdmin):
 
 
 class DirectoryAdmin(MultiDBModelAdmin):
+    """List and detail views for the folders."""
+
     raw_id_fields = ['parent_directory', 'container_file']
     readonly_fields = [
         'pk',
@@ -209,6 +253,8 @@ class DirectoryAdmin(MultiDBModelAdmin):
 
 
 class FileAdmin(MultiDBModelAdmin):
+    """List and detail views for the files."""
+
     raw_id_fields = ['parent_directory', 'original', 'blob']
     list_display = ['__str__', 'size', 'mime_type',
                     'original_blob_link', 'blob_link']
@@ -252,6 +298,8 @@ class FileAdmin(MultiDBModelAdmin):
 
 
 class BlobAdmin(MultiDBModelAdmin):
+    """List and detail views for the blobs."""
+
     list_display = ['__str__', 'mime_type', 'mime_encoding', 'created']
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
@@ -262,6 +310,11 @@ class BlobAdmin(MultiDBModelAdmin):
     change_form_template = 'snoop/admin_blob_change_form.html'
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
+        """Optionally fetch and display the actual blob data in the defail view.
+
+        Our detail view is called "change_view" by Django, but we made everything read-only in this admin.
+        """
+
         with self.collection.set_current():
             extra_context = extra_context or {}
 
@@ -279,9 +332,16 @@ class BlobAdmin(MultiDBModelAdmin):
             )
 
     def created(self, obj):
+        """Returns user-friendly string with date created (like "3 months ago")."""
         return naturaltime(obj.date_created)
 
     def get_preview_content(self, blob):
+        """Returns string with text for Blobs that are JSON or text.
+
+        Used to peek at the Blob data from the Admin without opening a shell.
+
+        Only works for `text/plain` and `application/json` mime types.
+        """
         if blob.mime_type == 'text/plain':
             encoding = 'latin1' if blob.mime_encoding == 'binary' else blob.mime_encoding
             with blob.open(encoding=encoding) as f:
@@ -296,6 +356,9 @@ class BlobAdmin(MultiDBModelAdmin):
 
 
 class TaskAdmin(MultiDBModelAdmin):
+    """List and detail views for the Tasks with Retry action.
+    """
+
     raw_id_fields = ['blob_arg', 'result']
     readonly_fields = ['blob_arg', 'result', 'pk', 'func', 'args',
                        'date_created', 'date_started', 'date_finished', 'date_modified',
@@ -317,6 +380,8 @@ class TaskAdmin(MultiDBModelAdmin):
     }
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
+        """Adds links to the detail page pointing to the Tasks this one depends on."""
+
         with self.collection.set_current():
             extra_context = extra_context or {}
 
@@ -355,11 +420,18 @@ class TaskAdmin(MultiDBModelAdmin):
         return self.dependency_links(obj)
 
     def retry_selected_tasks(self, request, queryset):
+        """Action to retry selected tasks."""
+
         tasks.retry_tasks(queryset)
         self.message_user(request, f"requeued {queryset.count()} tasks")
 
 
 class TaskDependencyAdmin(MultiDBModelAdmin):
+    """Listing for dependencies between tasks.
+
+    These are skipped when using the TaskAdmin links, but looking at this table may still be interesting.
+    """
+
     raw_id_fields = ['prev', 'next']
     readonly_fields = ['prev', 'next', 'name']
     list_display = ['pk', 'name', 'prev', 'next']
@@ -367,6 +439,9 @@ class TaskDependencyAdmin(MultiDBModelAdmin):
 
 
 class DigestAdmin(MultiDBModelAdmin):
+    """Listing and detail views for the Digests.
+    """
+
     raw_id_fields = ['blob', 'result']
     readonly_fields = [
         'blob', 'blob_link', 'result', 'result_link',
@@ -392,6 +467,9 @@ class DigestAdmin(MultiDBModelAdmin):
 
 
 class DocumentUserTagAdmin(MultiDBModelAdmin):
+    """Listing and detail views for the Tags.
+    """
+
     list_display = ['pk', 'user', 'blob', 'tag', 'public', 'date_indexed']
     readonly_fields = [
         'pk', 'user', 'blob', 'tag', 'public', 'date_indexed',
@@ -401,11 +479,19 @@ class DocumentUserTagAdmin(MultiDBModelAdmin):
 
 
 class OcrSourceAdmin(MultiDBModelAdmin):
+    """Editable admin views for the OCR Sources.
+
+    These are manually managed through this interface.
+    Management commands to rename / edit these also exist.
+    """
+
     allow_delete = True
     allow_change = True
 
 
 class SnoopAdminSite(admin.AdminSite):
+    """Base AdminSite definition, adds list with links to all collection Admins."""
+
     site_header = "Snoop Mk2"
     index_template = 'snoop/admin_index_default.html'
 
@@ -416,6 +502,11 @@ class SnoopAdminSite(admin.AdminSite):
 
 
 class CollectionAdminSite(SnoopAdminSite):
+    """Admin site that connects to a collection's database.
+
+    Requires that all models linked here be subclasses of MultiDBModelAdmin.
+    """
+
     index_template = 'snoop/admin_index.html'
 
     def __init__(self, *args, **kwargs):
@@ -432,6 +523,14 @@ class CollectionAdminSite(SnoopAdminSite):
             return super().admin_view(*args, **kwargs)
 
     def stats(self, request):
+        """Shows tables with statistics for this collection.
+
+        The data is fetched from `snoop.data.models.Statistics` with key = "stats".
+
+        A periodic worker will update this data every minute or so to limit usage and allow monitoring.
+        See `snoop.data.tasks.save_stats()` on how this is done.
+        """
+
         with self.collection.set_current():
             context = dict(self.each_context(request))
             stats, _ = models.Statistics.objects.get_or_create(key='stats')
@@ -440,6 +539,11 @@ class CollectionAdminSite(SnoopAdminSite):
 
 
 def make_collection_admin_site(collection):
+    """Registeres all MultiDBModelAdmin classes with a new CollectionAdminSite.
+    Args:
+        collection: the collection to bind this CollectionAdminSite to.
+    """
+
     with collection.set_current():
         site = CollectionAdminSite(name=collection.name)
         site.site_header = f'collection "{collection.name}"'
@@ -459,6 +563,8 @@ def make_collection_admin_site(collection):
 
 
 def get_admin_links():
+    """Yields tuples with admin site name and URL from the global `sites`."""
+
     global sites
     for name in sorted(sites.keys()):
         yield name, f'/{settings.URL_PREFIX}admin/{name}/'

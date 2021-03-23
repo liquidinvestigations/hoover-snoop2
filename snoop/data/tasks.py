@@ -1,3 +1,23 @@
+"""Definition of Snoop Task System.
+
+This is a simple set of wrappers around Celery functions to afford them stability, reproductability and
+result storage. Even while Celery has support for using "result backends" to store the task results, we
+didn't enjoy the fact that a power failure or unexpected server restart would wipe out our progress and be
+hard to predict. The solution is to mirror all information about running Tasks in a dedicated database, and
+use that as the source of thuth.
+
+We also gain something else by mirroring Tasks inside a database table: the ability to de-duplicate running
+them, through locking their correspondent rows when running (SQL `SELECT FOR UPDATE`).
+
+Another requirement for this system is the building of Directed Acyclic Graphs (DAGs) of Tasks. The edges of
+this graph should carry Task result data from parent task to child task.
+
+As far as alternatives go: Apache Airflow is too slow (takes a few seconds just to run a simple task),
+Spotify Luigi does all the scheduling in memory (and can't scale to our needs for persistent
+de-duplication), and other K8s-oriented container-native solutions were not investigated. But as a rule of
+thumb, if it can't run 1000-5000 idle (no-op) Tasks per minute per CPU, it's too slow for our use.
+"""
+
 import random
 from contextlib import contextmanager
 from io import StringIO
@@ -5,6 +25,7 @@ import json
 import logging
 from time import time, sleep
 from datetime import timedelta
+from functools import wraps
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
@@ -25,6 +46,11 @@ ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
 
 
 class SnoopTaskError(Exception):
+    """Thrown by Task when died and should set status = "error".
+
+    This is be used from inside a Task function to mark unexpected or temporary errors.
+    These tasks will be retried after a while until finished.
+    """
 
     def __init__(self, message, details):
         super().__init__(message)
@@ -32,6 +58,10 @@ class SnoopTaskError(Exception):
 
 
 class SnoopTaskBroken(Exception):
+    """Thrown by Task when died and should set status = "broken".
+
+    This is to be used from inside a Task function to mark permanent problems.
+    """
 
     def __init__(self, message, reason):
         super().__init__(message)
@@ -39,6 +69,8 @@ class SnoopTaskBroken(Exception):
 
 
 class MissingDependency(Exception):
+    """Thrown by Task when it depends on another Task that is not finished.
+    """
 
     def __init__(self, name, task):
         self.name = name
@@ -46,15 +78,33 @@ class MissingDependency(Exception):
 
 
 class ExtraDependency(Exception):
+    """Thrown by Task when it no longer depends on another Task it used to depend on.
+
+    This happens when a File was not identified correctly and now is;
+    different parts of the Task graph must run on it.
+    """
 
     def __init__(self, name):
         self.name = name
 
 
 def queue_task(task):
+    """Queue given Task with Celery to run on a worker.
+
+    If called from inside a transaction, queueing will be done after
+    the transaction is finished succesfully.
+
+    Args:
+        task: task to be queued in Celery
+    """
     import_snoop_tasks()
 
     def send_to_celery():
+        """This does the actual queueing operation.
+
+        This is wrapped in `transactions.on_commit` to avoid
+        running it if wrapping transaction fails.
+        """
         col = collections.from_object(task)
         try:
             laterz_snoop_task.apply_async(
@@ -71,6 +121,12 @@ def queue_task(task):
 
 
 def queue_next_tasks(task, reset=False):
+    """Queues all Tasks that directly depend on this one.
+
+    Args:
+        task: will queue running all Tasks in `task.next_set`
+        reset: if set, will set next Tasks status to "pending" before queueing it
+    """
     with tracing.span('queue_next_tasks'):
         for next_dependency in task.next_set.all():
             next_task = next_dependency.next
@@ -88,18 +144,36 @@ def queue_next_tasks(task, reset=False):
 
 @run_once
 def import_snoop_tasks():
+    """Imports task functions from various modules.
+
+    This is required to avoid import loop problems;
+    it should be called just before queueing a Task in Celery.
+    """
     from . import filesystem  # noqa
     from .analyzers import archives  # noqa
     from .analyzers import text  # noqa
 
 
 def is_completed(task):
+    """Returns True if Task is in the "success" or "broken" states.
+
+    Args:
+        task: will check `task.status` for values listed above
+    """
     COMPLETED = [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN]
     return task.status in COMPLETED
 
 
 @contextmanager
 def snoop_task_log_handler(level=logging.DEBUG):
+    """Context manager for a text log handler.
+
+    This captures in memory the entire log of running its context.
+    It's used to capture Task logs in the database.
+
+    Args:
+        level: log level, by default logging.DEBUG
+    """
     stream = StringIO()
     handler = logging.StreamHandler(stream)
     handler.setLevel(level)
@@ -114,6 +188,18 @@ def snoop_task_log_handler(level=logging.DEBUG):
 
 @celery.app.task
 def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
+    """Celery task used to run snoop Tasks without duplication.
+
+    This function is using Django's `select_for_update` to
+    ensure only one instance of a Task is running at one time.
+    After running `select_for_update` to lock the row,
+    this function will directly call into the main Task switch: `run_task`.
+
+    Args:
+        col_name: name of collection where Task is found
+        task_pk: primary key of Task
+        raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
+    """
     import_snoop_tasks()
     col = collections.ALL[col_name]
     with transaction.atomic(using=col.db_alias), col.set_current():
@@ -132,6 +218,14 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
 
 @profile()
 def run_task(task, log_handler, raise_exceptions=False):
+    """Runs the main Task switch: get dependencies, run code,
+    react to `SnoopTaskError`s, save state and logs, queue next tasks.
+
+    Args:
+        task: Task instance to run
+        log_handler: instance of log handler to dump results
+        raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
+    """
     with tracing.trace('run_task'):
         tracing.add_attribute('func', task.func)
 
@@ -302,10 +396,34 @@ def run_task(task, log_handler, raise_exceptions=False):
 
 
 def snoop_task(name, priority=5):
+    """Decorator marking a snoop Task function.
+
+    Args:
+        name: qualified name of the function, not required to be equal
+            to Python module or function name (but recommended)
+        priority: int in range [1,9] inclusive, higher is more urgent.
+            Passed to celery when queueing.
+    """
 
     def decorator(func):
-
         def laterz(*args, depends_on={}, retry=False, queue_now=True, delete_extra_deps=False):
+            """Actual function doing dependency checking and queueing.
+
+
+
+            Args:
+                args: positional function arguments
+                depends_on: dict with strings mapping to Task instances that this one depends on (and uses
+                    their results as keyword arguments) when calling the wrapped function.
+                retry: if set, will reset this function even if it's been finished. Otherwise, this doesn't
+                    re-trigger a finished function.
+                queue_now: If set, will queue this task immediately (the default). Otherwise, tasks will not
+                    be left on the queue, and they'll be picked up by the periodic task `run_dispatcher()`
+                    in this module.
+                delete_extra_deps: If set, will remove any dependencies that are not listed in `depends_on`.
+                    Used for fixing dependency graph after its structure or the data evaluation changed.
+            """
+
             if args and isinstance(args[0], models.Blob):
                 blob_arg = args[0]
                 args = (blob_arg.pk,) + args[1:]
@@ -341,6 +459,14 @@ def snoop_task(name, priority=5):
             return task
 
         def delete(*args):
+            """Delete the Task instance with given positional arguments.
+
+            The Task arguments (the dependencies) are not used as primary keys for the Tasks, so they can't
+            be used to filter for the Task to delete.
+
+            Args:
+                args: the positional arguemts used to fetch the Task.
+            """
             if args and isinstance(args[0], models.Blob):
                 blob_arg = args[0]
                 args = (blob_arg.pk,) + args[1:]
@@ -365,6 +491,23 @@ def snoop_task(name, priority=5):
 
 
 def dispatch_tasks(status):
+    """Dispatches (queues) a limited number of Task instances of each type.
+
+    Requires a collection to be selected.
+
+    Queues one batch of `settings.DISPATCH_QUEUE_LIMIT` Tasks for every function type. The function types
+    are shuffled before queuing, in an attempt to equalize the processing cycles for different collections
+    running at the same time. This is not optional since the message queue has to rearrange these in
+    priority order, with only 10 priority levels (and RabbitMQ is very optimized for this task), there isn't
+    considerable overhead here.
+
+    Args:
+        status: the status used to filter Tasks to dispatch
+
+    Returns:
+        bool: True if any tasks have been queued, False if none matching status have been found in current
+        collection.
+    """
     all_functions = [x['func'] for x in models.Task.objects.values('func').distinct()]
     random.shuffle(all_functions)
     found_something = False
@@ -389,6 +532,8 @@ def dispatch_tasks(status):
 
 
 def retry_task(task, fg=False):
+    """Resets task status, logs and error messages to their blank value, then re-queues the Task.
+    """
     task.update(
         status=models.Task.STATUS_PENDING,
         error='',
@@ -406,6 +551,11 @@ def retry_task(task, fg=False):
 
 
 def retry_tasks(queryset):
+    """Efficient re-queueing of an entire QuerySet pointing to Tasks.
+
+    This is using bulk_update to reset the status, logs and error messages on the table; then only queues
+    the first `settings.DISPATCH_QUEUE_LIMIT` tasks."""
+
     logger.info('Retrying %s tasks...', queryset.count())
 
     all_tasks = queryset.all()
@@ -436,6 +586,17 @@ def retry_tasks(queryset):
 
 
 def require_dependency(name, depends_on, callback):
+    """Dynamically adds a dependency to running task.
+
+    Use this when a Task requires the result of another Task, but this is not known when queueing it.
+
+    Args:
+        name: name of dependency
+        depends_on: current kwargs dict of function. If the name given is missing from this dict, then
+            execution will be aborted (by throwing a MissingDependency error), and this Task will have its
+            status set to "deferred". When the required task finishes running, this one will be re-queued.
+        callback: function that returns Task instance. Will only be called if the dependency was not found.
+    """
     if name in depends_on:
         result = depends_on[name]
         if isinstance(result, Exception):
@@ -447,6 +608,11 @@ def require_dependency(name, depends_on, callback):
 
 
 def remove_dependency(name, depends_on):
+    """Dynamically removes a dependency from running task.
+
+    This stops execution, removes the extra dependency in the Task loop and eventually executes this task
+    again.
+    """
     if name not in depends_on:
         return
     raise ExtraDependency(name)
@@ -454,11 +620,25 @@ def remove_dependency(name, depends_on):
 
 @snoop_task('do_nothing')
 def do_nothing(name):
+    """No-op task, here for demonstration purposes.
+
+    """
     pass
 
 
 def returns_json_blob(func):
+    """Function decorator that returns a Blob with the JSON-encoded return value of the wrapped function.
 
+    Used in various Task functions to return results in JSON format, while also respecting the fact that
+    Task results are always Blobs.
+
+
+    Warning:
+        This function dumps the whole JSON at once, from memory, so this may have problems with very large
+        JSON result sizes (>1GB) or dynamically generated results (from a generator).
+    """
+
+    @wraps(func)
     def wrapper(*args, **kwargs):
         rv = func(*args, **kwargs)
 
@@ -472,6 +652,9 @@ def returns_json_blob(func):
 
 
 def dispatch_walk_tasks():
+    """Trigger processing of a collection, starting with its root directory.
+    """
+
     from .filesystem import walk
     root = models.Directory.root()
     assert root, "root document not created"
@@ -479,6 +662,9 @@ def dispatch_walk_tasks():
 
 
 def save_collection_stats():
+    """Run the expensive computations to get collection stats, then save result in database.
+    """
+
     from snoop.data.admin import get_stats
     t0 = time()
     s, _ = models.Statistics.objects.get_or_create(key='stats')
@@ -492,6 +678,13 @@ def save_collection_stats():
 
 
 def get_rabbitmq_queue_length(q):
+    """Fetch queue length from RabbitMQ for a given queue.
+
+    Used periodically to decide if we want to queue more functions or not.
+
+    Uses the Management HTTP API of RabbitMQ, since the Celery client doesn not have access to these counts.
+    """
+
     from pyrabbit.api import Client
 
     cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL, 'guest', 'guest')
@@ -499,6 +692,13 @@ def get_rabbitmq_queue_length(q):
 
 
 def single_task_running(key):
+    """Queries both Celery and RabbitMQ to find out if the queue is completely idle.
+
+    Used by all periodic tasks to make sure only one instance is running at any given time. Tasks earlier in
+    the queue will exit to make way for the ones that are later in the queue, to make sure the queue will
+    never grow unbounded in size if the Task takes more time to run than its execution interval.
+    """
+
     def count_tasks(method, routing_key):
         count = 0
         inspector = celery.app.control.inspect()
@@ -528,6 +728,9 @@ def single_task_running(key):
 
 @celery.app.task
 def save_stats():
+    """Periodic Celery task used to save stats for all collections.
+    """
+
     if not single_task_running('save_stats'):
         logger.warning('save_stats function already running, exiting')
         return
@@ -549,6 +752,13 @@ def save_stats():
 
 @celery.app.task
 def run_dispatcher():
+    """Periodic Celery task used to queue next batches of Tasks for each collection.
+
+    We limit the total size of each queue on the message queue, since too many messages on the queue at the
+    same time creates performance issues (because the message queue will need to use Disk instead of storing
+    everything in memory, thus becoming very slow).
+    """
+
     if not single_task_running('run_dispatcher'):
         logger.warning('run_dispatcher function already running, exiting')
         return
@@ -567,6 +777,12 @@ def run_dispatcher():
 
 @celery.app.task
 def update_all_tags():
+    """Periodic Celery task used to re-index documents with changed Tags.
+
+    This task ensures tag editing conflicts (multiple users editing tags for the same document at the same
+    time) are fixed in a short time after indexing.
+    """
+
     # circular import
     from . import digests
 
@@ -584,6 +800,18 @@ def update_all_tags():
 
 
 def dispatch_for(collection):
+    """Queue the next batches of Tasks for a given collection.
+
+    This is used to periodically look for new Tasks that must be executed. This queues: "pending" and
+    "deferred" tasks left over from previous batches; then adds some Directories to revisit if the
+    collection "sync" configuration is set.  Finally, tasks that finished with a temporary error more than a
+    predefined number of days ago are also re-queued with the intent of them succeeding.
+
+    The function tends to exit early if any Tasks were found to be queued, as to make sure the Tasks run in
+    their natural order (and we're running dependencies before the tasks that require them). The tasks are
+    queued by newest first, to make sure the tasks left over from previous batches are being finished first
+    (again, to keep the natural order between batches).
+    """
     if not collection.process:
         logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')
         return

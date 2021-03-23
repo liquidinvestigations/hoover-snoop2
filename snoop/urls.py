@@ -1,3 +1,9 @@
+"""Root URL routes file.
+
+Points to global health check, admin sites, API documentation generators and the `snoop.data.urls` app URLs.
+Also sets global URL prefixes.
+"""
+
 from django.urls import path, include, re_path
 from django.http import HttpResponseRedirect
 from django.conf import settings

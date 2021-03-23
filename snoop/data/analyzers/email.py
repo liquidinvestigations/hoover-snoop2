@@ -1,3 +1,6 @@
+"""Tasks that handle parsing e-mail.
+"""
+
 import logging
 import json
 import subprocess
@@ -24,7 +27,13 @@ OUTLOOK_POSSIBLE_MIME_TYPES = [
 log = logging.getLogger(__name__)
 
 
-def lookup_other_encodings(name):
+def lookup_other_encodings(name: str) -> codecs.CodecInfo:
+    """Used to set `ucs-2le` as an alias of `utf-16-le` in the codec registry.
+
+    Used with [codecs.regiter](https://docs.python.org/3/library/codecs.html#codecs.register)
+    when importing this function.
+    """
+
     if name == 'ucs-2le':
         return codecs.lookup('utf-16-le')
 
@@ -33,6 +42,10 @@ codecs.register(lookup_other_encodings)
 
 
 def iter_parts(message, numbers=[]):
+    """Yields multipart messages into identifiable parts.
+
+    The numbers are the positions in each part of the tree.
+    """
     if message.is_multipart():
         for n, part in enumerate(message.get_payload(), 1):
             yield from iter_parts(part, numbers + [str(n)])
@@ -41,6 +54,16 @@ def iter_parts(message, numbers=[]):
 
 
 def read_header(raw_header):
+    """Parse multi-encoding header value.
+
+    Under RFC 822, headers can be encoded in more than one character encoding. This is needed to create
+    header lines like `Subject: トピック ` when you can't express `Subject` in the Japanese encoding. (In
+    this documentation both are UTF-8, but in various datasets, older Windows Cyrillic encodings have this
+    problem).
+
+    See [email.header.make_header](https://docs.python.org/3/library/email.header.html#email.header.make_header)
+    and [email.header.decode_header](https://docs.python.org/3/library/email.header.html#email.header.decode_header).
+    """  # noqa: E501
     return str(
         email.header.make_header(
             email.header.decode_header(
@@ -51,6 +74,8 @@ def read_header(raw_header):
 
 
 def get_headers(message):
+    """Extract dict with headers from email message."""
+
     rv = defaultdict(list)
 
     for key in message.keys():
@@ -61,6 +86,16 @@ def get_headers(message):
 
 
 def dump_part(message, depends_on):
+    """Recursive function to extract text and attachments from multipart email.
+
+
+    For `text/html` multipart fragments we use Tika to extract the text.
+
+    Args:
+        message: the multipart message.
+        depends_on: dict with dependent functions; passed from the task function here to order the Tika
+            processing (for text extraction) if needed.
+    """
     rv = {'headers': get_headers(message)}
 
     if message.is_multipart():
@@ -119,6 +154,8 @@ def dump_part(message, depends_on):
 @snoop_task('email.parse', priority=3)
 @returns_json_blob
 def parse(blob, **depends_on):
+    """Task function to parse emails into a dict with its structure."""
+
     with blob.open() as f:
         message_bytes = f.read()
 
@@ -133,6 +170,8 @@ def parse(blob, **depends_on):
 
 @snoop_task('email.msg_to_eml', priority=2)
 def msg_to_eml(blob):
+    """Task to convert `.msg` emails into `.eml`."""
+
     with tempfile.TemporaryDirectory() as temp_dir:
         msg_path = Path(temp_dir) / 'email.msg'
         msg_path.symlink_to(blob.path())
@@ -152,6 +191,7 @@ def msg_to_eml(blob):
 
 
 def parse_date(raw_date):
+    """Parse the date format inside emails, returning `None` if failed."""
     try:
         return email.utils.parsedate_to_datetime(raw_date)
     except TypeError as e:

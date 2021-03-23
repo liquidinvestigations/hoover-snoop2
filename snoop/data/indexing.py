@@ -1,3 +1,9 @@
+"""Elasticsearch index data mapping, settings, management and import/export.
+
+We mentain an append-only document mapping with a number of wildcard fields. One wildcard field mapping
+example is the private tags field - a different field for every user.
+"""
+
 from contextlib import contextmanager
 from datetime import datetime
 import json
@@ -78,6 +84,8 @@ CONFIG = {'mappings': MAPPINGS, 'settings': SETTINGS}
 
 
 def put_json(url, data):
+    """Helper method send HTTP PUT requests to Elasticsearch."""
+
     return requests.put(
         url,
         data=json.dumps(data),
@@ -86,6 +94,8 @@ def put_json(url, data):
 
 
 def post_json(url, data):
+    """Helper method send HTTP POST requests to Elasticsearch."""
+
     return requests.post(
         url,
         data=json.dumps(data),
@@ -94,6 +104,8 @@ def post_json(url, data):
 
 
 def check_response(resp):
+    """Raises exception if HTTP status code is not successful (2XX status code)."""
+
     if 200 <= resp.status_code < 300:
         log.debug('Response: %r', resp)
     else:
@@ -102,6 +114,7 @@ def check_response(resp):
 
 
 def index(id, data):
+    """Index a single document in current collection."""
     es_index = collections.current().es_index
 
     index_url = f'{ES_URL}/{es_index}'
@@ -111,6 +124,7 @@ def index(id, data):
 
 
 def delete_doc(id):
+    """Deletes a single document from the current collection by its id."""
     es_index = collections.current().es_index
     index_url = f'{ES_URL}/{es_index}'
     resp = requests.delete(f'{index_url}/{DOCUMENT_TYPE}/{id}')
@@ -118,6 +132,8 @@ def delete_doc(id):
 
 
 def delete_index_by_name(name):
+    """Delete a whole Elasticsearch index."""
+
     url = f'{ES_URL}/{name}'
     log.info("DELETE %s", url)
     delete_resp = requests.delete(url)
@@ -125,17 +141,23 @@ def delete_index_by_name(name):
 
 
 def delete_index():
+    """Delete the current collection's Elasticsearch index."""
+
     es_index = collections.current().es_index
     delete_index_by_name(es_index)
 
 
 def index_exists():
+    """Check if current collection's Elasticsearch index exists."""
+
     es_index = collections.current().es_index
     head_resp = requests.head(f"{ES_URL}/{es_index}")
     return head_resp.status_code == 200
 
 
 def create_index():
+    """Create Elasticsearch index for current collection."""
+
     es_index = collections.current().es_index
     url = f'{ES_URL}/{es_index}'
     log.info("PUT %s", url)
@@ -144,6 +166,8 @@ def create_index():
 
 
 def update_mapping():
+    """Update mapping and settings for current Elasticsearch index."""
+
     es_index = collections.current().es_index
     url = f'{ES_URL}/{es_index}/_mapping/{DOCUMENT_TYPE}'
     log.info("PUT %s", url)
@@ -163,12 +187,19 @@ def update_mapping():
 
 
 def all_indices():
+    """Return a list with all Elasticsearch indexes created for collectoins."""
+
     indices = requests.get(f'{ES_URL}/_cat/indices?format=json').json()
     return [a['index'] for a in indices if not a['index'].startswith('.monitoring')]
 
 
 @contextmanager
 def snapshot_repo():
+    """Context manager to create an Elasticsearch snapshot for current collection index.
+
+    Will delete the snapshot after context finished.
+    """
+
     es_index = collections.current().es_index
     id = f'{es_index}-{datetime.utcnow().isoformat().lower()}'
     repo = f'{ES_URL}/_snapshot/{id}'
@@ -197,6 +228,8 @@ def snapshot_repo():
 
 
 def export_index(stream=None):
+    """Export a snapshot of the current collection index."""
+
     es_index = collections.current().es_index
     with snapshot_repo() as (repo, repo_path):
         snapshot = f'{repo}/{es_index}'
@@ -232,6 +265,8 @@ def export_index(stream=None):
 
 
 def import_index(delete=False, stream=None):
+    """Import index snapshot into current collection index."""
+
     es_index = collections.current().es_index
     if delete:
         delete_index(es_index)

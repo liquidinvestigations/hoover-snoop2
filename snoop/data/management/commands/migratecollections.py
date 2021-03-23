@@ -1,3 +1,6 @@
+"""Creates and migrates databases and indexes.
+"""
+
 from django.core.management.base import BaseCommand
 
 from ... import collections

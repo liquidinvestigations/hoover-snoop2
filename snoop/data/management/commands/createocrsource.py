@@ -1,9 +1,16 @@
+"""Command to create [snoop.data.models.OcrSource][].
+"""
+
 from pathlib import Path
 from django.core.management.base import BaseCommand
 from ... import ocr, collections
 
 
 class Command(BaseCommand):
+    """Creates an OCR source.
+
+    Searches file at a pre-defined path, see [snoop.data.models.OcrSource][] for details.
+    """
     help = "Creates an OCR source"
 
     def add_arguments(self, parser):

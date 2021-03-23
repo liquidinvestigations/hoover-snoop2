@@ -1,7 +1,7 @@
-import bleach
+"""Tasks that sanitize HTML files before sending to front-end.
+"""
 
-ALLOWED_TAGS = list(bleach.ALLOWED_TAGS)
-ALLOWED_TAGS.remove('a')
+import bleach
 
 
 def is_html(blob):
@@ -17,6 +17,9 @@ def is_html(blob):
 
 
 def clean(blob):
+    ALLOWED_TAGS = list(bleach.ALLOWED_TAGS)
+    ALLOWED_TAGS.remove('a')
+
     with blob.open(encoding=blob.mime_encoding) as f:
         html = f.read()
 

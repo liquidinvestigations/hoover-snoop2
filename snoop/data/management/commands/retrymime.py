@@ -1,3 +1,9 @@
+"""Fixes known mime-type errors from previous versions.
+
+Used to fix past bugs related to XLS (excel) and CDFV2 (outlook container) mime type detection and parsing,
+Will also fix past bugs where the fields would be set incorrectly.
+"""
+
 import datetime
 
 import logging
@@ -20,6 +26,15 @@ INTERESTING_MIME_TYPES = [
 
 
 def fix(col, dry_run, not_after=None):
+    """Fix mime fields for a single collection.
+
+    Args:
+        col: The collection.
+        dry_run: if True, does not change data, just prints the changes that would be made
+        not_after: Ignores all tasks and objects with a `date_modified` later than this date. Used to skip
+            previous iterations of this function (in case of command process death/restart), by setting the
+            date of the first iteration of the function.
+    """
     log.info('=' * 30)
     log.info("fixing XLS-related mime type issues in collection %s", col)
     if not_after:
@@ -67,7 +82,8 @@ def fix(col, dry_run, not_after=None):
 
 
 class Command(BaseCommand):
-    help = "Retry running task"
+    """Fix known problems with mime types guessed in the past.
+    """
 
     def add_arguments(self, parser):
         parser.add_argument('collection_names', type=str, nargs='+',
