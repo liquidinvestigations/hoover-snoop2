@@ -1,7 +1,6 @@
 """Django views, mostly JSON APIs.
-
-
 """
+from functools import wraps
 from django.http import HttpResponse, JsonResponse, FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.conf import settings
@@ -23,6 +22,7 @@ def collection_view(func):
     The collection slug is set through an URL path parameter called "collection".
     """
 
+    @wraps(func)
     def view(request, *args, collection, **kwargs):
         try:
             col = collections.ALL[collection]
@@ -43,6 +43,7 @@ def drf_collection_view(func):
     result is similar to `snoop.data.views.collection_view() defined above`.
     """
 
+    @wraps(func)
     def view(self, *args, **kwargs):
         try:
             collection = self.kwargs['collection']
@@ -248,6 +249,10 @@ class TagViewSet(viewsets.ModelViewSet):
 
     @drf_collection_view
     def get_serializer(self, *args, **kwargs):
+        """Set a context with the path arguments.
+
+        Generates fake values when instantiated by Swagger.
+        """
         fake = getattr(self, 'swagger_fake_view', False)
         if fake:
             context = {
@@ -269,30 +274,41 @@ class TagViewSet(viewsets.ModelViewSet):
 
     @drf_collection_view
     def dispatch(self, *args, **kwargs):
+        """Collection-aware overload."""
         return super().dispatch(*args, **kwargs)
 
     @drf_collection_view
     def get_queryset(self):
+        """Sets this TagViewSet's queryset to tags that are private to the current user, or that are public.
+        """
+
         user = self.kwargs['username']
         blob = self.kwargs['hash']
         assert models.Digest.objects.filter(blob=blob).exists(), 'hash is not digest'
         return models.DocumentUserTag.objects.filter(Q(user=user) | Q(public=True), Q(digest__blob=blob))
 
     def check_ownership(self, pk):
+        """Raises error if tag does not belong to current user.
+
+        To be used when doing write operations.
+        """
         assert self.kwargs['username'] == self.get_queryset().get(pk=pk).user, \
             "you can only modify your own tags"
 
     @drf_collection_view
     def update(self, request, pk=None, **kwargs):
+        """Collection-aware overload that also checks permission to write tag."""
         self.check_ownership(pk)
         return super().update(request, pk, **kwargs)
 
     @drf_collection_view
     def partial_update(self, request, pk=None, **kwargs):
+        """Collection-aware overload that also checks permission to write tag."""
         self.check_ownership(pk)
         return super().partial_update(request, pk, **kwargs)
 
     @drf_collection_view
     def destroy(self, request, pk=None, **kwargs):
+        """Collection-aware overload that also checks permission to write tag."""
         self.check_ownership(pk)
         return super().destroy(request, pk, **kwargs)

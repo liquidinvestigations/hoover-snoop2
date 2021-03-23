@@ -45,9 +45,8 @@ There's still some work to do:
   `functools.wraps`.
 - There are two warnings that we would want to silence, since they're not
   problems related to the docs and make it harder to keep an eye on the errors:
-
-  - ` Config value: 'dev_addr'. Warning: The use of the IP address '0.0.0.0' suggests ...` -- we're running this with docker, so we must bind to all interfaces
-  - `WARNING -  Overwriting existing registered function lunr-multi-trimmer-en` -- happens when we enable search `prebuilt_index` with the python runner.
+    - ` Config value: 'dev_addr'. Warning: The use of the IP address '0.0.0.0' suggests ...` -- we're running this with docker, so we must bind to all interfaces
+    - `WARNING -  Overwriting existing registered function lunr-multi-trimmer-en` -- happens when we enable search `prebuilt_index` with the python runner.
 
 [^1]: <https://github.com/mkdocs/mkdocs/issues/1289#issuecomment-331021585>
 [^2]: <https://github.com/mkdocstrings/mkdocstrings/issues/141>

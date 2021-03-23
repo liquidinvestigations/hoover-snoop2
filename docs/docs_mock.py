@@ -47,6 +47,7 @@ def mock_all():
 
     import pytkdocs.loader
     pytkdocs.loader.Loader.get_marshmallow_field_documentation = lambda *x, **y: SuperMagicMock()
+    pytkdocs.loader.Loader.detect_field_model = lambda *x, **y: False
 
 
 if __name__ == '__main__':

@@ -61,3 +61,8 @@ FILE_TYPES = {
     'application/x-zip-compressed': 'archive',
     'application/x-rar-compressed': 'archive',
 }
+"""Mapping from mime types to Hoover file types.
+
+
+Used by [snoop.data.digests.get_filetype][].
+"""

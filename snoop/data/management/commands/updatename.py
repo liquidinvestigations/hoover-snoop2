@@ -19,6 +19,8 @@ class Command(BaseCommand):
         parser.add_argument('new_collection_name', type=str, help="Unique collection name.")
 
     def handle(self, collection_name, new_collection_name, *args, **options):
+        "Update the collection name."
+
         logging_for_management_command(options['verbosity'])
         try:
             collection = models.Collection.objects.get(name=collection_name)
