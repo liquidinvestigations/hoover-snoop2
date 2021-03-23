@@ -5,13 +5,9 @@ FILE_TYPES = {
     'text/html': 'html',
     'application/x-hush-pgp-encrypted-html-body': 'html',
     'application/xhtml+xml': 'html',
-    'application/xml': 'html',
-    'text/xml': 'html',
     'message/x-emlx': 'email',
     'message/rfc822': 'email',
     'application/vnd.ms-outlook': 'email',
-    'application/vnd.ms-office': 'email',
-    'application/CDFV2': 'email',
 
     'application/x-hoover-pst': 'email-archive',
     'application/mbox': 'email-archive',
