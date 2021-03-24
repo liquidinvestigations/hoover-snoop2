@@ -184,7 +184,11 @@ def unarchive(blob):
         elif blob.mime_type in PDF_KNOWN_TYPES:
             unpack_pdf(blob.path(), temp_dir)
 
-        listing = archive_walk(Path(temp_dir))
+<<<<<<< Updated upstream
+=======
+        print()
+>>>>>>> Stashed changes
+        listing = archive_walk(temp_dir)
 
     check_recursion(listing, blob.pk)
 
@@ -193,27 +197,54 @@ def unarchive(blob):
 
 def archive_walk(path):
     """Generates simple dicts with archive listing for the archive. """
+    print(path)
+    walk_iter = os.walk(path, topdown=True)
+    print(list(next(walk_iter)))
     res = []
-    for root, dirs, files in os.walk(path, topdown=True):
+    for root, dirs, files in walk_iter:
+        print("Root:")
+        print(root)
+        print("Dirs:")
+        print(dirs)
+        print("Files:")
+        print(files)
         children = []
         for d in dirs:
             dir_info = {
+<<<<<<< Updated upstream
                 'type': 'directory',
-                'name': os.path.relpath(d),
+                'name': d,
                 'children': [],
+=======
+                'type' : 'directory',
+                'name' :  d,
+                'children' : [],
+>>>>>>> Stashed changes
             }
             children.append(dir_info)
         for f in files:
             file_info = {
+<<<<<<< Updated upstream
                 'type': 'file',
-                'name': os.path.relpath(f),
+                'name': f,
                 'blob_pk': models.Blob.create_from_file(Path(os.path.join(root, f))).pk,
             }
             children.append(file_info)
         root_info = {
             'type': 'directory',
-            'name': os.path.relpath(root),
+            'name': '/'.join(list(Path(root).parts[3:])),
             'children': children,
+=======
+                'type' : 'file',
+                'name' : f,
+                'blob_pk' : models.Blob.create_from_file(Path(os.path.join(root, f))).pk,
+            }
+            children.append(file_info)
+        root_info = {
+            'type' : 'directory',
+            'name' : '/'.join(list(Path(root).parts[3:])),
+            'children' : children,
+>>>>>>> Stashed changes
         }
         res.append(root_info)
     print(res)
