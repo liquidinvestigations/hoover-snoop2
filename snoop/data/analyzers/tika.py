@@ -17,8 +17,9 @@ from dateutil import parser
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from ..utils import zulu
 from snoop import tracing
+from ._tika_mime_types import TIKA_MIME_TYPES
 
-TIKA_MIME_TYPES = {
+TIKA_MIME_TYPES_ORIG = {
     'text/plain',
     'text/html',
     'text/rtf',
@@ -55,11 +56,13 @@ TIKA_MIME_TYPES = {
     'application/vnd.oasis.opendocument.presentation',
     'application/vnd.oasis.opendocument.presentation-template',
 }
+ALL_TIKA_MIME_TYPES = TIKA_MIME_TYPES | TIKA_MIME_TYPES_ORIG
 
 
 def can_process(blob):
     """Checks if Tika can process this blob's mime type."""
-    if blob.mime_type in TIKA_MIME_TYPES:
+
+    if blob.mime_type in ALL_TIKA_MIME_TYPES:
         return True
 
     return False
@@ -74,12 +77,13 @@ def call_tika_server(endpoint, data, content_type):
         content_type: content type detected by our libmagic implementation. If not supplied, Tika will run
             its own `libmagic` on it, and if that fails it will stop processing the request.
     """
+
     session = requests.Session()
     url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
     resp = session.put(url, data=data, headers={'Content-Type': content_type})
 
     if resp.status_code == 422:
-        raise SnoopTaskBroken("tika returned http 422, corrupt?", "tika_http_422")
+        raise SnoopTaskBroken("tika returned http 422, corrupt", "tika_http_422")
 
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'application/json'):
