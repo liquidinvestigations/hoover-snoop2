@@ -33,8 +33,8 @@ def truncate_size(size):
 def get_top_mime_types(collections_list=collections.ALL, print_supported=True):
     """return a dictionary of mime-types that occupy most space in collections.
     When print_supported=False it will only show the types that are unsupported"""
+    res = {}
     for col in collections_list:
-        res = {}
         collection = collections.ALL[col]
         with collection.set_current():
             querysetMime = models.Blob.objects.all().values('mime_type', 'magic')\
@@ -54,6 +54,7 @@ def get_top_mime_types(collections_list=collections.ALL, print_supported=True):
 def get_top_extensions(collections_list=collections.ALL, print_supported=True):
     """return a dictionary of file extensions that occupy most space in collections.
     When print_supported=False it will only show the types that are unsupported"""
+    extDict = {}
     for col in collections_list:
         query = r"""select substring(encode(f.name_bytes::bytea, 'escape')::text
                     from '(\..{1,20})$') as ext,
@@ -67,7 +68,6 @@ def get_top_extensions(collections_list=collections.ALL, print_supported=True):
             cursor.execute(query)
             results = cursor.fetchall()
 
-        extDict = {}
         for entry in results:
             if not print_supported:
                 if entry[2] in SUPPORTED_FILETYPES:
@@ -126,12 +126,11 @@ class Command(BaseCommand):
     def handle(self, **options):
         """Prints out the content of the dictionaries for file-extensions
         and mime-types"""
-        collection_args = collections.ALL
+        collection_args = list(collections.ALL.keys())
         supported = True
         if options['unsupported']:
             supported = False
         if options['collections']:
-            print(options['collections'])
             collection_args = options['collections']
 
         print('Top Mime Types by size')
