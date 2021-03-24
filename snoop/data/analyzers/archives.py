@@ -8,6 +8,7 @@ from hashlib import sha1
 import re
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
+import os
 
 
 SEVENZIP_KNOWN_TYPES = {
@@ -195,21 +196,27 @@ def unarchive(blob):
 
 def archive_walk(path):
     """Generates simple dicts with archive listing for the archive. """
-
-    for thing in path.iterdir():
-        if thing.is_dir():
-            yield {
-                'type': 'directory',
-                'name': thing.name,
-                'children': sorted(
-                    list(archive_walk(thing)),
-                    key=lambda c: c['name'],
-                ),
+    res = []
+    for root, dirs, files in os.walk(path, topdown=True):
+        children = []
+        for d in dirs:
+            dir_info = {
+                'type' : 'directory',
+                'name' :  d,
+                'children' : [],
             }
-
-        else:
-            yield {
-                'type': 'file',
-                'name': thing.name,
-                'blob_pk': models.Blob.create_from_file(thing).pk,
+            children.append(dir_info)
+        for f in files:
+            file_info = {
+                'type' : 'file',
+                'name' : f,
+                'blob_pk' : models.Blob.create_from_file(Path(os.path.join(root, f))).pk,
             }
+            children.append(file_info)
+        root_info = {
+            'type' : 'directory',
+            'name' : root,
+            'children' : children,
+        }
+        res.append(root_info)
+    return res
