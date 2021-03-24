@@ -11,6 +11,7 @@ from snoop.data import indexing
 from snoop.data import digests
 
 from conftest import mask_out_current_collection, CollectionApiClient
+from snoop.data.management.commands import get_top_mime_types, get_top_extensions
 
 pytestmark = [pytest.mark.django_db]
 
@@ -110,3 +111,13 @@ def test_complete_lifecycle(client, taskmanager):
         if d.container_file:
             continue
         check_api_page(api, digests.directory_id(d), digests.parent_id(d))
+
+    mime_dict_supported = get_top_mime_types(['testdata'], True)
+    assert 'application/pdf' in mime_dict_supported.keys()
+    mime_dict_unsupported = get_top_mime_types(['testdata'], False)
+    assert 'application/pdf' not in mime_dict_unsupported.keys()
+
+    ext_dict1 = get_top_extensions(['testdata'], True)
+    assert '.docx' in ext_dict1.keys()
+    ext_dict2 = get_top_extensions(['testdata'], False)
+    assert '.docx' not in ext_dict2.keys()

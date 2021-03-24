@@ -10,7 +10,7 @@ from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
 
 
-SEVENZIP_KNOWN_TYPES = {
+SEVENZIP_MIME_TYPES = {
     'application/x-7z-compressed',
     'application/zip',
     'application/x-zip',
@@ -22,30 +22,30 @@ SEVENZIP_KNOWN_TYPES = {
     'application/x-tar',
 }
 
-READPST_KNOWN_TYPES = {
+READPST_MIME_TYPES = {
     'application/x-hoover-pst',
 }
 
-MBOX_KNOWN_TYPES = {
+MBOX_MIME_TYPES = {
     'application/mbox',
 }
 
-PDF_KNOWN_TYPES = {
+PDF_MIME_TYPES = {
     'application/pdf',
 }
 
-KNOWN_TYPES = (
-    SEVENZIP_KNOWN_TYPES
-    .union(READPST_KNOWN_TYPES)
-    .union(MBOX_KNOWN_TYPES)
-    .union(PDF_KNOWN_TYPES)
+ARCHIVES_MIME_TYPES = (
+    SEVENZIP_MIME_TYPES
+    .union(READPST_MIME_TYPES)
+    .union(MBOX_MIME_TYPES)
+    .union(PDF_MIME_TYPES)
 )
 
 
 def is_archive(mime_type):
     """Checks if mime type is a known archive."""
 
-    return mime_type in KNOWN_TYPES
+    return mime_type in ARCHIVES_MIME_TYPES
 
 
 def call_readpst(pst_path, output_dir):
@@ -174,13 +174,13 @@ def unarchive(blob):
     documents that embed images).
     """
     with tempfile.TemporaryDirectory() as temp_dir:
-        if blob.mime_type in SEVENZIP_KNOWN_TYPES:
+        if blob.mime_type in SEVENZIP_MIME_TYPES:
             call_7z(blob.path(), temp_dir)
-        elif blob.mime_type in READPST_KNOWN_TYPES:
+        elif blob.mime_type in READPST_MIME_TYPES:
             call_readpst(blob.path(), temp_dir)
-        elif blob.mime_type in MBOX_KNOWN_TYPES:
+        elif blob.mime_type in MBOX_MIME_TYPES:
             unpack_mbox(blob.path(), temp_dir)
-        elif blob.mime_type in PDF_KNOWN_TYPES:
+        elif blob.mime_type in PDF_MIME_TYPES:
             unpack_pdf(blob.path(), temp_dir)
 
         listing = sorted(
