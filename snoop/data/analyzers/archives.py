@@ -198,22 +198,22 @@ def archive_walk(path):
         children = []
         for d in dirs:
             dir_info = {
-                'type' : 'directory',
-                'name' :  os.path.relpath(d),
-                'children' : [],
+                'type': 'directory',
+                'name': os.path.relpath(d),
+                'children': [],
             }
             children.append(dir_info)
         for f in files:
             file_info = {
-                'type' : 'file',
-                'name' : os.path.relpath(f),
-                'blob_pk' : models.Blob.create_from_file(Path(os.path.join(root, f))).pk,
+                'type': 'file',
+                'name': os.path.relpath(f),
+                'blob_pk': models.Blob.create_from_file(Path(os.path.join(root, f))).pk,
             }
             children.append(file_info)
         root_info = {
-            'type' : 'directory',
-            'name' : os.path.relpath(root),
-            'children' : children,
+            'type': 'directory',
+            'name': os.path.relpath(root),
+            'children': children,
         }
         res.append(root_info)
     print(res)
