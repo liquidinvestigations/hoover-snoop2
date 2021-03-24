@@ -184,10 +184,7 @@ def unarchive(blob):
         elif blob.mime_type in PDF_KNOWN_TYPES:
             unpack_pdf(blob.path(), temp_dir)
 
-        listing = sorted(
-            list(archive_walk(Path(temp_dir))),
-            key=lambda c: c['name'],
-        )
+        listing = archive_walk(Path(temp_dir))
 
     check_recursion(listing, blob.pk)
 
@@ -202,21 +199,22 @@ def archive_walk(path):
         for d in dirs:
             dir_info = {
                 'type' : 'directory',
-                'name' :  d,
+                'name' :  os.path.relpath(d),
                 'children' : [],
             }
             children.append(dir_info)
         for f in files:
             file_info = {
                 'type' : 'file',
-                'name' : f,
+                'name' : os.path.relpath(f),
                 'blob_pk' : models.Blob.create_from_file(Path(os.path.join(root, f))).pk,
             }
             children.append(file_info)
         root_info = {
             'type' : 'directory',
-            'name' : root,
+            'name' : os.path.relpath(root),
             'children' : children,
         }
         res.append(root_info)
+    print(res)
     return res
