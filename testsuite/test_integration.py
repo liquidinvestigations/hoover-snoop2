@@ -11,7 +11,7 @@ from snoop.data import indexing
 from snoop.data import digests
 
 from conftest import mask_out_current_collection, CollectionApiClient
-from snoop.data.management.commands import get_top_mime_types, get_top_extensions
+from snoop.data.management.commands.filestats import get_top_mime_types, get_top_extensions
 
 pytestmark = [pytest.mark.django_db]
 
