@@ -25,6 +25,16 @@ ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
 PUBLIC_TAGS_FIELD_NAME = 'tags'
 PRIVATE_TAGS_FIELD_NAME_PREFIX = 'priv-tags.'
 
+MAX_TEXT_FIELD_SIZE = 150 * 2 ** 20  # 150 MB, or about 33.3 Bibles
+"""Max length of string to pass as `text` and `ocrtext.*` fields into Elasticsearch.
+
+These are loaded into memory all at once, so this puts a limit on that size.
+
+Elasticsearch default limit for this is 100M, but we're configuring a limit of 1800MB. Still, anything
+longer than 100-200MB takes a very long time to search and highlight using the default highlighter and
+analyzer.
+"""
+
 MAPPINGS = {
     "doc": {
         "properties": {
@@ -53,6 +63,10 @@ MAPPINGS = {
             "ocr": {"type": "boolean"},
             "ocrpdf": {"type": "boolean"},
             "ocrimage": {"type": "boolean"},
+            "tika": {"type": "text"},
+            "tika-key": {"type": "keyword"},
+            "email-header": {"type": "text"},
+            "email-header-key": {"type": "keyword"},
             PUBLIC_TAGS_FIELD_NAME: {"type": "keyword"},
             # remove the trailing '.' here
             PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},
@@ -121,6 +135,29 @@ def index(id, data):
     resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
 
     check_response(resp)
+
+
+def bulk_index(items):
+    """Index many documents provided as (id, body)."""
+
+    def generate_data(items):
+        for _id, body in items:
+            action = {
+                "index": {
+                    "_id": _id,
+                }
+            }
+            yield (json.dumps(action) + '\n').encode()
+            yield (json.dumps(body) + '\n').encode()
+
+    es_index = collections.current().es_index
+    r = requests.post(
+        f'{ES_URL}/{es_index}/{DOCUMENT_TYPE}/_bulk',
+        data=generate_data(items),
+        headers={'Content-Type': 'application/x-ndjson'},
+    )
+    check_response(r)
+    return r.json()
 
 
 def delete_doc(id):

@@ -2,6 +2,7 @@
 """
 
 import logging
+import pprint
 
 from django.core.management.base import BaseCommand
 from snoop.data.logs import logging_for_management_command
@@ -28,9 +29,8 @@ class Command(BaseCommand):
         logging_for_management_command(options['verbosity'])
         col = collections.ALL[collection]
         with col.set_current():
-            stats = sorted(get_stats()['task_matrix'])
+            stats = get_stats()
             if not stats:
                 log.warning('no tasks found')
 
-            for x in stats:
-                print(x)
+            pprint.pp(stats, compact=True, width=120, indent=2)

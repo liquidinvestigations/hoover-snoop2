@@ -4,7 +4,7 @@
 from datetime import datetime
 from django.utils.timezone import utc
 import exifread
-from ..tasks import snoop_task, returns_json_blob
+from ..tasks import snoop_task, returns_json_blob, SnoopTaskBroken
 from ..utils import zulu
 
 EXIFREAD_MIME_TYPES = {'image/tiff', 'image/jpeg', 'image/webp', 'image/heic'}
@@ -67,13 +67,22 @@ def extract(blob):
     # information). See https://pypi.python.org/pypi/ExifRead#tag-descriptions
 
     with blob.open() as f:
-        tags = exifread.process_file(f, details=False)
+        try:
+            tags = exifread.process_file(f, details=False)
+        except (AttributeError, IndexError) as e:
+            raise SnoopTaskBroken("ExifRead failed: " + str(e),
+                                  "exifread_failed_attribute_index_error")
 
     if not tags:
         return {}
 
     data = {}
-    gps = extract_gps_location(tags)
+    try:
+        gps = extract_gps_location(tags)
+    except ZeroDivisionError as e:
+        raise SnoopTaskBroken("zero division error when computing GPS: " + str(e),
+                              "exifread_gps_zero_division_error")
+
     if gps:
         data['location'] = gps
 
