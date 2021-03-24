@@ -124,6 +124,8 @@ class Command(BaseCommand):
             help='specify collections')
 
     def handle(self, **options):
+        """Prints out the content of the dictionaries for file-extensions
+        and mime-types"""
         collection_args = collections.ALL
         supported = True
         if options['unsupported']:
