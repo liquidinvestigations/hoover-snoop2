@@ -14,6 +14,7 @@ def can_extract(blob):
     """Checks if we can extract EXIF data from blob."""
     return blob.mime_type in EXIFREAD_FILETYPES
 
+
 def extract_gps_location(tags):
     """Returns GPS "lat lon" string from dict with tags."""
     def ratio_to_float(ratio):
