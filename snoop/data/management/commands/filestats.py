@@ -1,3 +1,5 @@
+"""Command to get statistics for filetypes that exist in collections"""
+
 from django.core.management.base import BaseCommand
 from ... import models
 from ... import collections
@@ -24,10 +26,13 @@ SUPPORTED_FILETYPES = (archives.KNOWN_TYPES
 
 
 def truncate_size(size):
+    """generate a truncated number for a given number"""
     return round(size, -((len(str(size))) - 1))
 
 
 def get_top_mime_types(collections_list=collections.ALL, print_supported=True):
+    """return a dictionary of mime-types that occupy most space in collections.
+    When print_supported=False it will only show the types that are unsupported"""
     for col in collections_list:
         res = {}
         collection = collections.ALL[col]
@@ -47,6 +52,8 @@ def get_top_mime_types(collections_list=collections.ALL, print_supported=True):
 
 
 def get_top_extensions(collections_list=collections.ALL, print_supported=True):
+    """return a dictionary of file extensions that occupy most space in collections.
+    When print_supported=False it will only show the types that are unsupported"""
     for col in collections_list:
         query = r"""select substring(encode(f.name_bytes::bytea, 'escape')::text
                     from '(\..{1,20})$') as ext,
@@ -74,6 +81,7 @@ def get_top_extensions(collections_list=collections.ALL, print_supported=True):
 
 
 def get_description(mime_type, col, extension=""):
+    """return the magic description for a given mime-type"""
     collection = collections.ALL[col]
     with collection.set_current():
         try:
@@ -87,9 +95,12 @@ def get_description(mime_type, col, extension=""):
 
 
 class Command(BaseCommand):
+    """Print the statistics for mimetypes or file-extendsion"""
     help = "Display filetype stats."
 
     def add_arguments(self, parser):
+        """Arguments to show only unsupported types, include magic descriptions,
+        include full magic descriptions and for choosing specific collections"""
 
         parser.add_argument(
             '--unsupported',
