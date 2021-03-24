@@ -1,3 +1,13 @@
+"""Task definitions for ingesting and running OCR.
+
+OCR results can be imported from an external source (supplied on disk) or through running Tesseract directly
+on the workers. The different tasks defined here implement these two methods of obtaining OCR results.
+
+Identifying OCR results with documents is very simple: for external OCR we use the MD5 (which is required to
+be a part of the filename of the files on disk), and for the OCR we run ourselves we use a Task dependency
+(that internally uses the sha3_256 of the document content as the primary key).
+"""
+
 import json
 import logging
 import multiprocessing
@@ -17,6 +27,7 @@ log = logging.getLogger(__name__)
 
 
 def create_ocr_source(name):
+    """Create OcrSource object and launch Task to explore it."""
     ocr_source, created = models.OcrSource.objects.get_or_create(name=name)
     if created:
         log.info(f'OCR source "{name}" has been created')
@@ -29,15 +40,19 @@ def create_ocr_source(name):
 
 
 def dispatch_ocr_tasks():
+    """Launch tasks to explore all OcrSources."""
     for ocr_source in models.OcrSource.objects.all():
         walk_source.laterz(ocr_source.pk)
 
 
 def ocr_documents_for_blob(original):
+    """Returns all ocrdocument objects for given md5."""
     return models.OcrDocument.objects.filter(original_hash=original.md5)
 
 
 def ocr_texts_for_blob(original):
+    """Yields a (source name, text) tuple for each OcrDocument matching argument."""
+
     for ocr_document in ocr_documents_for_blob(original):
         with ocr_document.text.open(encoding='utf8') as f:
             text = f.read()
@@ -46,6 +61,14 @@ def ocr_texts_for_blob(original):
 
 @snoop_task('ocr.walk_source')
 def walk_source(ocr_source_pk, dir_path=''):
+    """Task that explores OcrSource root directory.
+
+    Calls [snoop.data.ocr.walk_file][] on all files found inside.
+
+    Schedules itself recursively for all directories found on the first level, to make it work on multiple
+    workers concurrently.
+    """
+
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
     for item in (ocr_source.root / dir_path).iterdir():
         if not all(ch in string.printable for ch in item.name):
@@ -62,6 +85,12 @@ def walk_source(ocr_source_pk, dir_path=''):
 
 @snoop_task('ocr.walk_file')
 def walk_file(ocr_source_pk, file_path, **depends_on):
+    """Task to ingest one single file found in the OcrSource directory by [snoop.data.ocr.walk_source][].
+
+    Expects the file to have a filename ending with the MD5 and an extension that is either `.txt` or
+    something else (like `.pdf`). If it's something else than `.txt`, it will run one
+    [snoop.data.analyzers.tika.rmeta][] Task to get its UTF-8 text.
+    """
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
     path = ocr_source.root / file_path
 
@@ -99,6 +128,8 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
 
 
 def run_tesseract_on_image(image_blob, lang):
+    """Run a `tesseract` process on image and return result from `stdout` as blob."""
+
     args = [
         'tesseract',
         '--oem', '1',
@@ -115,12 +146,14 @@ def run_tesseract_on_image(image_blob, lang):
 
 
 def run_tesseract_on_pdf(pdf_blob, lang):
-    pdfstrlen = int(
+    """Run a `pdf2pdfocr.py` process on PDF document and return resulting PDF as blob."""
+
+    pdfstrlen = len(
         subprocess.check_output(f'pdftotext -q -enc UTF-8 "{pdf_blob.path()}" - | wc -w',
-                                shell=True).decode('utf8')
+                                shell=True)
     )
-    if pdfstrlen > settings.PDF2PDFOCR_MAX_WORD_COUNT:
-        log.warning(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} words of text')  # noqa: E501
+    if pdfstrlen > settings.PDF2PDFOCR_MAX_STRLEN:
+        log.warning(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes of text')  # noqa: E501
         return None
 
     tmp_f = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
@@ -147,6 +180,12 @@ def run_tesseract_on_pdf(pdf_blob, lang):
 
 @snoop_task('ocr.run_tesseract')
 def run_tesseract(blob, lang):
+    """Task to run Tesseract OCR on a given document.
+
+    If it's an image, we run `tesseract` directly to extract the text. If it's a PDF, we use the
+    `pdf2pdfocr.py` script to build another PDF with OCR text rendered on top of it, to make the text
+    selectable.
+    """
     if blob.mime_type.startswith('image/'):
         return run_tesseract_on_image(blob, lang)
     elif blob.mime_type == 'application/pdf':

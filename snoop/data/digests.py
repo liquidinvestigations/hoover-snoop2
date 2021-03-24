@@ -1,3 +1,16 @@
+"""Processing pipeline steps for a single document.
+
+After all the files on disk, inside archives, emails and other containers are all ingested and de-duplicated
+by the `snoop.data.filesystem` set of tasks, they end up here in the `launch()` Task. Inside this task we
+decide what kinds of data and metadata extraction tasks we want to run for the document. We queue them all,
+then we queue a `gather()` task that combines their output, and finally we queue the `index()` task to
+upload the result into Elasticsearch.
+
+This module also handles generating the different representations for File, Directory and Digest
+(de-duplicated document) rows in the database; these are used both in API response generation and when
+indexing data into Elasticsearch.
+"""
+
 import logging
 import json
 import re
@@ -20,21 +33,32 @@ from . import indexing
 from snoop.data import language_detection
 
 log = logging.getLogger(__name__)
-language_detector = language_detection.detectors[settings.LANGUAGE_DETECTOR_NAME]
+language_detector = language_detection.detectors.get(settings.LANGUAGE_DETECTOR_NAME, None)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
 def get_collection_langs():
+    """Return the list of OCR languages configured for the current collection."""
     from .collections import current
     return current().ocr_languages
 
 
 def is_ocr_mime_type(mime_type):
+    """Checks if we should run OCR on the given mime type."""
+
     return mime_type.startswith('image/') or mime_type == 'application/pdf'
 
 
 @snoop_task('digests.launch', priority=4)
 def launch(blob):
+    """Task to build and dispatch the different processing tasks for this de-duplicated document.
+
+    Runs [snoop.data.analyzers.email.parse][] on emails, [snoop.data.ocr.run_tesseract][] on OCR-able
+    documents, and [snoop.data.analyzers.tika.rmeta][] on compatible documents. Schedules one
+    [snoop.data.digests.gather][] Task depending on all of the above to recombine all the results, and
+    another [snoop.data.digests.index][] Task depending on the `gather` task.
+    """
+
     depends_on = {}
 
     if blob.mime_type == 'message/rfc822':
@@ -56,6 +80,9 @@ def launch(blob):
 
 @snoop_task('digests.gather', priority=7)
 def gather(blob, **depends_on):
+    """Combines and serializes the results of the various dependencies into a single
+    [snoop.data.models.Digest][] instance.
+    """
     rv = {'broken': []}
     text_blob = depends_on.get('text')
     if text_blob:
@@ -154,6 +181,8 @@ def gather(blob, **depends_on):
 
 
 def _get_tags(digest):
+    """Helper method to get the document's tags with the correct Elasticsearch field names."""
+
     # add public tags
     q1 = digest.documentusertag_set.filter(public=True)
     q1 = q1.values("tag").distinct()
@@ -205,6 +234,10 @@ def _set_tags_timestamps(digest, body):
 
 @snoop_task('digests.index', priority=8)
 def index(blob, digests_gather):
+    """Task used to send a single Document to Elasticsearch.
+
+    End of the processing pipeline for any document.
+    """
     if isinstance(digests_gather, SnoopTaskBroken):
         raise digests_gather
 
@@ -234,6 +267,10 @@ def index(blob, digests_gather):
 
 
 def retry_index(blob):
+    """Retry the [snoop.data.digests.index][] Task for the given Blob.
+
+    Needed by the web process when some user changes the Document tags; this function will be called for the
+    affected document."""
     try:
         task = models.Task.objects.filter(func='digests.index', blob_arg=blob).get()
         if task.status == models.Task.STATUS_PENDING:
@@ -264,6 +301,12 @@ def update_all_tags():
 
 
 def get_filetype(mime_type):
+    """Returns a Hoover-specific "file type" derived from the `libmagic` mime type.
+
+    See [snoop.data._file_types.FILE_TYPES][] for extended list. Extra patterns like `audio/* -> audio` are
+    applied in this file.
+    """
+
     if mime_type in FILE_TYPES:
         return FILE_TYPES[mime_type]
 
@@ -275,6 +318,12 @@ def get_filetype(mime_type):
 
 
 def full_path(file):
+    """Returns full path of File or Directory, relative to collection root.
+
+    `//` is used to mark files from inside containers (archives). This happens naturally when iterating
+    objects, since all container files will contain a single directory with `name = ''`. See
+    [snoop.data.models.Directory.container_file][] for more details.
+    """
     node = file
     elements = [file.name]
     while node.parent:
@@ -284,6 +333,11 @@ def full_path(file):
 
 
 def path_parts(path):
+    """Returns a list of all the prefixes for this document's [snoop.data.digests.full_path][].
+
+    This is set on the Digest as field `path-parts` to create path buckets in Elasticsearch.
+    """
+
     elements = path.split('/')[1:]
     result = []
     prev = None
@@ -300,14 +354,26 @@ def path_parts(path):
 
 
 def directory_id(directory):
+    """Returns an ID of the form `_directory_$ID` to represent a [snoop.data.models.Directory][].
+
+    This ID is used to cross-link objects in the API.
+    """
+
     return f'_directory_{directory.pk}'
 
 
 def file_id(file_query):
+    """Returns an ID of the form `_file_$ID` to represent a [snoop.data.models.File][].
+
+    This ID is used to cross-link objects in the API.
+    """
+
     return f'_file_{file_query.pk}'
 
 
 def _get_parent(item):
+    """Returns the parent of the File or Directory, skipping the Directory directly under an archive."""
+
     parent = item.parent
 
     if isinstance(parent, models.File):
@@ -323,6 +389,8 @@ def _get_parent(item):
 
 
 def parent_id(item):
+    """Returns the ID of the parent entity, for linking in the API."""
+
     parent = _get_parent(item)
 
     if isinstance(parent, models.File):
@@ -335,6 +403,16 @@ def parent_id(item):
 
 
 def parent_children_page(item):
+    """Return the page number on the parent that points to the page containing this item.
+
+    All items have a `children` list in their doc API. That list is paginated by page number.
+    When fetching an item from the middle of the tree, we need to populate the list of siblings. Since the
+    view is paginated, all parent objects must select the correct page in order find the item
+    in its parent's child list.
+
+    See [snoop.data.digests.get_directory_children][] on how this list is created.
+    """
+
     # don't use _get_parent --> don't skip parents when for polling children
     parent = item.parent
     if isinstance(item, models.Directory) and item.container_file:  # dummy archive directory
@@ -364,6 +442,9 @@ def parent_children_page(item):
 
 
 def email_meta(digest_data):
+    """Returns extra fields extracted from emails.
+    """
+
     def iter_parts(email_data):
         yield email_data
         for part in email_data.get('parts') or []:
@@ -415,12 +496,16 @@ email_domain_exp = re.compile("@([\\w.-]+)")
 
 
 def _extract_domain(text):
+    """Extract domain from email address."""
+
     match = email_domain_exp.search(text)
     if match:
         return match[1]
 
 
 def _get_first_file(digest):
+    """Returns first file pointing to this Blob, ordered by file ID."""
+
     first_file = (
         digest.blob
         .file_set
@@ -443,6 +528,12 @@ def _get_first_file(digest):
 
 
 def _get_document_content(digest, the_file=None):
+    """Helper method returns dict with Document content data.
+
+    This data is returned under the `content` key by [snoop.data.digests.get_document_data][] and
+    [snoop.data.digests.get_file_data][]. This data is also used directly as the data to index in
+    [snoop.data.digests.index][].
+    """
     if not the_file:
         the_file = _get_first_file(digest)
 
@@ -466,7 +557,7 @@ def _get_document_content(digest, the_file=None):
         'text': digest_data.get('text'),
         'pgp': digest_data.get('pgp'),
         'ocr': digest_data.get('ocr'),
-        'ocrtext': digest_data.get('ocrtext'),
+        'ocrtext': {k: v for k, v in digest_data.get('ocrtext', {}).items() if v},
         'ocrpdf': digest_data.get('ocrpdf'),
         'ocrimage': digest_data.get('ocrimage'),
 
@@ -502,10 +593,14 @@ def _get_document_content(digest, the_file=None):
 
 
 def _get_document_version(digest):
+    """The document version is the date of indexing in ISO format."""
+
     return zulu(digest.date_modified)
 
 
 def get_document_data(digest, children_page=1):
+    """Returns dict with representation of de-duplicated document ([snoop.data.models.Digest][])."""
+
     first_file = _get_first_file(digest)
 
     children = None
@@ -534,6 +629,7 @@ def get_document_data(digest, children_page=1):
 
 
 def get_document_locations(digest, page_index):
+    """Returns list of dicts representing a page of locations for a given document."""
 
     def location(file):
         parent_path = full_path(file.parent_directory.container_file or file.parent_directory)
@@ -561,6 +657,7 @@ def child_file_to_dict(file):
         'content_type': blob.mime_type,
         'filetype': get_filetype(blob.mime_type),
         'filename': file.name,
+        'size': file.size,
     }
 
 
@@ -574,6 +671,16 @@ def child_dir_to_dict(directory):
 
 
 def get_directory_children(directory, page_index=1):
+    """Returns a list with the page of children for a given directory.
+
+    This list combines both File children and Directory children into a single view. The first pages are of
+    Directories, and the following pages contain only Files. There's a page in the middle that contains both
+    some Directories and some Files.
+
+    See [snoop.data.digests.parent_children_page][] for computing the page number for an item inside this
+    list.
+    """
+
     def get_list(p1, p1f, p2, p2f, idx):
         if idx < p1.num_pages:
             return [p1f(x) for x in p1.page(idx).object_list]
@@ -610,6 +717,8 @@ def get_directory_children(directory, page_index=1):
 
 
 def get_directory_data(directory, children_page=1):
+    """Returns dict with representation of a [snoop.data.models.Directory][]."""
+
     children, has_next, total, pages = get_directory_children(directory, children_page)
     return {
         'id': directory_id(directory),
@@ -630,6 +739,8 @@ def get_directory_data(directory, children_page=1):
 
 
 def get_file_data(file, children_page=1):
+    """Returns dict with representation of a [snoop.data.models.File][]."""
+
     children = None
     has_next = False
     total = 0

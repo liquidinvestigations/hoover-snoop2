@@ -1,15 +1,28 @@
 kind: pipeline
-name: publish
-
-concurrency:
-  limit: 2
+name: static-tests
 
 steps:
 - name: flake8
-  image: alpine/flake8:3.7.7
+  image: alpine/flake8
   commands:
   - flake8
+- name: pylint
+  image: cytopia/pylint
+  commands:
+  - pylint snoop
 
+---
+kind: pipeline
+name: publish
+
+depends_on:
+- static-tests
+
+
+concurrency:
+  limit: 1
+
+steps:
 - name: build base docker image
   image: plugins/docker
   settings:
@@ -50,6 +63,7 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
+
 ---
 kind: pipeline
 name: test
@@ -57,7 +71,7 @@ name: test
 depends_on:
 - publish
 concurrency:
-  limit: 3
+  limit: 1
 
 services:
 - name: snoop-rabbitmq

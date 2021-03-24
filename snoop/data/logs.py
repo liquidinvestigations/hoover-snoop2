@@ -1,3 +1,6 @@
+"""Logging configuration.
+"""
+
 import logging
 
 

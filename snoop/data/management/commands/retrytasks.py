@@ -1,3 +1,7 @@
+"""Retry multiple tasks based on their function and status.
+
+Optimized variant of [snoop.data.management.commands.retrytask][] for very long task lists (millions).
+"""
 from django.core.management.base import BaseCommand
 from ...logs import logging_for_management_command
 from ... import models
@@ -6,9 +10,11 @@ from ... import collections
 
 
 class Command(BaseCommand):
-    help = "Retry running task"
+    "Re-queue all tasks that fit selection criteria."""
 
     def add_arguments(self, parser):
+        """Arguments for the collection, and selection criteria: functions, statuses."""
+
         parser.add_argument('collection', type=str)
         parser.add_argument('--func', help="Filter by task function")
         parser.add_argument('--status', help="Filter by task status")
@@ -16,6 +22,8 @@ class Command(BaseCommand):
                             help="Don't run, just print number of tasks")
 
     def handle(self, collection, **options):
+        """Runs [snoop.data.tasks.retry_tasks][] on the filtered tasks."""
+
         logging_for_management_command(options['verbosity'])
 
         col = collections.ALL[collection]

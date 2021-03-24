@@ -1,3 +1,6 @@
+"""Tasks that handle converting modern Apple-format e-mail into RFC-822 format e-mail.
+"""
+
 import re
 import email
 import logging
@@ -10,6 +13,17 @@ log = logging.getLogger(__name__)
 
 @snoop_task('emlx.reconstruct', priority=2)
 def reconstruct(file_pk, **depends_on):
+    """Task to convert `.emlx` and `.partial.emlx` Apple email formats into RFC 822 `.eml` format.
+
+    The Apple `.emlx` format has two differences from the normal `.eml`:
+
+    - it prepends a single line with binary data to the mail email body
+    - it zeroes out larger parts inside the multipart message, and moves their payload to separate files on
+        disk in the same directory, with the extension `.partial.emlx`.
+
+    This task reads all those `.partial.emlx` files and attaches them back to a new `.eml` email message to
+    be used with the rest of the pipeline.
+    """
     from .. import filesystem  # noqa: F401
 
     file = models.File.objects.get(pk=file_pk)

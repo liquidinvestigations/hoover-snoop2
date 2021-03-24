@@ -1,0 +1,84 @@
+site_name: "hoover-snoop2"
+site_description: "."
+site_url: "https://hoover-snoop2.readthedocs.io/"
+repo_url: "https://github.com/liquidinvestigations/hoover-snoop2"
+edit_uri: "blob/master/docs/"
+repo_name: "liquidinvestigations/hoover-snoop2"
+
+nav:
+- readme: index.md
+- intro to docs: intro.md
+- ...
+- module index: module-index.md
+- about the docs: docs-readme.md
+
+markdown_extensions:
+- toc:
+    permalink: "#"
+- admonition
+- codehilite
+- pymdownx.details
+- pymdownx.highlight
+- pymdownx.superfences
+- pymdownx.tabbed
+- pymdownx.tasklist
+- pymdownx.magiclink:
+    repo_url_shortener: true
+    hide_protocol: true
+    social_url_shortener: true
+    repo_url_shorthand: true
+    social_url_shorthand: true
+    provider: github
+    user: liquidinvestigations
+    repo: hoover-snoop2
+- footnotes:
+    UNIQUE_IDS: true
+
+theme:
+  name: material
+  palette:
+    # these will haunt us
+    primary: '#3f51b5'
+    accent: '#f50057'
+
+extra_css:
+- css/style.css
+
+
+plugins:
+- gen-files:
+    scripts:
+    - docs/gen.py
+- mkdocstrings:
+    watch:
+      - snoop
+    handlers:
+      python:
+        setup_commands:
+          - import sys, os
+          - sys.path.append(".")
+          - os.environ["SNOOP_DB"] = "postgresql://snoop:snoop@snoop-pg:5432/snoop"
+          - os.environ["DEBUG"] = "true"
+          - os.environ["DJANGO_SETTINGS_MODULE"] = "snoop.defaultsettings"
+          - from docs.docs_mock import mock_all
+          - from snoop.data.celery import app
+          - 'app.task = lambda *x, **y: x[0]'
+          - mock_all()
+          - import django
+          - django.setup()
+        rendering:
+          heading_level: 2
+          #show_object_full_path: yes
+          #show_root_members_full_path: yes
+          show_category_heading: yes
+          #show_if_no_docstring: yes
+          show_root_heading: yes
+          show_signature_annotations: yes
+        selection:
+          new_path_syntax: yes
+- search:
+    prebuild_index: python
+- awesome-pages:
+    collapse_single_pages: false
+#- section-index
+#- coverage

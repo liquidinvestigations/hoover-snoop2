@@ -1,3 +1,6 @@
+"""Wipe and recreate ES index.
+"""
+
 from django.core.management.base import BaseCommand
 
 from ... import indexing
@@ -6,7 +9,7 @@ from ...collections import Collection
 
 
 class Command(BaseCommand):
-    help = "Wipe and recreate the ElasticSearch index for a given collection"
+    "Wipe and recreate the ElasticSearch index for a given collection"
 
     def add_arguments(self, parser):
         parser.add_argument('collection', type=str)

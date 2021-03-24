@@ -1,3 +1,15 @@
+"""Guess mime types from content and filename.
+
+Uses the `file` executable (libmagic) to guess the mime type, even if the extension is incorrect.
+In some cases, the correct mime type is only discovered when the extension is present. For example, all
+".docx" and "xlsx" and similar ".***x" Microsoft Office files are actually zips with XMLs inside - so
+impossible for `file` to differentiate from the content alone, without implementing decompression too.
+
+Last, we have our own additions to this sytem, in order to try and differentiate between some ambiguous
+casees even `find` doesn't take into account; such as the difference between a single E-mail file and a MBOX
+collection.
+"""
+
 import subprocess
 import re
 from .utils import read_exactly
@@ -21,6 +33,8 @@ MAGIC_REGEX = re.compile(
 
 
 def _parse_mime(output):
+    """Parse `file` process output into `mime_type` and `mime_encoding` fields, with a regex.
+    """
     output = output.decode('latin1')
     m = re.match(
         MIME_REGEX,
@@ -33,6 +47,8 @@ def _parse_mime(output):
 
 
 def _parse_magic(output):
+    """Parse `file` process output into `magic_output` field, with a regex.
+    """
     output = output.decode('latin1')
     output = output.split(r'\012-')[0]
     m = re.match(
@@ -43,6 +59,10 @@ def _parse_magic(output):
 
 
 class Magic:
+    """Wrapper for running various "file" commands over Blobs.
+
+    Used internally when creating `snoop.data.models.Blob` instances.
+    """
     @property
     def fields(self):
         return {
@@ -72,6 +92,13 @@ class Magic:
 
 
 def looks_like_email(path):
+    """Improvised check to detect RFC 822 emails.
+
+    Will look for usual headers in the first 64K of the file.
+
+    Needed because emails are sometimes detected by `libmagic` as text or something else.
+    """
+
     HEADER_SET = {
         "Relay-Version", "Return-Path", "From", "To",
         "Received", "Message-Id", "Date", "In-Reply-To", "Subject",
@@ -92,6 +119,12 @@ def looks_like_email(path):
 
 
 def looks_like_emlx_email(path):
+    """Improvised check to detect Apple format emails.
+
+    Warning:
+        Only looks at the first byte of the first line of the Apple-specific prefix.
+        We probably want to revisit this and check the remainder of the email message too.
+    """
     with path.open('rb') as f:
         content = read_exactly(f, 20).decode('latin-1')
     first_line = content.splitlines()[0]
@@ -111,6 +144,13 @@ MBOX_MINIMUM_EMAILS = 3
 
 
 def looks_like_mbox(path):
+    """Improvised check to detect MBOX format email archives.
+
+    This is done by counting for usual email headers in the file.
+
+    Warning:
+        this does not detect MBOX files with less than 3 emails inside it.
+    """
     emails = 0
     pending = set(MBOX_PATTERNS)
 

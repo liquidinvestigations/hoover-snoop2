@@ -1,3 +1,7 @@
+"""Specific URL routes for a single collection.
+
+Includes routes for the DRF Tags API, and the various document and collection APIs.
+"""
 from django.urls import path, include
 from rest_framework.routers import SimpleRouter
 from . import views, apps

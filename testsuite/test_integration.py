@@ -25,6 +25,8 @@ ID = {
                    '01839ca40e4f2cfc25fddb83beb56b18',
 }
 
+SMASHED = "66a3a6bb9b8d86b7ce2be5e9f3a794a778a85fb58b8550a54b7e2821d602e1f1"
+
 
 def check_api_page(api, item_id, parent_id):
     item = api.get_digest(item_id)
@@ -98,14 +100,13 @@ def test_complete_lifecycle(client, taskmanager):
     index_failed = [(t.args, t.status) for t in filtered_tasks.exclude(status='success')]
     # one indexing task should be broken because
     # `encrypted-hushmail-smashed-bytes.eml` is broken
-    assert index_failed == [(['66a3a6bb9b8d86b7ce2be5e9f3a794a778a85fb58b8550a54b7e2821d602e1f1'],
-                             'broken')]
+    assert ([SMASHED], 'broken') in index_failed
 
     # check that all files and directories are contained in their parent lists
     api = CollectionApiClient(client)
-    for f in models.File.objects.all():
+    for f in models.File.objects.all()[:500]:
         check_api_page(api, digests.file_id(f), digests.parent_id(f))
-    for d in models.Directory.objects.all():
+    for d in models.Directory.objects.all()[:500]:
         if d.container_file:
             continue
         check_api_page(api, digests.directory_id(d), digests.parent_id(d))
