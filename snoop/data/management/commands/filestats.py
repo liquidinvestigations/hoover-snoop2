@@ -159,12 +159,14 @@ class Command(BaseCommand):
         """
         collection_args = list(collections.ALL.keys())
         supported = True
+        unsupp_str = ' '
         if options['unsupported']:
             supported = False
+            unsupp_str = ' Unsupported '
         if options['collections']:
             collection_args = options['collections']
 
-        print('Top Mime Types by size')
+        print(f'Top{unsupp_str}Mime Types by size')
         print('-----------------------')
         for k, v in get_top_mime_types(collections_list=collection_args, print_supported=supported).items():
             if options['descriptions']:
@@ -175,7 +177,7 @@ class Command(BaseCommand):
                 print(f'{k:50} {v["size"]:12d}')
 
         print()
-        print('Top File Types by size')
+        print(f'Top{unsupp_str}File Extensions by size')
         print('-----------------------')
         for k, v in get_top_extensions(collections_list=collection_args, print_supported=supported).items():
             print(f'{str(k):75} {v["size"]:12d} {v["mtype"]}')
