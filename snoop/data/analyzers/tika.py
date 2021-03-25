@@ -18,7 +18,7 @@ from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from ..utils import zulu
 from snoop import tracing
 
-TIKA_CONTENT_TYPES = [
+TIKA_MIME_TYPES = {
     'text/plain',
     'text/html',
     'text/rtf',
@@ -54,12 +54,12 @@ TIKA_CONTENT_TYPES = [
     'application/vnd.ms-powerpoint.slideshow.macroEnabled.12',
     'application/vnd.oasis.opendocument.presentation',
     'application/vnd.oasis.opendocument.presentation-template',
-]
+}
 
 
 def can_process(blob):
     """Checks if Tika can process this blob's mime type."""
-    if blob.mime_type in TIKA_CONTENT_TYPES:
+    if blob.mime_type in TIKA_MIME_TYPES:
         return True
 
     return False

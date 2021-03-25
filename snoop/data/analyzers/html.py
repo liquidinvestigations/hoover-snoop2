@@ -3,17 +3,11 @@
 
 import bleach
 
+HTML_MIME_TYPES = {'text/html', 'text/xml', 'application/xhtml+xml', 'application/xml'}
+
 
 def is_html(blob):
-    [main_type, subtype] = blob.mime_type.split('/')
-
-    if main_type in ['text', 'application']:
-        if (subtype.startswith('html')
-                or subtype.startswith('xhtml')
-                or subtype.startswith('xml')):
-            return True
-
-    return False
+    return blob.mime_type in HTML_MIME_TYPES
 
 
 def clean(blob):
