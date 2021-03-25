@@ -47,7 +47,7 @@ def get_top_mime_types(collections_list, row_count, print_supported=True):
         with collection.set_current():
             queryset_mime = models.Blob.objects.all()
             if not print_supported:
-                queryset_mime = queryset_mime.exclude(mime_type__in=SUPPORTED_MIME_TYPES)[:row_count]
+                queryset_mime = queryset_mime.exclude(mime_type__in=SUPPORTED_MIME_TYPES)
             queryset_mime = queryset_mime.values('mime_type', 'magic') \
                 .annotate(total=Count('mime_type')).annotate(size=Sum('size')) \
                 .order_by('-size')[:row_count]
@@ -125,55 +125,55 @@ class Command(BaseCommand):
 
         parser.add_argument(
             '--unsupported',
+            default=False,
             action='store_true',
             help='exclude supported filetypes')
 
         parser.add_argument(
             '--descriptions',
+            default=False,
             action='store_true',
             help='print MIME-type descriptions')
 
         parser.add_argument(
             '--full-descriptions',
+            default=False,
             action='store_true',
             help='print full MIME-type descriptions')
 
         parser.add_argument(
             '--row-count',
-            nargs='+',
+            default=100,
+            nargs='?',
             type=int,
             help='specify the number of Rows to be displayed')
 
         parser.add_argument(
             '--collections',
-            nargs=1,
+            nargs='+',
             type=str,
             help='specify collections')
 
-    def handle(self, **options):
+    def handle(self, unsupported, descriptions, full_descriptions, row_count, **options):
         """Prints out the Top 100 (or so) mime-types and file extensions:
 
         Results are sorted by total file size usage.
         """
-        collection_args = list(collections.ALL.keys())
-        supported = True
-        unsupp_str = ' '
-        row_count = 100
-        if options['row_count']:
-            row_count = options['row_count'][0]
-        if options['unsupported']:
-            supported = False
-            unsupp_str = ' Unsupported '
+        collection_list = list(collections.ALL.keys())
         if options['collections']:
-            collection_args = options['collections']
+            collection_list = options['collections']
+        supported = not unsupported
+        unsupp_str = ' '
+        if unsupported:
+            unsupp_str = ' Unsupported '
 
         print(f'Top{unsupp_str}Mime Types by size')
         print('-----------------------')
-        for k, v in get_top_mime_types(collection_args, row_count, print_supported=supported).items():
+        for k, v in get_top_mime_types(collection_list, row_count, print_supported=supported).items():
             size = v['size'] / (2 ** 20)
-            if options['descriptions']:
+            if descriptions:
                 print(f'{k:50} {size:10,.2f} MB {str(v["magic"]):{100}.{100}}')
-            elif options['full_descriptions']:
+            elif full_descriptions:
                 print(f'{k:50} {size:10,.2f} MB {str(v["magic"])}')
             else:
                 print(f'{k:50} {size:10,.2f} MB')
@@ -181,6 +181,6 @@ class Command(BaseCommand):
         print()
         print(f'Top{unsupp_str}File Extensions by size')
         print('-----------------------')
-        for k, v in get_top_extensions(collection_args, row_count, print_supported=supported).items():
+        for k, v in get_top_extensions(collection_list, row_count, print_supported=supported).items():
             size = v['size'] / (2 ** 20)
             print(f'{str(k):22} {size:10,.2f} MB {", ".join(v["mtype"])}')
