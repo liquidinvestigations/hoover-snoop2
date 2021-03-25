@@ -34,7 +34,7 @@ def truncate_size(size):
     return round(size, -((len(str(size))) - 1))
 
 
-def get_top_mime_types(collections_list, print_supported=True):
+def get_top_mime_types(collections_list, row_count, print_supported=True):
     """Return a dictionary of mime-types that occupy most space in collections.
 
     Args:
@@ -47,9 +47,9 @@ def get_top_mime_types(collections_list, print_supported=True):
         with collection.set_current():
             queryset_mime = models.Blob.objects.all().values('mime_type', 'magic')\
                 .annotate(total=Count('mime_type')).annotate(size=Sum('size'))\
-                .order_by('-size')
+                .order_by('-size')[:row_count]
             if not print_supported:
-                queryset_mime = queryset_mime.exclude(mime_type__in=SUPPORTED_MIME_TYPES)
+                queryset_mime = queryset_mime.exclude(mime_type__in=SUPPORTED_MIME_TYPES)[:row_count]
             for mtype in queryset_mime:
                 if mtype['mime_type'] not in res:
                     res[mtype['mime_type']] = {'size': truncate_size(mtype['size']),
@@ -60,7 +60,7 @@ def get_top_mime_types(collections_list, print_supported=True):
     return dict(sorted_res)
 
 
-def get_top_extensions(collections_list, print_supported=True):
+def get_top_extensions(collections_list, row_count, print_supported=True):
     """Return a dictionary of file extensions that occupy most space in collections.
 
     Args:
@@ -76,7 +76,7 @@ def get_top_extensions(collections_list, print_supported=True):
                     from data_file f
                     join data_blob b on f.blob_id = b.sha3_256
                     group by ext, mime
-                    order by size desc limit 100;"""
+                    order by size desc limit %s;""" % (row_count)
         with connections[collections.ALL[col].db_alias].cursor() as cursor:
             cursor.execute(query)
             results = cursor.fetchall()
@@ -120,7 +120,7 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         """Arguments to show only unsupported types, include magic descriptions,
-        include full magic descriptions and for choosing specific collections"""
+        include full magic descriptions and for choosing specific collections."""
 
         parser.add_argument(
             '--unsupported',
@@ -133,13 +133,19 @@ class Command(BaseCommand):
             help='print MIME-type descriptions')
 
         parser.add_argument(
-            '--full_descriptions',
+            '--full-descriptions',
             action='store_true',
             help='print full MIME-type descriptions')
 
         parser.add_argument(
-            '--collections',
+            '--row-count',
             nargs='+',
+            type=int,
+            help='specify the number of Rows to be displayed')
+
+        parser.add_argument(
+            '--collections',
+            nargs=1,
             type=str,
             help='specify collections')
 
@@ -151,6 +157,9 @@ class Command(BaseCommand):
         collection_args = list(collections.ALL.keys())
         supported = True
         unsupp_str = ' '
+        row_count = 100
+        if options['row_count']:
+            row_count = options['row_count'][0]
         if options['unsupported']:
             supported = False
             unsupp_str = ' Unsupported '
@@ -159,7 +168,7 @@ class Command(BaseCommand):
 
         print(f'Top{unsupp_str}Mime Types by size')
         print('-----------------------')
-        for k, v in get_top_mime_types(collections_list=collection_args, print_supported=supported).items():
+        for k, v in get_top_mime_types(collection_args, row_count, print_supported=supported).items():
             size = v['size'] / (2 ** 20)
             if options['descriptions']:
                 print(f'{k:50} {size:10,.2f} MB {str(v["magic"]):{100}.{100}}')
@@ -171,6 +180,6 @@ class Command(BaseCommand):
         print()
         print(f'Top{unsupp_str}File Extensions by size')
         print('-----------------------')
-        for k, v in get_top_extensions(collections_list=collection_args, print_supported=supported).items():
+        for k, v in get_top_extensions(collection_args, row_count, print_supported=supported).items():
             size = v['size'] / (2 ** 20)
             print(f'{str(k):22} {size:10,.2f} MB {", ".join(v["mtype"])}')
