@@ -53,6 +53,8 @@ MAPPINGS = {
             "ocr": {"type": "boolean"},
             "ocrpdf": {"type": "boolean"},
             "ocrimage": {"type": "boolean"},
+            "tika": {"type": "text"},
+            "tika-key": {"type": "keyword"},
             PUBLIC_TAGS_FIELD_NAME: {"type": "keyword"},
             # remove the trailing '.' here
             PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},

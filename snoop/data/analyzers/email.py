@@ -11,7 +11,7 @@ import email
 import codecs
 import chardet
 from .. import models
-from ..tasks import snoop_task, SnoopTaskError, SnoopTaskBroken, require_dependency
+from ..tasks import snoop_task, SnoopTaskBroken, require_dependency
 from ..tasks import returns_json_blob
 from . import tika
 from . import pgp
@@ -64,13 +64,17 @@ def read_header(raw_header):
     See [email.header.make_header](https://docs.python.org/3/library/email.header.html#email.header.make_header)
     and [email.header.decode_header](https://docs.python.org/3/library/email.header.html#email.header.decode_header).
     """  # noqa: E501
-    return str(
-        email.header.make_header(
-            email.header.decode_header(
-                raw_header
+
+    try:
+        return str(
+            email.header.make_header(
+                email.header.decode_header(
+                    raw_header
+                )
             )
         )
-    )
+    except UnicodeDecodeError:
+        return str(raw_header)
 
 
 def get_headers(message):
@@ -96,6 +100,7 @@ def dump_part(message, depends_on):
         depends_on: dict with dependent functions; passed from the task function here to order the Tika
             processing (for text extraction) if needed.
     """
+
     rv = {'headers': get_headers(message)}
 
     if message.is_multipart():
@@ -120,7 +125,12 @@ def dump_part(message, depends_on):
     if content_type == 'text/plain':
         result = chardet.detect(payload_bytes)
         charset = result.get('encoding') or 'latin1'
-        rv['text'] = payload_bytes.decode(charset, errors='replace')
+        try:
+            rv['text'] = payload_bytes.decode(charset, errors='replace')
+        except (UnicodeDecodeError, LookupError) as e:
+            log.exception(e)
+            charset = 'latin1'
+            rv['text'] = payload_bytes.decode(charset, errors='replace')
 
     if content_type == 'text/html':
         with models.Blob.create() as writer:
@@ -184,8 +194,13 @@ def msg_to_eml(blob):
                 stderr=subprocess.STDOUT
             )
         except subprocess.CalledProcessError as e:
-            log.exception(e)
-            raise SnoopTaskError("msgconvert failed", e.output.decode('latin1'))
+            # This may as well be a non-permanent error, but we have no way to tell
+            if e.output:
+                output = e.output.decode('latin-1')
+            else:
+                output = "(no output)"
+            raise SnoopTaskBroken('running msgconvert failed: ' + output,
+                                  'msgconvert_failed')
 
         return models.Blob.create_from_file(eml_path)
 

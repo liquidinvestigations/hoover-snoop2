@@ -85,6 +85,9 @@ def call_tika_server(endpoint, data, content_type):
     if resp.status_code == 422:
         raise SnoopTaskBroken("tika returned http 422, corrupt", "tika_http_422")
 
+    if resp.status_code == 415:
+        raise SnoopTaskBroken("tika returned http 415, unsupported media type", "tika_http_415")
+
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'application/json'):
         raise RuntimeError(f"Unexpected response from tika: {resp}")
@@ -131,3 +134,40 @@ def get_date_modified(rmeta):
         value = rmeta[0].get(field)
         if value:
             return zulu(parser.parse(value))
+
+
+def convert_for_indexing(rmeta_obj):
+    """Convert the dict returned by Tika's `rmeta` endpoint into a list of `K: V` strings that we can
+    directly index into Elasticsearch. Also returns a list of keys present, to be indexed as keywords.
+
+    Tika returns over 500 different fields for our test data, and the ES maximum field count is 1000.
+    So we folde them all into one single field.
+
+    Because Elasticsearch 6 requires all values in a field to be of a same type, we must convert all the
+    dict values to a single type (in our case, string). We replace the main `text`fields if they exist with
+    `None (keys called `X-TIKA:content`). We also truncate all values to 4K chars to avoid any other
+    duplication with main text fields and keep this of a lower size.
+
+    """
+
+    REMOVE_KEYS = {'X-TIKA:content'}
+    TRUNCATE_LIMIT = 2 ** 12
+
+    def iterate_obj(obj, path=""):
+        if isinstance(obj, list):
+            for x in obj:
+                yield from iterate_obj(x, path)
+        elif isinstance(obj, dict):
+            for x in obj:
+                if x in REMOVE_KEYS:
+                    continue
+
+                yield from iterate_obj(obj[x], path + '.' + x)
+        else:
+            # skip first . in path
+            yield path[1:], str(obj)[:TRUNCATE_LIMIT].strip()
+
+    # skip first item
+    rmeta_obj = rmeta_obj[0]
+    return {'tika': [path + ': ' + value for path, value in iterate_obj(rmeta_obj)],
+            'tika-key': list(set(path for path, _ in iterate_obj(rmeta_obj)))}

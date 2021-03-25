@@ -364,9 +364,9 @@ class TaskAdmin(MultiDBModelAdmin):
                        'date_created', 'date_started', 'date_finished', 'date_modified',
                        'status', 'details', 'error', 'log', 'broken_reason', 'worker']
     list_display = ['pk', 'func', 'args', 'created', 'finished',
-                    'status', 'details']
-    list_filter = ['func', 'status']
-    search_fields = ['pk', 'func', 'args', 'error', 'log']
+                    'status', 'details', 'broken_reason']
+    list_filter = ['func', 'status', 'broken_reason']
+    search_fields = ['pk', 'func', 'args', 'error', 'log', 'broken_reason']
     actions = ['retry_selected_tasks']
 
     change_form_template = 'snoop/admin_task_change_form.html'

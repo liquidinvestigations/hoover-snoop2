@@ -592,6 +592,8 @@ class Task(models.Model):
             models.Index(fields=['status', 'date_modified']),
             # for retrying all walks, in order
             models.Index(fields=['func', 'date_modified']),
+            # for task admin and browsing errors
+            models.Index(fields=['broken_reason']),
         ]
 
     def __str__(self):

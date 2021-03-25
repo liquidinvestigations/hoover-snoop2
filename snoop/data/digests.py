@@ -15,6 +15,7 @@ import logging
 import json
 import re
 import subprocess
+from collections import OrderedDict
 
 from django.conf import settings
 from django.core.paginator import Paginator
@@ -40,6 +41,7 @@ ES_MAX_INTEGER = 2 ** 31 - 1
 
 def get_collection_langs():
     """Return the list of OCR languages configured for the current collection."""
+
     from .collections import current
     return current().ocr_languages
 
@@ -107,9 +109,11 @@ def gather(blob, **depends_on):
         else:
             with tika_rmeta_blob.open(encoding='utf8') as f:
                 tika_rmeta = json.load(f)
+            # Warning: this overwrites any text read directly from the file with the previous `if text_blob`
             rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")
             rv['date'] = tika.get_date_modified(tika_rmeta)
             rv['date-created'] = tika.get_date_created(tika_rmeta)
+            rv.update(tika.convert_for_indexing(tika_rmeta))
 
     # parse email headers
     email_parse_blob = depends_on.get('email_parse')
@@ -218,7 +222,7 @@ def _get_tags(digest):
 
 
 def _set_tags_timestamps(digest, body):
-    """ Sets 'date-indexed' on all tagas from the body.
+    """Sets 'date-indexed' on all tagas from the body.
 
     If other tags have been added since digests.index() ran _get_tags() above,
     they shouldn't be in the indexed body and shouldn't be picked up by this function.
@@ -537,17 +541,25 @@ def _get_first_file(digest):
         )
 
     if not first_file:
-        raise RuntimeError(f"Can't find a file for blob {digest.blob}")
+        raise SnoopTaskBroken(f"Can't find a file for blob {digest.blob}, it was deleted or edited",
+                              'no_file_found_for_document')
 
     return first_file
 
 
 def _get_document_content(digest, the_file=None):
-    """Helper method returns dict with Document content data.
+    """Helper method converts Digest data into dict with content data.
+
+    Fields are selected from the [snoop.data.models.Digest][] object and combined with an optional
+    [snoop.data.models.File][].
 
     This data is returned under the `content` key by [snoop.data.digests.get_document_data][] and
-    [snoop.data.digests.get_file_data][]. This data is also used directly as the data to index in
-    [snoop.data.digests.index][].
+    [snoop.data.digests.get_file_data][], the functions that return API data for those respective endpoints.
+
+    This data is also used directly as the data to index in [snoop.data.digests.index][].
+
+    Since the data here is served for anyone with access to the collection, private user data can't be added
+    here.
     """
     if not the_file:
         the_file = _get_first_file(digest)
@@ -566,7 +578,7 @@ def _get_document_content(digest, the_file=None):
     original = the_file.original
     path = full_path(the_file)
 
-    content = {
+    content = OrderedDict({
         'content-type': original.mime_type,
         'filetype': filetype,
         'text': digest_data.get('text'),
@@ -594,7 +606,7 @@ def _get_document_content(digest, the_file=None):
         'path-parts': path_parts(path),
         'broken': digest_data.get('broken'),
         'attachments': attachments,
-    }
+    })
 
     if the_file.blob.mime_type == 'message/rfc822':
         content.update(email_meta(digest_data))
@@ -604,6 +616,11 @@ def _get_document_content(digest, the_file=None):
 
     text = content.get('text') or ""
     content['word-count'] = len(text.strip().split())
+
+    # put tika last
+    if 'tika' in digest_data:
+        content['tika-key'] = digest_data['tika-key']
+        content['tika'] = digest_data['tika']
 
     return content
 

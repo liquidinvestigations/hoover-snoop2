@@ -19,7 +19,7 @@ import tempfile
 
 from django.conf import settings
 from . import models
-from .tasks import snoop_task, require_dependency, retry_tasks
+from .tasks import snoop_task, require_dependency, retry_tasks, SnoopTaskBroken
 from .analyzers import tika
 
 
@@ -41,12 +41,14 @@ def create_ocr_source(name):
 
 def dispatch_ocr_tasks():
     """Launch tasks to explore all OcrSources."""
+
     for ocr_source in models.OcrSource.objects.all():
         walk_source.laterz(ocr_source.pk)
 
 
 def ocr_documents_for_blob(original):
     """Returns all ocrdocument objects for given md5."""
+
     return models.OcrDocument.objects.filter(original_hash=original.md5)
 
 
@@ -91,6 +93,7 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
     something else (like `.pdf`). If it's something else than `.txt`, it will run one
     [snoop.data.analyzers.tika.rmeta][] Task to get its UTF-8 text.
     """
+
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
     path = ocr_source.root / file_path
 
@@ -138,11 +141,19 @@ def run_tesseract_on_image(image_blob, lang):
         str(image_blob.path()),
         'stdout'
     ]
-    data = subprocess.check_output(args)
-
-    with models.Blob.create() as output:
-        output.write(data)
-    return output.blob
+    try:
+        data = subprocess.check_output(args)
+    except subprocess.CalledProcessError as e:
+        if e.output:
+            output = e.output.decode('latin-1')
+        else:
+            output = "(no output)"
+        raise SnoopTaskBroken('running tesseract failed: ' + output,
+                              'image_ocr_tesseract_failed')
+    else:
+        with models.Blob.create() as output:
+            output.write(data)
+        return output.blob
 
 
 def run_tesseract_on_pdf(pdf_blob, lang):
@@ -153,8 +164,8 @@ def run_tesseract_on_pdf(pdf_blob, lang):
                                 shell=True)
     )
     if pdfstrlen > settings.PDF2PDFOCR_MAX_STRLEN:
-        log.warning(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes of text')  # noqa: E501
-        return None
+        raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes of text',
+                              'pdf_ocr_text_too_long')
 
     tmp_f = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
     tmp_f.close()
@@ -171,9 +182,17 @@ def run_tesseract_on_pdf(pdf_blob, lang):
         ]
         subprocess.check_call(args)
         return models.Blob.create_from_file(tmp)
+    except subprocess.CalledProcessError as e:
+        # This may as well be a non-permanent error, but we have no way to tell
+        if e.output:
+            output = e.output.decode('latin-1')
+        else:
+            output = "(no output)"
+        raise SnoopTaskBroken('running pdf2pdfocr.py failed: ' + output,
+                              'pdf_ocr_pdf2pdfocr_failed')
     except Exception as e:
         log.exception(e)
-        raise
+        raise e
     finally:
         os.remove(tmp)
 
@@ -186,6 +205,7 @@ def run_tesseract(blob, lang):
     `pdf2pdfocr.py` script to build another PDF with OCR text rendered on top of it, to make the text
     selectable.
     """
+
     if blob.mime_type.startswith('image/'):
         return run_tesseract_on_image(blob, lang)
     elif blob.mime_type == 'application/pdf':
