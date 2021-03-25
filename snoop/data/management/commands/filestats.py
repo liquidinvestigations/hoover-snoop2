@@ -120,7 +120,7 @@ def get_description(col, mime_type, *extension):
                     .values("blob__magic")[0]
         except IndexError:
             return None
-    return queryset['blob__magic']
+        return queryset['blob__magic']
 
 
 class Command(BaseCommand):
@@ -171,15 +171,15 @@ class Command(BaseCommand):
         for k, v in get_top_mime_types(collections_list=collection_args, print_supported=supported).items():
             size = v['size'] / (2 ** 20)
             if options['descriptions']:
-                print(f'{k:50} {size:,.2f} {str(v["magic"]):{100}.{100}}')
+                print(f'{k:50} {size:10,.2f} MB {str(v["magic"]):{100}.{100}}')
             elif options['full_descriptions']:
-                print(f'{k:50} {size:,.2f} {str(v["magic"])}')
+                print(f'{k:50} {size:10,.2f} MB {str(v["magic"])}')
             else:
-                print(f'{k:50} {size:,.2f}')
+                print(f'{k:50} {size:10,.2f} MB')
 
         print()
         print(f'Top{unsupp_str}File Extensions by size')
         print('-----------------------')
         for k, v in get_top_extensions(collections_list=collection_args, print_supported=supported).items():
             size = v['size'] / (2 ** 20)
-            print(f'{str(k):22} {size:,.2f} {", ".join(v["mtype"])}')
+            print(f'{str(k):22} {size:10,.2f} MB {", ".join(v["mtype"])}')
