@@ -168,11 +168,11 @@ class Command(BaseCommand):
         print('-----------------------')
         for k, v in get_top_mime_types(collections_list=collection_args, print_supported=supported).items():
             if options['descriptions']:
-                print(f'{k:75} {v["size"]:12d} {str(v["magic"]):{100}.{100}}')
+                print(f'{k:50} {v["size"]:12d} {str(v["magic"]):{100}.{100}}')
             elif options['full_descriptions']:
-                print(f'{k:75} {v["size"]:12d} {str(v["magic"])}')
+                print(f'{k:50} {v["size"]:12d} {str(v["magic"])}')
             else:
-                print(f'{k:75} {v["size"]:12d}')
+                print(f'{k:50} {v["size"]:12d}')
 
         print()
         print('Top File Types by size')
