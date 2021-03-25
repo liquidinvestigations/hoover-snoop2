@@ -45,11 +45,12 @@ def get_top_mime_types(collections_list, row_count, print_supported=True):
     for col in collections_list:
         collection = collections.ALL[col]
         with collection.set_current():
-            queryset_mime = models.Blob.objects.all().values('mime_type', 'magic')\
-                .annotate(total=Count('mime_type')).annotate(size=Sum('size'))\
-                .order_by('-size')[:row_count]
+            queryset_mime = models.Blob.objects.all()
             if not print_supported:
                 queryset_mime = queryset_mime.exclude(mime_type__in=SUPPORTED_MIME_TYPES)[:row_count]
+            queryset_mime = queryset_mime.values('mime_type', 'magic') \
+                .annotate(total=Count('mime_type')).annotate(size=Sum('size')) \
+                .order_by('-size')[:row_count]
             for mtype in queryset_mime:
                 if mtype['mime_type'] not in res:
                     res[mtype['mime_type']] = {'size': truncate_size(mtype['size']),
