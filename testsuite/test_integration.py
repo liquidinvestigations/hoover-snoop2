@@ -112,12 +112,12 @@ def test_complete_lifecycle(client, taskmanager):
             continue
         check_api_page(api, digests.directory_id(d), digests.parent_id(d))
 
-    mime_dict_supported = get_top_mime_types(['testdata'], True)
+    mime_dict_supported = get_top_mime_types(['testdata'], 100, True)
     assert 'application/pdf' in mime_dict_supported.keys()
-    mime_dict_unsupported = get_top_mime_types(['testdata'], False)
+    mime_dict_unsupported = get_top_mime_types(['testdata'], 100, False)
     assert 'application/pdf' not in mime_dict_unsupported.keys()
 
-    ext_dict1 = get_top_extensions(['testdata'], True)
+    ext_dict1 = get_top_extensions(['testdata'], 100, True)
     assert '.docx' in ext_dict1.keys()
-    ext_dict2 = get_top_extensions(['testdata'], False)
+    ext_dict2 = get_top_extensions(['testdata'], 100, False)
     assert '.docx' not in ext_dict2.keys()
