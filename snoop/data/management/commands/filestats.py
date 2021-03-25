@@ -94,30 +94,21 @@ def get_top_extensions(collections_list, print_supported=True):
     return dict(sorted_ext_dict)
 
 
-def get_description(col, mime_type, *extension):
+def get_description(col, mime_type):
     """Return the magic description for a given mime-type.
 
     Args:
         col: Collection on which the query is executed.
         mime_type: Mime-Type for which the descriptions is returned.
-        *extension: Optional file-extension as string to limit the search to this
-            extension.
     """
 
     collection = collections.ALL[col]
     with collection.set_current():
         try:
-            if extension:
-                queryset = models.File.objects\
-                    .annotate(str_name=RawSQL("encode(name_bytes::bytea, 'escape')::text", ()))\
-                    .filter(blob__mime_type=mime_type, str_name__endswith=extension[0])\
-                    .values("blob__magic")[0]
-            else:
-                extension = [""]
-                queryset = models.File.objects\
-                    .annotate(str_name=RawSQL("encode(name_bytes::bytea, 'escape')::text", ()))\
-                    .filter(blob__mime_type=mime_type)\
-                    .values("blob__magic")[0]
+            queryset = models.File.objects \
+                .annotate(str_name=RawSQL("encode(name_bytes::bytea, 'escape')::text", ())) \
+                .filter(blob__mime_type=mime_type) \
+                .values("blob__magic")[0]
         except IndexError:
             return None
         return queryset['blob__magic']
