@@ -99,9 +99,10 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails):
     # check that all index ops were successful
     filtered_tasks = models.Task.objects.filter(func='digests.index')
     index_failed = [(t.args, t.status) for t in filtered_tasks.exclude(status='success')]
-    # one indexing task should be broken because
-    # `encrypted-hushmail-smashed-bytes.eml` is broken
-    assert ([SMASHED], 'broken') in index_failed
+    assert index_failed == []
+
+    # check that no unexpected errors happened on testdata
+    assert models.Task.objects.filter(status='error').count() == 0
 
     # check that all files and directories are contained in their parent lists
     api = CollectionApiClient(client)

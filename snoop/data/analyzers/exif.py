@@ -70,13 +70,19 @@ def extract(blob):
         try:
             tags = exifread.process_file(f, details=False)
         except (AttributeError, IndexError) as e:
-            raise SnoopTaskBroken("ExifRead failed: " + str(e), "exifread_failed_attribute_index_error")
+            raise SnoopTaskBroken("ExifRead failed: " + str(e),
+                                  "exifread_failed_attribute_index_error")
 
     if not tags:
         return {}
 
     data = {}
-    gps = extract_gps_location(tags)
+    try:
+        gps = extract_gps_location(tags)
+    except ZeroDivisionError as e:
+        raise SnoopTaskBroken("zero division error when computing GPS: " + str(e),
+                              "exifread_gps_zero_division_error")
+
     if gps:
         data['location'] = gps
 
