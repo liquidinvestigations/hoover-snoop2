@@ -15,11 +15,13 @@ FILE_TYPES = {
     'text/plain': 'text',
     'text/html': 'html',
     'application/x-hush-pgp-encrypted-html-body': 'html',
+    'application/xhtml+xml': 'html',
     'message/x-emlx': 'email',
     'message/rfc822': 'email',
     'application/vnd.ms-outlook': 'email',
 
     'application/x-hoover-pst': 'email-archive',
+    'application/mbox': 'email-archive',
 
     'application/msword': 'doc',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'doc',
