@@ -187,7 +187,6 @@ def unarchive(blob):
         create_blobs(listing)
 
     check_recursion(listing, blob.pk)
-    print(listing)
 
     return listing
 
@@ -196,7 +195,6 @@ def archive_walk(path):
     """Generates simple dicts with archive listing for the archive. """
 
     for entry in os.scandir(path):
-        print(entry.path)
         if entry.is_dir(follow_symlinks=False):
             yield {
                 'type': 'directory',
@@ -216,7 +214,6 @@ def create_blobs(dirlisting):
 
     for entry in dirlisting:
         if entry['type'] == 'file':
-            print(entry['path'])
             path = Path(entry['path'])
             entry['blob_pk'] = models.Blob.create_from_file(path).pk
             del entry['path']
