@@ -187,6 +187,7 @@ def unarchive(blob):
         create_blobs(listing)
 
     check_recursion(listing, blob.pk)
+    print(listing)
 
     return listing
 
@@ -218,5 +219,6 @@ def create_blobs(dirlisting):
             print(entry['path'])
             path = Path(entry['path'])
             entry['blob_pk'] = models.Blob.create_from_file(path).pk
+            del entry['path']
         else:
             create_blobs(entry['children'])
