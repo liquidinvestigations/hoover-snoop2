@@ -192,6 +192,8 @@ def unarchive(blob):
 
 
 def archive_walk(path):
+    """Generates simple dicts with archive listing for the archive. """
+
     for entry in os.scandir(path):
         print(entry.path)
         if entry.is_dir(follow_symlinks=False):
@@ -209,6 +211,8 @@ def archive_walk(path):
 
 
 def create_blobs(dirlisting):
+    """Create blobs for files in archive listing created by archive_walk"""
+
     for entry in dirlisting:
         if entry['type'] == 'file':
             print(entry['path'])
