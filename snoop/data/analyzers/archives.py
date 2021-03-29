@@ -9,9 +9,6 @@ import re
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
 import os
-import pprint
-from timeit import default_timer as timer
-import sys 
 
 SEVENZIP_MIME_TYPES = {
     'application/x-7z-compressed',
@@ -186,120 +183,13 @@ def unarchive(blob):
         elif blob.mime_type in PDF_MIME_TYPES:
             unpack_pdf(blob.path(), temp_dir)
 
-        old_listing = list(old_archive_walk(Path(temp_dir)))
         listing = list(archive_walk(Path(temp_dir)))
         create_blobs(listing)
-        print('Listing:------------------')
-        print(listing)
-        print('Old Listing:------------------')
-        print(old_listing)
-        assert listing == old_listing
-
-
-    print('Size:')
-    print(sys.getsizeof(listing)/20**2)
 
     check_recursion(listing, blob.pk)
 
     return listing
 
-
-# def archive_walk(path):
-#     """Generates simple dicts with archive listing for the archive. """
-#     print(path)
-#     walk_iter = os.walk(path, topdown=True)
-#     print(list(next(walk_iter)))
-#     res = []
-#     (root, dirs, files) = next(walk_iter)
-#     children = []
-#     for f in files:
-#         file_info = {
-#             'type': 'file',
-#             'name': f,
-#             'blob_pk': models.Blob.create_from_file(Path(os.path.join(root, f))).pk,
-#         }
-#         children.append(file_info)
-#     root_info = {
-#         'type': 'directory',
-#         'parent': '',
-#         'name': os.path.basename(root),
-#         'children': children
-#     }
-#     res.append(root_info)
-#     for root, dirs, files in walk_iter:
-#         print("Root:")
-#         print(root)
-#         print("Root2:")
-#         print(root)
-#         print("Dirs:")
-#         print(dirs)
-#         print("Files:")
-#         print(files)
-#         children = []
-#         # for d in dirs:
-#         #     dir_info = {
-#         #         'type': 'directory',
-#         #         'name': d,
-#         #         'children': [],
-#         #     }
-#         #     children.append(dir_info)
-#         for f in files:
-#             file_info = {
-#                 'type': 'file',
-#                 'name': f,
-#                 'blob_pk': models.Blob.create_from_file(Path(os.path.join(root, f))).pk,
-#             }
-#             children.append(file_info)
-# 
-#         try:
-#             parent = (list(Path(root).parent.parts)[-1])
-#         except IndexError:
-#             parent = b''
-#         root_info = {
-#             'type': 'directory',
-#             # 'name': root,
-#             'parent': parent,
-#             'name': os.path.basename(root),
-#             'children': children,
-#         }
-#         res.append(root_info)
-#     pprint.pprint(res)
-#     return res
-
-def old_archive_walk(path):
-    """Generates simple dicts with archive listing for the archive. """
-
-    for thing in path.iterdir():
-        print(thing)
-
-        print(type(thing))
-        if thing.is_dir():
-            yield {
-                'type': 'directory',
-                'name': thing.name,
-                'children': list(old_archive_walk(thing)),
-            }
-
-        else:
-            print(models.Blob.create_from_file(thing).pk)
-            yield {
-                'type': 'file',
-                'name': thing.name,
-                'blob_pk': models.Blob.create_from_file(thing).pk,
-                'path': str(thing),
-            }
- 
-#def archive_walk(path):
-#    d = {'name': os.path.basename(path)}
-#    print(d)
-#    if os.path.isdir(path):
-#        d['type'] = "directory"
-#        d['children'] = [archive_walk(os.path.join(path,x)) for x in os.listdir\
-#(path)]
-#    else:
-#        d['type'] = "file"
-#        d['blob_pk'] = models.Blob.create_from_file(path).pk
-#    return d
 
 def archive_walk(path):
     for entry in os.scandir(path):
@@ -314,9 +204,9 @@ def archive_walk(path):
             yield {
                 'type': 'file',
                 'name': entry.name,
-                # 'blob_pk': models.Blob.create_from_file(entry.path).pk,
                 'path': entry.path
             }
+
 
 def create_blobs(dirlisting):
     for entry in dirlisting:
@@ -326,4 +216,3 @@ def create_blobs(dirlisting):
             entry['blob_pk'] = models.Blob.create_from_file(path).pk
         else:
             create_blobs(entry['children'])
-    
