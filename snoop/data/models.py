@@ -19,20 +19,13 @@ from .magic import Magic
 from . import collections
 
 
-def blob_root():
-    """Returns a Path with the current collection blob dir.
-    """
-    col = collections.current()
-    return Path(settings.SNOOP_BLOB_STORAGE) / col.name
-
-
 def blob_repo_path(sha3_256):
     """Returns a Path pointing to the blob file for given hash.
 
     Args:
         sha3_256: hash used to compute the file path
     """
-    return blob_root() / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
+    return collections.current().blob_root / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
 
 
 def chunks(file, blocksize=65536):
@@ -175,7 +168,7 @@ class Blob(models.Model):
             BlobWriter: Use `.write(byte_string)` on the returned object until finished. The final result
                 can be found at `.blob` on the same object, after exiting this contextmanager's context.
         """
-        blob_tmp = blob_root() / 'tmp'
+        blob_tmp = collections.current().tmp_dir
         blob_tmp.mkdir(exist_ok=True, parents=True)
 
         fields = {}
