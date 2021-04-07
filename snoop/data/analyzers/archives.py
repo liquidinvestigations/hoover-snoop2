@@ -175,7 +175,6 @@ def unarchive(blob):
     documents that embed images).
     """
     with collections.current().tmp_dir / str(blob) as temp_dir:
-        print(temp_dir)
         if blob.mime_type in SEVENZIP_MIME_TYPES:
             call_7z(blob.path(), temp_dir)
         elif blob.mime_type in READPST_MIME_TYPES:
