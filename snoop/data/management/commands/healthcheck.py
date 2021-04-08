@@ -1,4 +1,4 @@
-"""Script used check database connection health.
+"""Script to check database connection health.
 
 Not used anymore, since it required a lot of CPU overhead and would prevent the machine from idling with low
 CPU usage.

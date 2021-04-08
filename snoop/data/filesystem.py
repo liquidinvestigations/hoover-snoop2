@@ -157,7 +157,7 @@ def handle_file(file_pk, **depends_on):
     If a conversion/unpacking is required, then a [Task][snoop.data.models.Task] responsible for doing the
     conversion/unpacking operation is dynamically added as a dependency for this Task (using
     [`require_dependency()`][snoop.data.tasks.require_dependency]). Previous dependencies that are not valid
-    anymore must also be removed here; this is to fix documents with wront mime types, not to support
+    anymore must also be removed here; this is to fix documents with wrong mime types, not to support
     document deletion.
 
     Finally, after all unarchiving, unpacking and converting is done, we queue the
@@ -238,9 +238,10 @@ def handle_file(file_pk, **depends_on):
 def create_archive_files(file_pk, archive_listing):
     """Creates the File and Directoty structure after unpacking files.
 
-    Receives a dict (called the "archive_listing") from the [snoop.data.analyzers.unarchive] Task with the
-    names of the Files and Directories that must be created, as well as the File timestmaps and binary data
-    hashes.
+    Receives a dict (called the "archive_listing") from the
+    [`unarchive`][snoop.data.analyzers.archives.unarchive]
+    Task with the names of the Files and Directories that must be created, as well as the File timestmaps
+    and binary data hashes.
 
     This function serves half the role of [`walk()`][snoop.data.filesystem.walk], but inside archives; it
     queues [`handle_file()`][snoop.data.filesystem.handle_file] for all files unpacked. It assumes the
