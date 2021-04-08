@@ -888,3 +888,17 @@ class Statistics(models.Model):
     class Meta:
 
         verbose_name_plural = 'statistics'
+
+
+class Thumbnail(models.Model):
+    """Database model for storing the Thumbnail corresponding to a Digest."""
+
+    original = models.OneToOneField(
+        Digest,
+        on_delete=models.CASCADE,
+    )
+
+    blob = models.OneToOneField(
+        Blob,
+        on_delete=models.CASCADE,
+    )

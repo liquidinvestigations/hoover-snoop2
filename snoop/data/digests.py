@@ -27,6 +27,7 @@ from .utils import zulu
 from .analyzers import email
 from .analyzers import tika
 from .analyzers import exif
+from .analyzers import thumbnails
 from . import ocr
 from ._file_types import FILE_TYPES
 from . import indexing
@@ -73,6 +74,9 @@ def launch(blob):
     if is_ocr_mime_type(blob.mime_type):
         for lang in get_collection_langs():
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
+
+    if blob.mime_type == 'image/jpeg':
+        depends_on['thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
@@ -170,12 +174,20 @@ def gather(blob, **depends_on):
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
 
-    _, _ = models.Digest.objects.update_or_create(
+    digest_obj, _ = models.Digest.objects.update_or_create(
         blob=blob,
         defaults=dict(
             result=writer.blob,
         ),
     )
+
+    # get thumbnail
+    thumbnail_blob_pk = depends_on.get('thumbnail')
+    if thumbnail_blob_pk:
+        _, _ = models.Thumbnail.objects.update_or_create(
+            original=digest_obj.pk,
+            blob=thumbnail_blob_pk,
+        )
 
     return writer.blob
 

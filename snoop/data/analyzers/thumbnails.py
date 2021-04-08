@@ -1,10 +1,11 @@
 from .. import models
-from django.conf import settings
-from urllib.parse import urljoin
+# from django.conf import settings
+# from urllib.parse import urljoin
 import requests
+from ..tasks import snoop_task
 
 
-def call_thumbnails_service(endpoint, data):
+def call_thumbnails_service(data):
     """Executes HTTP PUT request to Thumbnail service.
 
     Args:
@@ -17,7 +18,20 @@ def call_thumbnails_service(endpoint, data):
     resp = session.put(url, data=data)
 
     if (resp.status_code != 200
-            or resp.headers['Content-Type'] != 'application/json'):
+            or resp.headers['Content-Type'] != 'image/json'):
         raise RuntimeError(f"Unexpected response from tika: {resp}")
 
-    return resp
+    return resp.content
+
+
+@snoop_task('thumbnails.get_thumbnail')
+def get_thumbnail(blob):
+    """Function that calls the thumbnail service for a given blob.
+
+    Returns the primary key of the created thumbnail blob.
+    """
+
+    with blob.open('rb') as f:
+        resp = call_thumbnails_service(f)
+    blob_pk = models.Blob.create_from_bytes(resp).pk
+    return blob_pk
