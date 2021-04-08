@@ -161,7 +161,6 @@ def test_unarchive_mbox(taskmanager, testdata_current):
 
     assert len(listing) == 28
     dir07 = [x for x in listing if x['name'] == '07'][0]
-    print(dir07)
     assert dir07 == {
         'children': [
             {'blob_pk': '7779d128a2cd425eba06693b56e1fc7351c1d66c2ee78c96dd4bd5649307f636',
