@@ -485,30 +485,53 @@ def email_meta(digest_data):
         if part.get('pgp'):
             pgp = True
 
-    headers_to = set()
-    for header in ['To', 'Cc', 'Bcc', 'Resent-To', 'Recent-Cc']:
-        headers_to.update(headers.get(header, []))
+    ret = {}
+    convert = {
+        'to': ['To', 'Cc', 'Bcc', 'Resent-To', 'Resent-Cc', 'Resent-Bcc'],
+        'to-direct': ['To', 'Resent-To'],
+        'cc': ['Cc', 'Resent-Cc'],
+        'bcc': ['Bcc', 'Resent-Bcc'],
+        'from': ['From', 'Resent-From'],
+        'message-id': ['Message-Id', 'Resent-Message-Id'],
+        'in-reply-to': ['In-Reply-To', 'References'],
+    }
+
+    for header in convert:
+        all_values = []
+        for val in headers.get(header, []):
+            for line in val.strip().splitlines():
+                line = line.strip()
+                if line and line not in all_values:
+                    all_values.append(line)
+        ret[header] = all_values
 
     message_date = None
     message_raw_date = headers.get('Date', [None])[0]
     if message_raw_date:
         message_date = zulu(email.parse_date(message_raw_date))
 
-    header_from = headers.get('From', [''])[0]
+    to_domains = [_extract_domain(to) for to in ret['to']]
+    from_domains = [_extract_domain(f) for f in ret['from']]
+    email_domains = list(set(to_domains + from_domains))
 
-    to_domains = [_extract_domain(to) for to in headers_to]
-    from_domains = [_extract_domain(header_from)]
-    email_domains = to_domains + from_domains
-
-    return {
-        'from': header_from,
-        'to': list(headers_to),
+    ret.update({
         'email-domains': [d.lower() for d in email_domains if d],
         'subject': headers.get('Subject', [''])[0],
         'text': '\n\n'.join(text_bits).strip(),
         'pgp': pgp,
         'date': message_date,
-    }
+        'email-header-key': list(set(headers.keys())),
+        'email-header': sum(([k + '=' + v for v in headers[k]] for k in headers), start=[]),
+    })
+    # not here:
+    # "thread-index": {"type": "keyword"},
+    #       "message": {"type": "keyword"},
+
+    # delete empty values for all headers
+    for k in ret:
+        if not ret[k]:
+            del ret[k]
+    return ret
 
 
 email_domain_exp = re.compile("@([\\w.-]+)")

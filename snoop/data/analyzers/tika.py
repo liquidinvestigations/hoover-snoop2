@@ -150,7 +150,7 @@ def convert_for_indexing(rmeta_obj):
 
     """
 
-    REMOVE_KEYS = {'X-TIKA:content'}
+    REMOVE_KEYS = {'X-TIKA:content', 'Message:Raw-Header'}
     TRUNCATE_LIMIT = 2 ** 12
 
     def iterate_obj(obj, path=""):
@@ -159,13 +159,13 @@ def convert_for_indexing(rmeta_obj):
                 yield from iterate_obj(x, path)
         elif isinstance(obj, dict):
             for x in obj:
-                if x in REMOVE_KEYS:
-                    continue
-
                 yield from iterate_obj(obj[x], path + '.' + x)
         else:
             # skip first . in path
-            yield path[1:], str(obj)[:TRUNCATE_LIMIT].strip()
+            path = path[1:]
+            # remove keys for text and email headers (as they're handled separately)
+            if not any(path.startswith(x) for x in REMOVE_KEYS):
+                yield path, str(obj)[:TRUNCATE_LIMIT].strip()
 
     # skip first item
     rmeta_obj = rmeta_obj[0]
