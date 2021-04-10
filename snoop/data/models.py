@@ -284,7 +284,7 @@ class Blob(models.Model):
 
             return writer.blob
 
-    def open(self, encoding=None):
+    def open(self, encoding=None, **kwargs):
         """Open this Blob's data storage for reading.
 
         Args:
@@ -295,7 +295,7 @@ class Blob(models.Model):
             mode = 'rb'
         else:
             mode = 'r'
-        return self.path().open(mode, encoding=encoding)
+        return self.path().open(mode, encoding=encoding, **kwargs)
 
 
 class Directory(models.Model):

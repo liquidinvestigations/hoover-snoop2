@@ -1,6 +1,7 @@
 """Tasks that unpack archives and return their structure and contents.
 """
 
+import tempfile
 import subprocess
 from pathlib import Path
 from hashlib import sha1
@@ -51,8 +52,6 @@ def is_archive(mime_type):
 
 def call_readpst(pst_path, output_dir):
     """Helper function that calls a `readpst` process."""
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
     try:
         subprocess.check_output([
             'readpst',

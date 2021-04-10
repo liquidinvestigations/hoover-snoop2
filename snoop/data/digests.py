@@ -13,9 +13,9 @@ indexing data into Elasticsearch.
 
 import logging
 import json
-import re
 import subprocess
 from collections import OrderedDict
+import chardet
 
 from django.conf import settings
 from django.core.paginator import Paginator
@@ -24,7 +24,7 @@ from django.db.models import Subquery
 
 from .tasks import snoop_task, SnoopTaskBroken, retry_task, retry_tasks
 from . import models
-from .utils import zulu
+from .utils import zulu, read_exactly
 from .analyzers import email
 from .analyzers import tika
 from .analyzers import exif
@@ -85,6 +85,62 @@ def launch(blob):
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
 
 
+def can_read_text(blob):
+    """Check if document with blob can be read directly to extract text.
+
+    This returns `True` even for `application/octet-stream`, to attempting to extract text from files with
+    no mime type found. This sometimes happens for long files.
+    """
+
+    EXTRA_TEXT_MIME_TYPES = {
+        "application/json",
+        "application/octet-stream",
+        "application/csv",
+        "application/tab-separated-values",
+    }
+    return blob.mime_type.startswith('text') or \
+        blob.mime_type in EXTRA_TEXT_MIME_TYPES or \
+        blob.mime_encoding != 'binary'
+
+
+def read_text(blob):
+    """Attempt to read text from raw text file.
+
+    This function returns a single string, truncated to the `indexing.MAX_TEXT_FIELD_SIZE` constant.
+
+    If provided a file of type "application/octet-stream" (mime type unknown), we attempt to guess encoding
+    using "chardet" and abort if we don't see 95% confidence.
+    """
+
+    if blob.mime_type == 'application/octet-stream' or blob.mime_encoding == 'binary':
+        with blob.open() as f:
+            first_4k = read_exactly(f, 4 * 2 ** 10)
+        detect_result = chardet.detect(first_4k)
+        if detect_result.get('confidence', 0) < 0.9:
+            log.warning('low confidence when guessing character encoding')
+            return
+        else:
+            encoding = detect_result.get('encoding') or 'latin1'
+    else:
+        encoding = blob.mime_encoding
+
+    with blob.open(encoding=encoding, errors='replace') as f:
+        return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE, text_mode=True)
+
+
+def _delete_empty_keys(d):
+    """Recursively remove keys from dict that point to empty string, dict, list or None.
+
+    Only values of type dict, str and list are eligible for removal if they have a False value.
+    """
+
+    for k in list(d.keys()):
+        if isinstance(d[k], dict):
+            _delete_empty_keys(d[k])
+        if isinstance(d[k], (dict, str, list, type(None))) and not d[k]:
+            del d[k]
+
+
 @snoop_task('digests.gather', priority=7)
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
@@ -92,12 +148,6 @@ def gather(blob, **depends_on):
     """
 
     rv = {'broken': []}
-    text_blob = depends_on.get('text')
-    if text_blob:
-        with text_blob.open() as f:
-            text_bytes = f.read()
-        encoding = 'latin1' if blob.mime_encoding == 'binary' else blob.mime_encoding
-        rv['text'] = text_bytes.decode(encoding)
 
     # extract text and meta with apache tika
     tika_rmeta_blob = depends_on.get('tika_rmeta')
@@ -109,40 +159,49 @@ def gather(blob, **depends_on):
         else:
             with tika_rmeta_blob.open(encoding='utf8') as f:
                 tika_rmeta = json.load(f)
-            # Warning: this overwrites any text read directly from the file with the previous `if text_blob`
-            rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")
+            rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
             rv['date'] = tika.get_date_modified(tika_rmeta)
             rv['date-created'] = tika.get_date_created(tika_rmeta)
             rv.update(tika.convert_for_indexing(tika_rmeta))
 
-    # parse email headers
+    # parse email for text and headers
     email_parse_blob = depends_on.get('email_parse')
     if email_parse_blob:
         if isinstance(email_parse_blob, SnoopTaskBroken):
             rv['broken'].append(email_parse_blob.reason)
             log.debug("email_parse task is broken; skipping")
-
         else:
             with email_parse_blob.open(encoding='utf8') as f:
                 email_parse = json.load(f)
-            rv['email'] = email_parse
+            rv.update(email.email_meta(email_parse))
 
-    # combine OCR results
+    # For large text/CSV files, Tika (and text extraction) fails. For these, we want to read the text
+    # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any
+    if not rv.get('text') and can_read_text(blob):
+        rv['text'] = read_text(blob) or ''
+
+    # combine OCR results, limiting string sizes to indexing.MAX_TEXT_FIELD_SIZE
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
     if is_ocr_mime_type(blob.mime_type):
         for lang in get_collection_langs():
             ocr_blob = depends_on.get(f'tesseract_{lang}')
             if not ocr_blob or isinstance(ocr_blob, SnoopTaskBroken):
                 log.warning(f'tesseract ocr result missing for lang {lang}')
+                rv['broken'].append('ocr_missing')
                 ocr_results[f'tesseract_{lang}'] = ""
                 continue
             if ocr_blob.mime_type == 'application/pdf':
-                ocr_results[f'tesseract_{lang}'] = \
-                    subprocess.check_output(f'pdftotext -q -enc UTF-8 "{ocr_blob.path()}" -',
-                                            shell=True).decode('utf8')
+                ocr_results[f'tesseract_{lang}'] = subprocess.check_output(
+                    f'pdftotext -q -enc UTF-8 "{ocr_blob.path()}" - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',  # noqa: E501
+                    shell=True,
+                ).decode('utf8')
             else:
                 with ocr_blob.open(encoding='utf-8') as f:
-                    ocr_results[f'tesseract_{lang}'] = f.read().strip()
+                    ocr_results[f'tesseract_{lang}'] = read_exactly(
+                        f,
+                        indexing.MAX_TEXT_FIELD_SIZE,
+                        text_mode=True,
+                    ).strip()
     if ocr_results:
         rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
         if rv['ocr']:
@@ -186,6 +245,9 @@ def gather(blob, **depends_on):
         else:
             rv['has-thumbnails'] = True
 
+    _delete_empty_keys(rv)
+
+
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
 
@@ -201,6 +263,9 @@ def gather(blob, **depends_on):
 
 def _get_tags(digest):
     """Helper method to get the document's tags with the correct Elasticsearch field names."""
+
+    if not digest:
+        return {}
 
     # add public tags
     q1 = digest.documentusertag_set.filter(public=True)
@@ -227,6 +292,9 @@ def _set_tags_timestamps(digest, body):
     If other tags have been added since digests.index() ran _get_tags() above,
     they shouldn't be in the indexed body and shouldn't be picked up by this function.
     """
+
+    if not digest:
+        return
 
     now = timezone.now()
 
@@ -257,11 +325,17 @@ def index(blob, digests_gather):
 
     End of the processing pipeline for any document.
     """
-    if isinstance(digests_gather, SnoopTaskBroken):
-        raise digests_gather
 
-    digest = models.Digest.objects.get(blob=blob)
-    content = _get_document_content(digest)
+    if isinstance(digests_gather, SnoopTaskBroken):
+        # Generate stub object when gather task is broken (no results).
+        # This is needed to find results for which processing has failed.
+        digest = None
+        content = _get_document_content(None, _get_first_file(blob))
+        content.setdefault('broken', []).append('processing_failed')
+    else:
+        # Generate body from full result set
+        digest = models.Digest.objects.get(blob=blob)
+        content = _get_document_content(digest)
 
     # inject tags at indexing stage, so the private ones won't get spilled in
     # the document/file endpoints
@@ -278,10 +352,11 @@ def index(blob, digests_gather):
         body['size'] = ES_MAX_INTEGER
 
     try:
-        indexing.index(digest.blob.pk, body)
+        indexing.index(blob, body)
         _set_tags_timestamps(digest, body)
     except RuntimeError:
-        log.exception(repr(body))
+        log.exception("error while indexing into elasticsearch, len = %s MB,  body=%s",
+                      round(len(str(body)) / 2**20, 3), str(body)[:500])
         raise
 
 
@@ -460,96 +535,11 @@ def parent_children_page(item):
     return page_index
 
 
-def email_meta(digest_data):
-    """Returns extra fields extracted from emails.
-    """
-
-    def iter_parts(email_data):
-        yield email_data
-        for part in email_data.get('parts') or []:
-            yield from iter_parts(part)
-
-    email_data = digest_data.get('email')
-    if not email_data:
-        return {}
-
-    headers = email_data['headers']
-
-    text_bits = []
-    pgp = False
-    for part in iter_parts(email_data):
-        part_text = part.get('text')
-        if part_text:
-            text_bits.append(part_text)
-
-        if part.get('pgp'):
-            pgp = True
-
-    ret = {}
-    convert = {
-        'to': ['To', 'Cc', 'Bcc', 'Resent-To', 'Resent-Cc', 'Resent-Bcc'],
-        'to-direct': ['To', 'Resent-To'],
-        'cc': ['Cc', 'Resent-Cc'],
-        'bcc': ['Bcc', 'Resent-Bcc'],
-        'from': ['From', 'Resent-From'],
-        'message-id': ['Message-Id', 'Resent-Message-Id'],
-        'in-reply-to': ['In-Reply-To', 'References'],
-    }
-
-    for header in convert:
-        all_values = []
-        for val in headers.get(header, []):
-            for line in val.strip().splitlines():
-                line = line.strip()
-                if line and line not in all_values:
-                    all_values.append(line)
-        ret[header] = all_values
-
-    message_date = None
-    message_raw_date = headers.get('Date', [None])[0]
-    if message_raw_date:
-        message_date = zulu(email.parse_date(message_raw_date))
-
-    to_domains = [_extract_domain(to) for to in ret['to']]
-    from_domains = [_extract_domain(f) for f in ret['from']]
-    email_domains = list(set(to_domains + from_domains))
-
-    ret.update({
-        'email-domains': [d.lower() for d in email_domains if d],
-        'subject': headers.get('Subject', [''])[0],
-        'text': '\n\n'.join(text_bits).strip(),
-        'pgp': pgp,
-        'date': message_date,
-        'email-header-key': list(set(headers.keys())),
-        'email-header': sum(([k + '=' + v for v in headers[k]] for k in headers), start=[]),
-    })
-    # not here:
-    # "thread-index": {"type": "keyword"},
-    #       "message": {"type": "keyword"},
-
-    # delete empty values for all headers
-    for k in ret:
-        if not ret[k]:
-            del ret[k]
-    return ret
-
-
-email_domain_exp = re.compile("@([\\w.-]+)")
-
-
-def _extract_domain(text):
-    """Extract domain from email address."""
-
-    match = email_domain_exp.search(text)
-    if match:
-        return match[1]
-
-
-def _get_first_file(digest):
+def _get_first_file(blob):
     """Returns first file pointing to this Blob, ordered by file ID."""
 
     first_file = (
-        digest.blob
+        blob
         .file_set
         .order_by('pk')
         .first()
@@ -558,13 +548,13 @@ def _get_first_file(digest):
     if not first_file:
         first_file = (
             models.File.objects
-            .filter(original=digest.blob)
+            .filter(original=blob)
             .order_by('pk')
             .first()
         )
 
     if not first_file:
-        raise SnoopTaskBroken(f"Can't find a file for blob {digest.blob}, it was deleted or edited",
+        raise SnoopTaskBroken(f"Can't find a file for blob {blob}, it was deleted or edited",
                               'no_file_found_for_document')
 
     return first_file
@@ -584,8 +574,17 @@ def _get_document_content(digest, the_file=None):
     Since the data here is served for anyone with access to the collection, private user data can't be added
     here.
     """
+
+    def get_text_lengths(data):
+        yield len(data.get('text', ''))
+        for k in data.get('ocrtext', {}).values():
+            yield len(k or '')
+
+    def get_word_count(data):
+        return max(get_text_lengths(data))
+
     if not the_file:
-        the_file = _get_first_file(digest)
+        the_file = _get_first_file(digest.blob)
 
     digest_data = {}
     if digest is not None:
@@ -604,21 +603,6 @@ def _get_document_content(digest, the_file=None):
     content = OrderedDict({
         'content-type': original.mime_type,
         'filetype': filetype,
-        'text': digest_data.get('text'),
-        'pgp': digest_data.get('pgp'),
-        'ocr': digest_data.get('ocr'),
-        'ocrtext': {k: v for k, v in digest_data.get('ocrtext', {}).items() if v},
-        'ocrpdf': digest_data.get('ocrpdf'),
-        'ocrimage': digest_data.get('ocrimage'),
-        'has-thumbnails': digest_data.get('has-thumbnails'),
-
-        # TODO 7zip, unzip, all of these will list the correct access/creation
-        # times when listing, but don't preserve them when unpacking.
-        # 'date': digest_data.get('date') or zulu(the_file.mtime),
-        # 'date-created': digest_data.get('date-created') or zulu(the_file.ctime),
-        'date': digest_data.get('date'),
-        'date-created': digest_data.get('date-created'),
-
         'md5': original.md5,
         'sha1': original.sha1,
         'id': original.sha3_256,
@@ -627,23 +611,19 @@ def _get_document_content(digest, the_file=None):
         'path': path,
         'path-text': path,
         'path-parts': path_parts(path),
-        'broken': digest_data.get('broken'),
         'attachments': attachments,
     })
 
-    if the_file.blob.mime_type == 'message/rfc822':
-        content.update(email_meta(digest_data))
+    content.update(digest_data)
+    content['word-count'] = get_word_count(content)
 
-    if 'location' in digest_data:
-        content['location'] = digest_data['location']
+    # delete old "email" field that may be left behind on older digest data.
+    if 'email' in content:
+        del content['email']
 
-    text = content.get('text') or ""
-    content['word-count'] = len(text.strip().split())
-
-    # put tika last
-    if 'tika' in digest_data:
-        content['tika-key'] = digest_data['tika-key']
-        content['tika'] = digest_data['tika']
+    # for missing "digest" objects, we mark this as a separate (more general) reason
+    if not digest_data:
+        content.setdefault('broken', []).append('processing_failed')
 
     return content
 
@@ -651,13 +631,15 @@ def _get_document_content(digest, the_file=None):
 def _get_document_version(digest):
     """The document version is the date of indexing in ISO format."""
 
+    if not digest:
+        return None
     return zulu(digest.date_modified)
 
 
-def get_document_data(digest, children_page=1):
+def get_document_data(blob, children_page=1):
     """Returns dict with representation of de-duplicated document ([snoop.data.models.Digest][])."""
 
-    first_file = _get_first_file(digest)
+    first_file = _get_first_file(blob)
 
     children = None
     has_next = False
@@ -667,12 +649,17 @@ def get_document_data(digest, children_page=1):
     if child_directory:
         children, has_next, total, pages = get_directory_children(child_directory, children_page)
 
+    try:
+        digest = models.Digest.objects.get(blob=blob)
+    except models.Digest.DoesNotExist:
+        digest = None
+
     rv = {
-        'id': digest.blob.pk,
+        'id': blob.pk,
         'parent_id': parent_id(first_file),
         'has_locations': True,
         'version': _get_document_version(digest),
-        'content': _get_document_content(digest),
+        'content': _get_document_content(digest, first_file),
         'children': children,
         'children_page': children_page,
         'children_has_next_page': has_next,

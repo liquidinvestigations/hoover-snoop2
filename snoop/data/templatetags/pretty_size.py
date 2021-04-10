@@ -75,3 +75,23 @@ def pretty_size(size_bytes):
         _size[1] = ('.' + _size[1]).rstrip('0.')
 
     return '%s %s' % (''.join(_size), _SIZES[cnt])
+
+
+@register.filter
+def pretty_timedelta(timedelta):
+    seconds = timedelta.total_seconds()
+    if not seconds:
+        return ''
+    sign_string = '-' if seconds < 0 else ''
+    seconds = abs(seconds)
+    days, seconds = divmod(seconds, 86400)
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    if days > 0:
+        return '%s%dd %dh %dm %ds' % (sign_string, days, hours, minutes, seconds)
+    elif hours > 0:
+        return '%s%dh %dm %ds' % (sign_string, hours, minutes, seconds)
+    elif minutes > 0:
+        return '%s%dm %ds' % (sign_string, minutes, seconds)
+    else:
+        return '%s%ss' % (sign_string, round(seconds, 3))

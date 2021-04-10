@@ -250,10 +250,11 @@ def run_task(task, log_handler, raise_exceptions=False):
                 task.update(
                     status=models.Task.STATUS_BROKEN,
                     error='',
-                    broken_reason='has a dependency in the ERROR state',
+                    broken_reason='dependency_has_error',
                     log=log_handler.stream.getvalue(),
                 )
                 task.save()
+                queue_next_tasks(task, reset=True)
                 return
 
             for dep in all_prev_deps:
@@ -667,13 +668,7 @@ def save_collection_stats():
 
     from snoop.data.admin import get_stats
     t0 = time()
-    s, _ = models.Statistics.objects.get_or_create(key='stats')
-    stats = get_stats()
-    for row in stats['task_matrix']:
-        for stat in row[1]:
-            row[1][stat] = str(row[1][stat])
-    s.value = stats
-    s.save()
+    get_stats()
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 

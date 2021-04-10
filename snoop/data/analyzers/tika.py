@@ -19,6 +19,8 @@ from ..utils import zulu
 from snoop import tracing
 from ._tika_mime_types import TIKA_MIME_TYPES
 
+TIKA_EXPECT_FAIL_ABOVE_FILE_SIZE = 50 * 2 ** 20
+
 TIKA_MIME_TYPES_ORIG = {
     'text/plain',
     'text/html',
@@ -55,6 +57,9 @@ TIKA_MIME_TYPES_ORIG = {
     'application/vnd.ms-powerpoint.slideshow.macroEnabled.12',
     'application/vnd.oasis.opendocument.presentation',
     'application/vnd.oasis.opendocument.presentation-template',
+
+    'application/csv',
+    "application/tab-separated-values",
 }
 ALL_TIKA_MIME_TYPES = TIKA_MIME_TYPES | TIKA_MIME_TYPES_ORIG
 
@@ -68,7 +73,7 @@ def can_process(blob):
     return False
 
 
-def call_tika_server(endpoint, data, content_type):
+def call_tika_server(endpoint, data, content_type, data_size):
     """Executes HTTP PUT request to Tika server.
 
     Args:
@@ -88,6 +93,12 @@ def call_tika_server(endpoint, data, content_type):
     if resp.status_code == 415:
         raise SnoopTaskBroken("tika returned http 415, unsupported media type", "tika_http_415")
 
+    # When running OOM, Tika returns 404 (from load balancer after crash), 500, 502 and any other
+    # combination of status codes. We mark this as Broken instead of a normal failure to continue normal
+    # processing in case of Tika OOM.
+    if 400 <= resp.status_code < 600 and data_size > TIKA_EXPECT_FAIL_ABOVE_FILE_SIZE:
+        raise SnoopTaskBroken(f"tika returned http {resp.status_code} while running on large file", "tika_error_on_large_file")  # noqa: E501
+
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'application/json'):
         raise RuntimeError(f"Unexpected response from tika: {resp}")
@@ -101,7 +112,7 @@ def rmeta(blob):
     """Task to run Tika on a given Blob."""
 
     with blob.open() as f, tracing.span('tika.rmeta'):
-        resp = call_tika_server('rmeta/text', f, blob.content_type)
+        resp = call_tika_server('rmeta/text', f, blob.content_type, blob.size)
 
     return resp.json()
 

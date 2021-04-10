@@ -11,7 +11,7 @@ All the different admin sites are kept in the global dict `sites`. The default a
 this dict, under the key "_default". The sites are mapped to URLs in `snoop.data.urls` using this global.
 """
 import json
-from math import trunc
+import time
 from datetime import timedelta
 from collections import defaultdict
 from django.urls import reverse
@@ -21,12 +21,13 @@ from django.utils.safestring import mark_safe
 from django.utils import timezone
 from django.urls import path
 from django.shortcuts import render
-from django.db.models import Sum, Count, Avg, F
+from django.db.models import Sum, Count, Avg, F, Min, Max
 from django.db import connections
 from django.contrib.humanize.templatetags.humanize import naturaltime
 from . import models
 from . import tasks
 from . import collections
+from .templatetags import pretty_size
 
 
 def blob_link(blob_pk):
@@ -56,7 +57,7 @@ ERROR_STATS_QUERY = (
 )
 
 
-def get_task_matrix(task_queryset):
+def get_task_matrix(task_queryset, prev_matrix={}):
     """Runs expensive database aggregation queries to fetch the Task matrix.
 
     Included here are: counts aggregated by task function and status; average duration and ETA aggregated by
@@ -79,31 +80,106 @@ def get_task_matrix(task_queryset):
     for bucket in task_buckets_query:
         task_matrix[bucket['func']][bucket['status']] = bucket['count']
 
+    # time frame in the past for which we pull tasks
     mins = 5
+    # LIMIT the amount of rows we poll when doing the 4M query
+    MAX_ROW_COUNT = 5000
+    # Task table row takes about 5K in PG, and blob/data storage fetching does at least 8K of I/O
+    SIZE_OVERHEAD = 13 * 2 ** 10
+    # Overhead measured for NO-OP tasks; used here to make sure we never divide by 0
+    TIME_OVERHEAD = 0.02
+    RECENT_SPEED_KEY = str(mins) + 'm_avg_bytes_sec'
     task_5m_query = (
         task_queryset
-        .filter(date_finished__gt=timezone.now() - timedelta(minutes=mins))
+        .filter(date_finished__gt=timezone.now() - timedelta(minutes=mins))[:MAX_ROW_COUNT]
         .values('func')
         .annotate(count=Count('*'))
-        .annotate(avg_duration=Avg(F('date_finished') - F('date_started')))
+        .annotate(size=Sum('blob_arg__size'))
+        .annotate(start=Min('date_started'))
+        .annotate(end=Max('date_finished'))
+        .annotate(time=Sum(F('date_finished') - F('date_started')))
     )
     for bucket in task_5m_query:
         row = task_matrix[bucket['func']]
-        pending = row.get('pending', 0)
         count = bucket['count']
-        avg_duration = bucket['avg_duration'].total_seconds()
-        rate = (count / (mins * 60))
-        fill = avg_duration * rate * 100
-        row['5m'] = count
-        row['5m_duration'] = avg_duration
-        row['5m_fill'] = f'{fill:.02f}%'
-        if pending and rate > 0:
-            row['eta'] = timedelta(seconds=int(pending / rate))
+        real_time = (bucket['end'] - bucket['start']).total_seconds() + TIME_OVERHEAD
+        total_time = bucket['time'].total_seconds() + TIME_OVERHEAD
+        fill = total_time / real_time * 100
+        # get total system bytes/sec in this period
+        size = (bucket['size'] or 0) + SIZE_OVERHEAD * count
+        bytes_sec = size / real_time
+        row[str(mins) + 'm_count'] = count
+        row[str(mins) + 'm_fill'] = f'{fill:.02f}%'
+        row[str(mins) + 'm_avg_duration'] = total_time / count
+        row[str(mins) + 'm_avg_size'] = size / count
+        row[RECENT_SPEED_KEY] = bytes_sec
+    for func in prev_matrix:
+        old = prev_matrix.get(func, {}).get(RECENT_SPEED_KEY, 0)
+        # sometimes garbage appears in the JSON (say, if you edit it manually while working on it)
+        if not isinstance(old, (int, float)):
+            old = 0
+        new = task_matrix.get(func, {}).get(RECENT_SPEED_KEY, 0)
+        if not new:
+            task_matrix[func][RECENT_SPEED_KEY] = old
+        elif old > 0:
+            new = (old + new) / 2
+            task_matrix[func][RECENT_SPEED_KEY] = new
+
+    task_success_speed = (
+        task_queryset
+        .filter(date_finished__isnull=False, status=models.Task.STATUS_SUCCESS)
+        .values('func')
+        .annotate(size=Avg('blob_arg__size'))
+        .annotate(avg_duration=Avg(F('date_finished') - F('date_started')))
+    )
+    for bucket in task_success_speed:
+        row = task_matrix[bucket['func']]
+        row['success_avg_size'] = (bucket['size'] or 0) + SIZE_OVERHEAD
+        row['success_avg_duration'] = bucket['avg_duration'].total_seconds() + TIME_OVERHEAD
+        row['success_avg_bytes_sec'] = (row['success_avg_size']) / (row['success_avg_duration'])
+    for func in prev_matrix:
+        old = prev_matrix.get(func, {}).get('success_avg_bytes_sec', 0)
+        # sometimes garbage appears in the JSON (say, if you edit it manually while working on it)
+        if not isinstance(old, (int, float)):
+            old = 0
+        new = task_matrix.get(func, {}).get('success_avg_bytes_sec', 0)
+        if not new and old > 0:
+            task_matrix[func]['success_avg_bytes_sec'] = old
+
+    exclude_remaining = [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR]
+    task_remaining_total_bytes = (
+        task_queryset
+        .exclude(status__in=exclude_remaining)
+        .values('func')
+        .annotate(size=Sum('blob_arg__size'))
+        .annotate(count=Count('*'))
+    )
+    for bucket in task_remaining_total_bytes:
+        row = task_matrix[bucket['func']]
+        row['remaining_size'] = (bucket['size'] or 0) + bucket['count'] * SIZE_OVERHEAD
+
+        # The "success_avg_bytes_sec" is measured per single thread, so we have to scale it up to average
+        # worker count. Parallelization has diminishing returns, so we model this by setting max average
+        # worker count to 6
+        average_worker_count = min(6, (
+            (settings.WORKER_COUNT + settings.SNOOP_MIN_WORKERS + settings.SNOOP_MAX_WORKERS) / 3
+        ))
+        speed_success = row.get('success_avg_bytes_sec', 0) * average_worker_count
+        # the other one is measured over the previous few minutes; average it with this one if it exists
+        recent_speed = row.get(RECENT_SPEED_KEY, 0)
+        if recent_speed:
+            speed = (speed_success + recent_speed) / 2
+        else:
+            speed = speed_success
+        if speed:
+            remaining_time = row['remaining_size'] / speed
+            eta = remaining_time + row.get('pending', 0) * TIME_OVERHEAD / average_worker_count
+            row['eta'] = round(eta, 2)
 
     return task_matrix
 
 
-def get_stats():
+def _get_stats(old_values):
     """Runs expensive database queries to collect all stats for a collection.
 
     Fetches the Task matrix with `get_task_matrix`, then combines all the different ETA values into a single
@@ -113,7 +189,39 @@ def get_stats():
 
     Data is returned in a JSON-serializable python dict.
     """
-    task_matrix = get_task_matrix(models.Task.objects)
+
+    def tr(key, value):
+        """Render to string in user-friendly format depending on the key"""
+
+        if not value:
+            return ''
+
+        if key.endswith('_size'):
+            return pretty_size.pretty_size(value)
+        if key.endswith('_bytes_sec'):
+            return pretty_size.pretty_size(value) + '/s'
+        if key.endswith('_duration') or key.endswith('_time') or key == 'eta':
+            if isinstance(value, timedelta):
+                return pretty_size.pretty_timedelta(value)
+            else:
+                return pretty_size.pretty_timedelta(timedelta(seconds=value))
+        return value
+
+    task_matrix = get_task_matrix(models.Task.objects, old_values.get('_old_task_matrix', {}))
+    task2 = []
+    task_matrix_header = ['func']
+    for row in task_matrix.values():
+        for val in row.keys():
+            if val not in task_matrix_header:
+                task_matrix_header.append(val)
+    task_matrix_header = task_matrix_header[:1] + \
+        sorted(task_matrix_header[1:],
+               key=lambda x: len(x) + ord(x[0]) / 20 + 10 * len(list(1 for y in x if y in '1_')))
+
+    for func in task_matrix.keys():
+        row = [func] + [tr(key, task_matrix[func].get(key, None)) for key in task_matrix_header[1:]]
+        task2.append(row)
+
     blobs = models.Blob.objects
 
     [[db_size]] = raw_sql("select pg_database_size(current_database())")
@@ -131,9 +239,8 @@ def get_stats():
 
     def get_progress_str():
         task_states = defaultdict(int)
-        zero = timedelta(seconds=0)
-        eta = sum((row.get('eta', zero) for row in task_matrix.values()), start=zero) * 2
-        eta_str = ', ETA: ' + str(eta) if eta.total_seconds() > 1 else ''
+        eta = sum((row.get('eta', 0) for row in task_matrix.values()), start=0) * 2
+        eta_str = ', ETA: ' + tr('eta', eta) if eta > 1 else ''
         for row in task_matrix.values():
             for state in row:
                 if state in models.Task.ALL_STATUS_CODES:
@@ -146,13 +253,14 @@ def get_stats():
         count_all = sum(task_states.values())
         if count_all == 0:
             return 'empty'
-        error_str = ', %0.2f%% errors' % (
-            100.0 * count_error / count_all,) if count_error > 0 else ''
-        return '%0.0f%% processed%s%s' % (
-            trunc(100.0 * count_finished / count_all), error_str, eta_str)
+        error_percent = round(100.0 * count_error / count_all, 2)
+        finished_percent = round(100.0 * count_finished / count_all, 2)
+        error_str = ', %0.2f%% errors' % error_percent if count_error > 0 else ''
+        return '%0.1f%% processed%s%s' % (finished_percent, error_str, eta_str)
 
     return {
-        'task_matrix': sorted(task_matrix.items()),
+        'task_matrix_header': task_matrix_header,
+        'task_matrix': sorted(task2),
         'progress_str': get_progress_str(),
         'counts': {
             'files': models.File.objects.count(),
@@ -162,7 +270,21 @@ def get_stats():
         },
         'db_size': db_size,
         'error_counts': list(get_error_counts()),
+        '_last_updated': time.time(),
+        '_old_task_matrix': {k: tr(k, v) for k, v in task_matrix.items()},
     }
+
+
+def get_stats():
+    """This function runs (and caches) expensive collection statistics."""
+
+    REFRESH_AFTER_SEC = 10
+    s, _ = models.Statistics.objects.get_or_create(key='stats')
+    old_value = s.value
+    if not old_value or time.time() - old_value.get('_last_updated', 0) > REFRESH_AFTER_SEC:
+        s.value = _get_stats(old_value)
+    s.save()
+    return s.value
 
 
 class MultiDBModelAdmin(admin.ModelAdmin):
@@ -533,8 +655,9 @@ class CollectionAdminSite(SnoopAdminSite):
 
         with self.collection.set_current():
             context = dict(self.each_context(request))
-            stats, _ = models.Statistics.objects.get_or_create(key='stats')
-            context.update(stats.value)
+            # stats, _ = models.Statistics.objects.get_or_create(key='stats')
+            context.update(get_stats())
+            print(context)
             return render(request, 'snoop/admin_stats.html', context)
 
 

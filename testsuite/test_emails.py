@@ -66,7 +66,7 @@ def parse_email(path, taskmanager):
     filesystem.handle_file(file.pk)
     digests.launch(file.blob)
     taskmanager.run()
-    return digests.get_document_data(file.blob.digest)
+    return digests.get_document_data(file.blob.pk)
 
 
 def test_subject_and_date(taskmanager):

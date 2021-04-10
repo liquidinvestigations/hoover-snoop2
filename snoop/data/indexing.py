@@ -25,6 +25,16 @@ ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
 PUBLIC_TAGS_FIELD_NAME = 'tags'
 PRIVATE_TAGS_FIELD_NAME_PREFIX = 'priv-tags.'
 
+MAX_TEXT_FIELD_SIZE = 150 * 2 ** 20  # 150 MB, or about 33.3 Bibles
+"""Max length of string to pass as `text` and `ocrtext.*` fields into Elasticsearch.
+
+These are loaded into memory all at once, so this puts a limit on that size.
+
+Elasticsearch default limit for this is 100M, but we're configuring a limit of 1800MB. Still, anything
+longer than 100-200MB takes a very long time to search and highlight using the default highlighter and
+analyzer.
+"""
+
 MAPPINGS = {
     "doc": {
         "properties": {

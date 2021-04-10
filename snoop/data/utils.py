@@ -24,13 +24,17 @@ def run_once(func):
     return wrapper
 
 
-def read_exactly(f, size):
+def read_exactly(f, size, text_mode=False):
     """Makes repeated `f.read` calls until the buffer is of the specified size (or the file is empty).
 
     This is needed because `read()` will happily return less than the provided size, but we want fixed size
     chunks.
     """
-    buffer = b''
+
+    if text_mode:
+        buffer = ''
+    else:
+        buffer = b''
     while len(buffer) < size:
         chunk = f.read(size - len(buffer))
         if not chunk:
