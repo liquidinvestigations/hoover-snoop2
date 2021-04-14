@@ -14,7 +14,7 @@ def call_thumbnails_service(data):
         """
 
     session = requests.Session()
-    url = 'http://127.0.0.1:5000/thumbnail'
+    url = 'http://host.docker.internal:5000/thumbnail'
     resp = session.put(url, data=data)
 
     if (resp.status_code != 200
@@ -31,7 +31,7 @@ def get_thumbnail(blob):
     Returns the primary key of the created thumbnail blob.
     """
 
-    with blob.open('rb') as f:
+    with blob.open() as f:
         resp = call_thumbnails_service(f)
     blob_pk = models.Blob.create_from_bytes(resp).pk
     return blob_pk
