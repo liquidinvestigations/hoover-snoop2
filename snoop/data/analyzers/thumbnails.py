@@ -9,7 +9,6 @@ from .. import models
 import requests
 from ..tasks import snoop_task, returns_json_blob
 import os
-import json
 
 
 def call_thumbnails_service(data, size):
@@ -48,8 +47,6 @@ def get_thumbnail(blob):
         with blob.open() as f:
             resp = call_thumbnails_service(f, size)
             blob_thumb = models.Blob.create_from_bytes(resp)
-        thumbnails['size'] = size
-        thumbnails['pk'] = blob_thumb.pk
+        thumbnails[size] = blob_thumb.pk
 
-    print(json.dumps(thumbnails))
-    return json.dumps(thumbnails)
+    return thumbnails

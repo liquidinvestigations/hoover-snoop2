@@ -184,15 +184,19 @@ def gather(blob, **depends_on):
 
     # get thumbnail and create new thumbnail entry in the database
     thumbnail_blobs = depends_on.get('get_thumbnail')
+    with thumbnail_blobs.open(encoding='utf8') as f:
+        thumbnail_blobs = json.load(f)
+
+    print(thumbnail_blobs)
     if thumbnail_blobs:
-        for size, thumbnail_blob in thumbnail_blobs.items():
-            if isinstance(thumbnail_blob, SnoopTaskBroken):
-                rv['broken'].append(thumbnail_blob.reason)
-                log.debug("get_thumbnail task is broken; skipping")
-            else:
+        if isinstance(thumbnail_blobs, SnoopTaskBroken):
+            rv['broken'].append(thumbnail_blobs.reason)
+            log.debug("get_thumbnail task is broken; skipping")
+        else:
+            for size, thumbnail_blob in thumbnail_blobs.items():
                 _, _ = models.Thumbnail.objects.get_or_create(
                     original=digest_obj,
-                    blob=thumbnail_blob,
+                    blob=models.Blob.objects.get(pk=thumbnail_blob),
                     size=size
                 )
 
