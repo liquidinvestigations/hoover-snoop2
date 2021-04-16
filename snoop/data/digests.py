@@ -190,7 +190,7 @@ def gather(blob, **depends_on):
                 rv['broken'].append(thumbnail_blob.reason)
                 log.debug("get_thumbnail task is broken; skipping")
             else:
-                thumbnail_obj, _ = models.Thumbnail.objects.get_or_create(
+                _, _ = models.Thumbnail.objects.get_or_create(
                     original=digest_obj,
                     blob=thumbnail_blob,
                     size=size
