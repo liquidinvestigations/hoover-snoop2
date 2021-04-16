@@ -891,14 +891,24 @@ class Statistics(models.Model):
 
 
 class Thumbnail(models.Model):
-    """Database model for storing the Thumbnail corresponding to a Digest."""
+    """Database model for storing the Thumbnail corresponding to a Digest.
+    """
+
+    class Size(models.IntegerChoices):
+        SMALL = 100
+        MEDIUM = 200
+        LARGE = 400
 
     original = models.OneToOneField(
         Digest,
         on_delete=models.CASCADE,
     )
+    """Foreign Key to the corresponding digest."""
 
     blob = models.OneToOneField(
         Blob,
         on_delete=models.CASCADE,
     )
+    """Foreign Key to the corresponding thumbnail-blob."""
+
+    size = models.IntegerField(choices=Size.choices)

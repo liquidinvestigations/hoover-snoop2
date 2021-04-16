@@ -75,8 +75,11 @@ def launch(blob):
         for lang in get_collection_langs():
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
-    if blob.mime_type == 'image/jpeg':
-        depends_on['thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
+    # launch thumbnail creation for 3 different sizes
+    SIZES = [100, 200, 400]
+    depends_on['get_thumbnail'] = {}
+    for size in SIZES:
+        depends_on['get_thumbnail'][size] = (thumbnails.get_thumbnail.laterz(blob, size))
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
@@ -87,6 +90,7 @@ def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
     """
+
     rv = {'broken': []}
     text_blob = depends_on.get('text')
     if text_blob:
@@ -181,13 +185,19 @@ def gather(blob, **depends_on):
         ),
     )
 
-    # get thumbnail
-    thumbnail_blob_pk = depends_on.get('thumbnail')
-    if thumbnail_blob_pk:
-        _, _ = models.Thumbnail.objects.update_or_create(
-            original=digest_obj.pk,
-            blob=thumbnail_blob_pk,
-        )
+    # get thumbnail and create new thumbnail entry in the database
+    thumbnail_blobs = depends_on.get('get_thumbnail')
+    if thumbnail_blobs:
+        for size, thumbnail_blob in thumbnail_blobs:
+            if isinstance(thumbnail_blob, SnoopTaskBroken):
+                rv['broken'].append(thumbnail_blob.reason)
+                log.debug("get_thumbnail task is broken; skipping")
+            else:
+                thumbnail_obj, _ = models.Thumbnail.objects.get_or_create(
+                    original=digest_obj,
+                    blob=thumbnail_blob,
+                    size=size
+                )
 
     return writer.blob
 
