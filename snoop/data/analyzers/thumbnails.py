@@ -5,6 +5,12 @@ from ..tasks import snoop_task, returns_json_blob
 import os
 import json
 
+"""Task that is calling a thumbnail generation service.
+
+Three Thumnbails in different sizes are created. The service used can be found here:
+[[https://github.com/FPurchess/preview-service]].
+"""
+
 
 def call_thumbnails_service(data, size):
     """Executes HTTP PUT request to Thumbnail service.
