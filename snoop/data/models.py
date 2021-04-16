@@ -893,16 +893,16 @@ class Thumbnail(models.Model):
         MEDIUM = 200
         LARGE = 400
 
-    original = models.OneToOneField(
+    original = models.ForeignKey(
         Digest,
         on_delete=models.CASCADE,
     )
     """Foreign Key to the corresponding digest."""
 
-    blob = models.OneToOneField(
+    blob = models.ForeignKey(
         Blob,
         on_delete=models.CASCADE,
     )
     """Foreign Key to the corresponding thumbnail-blob."""
 
-    size = models.IntegerField(choices=Size.choices)
+    size = models.IntegerField(choices=Size.choices, default=Size.MEDIUM)
