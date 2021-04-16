@@ -5,8 +5,8 @@ In some cases, the correct mime type is only discovered when the extension is pr
 ".docx" and "xlsx" and similar ".***x" Microsoft Office files are actually zips with XMLs inside - so
 impossible for `file` to differentiate from the content alone, without implementing decompression too.
 
-Last, we have our own additions to this sytem, in order to try and differentiate between some ambiguous
-casees even `find` doesn't take into account; such as the difference between a single E-mail file and a MBOX
+Last, we have our own additions to this system, in order to try and differentiate between some ambiguous
+cases even `find` doesn't take into account; such as the difference between a single E-mail file and a MBOX
 collection.
 """
 

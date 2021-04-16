@@ -19,20 +19,13 @@ from .magic import Magic
 from . import collections
 
 
-def blob_root():
-    """Returns a Path with the current collection blob dir.
-    """
-    col = collections.current()
-    return Path(settings.SNOOP_BLOB_STORAGE) / col.name
-
-
 def blob_repo_path(sha3_256):
     """Returns a Path pointing to the blob file for given hash.
 
     Args:
         sha3_256: hash used to compute the file path
     """
-    return blob_root() / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
+    return collections.current().blob_root / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
 
 
 def chunks(file, blocksize=65536):
@@ -172,10 +165,11 @@ class Blob(models.Model):
                 without the extensions present.
 
         Yields:
-            BlobWriter: Use `.write(byte_string)` on the returned object until finished. The final result
-                can be found at `.blob` on the same object, after exiting this contextmanager's context.
+            [snoop.data.models.BlobWriter][] -- Use `.write(byte_string)` on the returned object until
+            finished. The final result can be found at `.blob` on the same object, after exiting this
+            contextmanager's context.
         """
-        blob_tmp = blob_root() / 'tmp'
+        blob_tmp = collections.current().tmp_dir
         blob_tmp.mkdir(exist_ok=True, parents=True)
 
         fields = {}
@@ -308,7 +302,7 @@ class Directory(models.Model):
     """Database model for a file directory.
 
     Along with [File][snoop.data.models.File], this comprises the file tree structure analyzed by Hoover. A
-    Directory can be found in two places: in anoter Directory, or as the only child of some archive or
+    Directory can be found in two places: in another Directory, or as the only child of some archive or
     archive-like file.
     """
 
@@ -398,7 +392,7 @@ class File(models.Model):
     """
 
     name_bytes = models.BinaryField(max_length=1024, blank=True)
-    """Name of directory on disk, as bytes.
+    """Name of file on disk, as bytes.
 
     We store this as bytes and not as strings because we have to support a multitude of original filesystems
     and encodings that create mutually invalid results.
@@ -516,7 +510,7 @@ class Task(models.Model):
     Supplied as argument in the decorator [snoop.data.tasks.snoop_task][].
 
     See [snoop.data.tasks][] for general definition and [snoop.data.filesystem][],
-    [snoop.data.analyzers/__init__][] and [snoop.data.digests][] for actual Task implementations.
+    [snoop.data.analyzers.__init__][] and [snoop.data.digests][] for actual Task implementations.
     """
 
     blob_arg = models.ForeignKey(Blob, null=True, blank=True,
@@ -662,7 +656,7 @@ class TaskDependency(models.Model):
         on_delete=models.CASCADE,
         related_name='prev_set',
     )
-    """ the task taht depends on `prev`"""
+    """ the task that depends on `prev`"""
 
     name = models.CharField(max_length=1024)
     """ a string used to identify the kwarg name of this dependency"""

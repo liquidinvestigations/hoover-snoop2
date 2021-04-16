@@ -1,6 +1,6 @@
 """Elasticsearch index data mapping, settings, management and import/export.
 
-We mentain an append-only document mapping with a number of wildcard fields. One wildcard field mapping
+We maintain an append-only document mapping with a number of wildcard fields. One wildcard field mapping
 example is the private tags field - a different field for every user.
 """
 
@@ -187,7 +187,7 @@ def update_mapping():
 
 
 def all_indices():
-    """Return a list with all Elasticsearch indexes created for collectoins."""
+    """Return a list with all Elasticsearch indexes created for collections."""
 
     indices = requests.get(f'{ES_URL}/_cat/indices?format=json').json()
     return [a['index'] for a in indices if not a['index'].startswith('.monitoring')]

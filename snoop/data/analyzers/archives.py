@@ -2,13 +2,13 @@
 """
 
 import subprocess
-import tempfile
 from pathlib import Path
 from hashlib import sha1
 import re
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
-
+from .. import collections
+import os
 
 SEVENZIP_MIME_TYPES = {
     'application/x-7z-compressed',
@@ -50,7 +50,8 @@ def is_archive(mime_type):
 
 def call_readpst(pst_path, output_dir):
     """Helper function that calls a `readpst` process."""
-
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
     try:
         subprocess.check_output([
             'readpst',
@@ -173,7 +174,7 @@ def unarchive(blob):
     Runs on archives, email archives and any other file types that can contain another file (such as
     documents that embed images).
     """
-    with tempfile.TemporaryDirectory() as temp_dir:
+    with collections.current().tmp_dir / str(blob) as temp_dir:
         if blob.mime_type in SEVENZIP_MIME_TYPES:
             call_7z(blob.path(), temp_dir)
         elif blob.mime_type in READPST_MIME_TYPES:
@@ -183,10 +184,8 @@ def unarchive(blob):
         elif blob.mime_type in PDF_MIME_TYPES:
             unpack_pdf(blob.path(), temp_dir)
 
-        listing = sorted(
-            list(archive_walk(Path(temp_dir))),
-            key=lambda c: c['name'],
-        )
+        listing = list(archive_walk(Path(temp_dir)))
+        create_blobs(listing)
 
     check_recursion(listing, blob.pk)
 
@@ -196,20 +195,28 @@ def unarchive(blob):
 def archive_walk(path):
     """Generates simple dicts with archive listing for the archive. """
 
-    for thing in path.iterdir():
-        if thing.is_dir():
+    for entry in os.scandir(path):
+        if entry.is_dir(follow_symlinks=False):
             yield {
                 'type': 'directory',
-                'name': thing.name,
-                'children': sorted(
-                    list(archive_walk(thing)),
-                    key=lambda c: c['name'],
-                ),
+                'name': entry.name,
+                'children': list(archive_walk(entry.path)),
             }
-
         else:
             yield {
                 'type': 'file',
-                'name': thing.name,
-                'blob_pk': models.Blob.create_from_file(thing).pk,
+                'name': entry.name,
+                'path': entry.path
             }
+
+
+def create_blobs(dirlisting):
+    """Create blobs for files in archive listing created by [snoop.data.analyzers.archive_walk."""
+
+    for entry in dirlisting:
+        if entry['type'] == 'file':
+            path = Path(entry['path'])
+            entry['blob_pk'] = models.Blob.create_from_file(path).pk
+            del entry['path']
+        else:
+            create_blobs(entry['children'])

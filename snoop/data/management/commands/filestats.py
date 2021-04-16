@@ -116,7 +116,7 @@ def get_description(col, mime_type):
 
 
 class Command(BaseCommand):
-    """Print the statistics for mimetypes or file-extendsion"""
+    """Print the statistics for mime types or file extendsions."""
     help = "Display filetype stats."
 
     def add_arguments(self, parser):
