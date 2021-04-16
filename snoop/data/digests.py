@@ -75,11 +75,8 @@ def launch(blob):
         for lang in get_collection_langs():
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
-    # launch thumbnail creation for 3 different sizes
-    SIZES = [100, 200, 400]
-    depends_on['get_thumbnail'] = {}
-    for size in SIZES:
-        depends_on['get_thumbnail'][size] = (thumbnails.get_thumbnail.laterz(blob, size))
+    # launch thumbnail creation
+    depends_on['get_thumbnail'] = (thumbnails.get_thumbnail.laterz(blob))
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
@@ -188,7 +185,7 @@ def gather(blob, **depends_on):
     # get thumbnail and create new thumbnail entry in the database
     thumbnail_blobs = depends_on.get('get_thumbnail')
     if thumbnail_blobs:
-        for size, thumbnail_blob in thumbnail_blobs:
+        for size, thumbnail_blob in thumbnail_blobs.items():
             if isinstance(thumbnail_blob, SnoopTaskBroken):
                 rv['broken'].append(thumbnail_blob.reason)
                 log.debug("get_thumbnail task is broken; skipping")
