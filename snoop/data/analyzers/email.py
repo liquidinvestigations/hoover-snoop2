@@ -173,7 +173,7 @@ def dump_part(message, depends_on):
     return rv
 
 
-@snoop_task('email.parse', priority=3)
+@snoop_task('email.parse', priority=3, version=1)
 @returns_json_blob
 def parse(blob, **depends_on):
     """Task function to parse emails into a dict with its structure."""

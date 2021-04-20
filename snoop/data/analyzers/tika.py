@@ -20,6 +20,11 @@ from snoop import tracing
 from ._tika_mime_types import TIKA_MIME_TYPES
 
 TIKA_EXPECT_FAIL_ABOVE_FILE_SIZE = 50 * 2 ** 20
+"""Turn unexpected failures into permanent ones for arguments above this size.
+
+Tika may run out of memory or otherwise fail on very large files, causing the wrong type of error.
+"""
+
 
 TIKA_MIME_TYPES_ORIG = {
     'text/plain',

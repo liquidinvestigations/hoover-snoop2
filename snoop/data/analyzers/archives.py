@@ -166,7 +166,7 @@ def check_recursion(listing, blob_pk):
             check_recursion(item['children'], blob_pk)
 
 
-@snoop_task('archives.unarchive', priority=2)
+@snoop_task('archives.unarchive', priority=2, version=1)
 @returns_json_blob
 def unarchive(blob):
     """Task to extract from an archive (or archive-looking) file its children.

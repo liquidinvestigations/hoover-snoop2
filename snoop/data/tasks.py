@@ -18,7 +18,6 @@ de-duplication), and other K8s-oriented container-native solutions were not inve
 thumb, if it can't run 1000-5000 idle (no-op) Tasks per minute per CPU, it's too slow for our use.
 """
 
-import random
 from contextlib import contextmanager
 from io import StringIO
 import json
@@ -136,6 +135,7 @@ def queue_next_tasks(task, reset=False):
                     error='',
                     broken_reason='',
                     log='',
+                    version=task_map[task.func].version,
                 )
                 next_task.save()
             logger.info("Queueing %r after %r", next_task, task)
@@ -155,13 +155,14 @@ def import_snoop_tasks():
 
 
 def is_completed(task):
-    """Returns True if Task is in the "success" or "broken" states.
+    """Returns True if Task is in the "success" or "broken" states, and if the task is at the latest
+    version.
 
     Args:
         task: will check `task.status` for values listed above
     """
     COMPLETED = [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN]
-    return task.status in COMPLETED
+    return task.status in COMPLETED and task.version == task_map[task.func].version
 
 
 @contextmanager
@@ -252,6 +253,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     error='',
                     broken_reason='dependency_has_error',
                     log=log_handler.stream.getvalue(),
+                    version=task_map[task.func].version,
                 )
                 task.save()
                 queue_next_tasks(task, reset=True)
@@ -265,6 +267,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                         error='',
                         broken_reason='',
                         log=log_handler.stream.getvalue(),
+                        version=task_map[task.func].version,
                     )
                     task.save()
                     logger.info("%r missing dependency %r", task, prev_task)
@@ -315,6 +318,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                         error='',
                         broken_reason='',
                         log=log_handler.stream.getvalue(),
+                        version=task_map[task.func].version,
                     )
                     task.prev_set.get_or_create(
                         prev=dep.task,
@@ -336,6 +340,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                         error='',
                         broken_reason='',
                         log=log_handler.stream.getvalue(),
+                        version=task_map[task.func].version,
                     )
                     queue_task(task)
 
@@ -345,6 +350,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     error="{}: {}".format(e.reason, e.args[0]),
                     broken_reason=e.reason,
                     log=log_handler.stream.getvalue(),
+                    version=task_map[task.func].version,
                 )
                 msg = '%r broken: %s [%.03f s]' % (task, task.broken_reason, time() - t0)
                 logger.exception(msg)
@@ -358,6 +364,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     error=repr(e),
                     broken_reason='',
                     log=log_handler.stream.getvalue(),
+                    version=task_map[task.func].version,
                 )
 
             except Exception as e:
@@ -370,6 +377,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     error=error,
                     broken_reason='',
                     log=log_handler.stream.getvalue(),
+                    version=task_map[task.func].version,
                 )
 
                 msg = '%r failed: %s [%.03f s]' % (task, task.error, time() - t0)
@@ -385,6 +393,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     error='',
                     broken_reason='',
                     log=log_handler.stream.getvalue(),
+                    version=task_map[task.func].version,
                 )
 
             finally:
@@ -396,7 +405,7 @@ def run_task(task, log_handler, raise_exceptions=False):
         queue_next_tasks(task, reset=True)
 
 
-def snoop_task(name, priority=5):
+def snoop_task(name, priority=5, version=0):
     """Decorator marking a snoop Task function.
 
     Args:
@@ -404,13 +413,13 @@ def snoop_task(name, priority=5):
             to Python module or function name (but recommended)
         priority: int in range [1,9] inclusive, higher is more urgent.
             Passed to celery when queueing.
+        version: int, default zero. Statically incremented by programmer when Task code/behavior changes and
+            Tasks need to be retried.
     """
 
     def decorator(func):
         def laterz(*args, depends_on={}, retry=False, queue_now=True, delete_extra_deps=False):
             """Actual function doing dependency checking and queueing.
-
-
 
             Args:
                 args: positional function arguments
@@ -485,13 +494,14 @@ def snoop_task(name, priority=5):
         func.laterz = laterz
         func.delete = delete
         func.priority = priority
+        func.version = version
         task_map[name] = func
         return func
 
     return decorator
 
 
-def dispatch_tasks(status):
+def dispatch_tasks(status=None, outdated=None):
     """Dispatches (queues) a limited number of Task instances of each type.
 
     Requires a collection to be selected.
@@ -509,22 +519,39 @@ def dispatch_tasks(status):
         bool: True if any tasks have been queued, False if none matching status have been found in current
         collection.
     """
-    all_functions = [x['func'] for x in models.Task.objects.values('func').distinct()]
-    random.shuffle(all_functions)
-    found_something = False
 
+    all_functions = [x['func'] for x in models.Task.objects.values('func').distinct()]
+    if status:
+        # sort by priority descending, so the queue doesn't have to re-sort elements
+        all_functions = sorted(
+            all_functions,
+            key=lambda x: -task_map[x].priority,
+        )
+    elif outdated:
+        # sort by priority ascending, so we run the dependencies first
+        all_functions = sorted(
+            all_functions,
+            key=lambda x: task_map[x].priority,
+        )
+    else:
+        raise RuntimeError('Must provide arguments: either "status" or "outdated".')
+
+    found_something = False
     for func in all_functions:
-        task_query = (
-            models.Task.objects
-            .filter(status=status, func=func)
-            .order_by('-date_modified')  # newest pending tasks first
-        )[:settings.DISPATCH_QUEUE_LIMIT]
+        task_query = models.Task.objects.filter(func=func)
+        if status:
+            task_query = task_query.filter(status=status)
+            item_str = status
+        if outdated:
+            task_query = task_query.filter(version__lt=task_map[func].version)
+            item_str = 'OUTDATED (version {task_map[func].version})'
+        task_query = task_query.order_by('-date_modified')  # newest pending tasks first
+        task_query = task_query[:settings.DISPATCH_QUEUE_LIMIT]
 
         task_count = task_query.count()
         if not task_count:
-            logger.info(f'collection "{collections.current().name}": No {status} {func} tasks to dispatch')  # noqa: E501
             continue
-        logger.info(f'collection "{collections.current().name}": Dispatching {task_count} {status} {func} tasks')  # noqa: E501
+        logger.info(f'collection "{collections.current().name}": Dispatching {task_count} {item_str} {func} tasks')  # noqa: E501
 
         for task in task_query.iterator():
             queue_task(task)
@@ -540,6 +567,7 @@ def retry_task(task, fg=False):
         error='',
         broken_reason='',
         log='',
+        version=task_map[task.func].version,
     )
     logger.info("Retrying %r", task)
     task.save()
@@ -754,12 +782,12 @@ def run_dispatcher():
     everything in memory, thus becoming very slow).
     """
 
+    import_snoop_tasks()
     if not single_task_running('run_dispatcher'):
         logger.warning('run_dispatcher function already running, exiting')
         return
 
-    collection_list = list(collections.ALL.values())
-    random.shuffle(collection_list)
+    collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
     for collection in collection_list:
         logger.info(f'{"=" * 10} collection "{collection.name}" {"=" * 10}')
         try:
@@ -785,8 +813,7 @@ def update_all_tags():
         logger.warning('run_all_tags function already running, exiting')
         return
 
-    collection_list = list(collections.ALL.values())
-    random.shuffle(collection_list)
+    collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
 
     for collection in collection_list:
         with collection.set_current():
@@ -820,11 +847,11 @@ def dispatch_for(collection):
     from .ocr import dispatch_ocr_tasks
 
     with collection.set_current():
-        if dispatch_tasks(models.Task.STATUS_PENDING):
+        if dispatch_tasks(status=models.Task.STATUS_PENDING):
             logger.info('%r found PENDING tasks, exiting...', collection)
             return True
 
-        if dispatch_tasks(models.Task.STATUS_DEFERRED):
+        if dispatch_tasks(status=models.Task.STATUS_DEFERRED):
             logger.info('%r found DEFERRED tasks, exiting...', collection)
             return True
 
@@ -834,6 +861,11 @@ def dispatch_for(collection):
         count_after = models.Task.objects.count()
         if count_before != count_after:
             logger.info('%r initial dispatch added new tasks, exiting...', collection)
+            return True
+
+        # retry outdated tasks
+        if dispatch_tasks(outdated=True):
+            logger.info('%r found outdated tasks, exiting...', collection)
             return True
 
         if collection.sync:
@@ -847,11 +879,12 @@ def dispatch_for(collection):
                 .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT]
             )
 
-        # retry old errors, don't exit before running sync too
-        error_date = timezone.now() - timedelta(days=settings.TASK_RETRY_AFTER_DAYS)
+        # retry errors
+        error_date = timezone.now() - timedelta(minutes=settings.TASK_RETRY_AFTER_MINUTES)
         old_error_qs = (
             models.Task.objects
             .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
+            .filter(fail_count__lt=settings.TASK_RETRY_FAIL_LIMIT)
             .filter(date_modified__lt=error_date)
             .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT]
         )

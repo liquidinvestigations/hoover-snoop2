@@ -99,8 +99,7 @@ def can_read_text(blob):
         "application/tab-separated-values",
     }
     return blob.mime_type.startswith('text') or \
-        blob.mime_type in EXTRA_TEXT_MIME_TYPES or \
-        blob.mime_encoding != 'binary'
+        (blob.mime_type in EXTRA_TEXT_MIME_TYPES and blob.mime_encoding != 'binary')
 
 
 def read_text(blob):
@@ -116,8 +115,9 @@ def read_text(blob):
         with blob.open() as f:
             first_4k = read_exactly(f, 4 * 2 ** 10)
         detect_result = chardet.detect(first_4k)
-        if detect_result.get('confidence', 0) < 0.9:
-            log.warning('low confidence when guessing character encoding')
+        confidence = detect_result.get('confidence', 0)
+        if confidence < 0.8:
+            log.warning(f'low confidence when guessing character encoding: {confidence}')
             return
         else:
             encoding = detect_result.get('encoding') or 'latin1'
@@ -141,7 +141,7 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', priority=7)
+@snoop_task('digests.gather', priority=7, version=3)
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.

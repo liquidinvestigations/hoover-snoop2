@@ -113,7 +113,7 @@ class Blob(models.Model):
     md5 = models.CharField(max_length=32, db_index=True)
     """hash of content"""
 
-    size = models.BigIntegerField()
+    size = models.BigIntegerField(db_index=True)
     """size of content, bytes."""
 
     magic = models.CharField(max_length=4096)
@@ -414,7 +414,7 @@ class File(models.Model):
     """Taken from stat() or other sources.
     """
 
-    size = models.BigIntegerField()
+    size = models.BigIntegerField(db_index=True)
     """Size, taken from stat(), in bytes.
     """
 
@@ -549,11 +549,16 @@ class Task(models.Model):
     Used in logic for retrying old errors and re-running sync tasks.
     """
 
-    worker = models.CharField(max_length=4096, blank=True)
-    """Identifier of the worker that finished this task.
+    version = models.IntegerField(default=0)
+    """The version of the function that ran this task.
 
-    TODO:
-        Not used. Remove, reuse/rename or deprecate.
+    Used to re-process data when the code (version number) is changed.
+    """
+
+    fail_count = models.IntegerField(default=0)
+    """The number of times this function has failed in a row.
+
+    Used to stop retrying tasks that will never make it.
     """
 
     status = models.CharField(max_length=16, default=STATUS_PENDING)
@@ -585,15 +590,31 @@ class Task(models.Model):
         unique_together = ('func', 'args')
         indexes = [
             models.Index(fields=['status']),
+
             # stats for last minute
             models.Index(fields=['date_finished']),
+
+            # for main dispatch loop
             models.Index(fields=['func', 'status']),
+
             # for dispatching in reverse order
             models.Index(fields=['status', 'date_modified']),
+
             # for retrying all walks, in order
             models.Index(fields=['func', 'date_modified']),
+
             # for task admin and browsing errors
             models.Index(fields=['broken_reason']),
+
+            # for the 5M task matrix in statistics
+            models.Index(fields=['func', 'date_started', 'date_finished']),
+
+            # for selecting outdated tasks
+            models.Index(fields=['func', 'version']),
+
+            # for selecting errors to retry
+            models.Index(fields=['status', 'fail_count']),
+
         ]
 
     def __str__(self):
@@ -607,7 +628,7 @@ class Task(models.Model):
 
     __repr__ = __str__
 
-    def update(self, status, error, broken_reason, log):
+    def update(self, status, error, broken_reason, log, version):
         """Helper method to update multiple fields at once, without saving.
 
         This method also truncates our Text fields to decent limits, so it's
@@ -618,6 +639,7 @@ class Task(models.Model):
             error: field to set
             broken_reason: field to set
             log: field to set
+            version: field to set
         """
         def _escape(s):
             """Escapes non-printable characters as \\XXX.
@@ -636,10 +658,20 @@ class Task(models.Model):
                 return f'\\{ord(x)}'
             return "".join(map(_translate, s))
 
+        old_version = self.version
         self.status = status
+        self.version = version
+
         self.error = _escape(error)[:2**13]  # 8k of error screen
         self.broken_reason = _escape(broken_reason)[:2**12]  # 4k reason
         self.log = _escape(log)[:2**14]  # 16k of log space
+
+        # Increment fail_count only if we ran the same version and still got a bad status code.
+        # Reset the fail count only when status is success, or if the version changed.
+        if self.status == self.STATUS_SUCCESS or old_version != self.version:
+            self.fail_count = 0
+        elif self.status in [self.STATUS_BROKEN, self.STATUS_ERROR]:
+            self.fail_count = self.fail_count + 1
 
 
 class TaskDependency(models.Model):

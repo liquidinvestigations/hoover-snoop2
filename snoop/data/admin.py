@@ -484,9 +484,11 @@ class TaskAdmin(MultiDBModelAdmin):
     raw_id_fields = ['blob_arg', 'result']
     readonly_fields = ['blob_arg', 'result', 'pk', 'func', 'args',
                        'date_created', 'date_started', 'date_finished', 'date_modified',
-                       'status', 'details', 'error', 'log', 'broken_reason', 'worker']
+                       'status', 'details', 'error', 'log', 'broken_reason', 'version', 'fail_count',
+                       'duration', 'size']
     list_display = ['pk', 'func', 'args', 'created', 'finished',
-                    'status', 'details', 'broken_reason']
+                    'status', 'details', 'broken_reason', 'duration',
+                    'size']
     list_filter = ['func', 'status', 'broken_reason']
     search_fields = ['pk', 'func', 'args', 'error', 'log', 'broken_reason']
     actions = ['retry_selected_tasks']
@@ -536,16 +538,30 @@ class TaskAdmin(MultiDBModelAdmin):
         return mark_safe(', '.join(dep_list))
 
     def details(self, obj):
+        pre = f'v{obj.version} '
+        if obj.fail_count:
+            pre += 'fail=' + str(obj.fail_count) + ' '
         if obj.status == models.Task.STATUS_ERROR:
-            return obj.error[:100]
-
-        return self.dependency_links(obj)
+            return pre + obj.error[:100]
+        return mark_safe(pre + self.dependency_links(obj))
 
     def retry_selected_tasks(self, request, queryset):
         """Action to retry selected tasks."""
 
         tasks.retry_tasks(queryset)
         self.message_user(request, f"requeued {queryset.count()} tasks")
+
+    def duration(self, obj):
+        if obj.date_finished:
+            return pretty_size.pretty_timedelta(obj.date_finished - obj.date_started)
+        return ''
+    duration.admin_order_field = F('date_finished') - F('date_started')
+
+    def size(self, obj):
+        if obj.blob_arg:
+            return pretty_size.pretty_size(obj.blob_arg.size)
+        return ''
+    size.admin_order_field = 'blob_arg__size'
 
 
 class TaskDependencyAdmin(MultiDBModelAdmin):
