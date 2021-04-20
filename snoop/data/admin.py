@@ -91,7 +91,8 @@ def get_task_matrix(task_queryset, prev_matrix={}):
     RECENT_SPEED_KEY = str(mins) + 'm_avg_bytes_sec'
     task_5m_query = (
         task_queryset
-        .filter(date_finished__gt=timezone.now() - timedelta(minutes=mins))[:MAX_ROW_COUNT]
+        .filter(date_finished__gt=timezone.now() - timedelta(minutes=mins),
+                status=models.Task.STATUS_SUCCESS)[:MAX_ROW_COUNT]
         .values('func')
         .annotate(count=Count('*'))
         .annotate(size=Sum('blob_arg__size'))

@@ -28,12 +28,14 @@ from functools import wraps
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
+from django.db.models import Exists, OuterRef, Q, Case, When, Value, Sum, Subquery, Count
 from django.utils import timezone
 
 from . import collections
 from . import celery
 from . import models
 from ..profiler import profile
+from .templatetags import pretty_size
 from .utils import run_once
 from requests.exceptions import ConnectionError
 from snoop import tracing
@@ -96,7 +98,6 @@ def queue_task(task):
     Args:
         task: task to be queued in Celery
     """
-    import_snoop_tasks()
 
     def send_to_celery():
         """This does the actual queueing operation.
@@ -116,7 +117,9 @@ def queue_task(task):
         except laterz_snoop_task.OperationalError as e:
             logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
 
-    transaction.on_commit(send_to_celery)
+    import_snoop_tasks()
+    if not task_map[task.func].bulk:
+        transaction.on_commit(send_to_celery)
 
 
 def queue_next_tasks(task, reset=False):
@@ -360,7 +363,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 tracing.add_annotation(repr(e))
                 logger.exception(repr(e))
                 task.update(
-                    status=models.Task.STATUS_DEFERRED,
+                    status=models.Task.STATUS_PENDING,
                     error=repr(e),
                     broken_reason='',
                     log=log_handler.stream.getvalue(),
@@ -405,7 +408,7 @@ def run_task(task, log_handler, raise_exceptions=False):
         queue_next_tasks(task, reset=True)
 
 
-def snoop_task(name, priority=5, version=0):
+def snoop_task(name, priority=5, version=0, bulk=False):
     """Decorator marking a snoop Task function.
 
     Args:
@@ -415,6 +418,10 @@ def snoop_task(name, priority=5, version=0):
             Passed to celery when queueing.
         version: int, default zero. Statically incremented by programmer when Task code/behavior changes and
             Tasks need to be retried.
+        bulk: If set to True, completely deactivates queue_task on this function.
+            This task will instead be scheduled periodically in batches. The function decorated with this
+            flag will receive a single argument: a list of Task objects containing the individual
+            tasks that need to be run.
     """
 
     def decorator(func):
@@ -464,9 +471,10 @@ def snoop_task(name, priority=5, version=0):
                     retry_task(task)
                 return task
 
-            if queue_now or ALWAYS_QUEUE_NOW:
-                queue_task(task)
-            return task
+            if not bulk:
+                if queue_now or ALWAYS_QUEUE_NOW:
+                    queue_task(task)
+                return task
 
         def delete(*args):
             """Delete the Task instance with given positional arguments.
@@ -495,6 +503,7 @@ def snoop_task(name, priority=5, version=0):
         func.delete = delete
         func.priority = priority
         func.version = version
+        func.bulk = bulk
         task_map[name] = func
         return func
 
@@ -504,7 +513,7 @@ def snoop_task(name, priority=5, version=0):
 def dispatch_tasks(status=None, outdated=None):
     """Dispatches (queues) a limited number of Task instances of each type.
 
-    Requires a collection to be selected.
+    Requires a collection to be selected. Does not dispatch tasks registered with `bulk = True`.
 
     Queues one batch of `settings.DISPATCH_QUEUE_LIMIT` Tasks for every function type. The function types
     are shuffled before queuing, in an attempt to equalize the processing cycles for different collections
@@ -520,7 +529,11 @@ def dispatch_tasks(status=None, outdated=None):
         collection.
     """
 
-    all_functions = [x['func'] for x in models.Task.objects.values('func').distinct()]
+    all_functions = [
+        x['func']
+        for x in models.Task.objects.values('func').distinct()
+        if not task_map[x['func']].bulk
+    ]
     if status:
         # sort by priority descending, so the queue doesn't have to re-sort elements
         all_functions = sorted(
@@ -893,3 +906,182 @@ def dispatch_for(collection):
             retry_tasks(old_error_qs)
 
     logger.info(f'dispatch for collection "{collection.name}" done\n')
+
+
+def run_single_batch_for_bulk_task():
+    """Directly runs a single batch for each bulk task type.
+
+    Requires a collection to be selected. Does not dispatch tasks registered with `bulk = False`.
+
+    Returns:
+        int: the number of Tasks completed successfully
+    """
+
+    # max number of tasks to pull. We estimate 5K / task in the database, so this means about 25 MB
+    MAX_BULK_TASK_COUNT = 5000
+    # stop adding Tasks to bulk when current size is larger than this 40 MB
+    MAX_BULK_SIZE = 40 * 2 ** 20
+
+    all_functions = [
+        x['func']
+        for x in models.Task.objects.values('func').distinct()
+        if task_map[x['func']].bulk
+    ]
+    version_whens = [When(prev__func=k, then=task_map[k].version) for k in task_map]
+    version_case = Case(*version_whens, default=Value(0))
+
+    total_completed = 0
+    for func in all_functions:
+        t0 = timezone.now()
+
+        task_query = (
+            models.Task.objects
+            .filter(func=func)
+            # don't do anything to successful, up to date tasks
+            .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
+            # filter out any taks with non-completed dependencies
+            .filter(
+                ~Exists(
+                    models.TaskDependency.objects.filter(
+                        Q(next=OuterRef('pk'))
+                        & (
+                            ~Q(prev__version=version_case)
+                            | ~Q(prev__status__in=[models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN])
+                        ),
+                    )
+                )
+            )
+            # annotate task size (sum of results of dependencies, not blob_arg size)
+            .annotate(size=Sum(
+                models.TaskDependency.objects
+                .filter(next=OuterRef('pk'))
+                .values('prev__result__size')
+            ))
+
+            # Annotate important parameters. Since our only batch task is digests.index(),
+            # we only need to annotate the following:
+            # - digests_gather result
+            .annotate(digest_gather_result=Subquery(
+                models.TaskDependency.objects
+                .filter(next=OuterRef('pk'), name='digests_gather')
+                .values('prev__result__pk')[:1]
+            ))
+            # - digests_gather status (between success and broken)
+            .annotate(digest_gather_status=Subquery(
+                models.TaskDependency.objects
+                .filter(next=OuterRef('pk'), name='digests_gather')
+                .values('prev__status')[:1]
+            ))
+            # - digest ID, for fetching tags
+            .annotate(digest_id=Subquery(
+                models.Digest.objects
+                .filter(blob=OuterRef('blob_arg'))
+                .values('pk')[:1]
+            ))
+            # - and the number of tags. We use these to avoid making a query to fetch them
+            .annotate(tags_count=Count(
+                models.DocumentUserTag.objects
+                .filter(digest=OuterRef('digest_id'))
+                .values('pk')
+            ))
+
+            # oldest pending tasks first, since we reset them
+            .order_by('date_modified')
+        )
+
+        task_list = []
+        current_size = 0
+        for task in task_query[:MAX_BULK_TASK_COUNT]:
+            task_list.append(task)
+            current_size += task.size
+            if current_size > MAX_BULK_SIZE:
+                break
+
+        if not task_list:
+            continue
+
+        # set data on rows before running function
+        for task in task_list:
+            task.status = models.Task.STATUS_PENDING
+            task.date_finished = None
+            task.date_started = timezone.now()
+            task.date_modified = timezone.now()
+            task.log = ''
+            task.broken_reason = ''
+            task.version = task_map[func].version
+            task.fail_count = 0
+            task.error = ''
+        models.Task.objects.bulk_update(task_list, [
+            "status",
+            "date_finished",
+            "date_started",
+            "date_modified",
+            "log",
+            "broken_reason",
+            "version",
+            "fail_count",
+            "error",
+        ])
+        logger.info(f"Pre-run save on Task objects took {(timezone.now() - t0).total_seconds():0.2f}s")
+
+        # Run the bulk task. If it failed, mark all the items inside as failed. Otherwise, mark them as
+        # succeeded.
+        try:
+            result = task_map[func](task_list)
+        except Exception as e:
+            logger.exception(e)
+            error = str(e)[:2000]
+            status = models.Task.STATUS_ERROR
+        else:
+            status = models.Task.STATUS_SUCCESS
+            error = ''
+            logger.info(f"Successfully ran bulk of {len(task_list)} tasks, "
+                        f"type {func}, size {pretty_size.pretty_size(current_size)}")
+
+        t_elapsed = (timezone.now() - t0).total_seconds()
+
+        # save results
+        for task in task_list:
+            task.status = status if result.get(task.blob_arg.pk) else models.Task.STATUS_BROKEN
+            task.date_finished = timezone.now()
+            # adjust date started so duration is scaled for task size
+            relative_duration = t_elapsed * task.size / current_size
+            task.date_started = task.date_finished - timedelta(seconds=relative_duration)
+            task.date_modified = timezone.now()
+            task.error = error
+
+        models.Task.objects.bulk_update(task_list, [
+            "status",
+            "date_finished",
+            "date_started",
+            "date_modified",
+            "error",
+        ])
+
+        if status == models.Task.STATUS_SUCCESS:
+            total_completed += len(task_list)
+
+    return total_completed
+
+
+@celery.app.task
+def run_bulk_tasks():
+    """Periodic task that runs some batches of bulk tasks for all collections."""
+
+    # Stop processing each collection after this many batches and/or seconds
+    BATCHES_IN_A_ROW = 20
+    SECONDS_IN_A_ROW = 500
+
+    import_snoop_tasks()
+    for collection in collections.ALL.values():
+        with collection.set_current():
+            logger.info(f"Running bulk tasks for collection {collection.name}")
+            t0 = timezone.now()
+            for _ in range(BATCHES_IN_A_ROW):
+                # stop at first sign of failure
+                count = run_single_batch_for_bulk_task()
+                if not count:
+                    break
+                if (timezone.now() - t0).total_seconds() > SECONDS_IN_A_ROW:
+                    logger.info("Stopping batches because of timeout")
+                    break

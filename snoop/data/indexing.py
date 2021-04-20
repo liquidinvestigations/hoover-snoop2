@@ -137,6 +137,29 @@ def index(id, data):
     check_response(resp)
 
 
+def bulk_index(items):
+    """Index many documents provided as (id, body)."""
+
+    def generate_data(items):
+        for _id, body in items:
+            action = {
+                "index": {
+                    "_id": _id,
+                }
+            }
+            yield (json.dumps(action) + '\n').encode()
+            yield (json.dumps(body) + '\n').encode()
+
+    es_index = collections.current().es_index
+    r = requests.post(
+        f'{ES_URL}/{es_index}/{DOCUMENT_TYPE}/_bulk',
+        data=generate_data(items),
+        headers={'Content-Type': 'application/x-ndjson'},
+    )
+    check_response(r)
+    return r.json()
+
+
 def delete_doc(id):
     """Deletes a single document from the current collection by its id."""
     es_index = collections.current().es_index

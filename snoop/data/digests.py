@@ -261,20 +261,20 @@ def gather(blob, **depends_on):
     return writer.blob
 
 
-def _get_tags(digest):
+def _get_tags(digest_id):
     """Helper method to get the document's tags with the correct Elasticsearch field names."""
 
-    if not digest:
+    if not digest_id:
         return {}
 
     # add public tags
-    q1 = digest.documentusertag_set.filter(public=True)
+    q1 = models.DocumentUserTag.objects.filter(digest=digest_id, public=True)
     q1 = q1.values("tag").distinct()
     public_list = list(i['tag'] for i in q1.iterator())
     ret = {indexing.PUBLIC_TAGS_FIELD_NAME: public_list} if public_list else {}
 
     # add private tags
-    q2 = digest.documentusertag_set.filter(public=False)
+    q2 = models.DocumentUserTag.objects.filter(digest=digest_id, public=False)
     q2_users = q2.values("user").distinct()
     for u in q2_users.iterator():
         user = u['user']
@@ -286,20 +286,21 @@ def _get_tags(digest):
     return ret
 
 
-def _set_tags_timestamps(digest, body):
+def _set_tags_timestamps(digest_id, body):
     """Sets 'date-indexed' on all tagas from the body.
 
     If other tags have been added since digests.index() ran _get_tags() above,
     they shouldn't be in the indexed body and shouldn't be picked up by this function.
     """
 
-    if not digest:
+    if not digest_id:
         return
 
     now = timezone.now()
 
     if indexing.PUBLIC_TAGS_FIELD_NAME in body.keys():
-        q = digest.documentusertag_set.filter(
+        q = models.DocumentUserTag.objects.filter(
+            digest=digest_id,
             public=True,
             tag__in=body[indexing.PUBLIC_TAGS_FIELD_NAME],
             date_indexed__isnull=True,
@@ -310,7 +311,8 @@ def _set_tags_timestamps(digest, body):
         if key.startswith(indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX):
             uuid = key[len(indexing.PRIVATE_TAGS_FIELD_NAME_PREFIX):]
             assert uuid != 'invalid'
-            q = digest.documentusertag_set.filter(
+            q = models.DocumentUserTag.objects.filter(
+                digest=digest_id,
                 public=False,
                 tag__in=private_tags,
                 uuid=uuid,
@@ -319,45 +321,64 @@ def _set_tags_timestamps(digest, body):
             q.update(date_indexed=now)
 
 
-@snoop_task('digests.index', priority=8)
-def index(blob, digests_gather):
-    """Task used to send a single Document to Elasticsearch.
+@snoop_task('digests.index', priority=8, bulk=True, version=1)
+def index(batch):
+    """Task used to send a many documents to Elasticsearch.
 
     End of the processing pipeline for any document.
     """
 
-    if isinstance(digests_gather, SnoopTaskBroken):
-        # Generate stub object when gather task is broken (no results).
-        # This is needed to find results for which processing has failed.
-        digest = None
-        content = _get_document_content(None, _get_first_file(blob))
-        content.setdefault('broken', []).append('processing_failed')
-    else:
-        # Generate body from full result set
-        digest = models.Digest.objects.get(blob=blob)
-        content = _get_document_content(digest)
+    # list of (task, body) tuples to send to ES as a single batch request
+    result = {}
+    documents_to_index = []
 
-    # inject tags at indexing stage, so the private ones won't get spilled in
-    # the document/file endpoints
-    content.update(_get_tags(digest))
+    for task in batch:
+        blob = task.blob_arg
+        first_file = _get_first_file(blob)
+        if not first_file:
+            log.info("Skipping document with no file: %s", blob)
+            result[blob.pk] = False
+            continue
 
-    version = _get_document_version(digest)
-    body = dict(content, _hoover={'version': version})
+        if task.digest_gather_status != models.Task.STATUS_SUCCESS:
+            # Generate stub object when gather task is broken (no results).
+            # This is needed to find results for which processing has failed.
+            digest = None
+            content = _get_document_content(None, first_file)
+            content.setdefault('broken', []).append('processing_failed')
+        else:
+            # Generate body from full result set
+            digest = models.Digest.objects.get(blob=blob)
+            content = _get_document_content(digest)
 
-    # es 6.8 "integer" has max size 2^31-1
-    # and we managed to set "size" as an "integer" field
-    # instead of a long field
-    size = body.get('size', 0)
-    if size > ES_MAX_INTEGER:
-        body['size'] = ES_MAX_INTEGER
+        if task.tags_count:
+            # inject tags at indexing stage, so the private ones won't get spilled in
+            # the document/file endpoints
+            content.update(_get_tags(task.digest_id))
 
-    try:
-        indexing.index(blob, body)
-        _set_tags_timestamps(digest, body)
-    except RuntimeError:
-        log.exception("error while indexing into elasticsearch, len = %s MB,  body=%s",
-                      round(len(str(body)) / 2**20, 3), str(body)[:500])
-        raise
+        version = _get_document_version(digest)
+        body = dict(content, _hoover={'version': version})
+
+        # es 6.8 "integer" has max size 2^31-1
+        # and we managed to set "size" as an "integer" field
+        # instead of a long field
+        size = body.get('size', 0)
+        if size > ES_MAX_INTEGER:
+            body['size'] = ES_MAX_INTEGER
+
+        documents_to_index.append((task, body))
+
+    rv = indexing.bulk_index([(task.blob_arg.pk, body) for task, body in documents_to_index])
+    for x in rv['items']:
+        blob = x['index']['_id']
+        ok = 200 <= x['index']['status'] < 300
+        result[blob] = ok
+
+    for task, body in documents_to_index:
+        if task.tags_count:
+            _set_tags_timestamps(task.digest_id, body)
+
+    return result
 
 
 def retry_index(blob):
@@ -552,10 +573,6 @@ def _get_first_file(blob):
             .order_by('pk')
             .first()
         )
-
-    if not first_file:
-        raise SnoopTaskBroken(f"Can't find a file for blob {blob}, it was deleted or edited",
-                              'no_file_found_for_document')
 
     return first_file
 
