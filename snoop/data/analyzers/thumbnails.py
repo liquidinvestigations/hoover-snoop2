@@ -4,10 +4,13 @@ Three Thumnbails in different sizes are created. The service used can be found h
 [[https://github.com/FPurchess/preview-service]].
 """
 
+import logging
 from .. import models
 from django.conf import settings
 import requests
 from ..tasks import snoop_task, returns_json_blob, SnoopTaskBroken
+
+log = logging.getLogger(__name__)
 
 
 def call_thumbnails_service(data, size):
@@ -19,13 +22,14 @@ def call_thumbnails_service(data, size):
         """
 
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
-    print(url)
-    print(type(data))
+    log.info(url)
 
     session = requests.Session()
     resp = session.post(url, files={'file': data})
+    log.info(resp.status_code)
 
     if resp.status_code == 500:
+        print(resp.text)
         raise SnoopTaskBroken('thumbnail service returned http 500', 'thumbnail_http_500')
 
     if (resp.status_code != 200
