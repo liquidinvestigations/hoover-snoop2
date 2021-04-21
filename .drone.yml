@@ -131,7 +131,7 @@ steps:
     SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
     SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
     SNOOP_TIKA_URL: "http://snoop-tika:9998"
-    SNOOP_THUMBNAIL_URL: "http://snoop-thumbnail:9990"
+    SNOOP_THUMBNAIL_URL: "http://snoop-thumbnail:9990/"
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
