@@ -76,7 +76,8 @@ def launch(blob):
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
     # launch thumbnail creation
-    depends_on['get_thumbnail'] = (thumbnails.get_thumbnail.laterz(blob))
+    if thumbnails.can_create(blob):
+        depends_on['get_thumbnail'] = (thumbnails.get_thumbnail.laterz(blob))
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
