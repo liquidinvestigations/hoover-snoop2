@@ -23,5 +23,5 @@ urlpatterns = [
     path('<collection>/<hash>/raw/<filename>', views.document_download),
 
     path('<collection>/<hash>/tags/<username>/<uuid>', include(tags_router.urls)),
-    path('<collection>/thumbnail', views.thumbnail)
+    path('<collection>/<hash>/thumbnail/<size>.jpg', views.thumbnail)
 ]

@@ -887,21 +887,26 @@ class Statistics(models.Model):
 class Thumbnail(models.Model):
     """Database model for storing the Thumbnail corresponding to a Digest.
     """
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['blob', 'size'], name='unique_size')
+        ]
 
     class Size(models.IntegerChoices):
         SMALL = 100
         MEDIUM = 200
         LARGE = 400
 
-    original = models.ForeignKey(
-        Digest,
-        on_delete=models.CASCADE,
-    )
-    """Foreign Key to the corresponding digest."""
-
     blob = models.ForeignKey(
         Blob,
         on_delete=models.CASCADE,
+        related_name='file_blob',
+    )
+
+    thumbnail = models.ForeignKey(
+        Blob,
+        on_delete=models.CASCADE,
+        related_name='thumbnail_blob',
     )
     """Foreign Key to the corresponding thumbnail-blob."""
 

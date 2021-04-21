@@ -5,26 +5,28 @@ Three Thumnbails in different sizes are created. The service used can be found h
 """
 
 from .. import models
-# from django.conf import settings
+from django.conf import settings
 import requests
-from ..tasks import snoop_task, returns_json_blob
-import os
+from ..tasks import snoop_task, returns_json_blob, SnoopTaskBroken
 
 
 def call_thumbnails_service(data, size):
     """Executes HTTP PUT request to Thumbnail service.
 
     Args:
-        endpoint: the endpoint to be appended to [snoop.defaultsettings.SNOOP_TIKA_URL][].
         data: the file for which a thumbnail will be created.
+        size: the size for the created thumbnail (thumbnail will be size x size)
         """
-    SNOOP_THUMBNAIL_URL = os.environ.get('SNOOP_THUMBNAIL_URL')
 
-    url = SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
+    url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
     print(url)
+    print(type(data))
 
     session = requests.Session()
     resp = session.post(url, files={'file': data})
+
+    if resp.status_code == 500:
+        raise SnoopTaskBroken('thumbnail service returned http 500', 'thumbnail_http_500')
 
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'image/jpeg'):
@@ -41,12 +43,12 @@ def get_thumbnail(blob):
     """
     SIZES = [100, 200, 400]
 
-    thumbnails = {}
-
     for size in SIZES:
         with blob.open() as f:
             resp = call_thumbnails_service(f, size)
-            blob_thumb = models.Blob.create_from_bytes(resp)
-        thumbnails[size] = blob_thumb.pk
-
-    return thumbnails
+        blob_thumb = models.Blob.create_from_bytes(resp)
+        _, _ = models.Thumbnail.objects.get_or_create(
+            blob=blob,
+            thumbnail=blob_thumb,
+            size=size,
+        )
