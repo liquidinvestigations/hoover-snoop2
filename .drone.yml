@@ -86,8 +86,10 @@ services:
 - name: snoop-thumbnail
   image: fpurchess/preview-service
   volumes: 
-  - name: thumbnails
-    path: /tmp
+  - name: thumbnails-files
+    path: /tmp/files/
+  - name: thumbnails-cache
+    path: /tmp/cache/
 
 - name: search-es
   image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
@@ -157,9 +159,10 @@ volumes:
   temp: {}
 - name: pg-v
   temp: {}
-- name: thumbnails
+- name: thumbnails-files
   temp: {}
-
+- name: thumbnails-cache
+  temp: {}
 ---
 kind: secret
 name: docker_username
