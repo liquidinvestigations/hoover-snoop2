@@ -44,6 +44,4 @@ def test_thumbnail_api(fakedata, taskmanager, client):
     sizes = [100, 200, 400]
 
     for size in sizes:
-        resp = api.get_thumbnail(blob.pk, size)
-        print(resp.getheaders())
-        assert resp.content_type == 'image/jpeg'
+        api.get_thumbnail(blob.pk, size)

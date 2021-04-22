@@ -43,7 +43,10 @@ def testdata_current():
 
 @pytest.fixture
 def settings_no_thumbnails():
+    url = settings.SNOOP_THUMBNAIL_URL
     settings.SNOOP_THUMBNAIL_URL = None
+    yield
+    settings.SNOOP_THUMBNAIL_URL = url
 
 
 @contextmanager
@@ -173,4 +176,3 @@ class CollectionApiClient:
         with mask_out_current_collection():
             resp = self.client.get(url)
         assert resp.status_code == 200
-        return resp
