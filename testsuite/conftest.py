@@ -164,7 +164,7 @@ class CollectionApiClient:
 
     def get_thumbnail(self, blob_hash, size):
         col = collections.current()
-        url = f'/collections/{col.name}/{blob_hash}/thumbnail/{size}x{size}.jpg'
+        url = f'/collections/{col.name}/{blob_hash}/thumbnail/{size}.jpg'
         with mask_out_current_collection():
             resp = self.client.get(url)
         assert resp.status_code == 200
