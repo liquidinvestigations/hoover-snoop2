@@ -41,6 +41,11 @@ def testdata_current():
         yield
 
 
+@pytest.fixture(autouse=False)
+def settings_no_thumbnails():
+    settings.SNOOP_THUMBNAIL_URL = None
+
+
 @contextmanager
 def mask_out_current_collection():
     try:
