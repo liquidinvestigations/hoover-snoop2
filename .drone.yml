@@ -85,6 +85,9 @@ services:
 
 - name: snoop-thumbnail
   image: fpurchess/preview-service
+  volumes: 
+  - name: thumbnails
+    path: /tmp
 
 - name: search-es
   image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
@@ -153,6 +156,8 @@ volumes:
 - name: es-v
   temp: {}
 - name: pg-v
+  temp: {}
+- name: thumbnails
   temp: {}
 
 ---

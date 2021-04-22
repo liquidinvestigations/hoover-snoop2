@@ -173,12 +173,12 @@ def gather(blob, **depends_on):
             rv['location'] = exif_data.get('location')
             rv['date-created'] = exif_data.get('date-created')
 
+    rv['has-thumbnails'] = False
     thumbnails = depends_on.get('get_thumbnail')
     if thumbnails:
         if isinstance(thumbnails, SnoopTaskBroken):
             rv['broken'].append(thumbnails.reason)
             log.debug('get_thumbnail task is broken; skipping')
-            rv['has-thumbnails'] = False
         else:
             rv['has-thumbnails'] = True
 
@@ -575,6 +575,7 @@ def _get_document_content(digest, the_file=None):
         'ocrtext': {k: v for k, v in digest_data.get('ocrtext', {}).items() if v},
         'ocrpdf': digest_data.get('ocrpdf'),
         'ocrimage': digest_data.get('ocrimage'),
+        'has-thumbnails': digest_data.get('has-thumbnails'),
 
         # TODO 7zip, unzip, all of these will list the correct access/creation
         # times when listing, but don't preserve them when unpacking.
