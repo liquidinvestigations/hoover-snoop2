@@ -85,6 +85,7 @@ services:
 
 - name: snoop-thumbnail
   image: fpurchess/preview-service
+  user: root #undocumented setting "user" see: https://discourse.drone.io/t/permission-denied/6732/4
   volumes: 
   - name: thumbnails-files
     path: /tmp/files/
