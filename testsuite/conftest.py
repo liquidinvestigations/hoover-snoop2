@@ -42,7 +42,7 @@ def testdata_current():
 
 
 @pytest.fixture
-def settings_no_thumbnails():
+def settings_no_thumbnails(autouse=True):
     url = settings.SNOOP_THUMBNAIL_URL
     settings.SNOOP_THUMBNAIL_URL = None
     yield
