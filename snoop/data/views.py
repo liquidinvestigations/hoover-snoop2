@@ -316,5 +316,6 @@ class TagViewSet(viewsets.ModelViewSet):
 
 @collection_view
 def thumbnail(request, hash, size):
-    thumbnail = models.Thumbnail.objects.get_object_or_404(size=size, blob__pk=hash).blob
-    return FileResponse(thumbnail.open(), content_type='image/jpeg')
+    # digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
+    thumbnail_entry = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash)
+    return FileResponse(thumbnail_entry.thumbnail.open(), content_type='image/jpeg')

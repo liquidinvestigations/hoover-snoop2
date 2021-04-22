@@ -161,3 +161,11 @@ class CollectionApiClient:
 
     def get_locations(self, blob_hash, page=1):
         return self.get(f'/{blob_hash}/locations?page={page}')
+
+    def get_thumbnail(self, blob_hash, size):
+        col = collections.current()
+        url = f'/collections/{col.name}/{blob_hash}/thumbnail/{size}x{size}.jpg'
+        with mask_out_current_collection():
+            resp = self.client.get(url)
+        assert resp.status_code == 200
+        return resp
