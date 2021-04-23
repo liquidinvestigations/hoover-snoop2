@@ -161,3 +161,10 @@ class CollectionApiClient:
 
     def get_locations(self, blob_hash, page=1):
         return self.get(f'/{blob_hash}/locations?page={page}')
+
+    def get_download(self, blob_hash, filename):
+        col = collections.current()
+        with mask_out_current_collection():
+            r = self.client.get(f'/collections/{col.name}/{blob_hash}/raw/{filename}')
+            assert r.status_code == 200
+            return r
