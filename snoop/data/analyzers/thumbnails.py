@@ -358,6 +358,7 @@ def call_thumbnails_service(data, size):
 
 
 @snoop_task('thumbnails.get_thumbnail')
+# the @returns_json_blob decorator is only needed to check if this function ran in digests.gather
 @returns_json_blob
 def get_thumbnail(blob):
     """Function that calls the thumbnail service for a given blob.
