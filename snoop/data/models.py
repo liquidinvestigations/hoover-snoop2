@@ -892,7 +892,7 @@ class Thumbnail(models.Model):
             models.UniqueConstraint(fields=['blob', 'size'], name='unique_size')
         ]
 
-    class Size(models.IntegerChoices):
+    class SizeChoices(models.IntegerChoices):
         SMALL = 100
         MEDIUM = 200
         LARGE = 400
@@ -900,14 +900,15 @@ class Thumbnail(models.Model):
     blob = models.ForeignKey(
         Blob,
         on_delete=models.CASCADE,
-        related_name='file_blob',
+        related_name='+',
     )
+    """Foreign Key to the original File's blob"""
 
     thumbnail = models.ForeignKey(
         Blob,
         on_delete=models.CASCADE,
-        related_name='thumbnail_blob',
+        related_name='+',
     )
     """Foreign Key to the corresponding thumbnail-blob."""
 
-    size = models.IntegerField(choices=Size.choices, default=Size.MEDIUM)
+    size = models.IntegerField(choices=SizeChoices.choices, default=SizeChoices.MEDIUM)

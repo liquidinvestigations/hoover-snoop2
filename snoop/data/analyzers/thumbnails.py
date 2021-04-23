@@ -8,7 +8,7 @@ import logging
 from .. import models
 from django.conf import settings
 import requests
-from ..tasks import snoop_task, returns_json_blob, SnoopTaskBroken
+from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 
 log = logging.getLogger(__name__)
 
@@ -320,6 +320,9 @@ THUMBNAIL_MIME_TYPES = {
     'video/x-theora+ogg',
     'video/x-m4v',
 }
+"""List of mime types, that the thumbnail service supports.
+Based on [[https://github.com/algoo/preview-generator/blob/develop/doc/supported_mimetypes.rst]]
+"""
 
 
 def can_create(blob):
@@ -341,8 +344,7 @@ def call_thumbnails_service(data, size):
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
     log.info(url)
 
-    session = requests.Session()
-    resp = session.post(url, files={'file': data})
+    resp = requests.post(url, files={'file': data})
     log.info(resp.status_code)
 
     if resp.status_code == 500:
@@ -362,14 +364,13 @@ def get_thumbnail(blob):
 
     Returns the primary key of the created thumbnail blob.
     """
-    SIZES = [100, 200, 400]
 
-    for size in SIZES:
+    for size in models.Thumbnail.SizeChoices.values:
         with blob.open() as f:
             resp = call_thumbnails_service(f, size)
         blob_thumb = models.Blob.create_from_bytes(resp)
-        _, _ = models.Thumbnail.objects.get_or_create(
+        _, _ = models.Thumbnail.objects.update_or_create(
             blob=blob,
-            thumbnail=blob_thumb,
             size=size,
+            defaults={'thumbnail': blob_thumb}
         )
