@@ -9,6 +9,7 @@ from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
 from .. import collections
 import os
+import tempfile
 
 SEVENZIP_MIME_TYPES = {
     'application/x-7z-compressed',
@@ -174,7 +175,10 @@ def unarchive(blob):
     Runs on archives, email archives and any other file types that can contain another file (such as
     documents that embed images).
     """
-    with collections.current().tmp_dir / str(blob) as temp_dir:
+
+    base = collections.current().tmp_dir / str(blob)
+    base.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=base) as temp_dir:
         if blob.mime_type in SEVENZIP_MIME_TYPES:
             call_7z(blob.path(), temp_dir)
         elif blob.mime_type in READPST_MIME_TYPES:

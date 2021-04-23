@@ -188,7 +188,7 @@ def document_download(request, hash, filename):
         clean_html = html.clean(blob)
         return HttpResponse(clean_html, content_type='text/html')
 
-    return FileResponse(blob.open(), content_type=blob.content_type)
+    return FileResponse(blob.open(), content_type=blob.content_type, as_attachment=True, filename=filename)
 
 
 @collection_view
@@ -219,7 +219,7 @@ def document_ocr(request, hash, ocrname):
         digest_task = get_object_or_404(models.Task.objects, func='digests.gather', args=[hash])
         tesseract_task = digest_task.prev_set.get(name=ocrname).prev
         blob = tesseract_task.result
-    return FileResponse(blob.open(), content_type=blob.content_type)
+    return FileResponse(blob.open(), content_type=blob.content_type, as_attachment=True)
 
 
 @collection_view
