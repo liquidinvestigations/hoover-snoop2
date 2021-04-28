@@ -42,10 +42,10 @@ def test_thumbnail_api(fakedata, taskmanager, client):
     files = ['jpg', 'pdf', 'docx']
 
     for filetype in files:
-        with (TESTDATA / ('./no-extension/file_' + filetype)).open('rb') as f:
+        with (TESTDATA / f'./no-extension/file_{filetype}').open('rb') as f:
             blob = fakedata.blob(f.read())
 
-        fakedata.file(root, 'file.' + filetype, blob)
+        fakedata.file(root, f'file.{filetype}', blob)
 
         taskmanager.run(limit=1000)
         api = CollectionApiClient(client)
