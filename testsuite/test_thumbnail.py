@@ -39,13 +39,9 @@ def test_thumbnail_digested(fakedata, taskmanager, client):
 def test_thumbnail_api(fakedata, taskmanager, client):
     root = fakedata.init()
 
-    test_pdf = TESTDATA / './no-extension/file_pdf'
-    test_docx = TESTDATA / './no-extension/file_docx'
-    test_jpg = TESTDATA / './no-extension/file_jpg'
-
-    files = {'file.pdf': test_pdf,
-             'file.docx': test_docx,
-             'file.jpg': test_jpg,
+    files = {'file.pdf': TESTDATA / './no-extension/file_pdf',
+             'file.docx': TESTDATA / './no-extension/file_docx',
+             'file.jpg': TESTDATA / './no-extension/file_jpg',
              }
 
     for filename, testfile in files.items():
