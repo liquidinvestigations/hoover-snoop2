@@ -39,29 +39,16 @@ def test_thumbnail_digested(fakedata, taskmanager, client):
 def test_thumbnail_api(fakedata, taskmanager, client):
     root = fakedata.init()
 
-    test_pdf = TESTDATA / './no-extension/file_pdf'
-    test_docx = TESTDATA / './no-extension/file_docx'
-    test_jpg = TESTDATA / './no-extension/file_jpg'
+    files = ['jpg', 'pdf', 'docx']
 
-    with test_pdf.open('rb') as f:
-        blob_pdf = fakedata.blob(f.read())
+    for filetype in files:
+        with (TESTDATA / ('./no-extension/file_' + filetype)).open('rb') as f:
+            blob = fakedata.blob(f.read())
 
-    fakedata.file(root, 'file.pdf', blob_pdf)
+        fakedata.file(root, 'file.' + filetype, blob)
 
-    with test_docx.open('rb') as f:
-        blob_docx = fakedata.blob(f.read())
+        taskmanager.run(limit=1000)
+        api = CollectionApiClient(client)
 
-    fakedata.file(root, 'file.docx', blob_docx)
-
-    with test_jpg.open('rb') as f:
-        blob_jpg = fakedata.blob(f.read())
-
-    fakedata.file(root, 'file.jpg', blob_jpg)
-
-    taskmanager.run(limit=1000)
-    api = CollectionApiClient(client)
-
-    for size in models.Thumbnail.SizeChoices.values:
-        api.get_thumbnail(blob_pdf.pk, size)
-        api.get_thumbnail(blob_docx.pk, size)
-        api.get_thumbnail(blob_jpg.pk, size)
+        for size in models.Thumbnail.SizeChoices.values:
+            api.get_thumbnail(blob.pk, size)
