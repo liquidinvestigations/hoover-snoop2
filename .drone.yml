@@ -3,11 +3,11 @@ name: static-tests
 
 steps:
 - name: flake8
-  image: alpine/flake8
+  image: alpine/flake8:3.9.1
   commands:
   - flake8
 - name: pylint
-  image: cytopia/pylint
+  image: cytopia/pylint:latest-0.5
   commands:
   - pylint snoop
 
