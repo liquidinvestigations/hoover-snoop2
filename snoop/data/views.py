@@ -182,13 +182,17 @@ def document_download(request, hash, filename):
         models.Digest.objects.only('blob'),
         blob__pk=hash,
     )
-    blob = digest.blob.file_set.first().original
+    first_file = digest.blob.file_set.first()
+    blob = first_file.original
 
     if html.is_html(blob):
         clean_html = html.clean(blob)
         return HttpResponse(clean_html, content_type='text/html')
 
-    return FileResponse(blob.open(), content_type=blob.content_type)
+    real_filename = first_file.name_bytes.tobytes().decode('utf-8', errors='replace')
+
+    return FileResponse(blob.open(), content_type=blob.content_type, as_attachment=True,
+                        filename=real_filename)
 
 
 @collection_view
@@ -219,7 +223,8 @@ def document_ocr(request, hash, ocrname):
         digest_task = get_object_or_404(models.Task.objects, func='digests.gather', args=[hash])
         tesseract_task = digest_task.prev_set.get(name=ocrname).prev
         blob = tesseract_task.result
-    return FileResponse(blob.open(), content_type=blob.content_type)
+    return FileResponse(blob.open(), content_type=blob.content_type, as_attachment=True,
+                        filename=hash + '_' + ocrname)
 
 
 @collection_view
