@@ -317,3 +317,9 @@ class TagViewSet(viewsets.ModelViewSet):
         """Collection-aware overload that also checks permission to write tag."""
         self.check_ownership(pk)
         return super().destroy(request, pk, **kwargs)
+
+
+@collection_view
+def thumbnail(request, hash, size):
+    thumbnail_entry = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash)
+    return FileResponse(thumbnail_entry.thumbnail.open(), content_type='image/jpeg')

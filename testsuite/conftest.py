@@ -41,6 +41,14 @@ def testdata_current():
         yield
 
 
+@pytest.fixture
+def settings_no_thumbnails():
+    url = settings.SNOOP_THUMBNAIL_URL
+    settings.SNOOP_THUMBNAIL_URL = None
+    yield
+    settings.SNOOP_THUMBNAIL_URL = url
+
+
 @contextmanager
 def mask_out_current_collection():
     try:
@@ -168,3 +176,10 @@ class CollectionApiClient:
             r = self.client.get(f'/collections/{col.name}/{blob_hash}/raw/{filename}')
             assert r.status_code == 200
             return r
+
+    def get_thumbnail(self, blob_hash, size):
+        col = collections.current()
+        url = f'/collections/{col.name}/{blob_hash}/thumbnail/{size}.jpg'
+        with mask_out_current_collection():
+            resp = self.client.get(url)
+        assert resp.status_code == 200

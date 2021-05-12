@@ -882,3 +882,33 @@ class Statistics(models.Model):
     class Meta:
 
         verbose_name_plural = 'statistics'
+
+
+class Thumbnail(models.Model):
+    """Database model for storing the Thumbnail corresponding to a Digest.
+    """
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['blob', 'size'], name='unique_size')
+        ]
+
+    class SizeChoices(models.IntegerChoices):
+        SMALL = 100
+        MEDIUM = 200
+        LARGE = 400
+
+    blob = models.ForeignKey(
+        Blob,
+        on_delete=models.CASCADE,
+        related_name='+',
+    )
+    """Foreign Key to the original File's blob"""
+
+    thumbnail = models.ForeignKey(
+        Blob,
+        on_delete=models.CASCADE,
+        related_name='+',
+    )
+    """Foreign Key to the corresponding thumbnail-blob."""
+
+    size = models.IntegerField(choices=SizeChoices.choices, default=SizeChoices.MEDIUM)

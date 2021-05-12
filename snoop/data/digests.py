@@ -27,6 +27,7 @@ from .utils import zulu
 from .analyzers import email
 from .analyzers import tika
 from .analyzers import exif
+from .analyzers import thumbnails
 from . import ocr
 from ._file_types import FILE_TYPES
 from . import indexing
@@ -74,6 +75,10 @@ def launch(blob):
         for lang in get_collection_langs():
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
+    # launch thumbnail creation
+    if settings.SNOOP_THUMBNAIL_URL and thumbnails.can_create(blob):
+        depends_on['get_thumbnail'] = (thumbnails.get_thumbnail.laterz(blob))
+
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
 
@@ -83,6 +88,7 @@ def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
     """
+
     rv = {'broken': []}
     text_blob = depends_on.get('text')
     if text_blob:
@@ -166,6 +172,15 @@ def gather(blob, **depends_on):
                 exif_data = json.load(f)
             rv['location'] = exif_data.get('location')
             rv['date-created'] = exif_data.get('date-created')
+
+    rv['has-thumbnails'] = False
+    thumbnails = depends_on.get('get_thumbnail')
+    if thumbnails:
+        if isinstance(thumbnails, SnoopTaskBroken):
+            rv['broken'].append(thumbnails.reason)
+            log.debug('get_thumbnail task is broken; skipping')
+        else:
+            rv['has-thumbnails'] = True
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -560,6 +575,7 @@ def _get_document_content(digest, the_file=None):
         'ocrtext': {k: v for k, v in digest_data.get('ocrtext', {}).items() if v},
         'ocrpdf': digest_data.get('ocrpdf'),
         'ocrimage': digest_data.get('ocrimage'),
+        'has-thumbnails': digest_data.get('has-thumbnails'),
 
         # TODO 7zip, unzip, all of these will list the correct access/creation
         # times when listing, but don't preserve them when unpacking.
