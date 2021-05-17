@@ -178,6 +178,7 @@ def update_mapping():
         "index": {
             "refresh_interval": collections.current().refresh_interval,
             "max_result_window": collections.current().max_result_window,
+            "number_of_replicas": 0,
         }
     }
     url = f'{ES_URL}/{es_index}/_settings'
