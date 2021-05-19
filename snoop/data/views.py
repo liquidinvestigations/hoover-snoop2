@@ -323,3 +323,9 @@ class TagViewSet(viewsets.ModelViewSet):
 def thumbnail(request, hash, size):
     thumbnail_entry = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash)
     return FileResponse(thumbnail_entry.thumbnail.open(), content_type='image/jpeg')
+
+
+@collection_view
+def pdf_preview(request, hash):
+    pdf_preview_entry = get_object_or_404(models.PdfPreview.objects, blob__pk=hash)
+    return FileResponse(pdf_preview_entry.pdf_preview.open(), content_type='application/pdf')

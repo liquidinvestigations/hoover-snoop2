@@ -193,6 +193,7 @@ SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 """URL pointing to Apache Tika server."""
 
 SNOOP_THUMBNAIL_URL = os.environ.get('SNOOP_THUMBNAIL_URL')
+SNOOP_PDF_PREVIEW_URL = os.environ.get('SNOOP_PDF_PREVIEW_URL')
 
 SNOOP_FEED_PAGE_SIZE = 100
 """Pagination size for the /feed URLs.
