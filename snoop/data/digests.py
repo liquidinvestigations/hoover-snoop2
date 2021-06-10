@@ -200,7 +200,7 @@ def gather(blob, **depends_on):
             rv['broken'].append(detections.reason)
             log.debug('image_classification task is broken; skipping')
         else:
-            with detections.open as f:
+            with detections.open() as f:
                 detected_objects = json.load(f)
             rv['detected_objects'] = detected_objects
 
@@ -213,7 +213,6 @@ def gather(blob, **depends_on):
             result=writer.blob,
         ),
     )
-
     return writer.blob
 
 
