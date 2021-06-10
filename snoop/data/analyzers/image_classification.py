@@ -1,3 +1,5 @@
+"""Task to call a service that runs object detection on images"""
+
 import requests
 from .. import models
 from django.conf import settings
@@ -6,6 +8,11 @@ import json
 
 
 PROBABILITY_LIMIT = 20
+
+
+def can_detect(blob):
+    if blob.mime_type == 'image/jpeg':
+        return True
 
 
 def convert_image(image):
