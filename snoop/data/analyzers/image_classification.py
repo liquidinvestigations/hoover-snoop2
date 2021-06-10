@@ -47,10 +47,10 @@ def detect_objects(blob):
 
     filename = models.File.objects.filter(original=blob.pk)[0].name
 
-    with blob.open as f:
+    with blob.open() as f:
         resp_json = call_classification_service(f, filename)
 
-    detections = json.load(resp_json)
+    detections = json.loads(resp_json)
     filtered_detections = []
     for hit in detections:
         score = int(hit.get('percentage_probability'))
