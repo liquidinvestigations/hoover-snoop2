@@ -188,7 +188,7 @@ def gather(blob, **depends_on):
 
     detections = depends_on.get('detect_objects')
     if detections:
-        if isinstance(exif_data_blob, SnoopTaskBroken):
+        if isinstance(detections, SnoopTaskBroken):
             rv['broken'].append(detections.reason)
             log.debug('image_classification task is broken; skipping')
         else:

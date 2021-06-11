@@ -70,6 +70,7 @@ django-filter = "*"
 pyyaml = "*"
 drf-yasg = {extras = ["validation"], version = "*"}
 uritemplate = "*"
+pillow = "*"
 
 [requires]
 python_version = "3.9"
