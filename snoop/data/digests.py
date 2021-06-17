@@ -194,6 +194,7 @@ def gather(blob, **depends_on):
         else:
             rv['has-pdf-preview'] = True
 
+    rv['detected-objects'] = []
     detections = depends_on.get('detect_objects')
     if detections:
         if isinstance(detections, SnoopTaskBroken):
