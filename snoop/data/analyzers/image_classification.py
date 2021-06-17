@@ -38,6 +38,10 @@ IMAGE_CLASSIFICATION_MIME_TYPES = {
 
 
 def can_detect(blob):
+    """Return true if the image type is supported.
+
+    This will return true for all image types that can be converted into .jpg.
+    """
     if blob.mime_type in IMAGE_CLASSIFICATION_MIME_TYPES:
         return True
 
