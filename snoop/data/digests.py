@@ -194,7 +194,7 @@ def gather(blob, **depends_on):
         else:
             with detections.open() as f:
                 detected_objects = json.load(f)
-            rv['detected_objects'] = detected_objects
+            rv['detected-objects'] = detected_objects
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -607,7 +607,7 @@ def _get_document_content(digest, the_file=None):
         'path-parts': path_parts(path),
         'broken': digest_data.get('broken'),
         'attachments': attachments,
-        'detected_objects': digest_data.get('detected_objects')
+        'detected-objects': digest_data.get('detected-objects'),
     }
 
     if the_file.blob.mime_type == 'message/rfc822':
