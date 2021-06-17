@@ -94,6 +94,13 @@ services:
   - name: thumbnails-cache
     path: /tmp/cache/
 
+- name: snoop-image-classification
+  image: liquidinvestigations/image-classification-service:master
+  environment: 
+    OBJECT_DETECTIN_ENABLED: true
+    OBJECT_DETECTIN_Model: yolo
+    WAITRESS_THREADS: 50
+
 - name: search-es
   image: docker.elastic.co/elasticsearch/elasticsearch:7.13.2
   environment:
@@ -133,13 +140,14 @@ steps:
   - name: test-collections-v
     path: /opt/hoover/collections/testdata
   environment:
-    WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998, snoop-thumbnail:9990
+    WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998, snoop-thumbnail:9990, snoop-image-classification:5001
     WAIT_HOSTS_TIMEOUT: 60
     SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
     SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
     SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
     SNOOP_TIKA_URL: "http://snoop-tika:9998"
     SNOOP_THUMBNAIL_URL: "http://snoop-thumbnail:8000/"
+    SNOOP_IMAGE_CLASSIFICATION_URL: "http://snoop-image-classification:5001/"
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
