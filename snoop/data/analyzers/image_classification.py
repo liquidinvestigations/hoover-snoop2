@@ -64,7 +64,7 @@ def convert_image(blob):
 def call_object_detection_service(imagedata, filename):
     """Executes HTTP PUT request to the object detection service."""
 
-    url = settings.SNOOP_OBJECT_DETECTION_URL + '/detect-objects'
+    url = settings.SNOOP_OBJECT_DETECTION_URL
 
     resp = requests.post(url, files={'image': (filename, imagedata)})
 
@@ -82,7 +82,7 @@ def call_object_detection_service(imagedata, filename):
 def call_image_classification_service(imagedata, filename):
     """Executes HTTP PUT request to the object detection service."""
 
-    url = settings.SNOOP_IMAGE_CLASSIFICATION_URL + '/classify-image'
+    url = settings.SNOOP_IMAGE_CLASSIFICATION_URL
 
     resp = requests.post(url, files={'image': (filename, imagedata)})
 
