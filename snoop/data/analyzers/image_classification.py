@@ -65,6 +65,7 @@ def call_object_detection_service(imagedata, filename):
     """Executes HTTP PUT request to the object detection service."""
 
     url = settings.SNOOP_OBJECT_DETECTION_URL
+    print(url)
 
     resp = requests.post(url, files={'image': (filename, imagedata)})
 
@@ -83,6 +84,7 @@ def call_image_classification_service(imagedata, filename):
     """Executes HTTP PUT request to the object detection service."""
 
     url = settings.SNOOP_IMAGE_CLASSIFICATION_URL
+    print(url)
 
     resp = requests.post(url, files={'image': (filename, imagedata)})
 
