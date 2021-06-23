@@ -1,4 +1,4 @@
-"""Task to call a service that runs object detection on images"""
+"""Task to call a service that runs object detection and/or image classification on images"""
 
 import requests
 from .. import models
@@ -61,15 +61,33 @@ def convert_image(blob):
     return buf.getvalue()
 
 
-def call_classification_service(imagedata, filename):
-    """Executes HTTP PUT request to the image classification service."""
+def call_object_detection_service(imagedata, filename):
+    """Executes HTTP PUT request to the object detection service."""
 
-    url = settings.SNOOP_IMAGE_CLASSIFICATION_URL + '/detect-objects'
+    url = settings.SNOOP_OBJECT_DETECTION_URL + '/detect-objects'
 
     resp = requests.post(url, files={'image': (filename, imagedata)})
 
     if resp.status_code == 500:
-        raise SnoopTaskBroken('Image classifiaction service could not process the image',
+        raise SnoopTaskBroken('Object detection service could not process the image',
+                              'ojbect_detection_http_500')
+
+    if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
+        print(resp.content)
+        raise RuntimeError(f'Unexpected response from object detection service: {resp}')
+
+    return resp.content
+
+
+def call_image_classification_service(imagedata, filename):
+    """Executes HTTP PUT request to the object detection service."""
+
+    url = settings.SNOOP_IMAGE_CLASSIFICATION_URL + '/classify-image'
+
+    resp = requests.post(url, files={'image': (filename, imagedata)})
+
+    if resp.status_code == 500:
+        raise SnoopTaskBroken('Image classification service could not process the image',
                               'image_classification_http_500')
 
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
@@ -82,7 +100,7 @@ def call_classification_service(imagedata, filename):
 @snoop_task('image_classification.detect_objects')
 @returns_json_blob
 def detect_objects(blob):
-    """Calls the image classification service for an image blob.
+    """Calls the object detection service for an image blob.
 
     Filters the results by probability. The limit is given by PROBABILITY_LIMIT.
     """
@@ -90,11 +108,11 @@ def detect_objects(blob):
     filename = models.File.objects.filter(original=blob.pk)[0].name
     if blob.mime_type == 'image/jpeg':
         with blob.open() as f:
-            resp_json = call_classification_service(f, filename)
+            resp_json = call_object_detection_service(f, filename)
     else:
         image_bytes = convert_image(blob)
         image = io.BytesIO(image_bytes)
-        resp_json = call_classification_service(image, filename)
+        resp_json = call_object_detection_service(image, filename)
 
     detections = json.loads(resp_json)
     filtered_detections = []
@@ -103,3 +121,29 @@ def detect_objects(blob):
         if score >= PROBABILITY_LIMIT:
             filtered_detections.append({'object': hit.get('name'), 'score': score})
     return filtered_detections
+
+
+@snoop_task('image_classification.classify_image')
+@returns_json_blob
+def classify_image(blob):
+    """Calls the image classification service for an image blob.
+
+    Filters the results by probability. The limit is given by PROBABILITY_LIMIT.
+    """
+
+    filename = models.File.objects.filter(original=blob.pk)[0].name
+    if blob.mime_type == 'image/jpeg':
+        with blob.open() as f:
+            resp_json = call_object_detection_service(f, filename)
+    else:
+        image_bytes = convert_image(blob)
+        image = io.BytesIO(image_bytes)
+        resp_json = call_object_detection_service(image, filename)
+
+    predictions = json.loads(resp_json)
+    filtered_predictions = []
+    for hit in predictions:
+        score = int(hit[1])
+        if score >= PROBABILITY_LIMIT:
+            filtered_predictions.append({'class': hit[0], 'score': score})
+    return filtered_predictions

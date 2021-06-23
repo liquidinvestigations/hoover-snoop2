@@ -78,8 +78,11 @@ def launch(blob):
     if settings.SNOOP_PDF_PREVIEW_URL and pdf_preview.can_create(blob):
         depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
 
-    if settings.SNOOP_IMAGE_CLASSIFICATION_URL and image_classification.can_detect(blob):
+    if settings.SNOOP_OBJECT_DETECTION_URL and image_classification.can_detect(blob):
         depends_on['detect_objects'] = (image_classification.detect_objects.laterz(blob))
+
+    if settings.SNOOP_IMAGE_CLASSIFICATION_URL and image_classification.can_detect(blob):
+        depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
@@ -199,11 +202,22 @@ def gather(blob, **depends_on):
     if detections:
         if isinstance(detections, SnoopTaskBroken):
             rv['broken'].append(detections.reason)
-            log.debug('image_classification task is broken; skipping')
+            log.debug('object_detection task is broken; skipping')
         else:
             with detections.open() as f:
                 detected_objects = json.load(f)
             rv['detected-objects'] = detected_objects
+
+    rv['image-classes'] = []
+    predictions = depends_on.get('classify_image')
+    if predictions:
+        if isinstance(predictions, SnoopTaskBroken):
+            rv['broken'].append(predictions.reason)
+            log.debug('image_classification task is broken; skipping')
+        else:
+            with detections.open() as f:
+                image_classes = json.load(f)
+            rv['image-classes'] = image_classes
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -618,6 +632,7 @@ def _get_document_content(digest, the_file=None):
         'broken': digest_data.get('broken'),
         'attachments': attachments,
         'detected-objects': digest_data.get('detected-objects'),
+        'image-classes': digest_data.get('image-classes'),
     }
 
     if the_file.blob.mime_type == 'message/rfc822':
