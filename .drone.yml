@@ -99,8 +99,10 @@ services:
 - name: snoop-image-classification
   image: liquidinvestigations/image-classification-service:master
   environment: 
-    OBJECT_DETECTIN_ENABLED: true
-    OBJECT_DETECTIN_Model: yolo
+    OBJECT_DETECTION_ENABLED: true
+    OBJECT_DETECTION_MODEL: "yolo"
+    IMAGE_CLASSIFICATION_ENABLED: true
+    IMAGE_CLASSIFICATION_MODEL: "mobilenet"
     WAITRESS_THREADS: 50
 - name: search-es
   image: docker.elastic.co/elasticsearch/elasticsearch:6.2.4
