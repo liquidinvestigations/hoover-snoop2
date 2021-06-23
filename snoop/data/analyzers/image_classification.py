@@ -134,11 +134,11 @@ def classify_image(blob):
     filename = models.File.objects.filter(original=blob.pk)[0].name
     if blob.mime_type == 'image/jpeg':
         with blob.open() as f:
-            resp_json = call_object_detection_service(f, filename)
+            resp_json = call_image_classification_service(f, filename)
     else:
         image_bytes = convert_image(blob)
         image = io.BytesIO(image_bytes)
-        resp_json = call_object_detection_service(image, filename)
+        resp_json = call_image_classification_service(image, filename)
 
     predictions = json.loads(resp_json)
     filtered_predictions = []
