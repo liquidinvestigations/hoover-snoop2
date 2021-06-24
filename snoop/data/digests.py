@@ -215,7 +215,7 @@ def gather(blob, **depends_on):
             rv['broken'].append(predictions.reason)
             log.debug('image_classification task is broken; skipping')
         else:
-            with detections.open() as f:
+            with predictions.open() as f:
                 image_classes = json.load(f)
             rv['image-classes'] = image_classes
 
