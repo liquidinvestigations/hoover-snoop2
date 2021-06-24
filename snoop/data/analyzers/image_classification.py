@@ -74,9 +74,11 @@ def call_object_detection_service(imagedata, filename):
                               'ojbect_detection_http_500')
 
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
+        print("object detection status: " + str(resp.status_code))
         print(resp.content)
         raise RuntimeError(f'Unexpected response from object detection service: {resp}')
 
+    print("object detection status: " + str(resp.status_code))
     return resp.content
 
 
@@ -93,9 +95,11 @@ def call_image_classification_service(imagedata, filename):
                               'image_classification_http_500')
 
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
+        print("image classify status: " + str(resp.status_code))
         print(resp.content)
         raise RuntimeError(f'Unexpected response from image classification service: {resp}')
 
+    print("image classify status: " + str(resp.status_code))
     return resp.content
 
 
