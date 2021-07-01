@@ -95,6 +95,23 @@ def call_image_classification_service(imagedata, filename):
     return resp.content
 
 
+def call_vector_generator(imagedata, filename):
+    """Executes HTTP PUT request to the service that extracts an image feature vector."""
+
+    url = settings.SNOOP_IMAGE_VECTOR_GENERATOR_URL
+
+    resp = requests.post(url, files={'image': (filename, imagedata)})
+
+    if resp.status_code == 500:
+        raise SnoopTaskBroken('Vector generation service could not process the image',
+                              'image_vector_http_500')
+
+    if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
+        raise RuntimeError(f'Unexpected response from vector generation service: {resp}')
+
+    return resp.content
+
+
 @snoop_task('image_classification.detect_objects')
 @returns_json_blob
 def detect_objects(blob):
@@ -145,3 +162,24 @@ def classify_image(blob):
         if score >= PROBABILITY_LIMIT:
             filtered_predictions.append({'class': hit[0], 'score': score})
     return filtered_predictions
+
+
+@snoop_task('image_classification.extract_image_vector')
+@returns_json_blob
+def extract_image_vector(blob):
+    """Calls the feature-vector generation service for an image blob.
+
+    Returns a dictionary containing the two keys 'model' and 'vector'.
+    """
+
+    filename = models.File.objects.filter(original=blob.pk)[0].name
+    if blob.mime_type == 'image/jpeg':
+        with blob.open() as f:
+            resp_json = call_vector_generator(f, filename)
+    else:
+        image_bytes = convert_image(blob)
+        image = io.BytesIO(image_bytes)
+        resp_json = call_vector_generator(image, filename)
+
+    result = json.loads(resp_json)
+    return result
