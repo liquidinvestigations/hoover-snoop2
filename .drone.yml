@@ -101,6 +101,7 @@ services:
     OBJECT_DETECTION_MODEL: "yolo"
     IMAGE_CLASSIFICATION_ENABLED: true
     IMAGE_CLASSIFICATION_MODEL: "mobilenet"
+    VECTOR_GENERATION_ENABLED: true
     WAITRESS_THREADS: 50
 
 - name: search-es
@@ -151,6 +152,7 @@ steps:
     SNOOP_THUMBNAIL_URL: "http://snoop-thumbnail:8000/"
     SNOOP_OBJECT_DETECTION_URL: "http://snoop-image-classification:5001/detect-objects"
     SNOOP_IMAGE_CLASSIFICATION_URL: "http://snoop-image-classification:5001/classify-image"
+    SNOOP_IMAGE_VECTOR_GENERATOR_URL: "http://snoop-image-classification:5001/get-vector"
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
