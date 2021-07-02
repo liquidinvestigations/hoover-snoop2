@@ -223,6 +223,31 @@ def gather(blob, **depends_on):
     return writer.blob
 
 
+def get_vector_entries(vector_dict):
+    """Helper function that adds the vector to the corresponding model key.
+
+    Takes a dictionary with keys 'model' and 'vector' as an argument and returns
+    a dictionary with keys for each possible model, where the vector is added to
+    the key corresponding to the model given.
+    """
+    entries = {'mobilenet-vector': [],
+               'resnet-vector': [],
+               'inception-vector': [],
+               'densenet-vector': [],
+               }
+
+    if not vector_dict:
+        return entries
+
+    vector = vector_dict.get('vector')
+    model = vector_dict.get('model')
+    for k in entries:
+        if k.startswith(model):
+            entries[k] = vector
+
+    return entries
+
+
 def _get_tags(digest):
     """Helper method to get the document's tags with the correct Elasticsearch field names."""
 
