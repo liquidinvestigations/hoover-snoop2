@@ -256,7 +256,7 @@ def get_vector_entries(vector_dict):
 
     vector = vector_dict.get('vector')
     model = vector_dict.get('model')
-    for k in entries.keys():
+    for k in entries:
         if k.startswith(model):
             entries[k] = vector
 
