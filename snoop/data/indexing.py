@@ -53,10 +53,6 @@ MAPPINGS = {
             "ocr": {"type": "boolean"},
             "ocrpdf": {"type": "boolean"},
             "ocrimage": {"type": "boolean"},
-            "mobilenet-vector": {"type": "dense_vector"},
-            "resnet-vector": {"type": "dense_vector"},
-            "inception-vector": {"type": "dense_vector"},
-            "densenet-vector": {"type": "dense_vector"},
             PUBLIC_TAGS_FIELD_NAME: {"type": "keyword"},
             # remove the trailing '.' here
             PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},
@@ -78,7 +74,7 @@ SETTINGS = {
         "analyzer": {
             "default": {
                 "tokenizer": "standard",
-                "filter": ["lowercase", "asciifolding"],
+                "filter": ["standard", "lowercase", "asciifolding"],
             }
         }
     }
