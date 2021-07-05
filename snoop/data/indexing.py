@@ -71,7 +71,7 @@ SETTINGS = {
         "analyzer": {
             "default": {
                 "tokenizer": "standard",
-                "filter": ["lowercase", "asciifolding"],
+                "filter": ["standard", "lowercase", "asciifolding"],
             }
         }
     }
