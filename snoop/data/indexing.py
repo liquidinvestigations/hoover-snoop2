@@ -115,7 +115,7 @@ def index(id, data):
     es_index = collections.current().es_index
 
     index_url = f'{ES_URL}/{es_index}'
-    resp = put_json(f'{index_url}/{id}', data)
+    resp = put_json(f'{index_url}/_doc/{id}', data)
 
     check_response(resp)
 
@@ -124,7 +124,7 @@ def delete_doc(id):
     """Deletes a single document from the current collection by its id."""
     es_index = collections.current().es_index
     index_url = f'{ES_URL}/{es_index}'
-    resp = requests.delete(f'{index_url}/{id}')
+    resp = requests.delete(f'{index_url}/_doc/{id}')
     check_response(resp)
 
 
