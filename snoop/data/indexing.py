@@ -51,6 +51,30 @@ MAPPINGS = {
         "ocr": {"type": "boolean"},
         "ocrpdf": {"type": "boolean"},
         "ocrimage": {"type": "boolean"},
+        "densenet-vector": {
+            "type": "elastiknn_dense_float_vector",
+            "elastiknn": {
+                "dims": 1024,
+            }
+        },
+        "mobilenet-vector": {
+            "type": "elastiknn_dense_float_vector",
+            "elastiknn": {
+                "dims": 1280,
+            }
+        },
+        "inception-vector": {
+            "type": "elastiknn_dense_float_vector",
+            "elastiknn": {
+                "dims": 2048,
+            }
+        },
+        "resnet-vector": {
+            "type": "elastiknn_dense_float_vector",
+            "elastiknn": {
+                "dims": 2048,
+            }
+        },
         PUBLIC_TAGS_FIELD_NAME: {"type": "keyword"},
         # remove the trailing '.' here
         PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},
@@ -71,7 +95,7 @@ SETTINGS = {
         "analyzer": {
             "default": {
                 "tokenizer": "standard",
-                "filter": ["standard", "lowercase", "asciifolding"],
+                "filter": ["lowercase", "asciifolding"],
             }
         }
     }
@@ -115,7 +139,7 @@ def index(id, data):
     es_index = collections.current().es_index
 
     index_url = f'{ES_URL}/{es_index}'
-    resp = put_json(f'{index_url}/{id}', data)
+    resp = put_json(f'{index_url}/_doc/{id}', data)
 
     check_response(resp)
 
@@ -124,7 +148,7 @@ def delete_doc(id):
     """Deletes a single document from the current collection by its id."""
     es_index = collections.current().es_index
     index_url = f'{ES_URL}/{es_index}'
-    resp = requests.delete(f'{index_url}/{id}')
+    resp = requests.delete(f'{index_url}/_doc/{id}')
     check_response(resp)
 
 
