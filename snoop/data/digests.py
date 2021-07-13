@@ -86,6 +86,9 @@ def launch(blob):
     if settings.SNOOP_IMAGE_CLASSIFICATION_URL and image_classification.can_detect(blob):
         depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
 
+    if settings.SNOOP_IMAGE_VECTOR_GENERATOR_URL and image_classification.can_detect(blob):
+        depends_on['extract_image_vector'] = (image_classification.extract_image_vector.laterz(blob))
+
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
 
@@ -210,6 +213,18 @@ def gather(blob, **depends_on):
             with predictions.open() as f:
                 image_classes = json.load(f)
             rv['image-classes'] = image_classes
+
+    image_vectors = depends_on.get('extract_image_vector')
+    if image_vectors:
+        if isinstance(image_vectors, SnoopTaskBroken):
+            rv['broken'].append(image_vectors.reason)
+            log.debug('vector_extraction task is broken; skipping')
+    try:
+        with image_vectors.open() as f:
+            vectors = json.load(f)
+            rv.update(get_vector_entries(vectors))
+    except AttributeError:
+        rv.update(get_vector_entries(None))
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -649,6 +664,10 @@ def _get_document_content(digest, the_file=None):
         'attachments': attachments,
         'detected-objects': digest_data.get('detected-objects'),
         'image-classes': digest_data.get('image-classes'),
+        'mobilenet-vector': digest_data.get('mobilenet-vector'),
+        'resnet-vector': digest_data.get('resnet-vector'),
+        'densenet-vector': digest_data.get('densenet-vector'),
+        'inception-vector': digest_data.get('inception-vector'),
     }
 
     if the_file.blob.mime_type == 'message/rfc822':
