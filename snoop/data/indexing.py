@@ -19,54 +19,51 @@ import requests
 from snoop.data import collections
 
 log = logging.getLogger(__name__)
-DOCUMENT_TYPE = 'doc'
 ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
 
 PUBLIC_TAGS_FIELD_NAME = 'tags'
 PRIVATE_TAGS_FIELD_NAME_PREFIX = 'priv-tags.'
 
 MAPPINGS = {
-    "doc": {
-        "properties": {
-            "attachments": {"type": "boolean"},
-            "content-type": {"type": "keyword"},
-            "date": {"type": "date"},
-            "date-created": {"type": "date"},
-            "email-domains": {"type": "keyword"},
-            "filetype": {"type": "keyword"},
-            "id": {"type": "keyword"},
-            "in-reply-to": {"type": "keyword"},
-            "lang": {"type": "keyword"},
-            "md5": {"type": "keyword"},
-            "message": {"type": "keyword"},
-            "message-id": {"type": "keyword"},
-            "path": {"type": "keyword"},
-            "path-text": {"type": "text"},
-            "path-parts": {"type": "keyword"},
-            "references": {"type": "keyword"},
-            "rev": {"type": "integer"},
-            "sha1": {"type": "keyword"},
-            "size": {"type": "integer"},
-            "suffix": {"type": "keyword"},
-            "thread-index": {"type": "keyword"},
-            "word-count": {"type": "integer"},
-            "ocr": {"type": "boolean"},
-            "ocrpdf": {"type": "boolean"},
-            "ocrimage": {"type": "boolean"},
-            PUBLIC_TAGS_FIELD_NAME: {"type": "keyword"},
-            # remove the trailing '.' here
-            PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},
-        },
-        "dynamic_templates": [
-            {
-                "private_tags_are_keywords": {
-                    "match_mapping_type": "*",
-                    "path_match": PRIVATE_TAGS_FIELD_NAME_PREFIX + "*",
-                    "mapping": {"type": "keyword"},
-                },
+    "properties": {
+        "attachments": {"type": "boolean"},
+        "content-type": {"type": "keyword"},
+        "date": {"type": "date"},
+        "date-created": {"type": "date"},
+        "email-domains": {"type": "keyword"},
+        "filetype": {"type": "keyword"},
+        "id": {"type": "keyword"},
+        "in-reply-to": {"type": "keyword"},
+        "lang": {"type": "keyword"},
+        "md5": {"type": "keyword"},
+        "message": {"type": "keyword"},
+        "message-id": {"type": "keyword"},
+        "path": {"type": "keyword"},
+        "path-text": {"type": "text"},
+        "path-parts": {"type": "keyword"},
+        "references": {"type": "keyword"},
+        "rev": {"type": "integer"},
+        "sha1": {"type": "keyword"},
+        "size": {"type": "integer"},
+        "suffix": {"type": "keyword"},
+        "thread-index": {"type": "keyword"},
+        "word-count": {"type": "integer"},
+        "ocr": {"type": "boolean"},
+        "ocrpdf": {"type": "boolean"},
+        "ocrimage": {"type": "boolean"},
+        PUBLIC_TAGS_FIELD_NAME: {"type": "keyword"},
+        # remove the trailing '.' here
+        PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},
+    },
+    "dynamic_templates": [
+        {
+            "private_tags_are_keywords": {
+                "match_mapping_type": "*",
+                "path_match": PRIVATE_TAGS_FIELD_NAME_PREFIX + "*",
+                "mapping": {"type": "keyword"},
             },
-        ],
-    }
+        },
+    ],
 }
 
 SETTINGS = {
@@ -74,7 +71,7 @@ SETTINGS = {
         "analyzer": {
             "default": {
                 "tokenizer": "standard",
-                "filter": ["standard", "lowercase", "asciifolding"],
+                "filter": ["lowercase", "asciifolding"],
             }
         }
     }
@@ -118,7 +115,7 @@ def index(id, data):
     es_index = collections.current().es_index
 
     index_url = f'{ES_URL}/{es_index}'
-    resp = put_json(f'{index_url}/{DOCUMENT_TYPE}/{id}', data)
+    resp = put_json(f'{index_url}/_doc/{id}', data)
 
     check_response(resp)
 
@@ -127,7 +124,7 @@ def delete_doc(id):
     """Deletes a single document from the current collection by its id."""
     es_index = collections.current().es_index
     index_url = f'{ES_URL}/{es_index}'
-    resp = requests.delete(f'{index_url}/{DOCUMENT_TYPE}/{id}')
+    resp = requests.delete(f'{index_url}/_doc/{id}')
     check_response(resp)
 
 
@@ -169,9 +166,9 @@ def update_mapping():
     """Update mapping and settings for current Elasticsearch index."""
 
     es_index = collections.current().es_index
-    url = f'{ES_URL}/{es_index}/_mapping/{DOCUMENT_TYPE}'
+    url = f'{ES_URL}/{es_index}/_mapping'
     log.info("PUT %s", url)
-    put_resp = put_json(url, MAPPINGS[DOCUMENT_TYPE])
+    put_resp = put_json(url, MAPPINGS)
     check_response(put_resp)
 
     index_settings = {
