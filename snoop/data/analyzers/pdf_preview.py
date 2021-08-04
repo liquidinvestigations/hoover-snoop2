@@ -80,7 +80,7 @@ def get_pdf(blob):
     # the service needs to receive a filename but the original filename might be broken
     DEFAULT_FILENAME = 'a'
     filename = models.File.objects.filter(original=blob.pk)[0].name
-    filename_root, ext = os.path.splitext(filename)
+    _, ext = os.path.splitext(filename)
     if ext not in PDF_PREVIEW_EXTENSIONS:
         ext = mimetypes.guess_extension(blob.mime_type)
         if ext not in PDF_PREVIEW_EXTENSIONS:
