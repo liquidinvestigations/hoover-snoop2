@@ -6,7 +6,7 @@ The service used can be found here: [[https://github.com/thecodingmachine/gotenb
 from .. import models
 from django.conf import settings
 import requests
-from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
+from ..tasks import snoop_task, SnoopTaskBroken
 import os
 import mimetypes
 
