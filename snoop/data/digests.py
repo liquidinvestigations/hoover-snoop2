@@ -188,8 +188,8 @@ def gather(blob, **depends_on):
 
     # check if pdf-preview is available
     rv['has-pdf-preview'] = False
-    pdf_preview = depends_on.get('get_pdf_preview')
-    if pdf_preview:
+    pdf_preview = depends_on.get('get_pdf_preview', False)
+    if pdf_preview is None:
         if isinstance(pdf_preview, SnoopTaskBroken):
             rv['broken'].append(pdf_preview.reason)
             log.debug('get_pdf_preview task is broken; skipping')

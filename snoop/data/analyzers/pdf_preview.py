@@ -15,9 +15,9 @@ PDF_PREVIEW_MIME_TYPES = {
     'text/plain',
     'text/rtf',
     'application/msword',
-    'vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msexcel',
-    'vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/mspowerpoint',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/vnd.oasis.opendocument.presentation',
@@ -72,13 +72,13 @@ def call_pdf_generator(data, filename):
 
 
 @snoop_task('pdf_preview.get_pdf')
-# the @returns_json_blob decorator is only needed to check if this function ran in digests.gather
-@returns_json_blob
 def get_pdf(blob):
     """Calls the pdf generator for a given blob.
 
     Adds the pdf preview to the database
     """
+    # the service needs to receive a filename but the original filename might be broken
+    DEFAULT_FILENAME = 'a'
     filename = models.File.objects.filter(original=blob.pk)[0].name
     filename_root, ext = os.path.splitext(filename)
     if ext not in PDF_PREVIEW_EXTENSIONS:
@@ -87,7 +87,7 @@ def get_pdf(blob):
             raise SnoopTaskBroken('no valid file extension found', 'invalid_file_extension')
 
     with blob.open() as f:
-        resp = call_pdf_generator(f, filename_root + ext)
+        resp = call_pdf_generator(f, DEFAULT_FILENAME + ext)
     blob_pdf_preview = models.Blob.create_from_bytes(resp)
     # create PDF object in pdf preview model
     _, _ = models.PdfPreview.objects.update_or_create(
