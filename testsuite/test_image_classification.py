@@ -14,7 +14,7 @@ def test_classification_service():
     EXPECTED_CLASS = 'unicycle'
     with TEST_IMAGE.open('rb') as f:
         resp = image_classification.call_image_classification_service(f, 'bikes.jpg')
-    predictions = json.joads(resp)
+    predictions = json.loads(resp)
     classes = [hit[0] for hit in predictions]
     assert EXPECTED_CLASS in classes
 
@@ -34,7 +34,8 @@ def test_detection_task(fakedata):
     with TEST_IMAGE.open('rb') as f:
         IMAGE_BLOB = fakedata.blob(f.read())
     fakedata.file(root, 'bike.jpg', IMAGE_BLOB)
-    results = image_classification.detect_objects(IMAGE_BLOB)
+    with image_classification.detect_objects(IMAGE_BLOB).open() as f:
+        results = json.load(f)
     objects = [hit['object'] for hit in results]
     assert all(hit in objects for hit in EXPECTED_OBJECTS)
 
@@ -45,7 +46,8 @@ def test_classification_task(fakedata):
     with TEST_IMAGE.open('rb') as f:
         IMAGE_BLOB = fakedata.blob(f.read())
     fakedata.file(root, 'bike.jpg', IMAGE_BLOB)
-    results = image_classification.classify_image(IMAGE_BLOB)
+    with image_classification.classify_image(IMAGE_BLOB).open() as f:
+        results = json.load(f)
     classes = [hit['class'] for hit in results]
     assert EXPECTED_CLASS in classes
 
