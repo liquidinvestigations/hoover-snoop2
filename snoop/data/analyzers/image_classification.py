@@ -1,13 +1,14 @@
 """Task to call a service that runs object detection and/or image classification on images"""
 
-import requests
-from .. import models
-from django.conf import settings
-from ..tasks import SnoopTaskBroken, snoop_task, returns_json_blob
-import json
 import io
+import json
+
+import requests
+from django.conf import settings
 from PIL import Image, UnidentifiedImageError
 
+from .. import models
+from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
 
 PROBABILITY_LIMIT = 20
 
