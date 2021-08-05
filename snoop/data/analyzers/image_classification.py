@@ -12,7 +12,6 @@ from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
 
 PROBABILITY_LIMIT = 20
 
-"""Based on https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#image-file-formats"""
 IMAGE_CLASSIFICATION_MIME_TYPES = {
     'image/bmp',
     'image/gif',
@@ -36,6 +35,7 @@ IMAGE_CLASSIFICATION_MIME_TYPES = {
     'image/vnd.adobe.photoshop',
     'image/x-xpixmap',
 }
+"""Based on https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#image-file-formats"""
 
 
 def can_detect(blob):
