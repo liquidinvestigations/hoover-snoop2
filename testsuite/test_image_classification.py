@@ -1,5 +1,8 @@
+import json
+
 import pytest
 from snoop.data.analyzers import image_classification
+
 from conftest import TESTDATA, CollectionApiClient
 
 pytestmark = [pytest.mark.django_db]
@@ -8,29 +11,43 @@ TEST_IMAGE = TESTDATA / './disk-files/images/bikes.jpg'
 
 
 def test_classification_service():
+    EXPECTED_CLASS = 'unicycle'
     with TEST_IMAGE.open('rb') as f:
-        image_classification.call_image_classification_service(f, 'bikes.jpg')
+        resp = image_classification.call_image_classification_service(f, 'bikes.jpg')
+    predictions = json.joads(resp)
+    classes = [hit[0] for hit in predictions]
+    assert EXPECTED_CLASS in classes
 
 
 def test_detection_service():
+    EXPECTED_OBJECTS = ['person', 'bicycle']
     with TEST_IMAGE.open('rb') as f:
-        image_classification.call_object_detection_service(f, 'bikes.jpg')
+        resp = image_classification.call_object_detection_service(f, 'bikes.jpg')
+    predictions = json.loads(resp)
+    objects = [hit['name'] for hit in predictions]
+    assert all(hit in objects for hit in EXPECTED_OBJECTS)
 
 
 def test_detection_task(fakedata):
+    EXPECTED_OBJECTS = ['person', 'bicycle']
     root = fakedata.init()
     with TEST_IMAGE.open('rb') as f:
         IMAGE_BLOB = fakedata.blob(f.read())
     fakedata.file(root, 'bike.jpg', IMAGE_BLOB)
-    image_classification.detect_objects(IMAGE_BLOB)
+    results = image_classification.detect_objects(IMAGE_BLOB)
+    objects = [hit['object'] for hit in results]
+    assert all(hit in objects for hit in EXPECTED_OBJECTS)
 
 
 def test_classification_task(fakedata):
+    EXPECTED_CLASS = 'unicycle'
     root = fakedata.init()
     with TEST_IMAGE.open('rb') as f:
         IMAGE_BLOB = fakedata.blob(f.read())
     fakedata.file(root, 'bike.jpg', IMAGE_BLOB)
-    image_classification.classify_image(IMAGE_BLOB)
+    results = image_classification.classify_image(IMAGE_BLOB)
+    classes = [hit['class'] for hit in results]
+    assert EXPECTED_CLASS in classes
 
 
 def test_scores_digested(fakedata, taskmanager, client):
