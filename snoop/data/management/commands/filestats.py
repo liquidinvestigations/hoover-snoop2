@@ -13,6 +13,7 @@ from ...analyzers import tika
 from ...analyzers import email
 from ...analyzers import exif
 from ...analyzers import html
+from ... import ocr
 from ... import filesystem
 
 
@@ -22,7 +23,8 @@ SUPPORTED_MIME_TYPES = (archives.ARCHIVES_MIME_TYPES
                         .union(email.OUTLOOK_POSSIBLE_MIME_TYPES)
                         .union(filesystem.RFC822_EMAIL_MIME_TYPES)
                         .union(exif.EXIFREAD_MIME_TYPES)
-                        .union(html.HTML_MIME_TYPES))
+                        .union(html.HTML_MIME_TYPES)
+                        .union(ocr.TESSERACT_OCR_IMAGE_MIME_TYPES))
 
 
 def truncate_size(size):
