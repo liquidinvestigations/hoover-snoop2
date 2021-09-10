@@ -70,6 +70,7 @@
 [Outlook-email](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/analyzers/email.py#L18-L21)  
 [Normal email](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/filesystem.py#L123)  
 [Apple email](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/filesystem.py#L112)  
+[Images supported by Tesseract](https://github.com/liquidinvestigations/hoover-snoop2/blob/41b0c3b4dd29942f8d714ebbfa62d0cd7d79813a/snoop/data/ocr.py#L26)  
 
 [Grouping of filetypes](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/digests.py#L266)
 ## Other lists of mime types ###
