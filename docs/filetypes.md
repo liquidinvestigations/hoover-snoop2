@@ -48,7 +48,7 @@
 | application/xml                                                           | -               | XML                                      | html                |
 | text/xml                                                                  | -               | XML                                      | htlm                |
 | image/tiff                                                                | image           | Tagged Image File Format (TIFF)          | exif, ocr           |
-| image/jpg                                                                 | image           | JPEG image                               | exif, ocr           |
+| image/jpeg                                                                | image           | JPEG image                               | exif, ocr           |
 | image/webp                                                                | image           | WEBP image                               | exif, ocr           |
 | image/heic                                                                | image           | High Efficiency Image File Format (HEIF) | exif, ocr           |
 | application/vnd.ms-outlook                                                | email           | Outlook MSG file                         | email               |
@@ -56,6 +56,11 @@
 | application/CDFV2                                                         | -               | Composite Document File V2               | email               |
 | message/rfc822                                                            | email           | RFC822 Message                           | email               |
 | message/x-emlx                                                            | email           | Apple Email                              | emlx                |
+| image/png                                                                 | image          | Portable Network Graphics (PNG)          | ocr                 |
+| image/bmp                                                                 | image          | Bitmap Image File (BMP)                  | ocr                 |
+| image/gif                                                                 | image          | Graphics Interchange Format (GIF))       | ocr                 |
+| image/x-portable-anymap                                                   | image          | Portable Any Map Image (PNM)             | ocr                 |
+| image/jp2                                                                 | image          | JPEG 2000 Core Image (JP2)               | ocr                 |
 
 ## Code doing the analysis ##
 [archives-analyzer](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/analyzers/archives.py#L11-L31)  
@@ -65,6 +70,7 @@
 [Outlook-email](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/analyzers/email.py#L18-L21)  
 [Normal email](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/filesystem.py#L123)  
 [Apple email](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/filesystem.py#L112)  
+[Images supported by Tesseract](https://github.com/liquidinvestigations/hoover-snoop2/blob/41b0c3b4dd29942f8d714ebbfa62d0cd7d79813a/snoop/data/ocr.py#L26)  
 
 [Grouping of filetypes](https://github.com/liquidinvestigations/hoover-snoop2/blob/8a6dbdf1fd1ea56db386628f0559b097cdaa1a61/snoop/data/digests.py#L266)
 ## Other lists of mime types ###

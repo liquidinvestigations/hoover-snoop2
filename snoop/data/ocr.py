@@ -23,7 +23,29 @@ from .tasks import snoop_task, require_dependency, retry_tasks
 from .analyzers import tika
 
 
+TESSERACT_OCR_IMAGE_MIME_TYPES = {
+    'image/jpeg',
+    'image/png',
+    'image/tiff',
+    'image/bmp',
+    'image/gif',
+    'image/webp',
+    'image/x-portable-anymap',
+    'image/jp2',
+}
+"""Mime types of images formats supported by tesseracts OCR.
+
+Tesseract uses the [leptonica](https://github.com/DanBloomberg/leptonica) library for image processing.
+The supported filetypes can be found in the
+projects [documentation](http://www.leptonica.org/source/README.html) (Image I/O section).
+"""
+
 log = logging.getLogger(__name__)
+
+
+def can_process(blob):
+    """Checks if the blob can be processed by the tesseract OCR"""
+    return blob.mime_type in TESSERACT_OCR_IMAGE_MIME_TYPES.union({'application/pdf'})
 
 
 def create_ocr_source(name):
@@ -186,7 +208,7 @@ def run_tesseract(blob, lang):
     `pdf2pdfocr.py` script to build another PDF with OCR text rendered on top of it, to make the text
     selectable.
     """
-    if blob.mime_type.startswith('image/'):
+    if blob.mime_type in TESSERACT_OCR_IMAGE_MIME_TYPES:
         return run_tesseract_on_image(blob, lang)
     elif blob.mime_type == 'application/pdf':
         return run_tesseract_on_pdf(blob, lang)

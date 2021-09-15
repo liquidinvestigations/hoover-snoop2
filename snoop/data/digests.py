@@ -44,12 +44,6 @@ def get_collection_langs():
     return current().ocr_languages
 
 
-def is_ocr_mime_type(mime_type):
-    """Checks if we should run OCR on the given mime type."""
-
-    return mime_type.startswith('image/') or mime_type == 'application/pdf'
-
-
 @snoop_task('digests.launch', priority=4)
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
@@ -71,7 +65,7 @@ def launch(blob):
     if exif.can_extract(blob):
         depends_on['exif_data'] = exif.extract.laterz(blob)
 
-    if is_ocr_mime_type(blob.mime_type):
+    if ocr.can_process(blob):
         for lang in get_collection_langs():
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
@@ -125,7 +119,7 @@ def gather(blob, **depends_on):
 
     # combine OCR results
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
-    if is_ocr_mime_type(blob.mime_type):
+    if ocr.can_process(blob):
         for lang in get_collection_langs():
             ocr_blob = depends_on.get(f'tesseract_{lang}')
             if not ocr_blob or isinstance(ocr_blob, SnoopTaskBroken):
