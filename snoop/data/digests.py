@@ -28,6 +28,7 @@ from .analyzers import email
 from .analyzers import tika
 from .analyzers import exif
 from .analyzers import thumbnails
+from .analyzers import pdf_preview
 from . import ocr
 from ._file_types import FILE_TYPES
 from . import indexing
@@ -72,6 +73,9 @@ def launch(blob):
     # launch thumbnail creation
     if settings.SNOOP_THUMBNAIL_URL and thumbnails.can_create(blob):
         depends_on['get_thumbnail'] = (thumbnails.get_thumbnail.laterz(blob))
+
+    if settings.SNOOP_PDF_PREVIEW_URL and pdf_preview.can_create(blob):
+        depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
     index.laterz(blob, depends_on={'digests_gather': gather_task}, retry=True, queue_now=False)
@@ -175,6 +179,16 @@ def gather(blob, **depends_on):
             log.debug('get_thumbnail task is broken; skipping')
         else:
             rv['has-thumbnails'] = True
+
+    # check if pdf-preview is available
+    rv['has-pdf-preview'] = False
+    pdf_preview = depends_on.get('get_pdf_preview', False)
+    if pdf_preview is None:
+        if isinstance(pdf_preview, SnoopTaskBroken):
+            rv['broken'].append(pdf_preview.reason)
+            log.debug('get_pdf_preview task is broken; skipping')
+        else:
+            rv['has-pdf-preview'] = True
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))
@@ -570,6 +584,7 @@ def _get_document_content(digest, the_file=None):
         'ocrpdf': digest_data.get('ocrpdf'),
         'ocrimage': digest_data.get('ocrimage'),
         'has-thumbnails': digest_data.get('has-thumbnails'),
+        'has-pdf-preview': digest_data.get('has-pdf-preview'),
 
         # TODO 7zip, unzip, all of these will list the correct access/creation
         # times when listing, but don't preserve them when unpacking.
