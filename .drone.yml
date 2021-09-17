@@ -151,7 +151,7 @@ steps:
     SNOOP_TIKA_URL: "http://snoop-tika:9998"
     SNOOP_THUMBNAIL_URL: "http://snoop-thumbnail:8000/"
     SNOOP_PDF_PREVIEW_URL: "http://snoop-pdf-preview:3000/"
-    #SNOOP_IMAGE_CLASSIFICATION_URL: "http://snoop-image-classification:5001/classify-image"
+    SNOOP_IMAGE_CLASSIFICATION_URL: "http://snoop-image-classification:5001/classify-image"
     SNOOP_OBJECT_DETECTION_URL: "http://snoop-image-classification:5001/detect-objects"
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
