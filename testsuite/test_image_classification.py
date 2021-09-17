@@ -18,6 +18,11 @@ TEST_IMAGE = TESTDATA / './disk-files/images/bikes.jpg'
 #     classes = [hit[0] for hit in predictions]
 #     assert EXPECTED_CLASS in classes
 
+def test_classification_service_endpoint():
+    with TEST_IMAGE.open('rb') as f:
+        resp = image_classification.call_image_classification_service(f, 'bikes.jpg')
+    assert resp.status_code == 200
+
 
 def test_detection_service():
     EXPECTED_OBJECTS = ['person', 'bicycle']

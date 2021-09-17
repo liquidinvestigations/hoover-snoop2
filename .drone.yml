@@ -97,7 +97,7 @@ services:
 - name: snoop-pdf-preview
   image: thecodingmachine/gotenberg:6
 - name: snoop-image-classification
-  image: liquidinvestigations/image-classification-service:master
+  image: liquidinvestigations/image-classification-service:0.0.1
   environment: 
     OBJECT_DETECTION_ENABLED: true
     OBJECT_DETECTION_MODEL: "yolo"
