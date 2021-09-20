@@ -1,7 +1,6 @@
 """Task to call a service that runs object detection and/or image classification on images"""
 
 import io
-import json
 
 import requests
 from django.conf import settings
