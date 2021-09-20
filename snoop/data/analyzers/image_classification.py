@@ -76,7 +76,7 @@ def call_object_detection_service(imagedata, filename):
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
         raise RuntimeError(f'Unexpected response from object detection service: {resp}')
 
-    return resp.content
+    return resp.json()
 
 
 def call_image_classification_service(imagedata, filename):
@@ -93,7 +93,7 @@ def call_image_classification_service(imagedata, filename):
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
         raise RuntimeError(f'Unexpected response from image classification service: {resp}')
 
-    return resp.content
+    return resp.json()
 
 
 @snoop_task('image_classification.detect_objects')
@@ -107,13 +107,12 @@ def detect_objects(blob):
     filename = models.File.objects.filter(original=blob.pk)[0].name
     if blob.mime_type == 'image/jpeg':
         with blob.open() as f:
-            resp_json = call_object_detection_service(f, filename)
+            detections = call_object_detection_service(f, filename)
     else:
         image_bytes = convert_image(blob)
         image = io.BytesIO(image_bytes)
-        resp_json = call_object_detection_service(image, filename)
+        detections = call_object_detection_service(image, filename)
 
-    detections = json.loads(resp_json)
     filtered_detections = []
     for hit in detections:
         score = int(hit.get('percentage_probability'))
@@ -133,13 +132,12 @@ def classify_image(blob):
     filename = models.File.objects.filter(original=blob.pk)[0].name
     if blob.mime_type == 'image/jpeg':
         with blob.open() as f:
-            resp_json = call_image_classification_service(f, filename)
+            predictions = call_image_classification_service(f, filename)
     else:
         image_bytes = convert_image(blob)
         image = io.BytesIO(image_bytes)
-        resp_json = call_image_classification_service(image, filename)
+        predictions = call_image_classification_service(image, filename)
 
-    predictions = json.loads(resp_json)
     filtered_predictions = []
     for hit in predictions:
         score = int(hit[1])
