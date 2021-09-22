@@ -9,6 +9,9 @@ pytestmark = [pytest.mark.django_db]
 
 TEST_IMAGE = TESTDATA / './disk-files/images/bikes.jpg'
 
+EXPECTED_OBJECTS = ['person', 'bicycle']
+EXPECTED_CLASSE = 'unicycle'
+
 
 def test_classification_service_endpoint():
     with TEST_IMAGE.open('rb') as f:
@@ -21,7 +24,6 @@ def test_detection_service_endpoint():
 
 
 def test_classification_service():
-    EXPECTED_CLASS = 'unicycle'
     with TEST_IMAGE.open('rb') as f:
         predictions = image_classification.call_image_classification_service(f, 'bikes.jpg')
     classes = [hit[0] for hit in predictions]
@@ -29,7 +31,6 @@ def test_classification_service():
 
 
 def test_detection_service():
-    EXPECTED_OBJECTS = ['person', 'bicycle']
     with TEST_IMAGE.open('rb') as f:
         predictions = image_classification.call_object_detection_service(f, 'bikes.jpg')
     objects = [hit['name'] for hit in predictions]
@@ -37,7 +38,6 @@ def test_detection_service():
 
 
 def test_detection_task(fakedata):
-    EXPECTED_OBJECTS = ['person', 'bicycle']
     root = fakedata.init()
     with TEST_IMAGE.open('rb') as f:
         IMAGE_BLOB = fakedata.blob(f.read())
@@ -49,7 +49,6 @@ def test_detection_task(fakedata):
 
 
 def test_classification_task(fakedata):
-    EXPECTED_CLASS = 'unicycle'
     root = fakedata.init()
     with TEST_IMAGE.open('rb') as f:
         IMAGE_BLOB = fakedata.blob(f.read())
@@ -72,8 +71,5 @@ def test_scores_digested(fakedata, taskmanager, client):
     api = CollectionApiClient(client)
     digest = api.get_digest(blob.pk)['content']
 
-    results_detection = digest['detected-objects']
-    results_classification = digest['image-classes']
-
-    assert [result for result in results_detection if result['object'] == 'person']
-    assert [result for result in results_classification if result['class'] == 'unicycle']
+    assert [result for result in digest['detected-objects'] if result['object'] == 'person']
+    assert [result for result in digest['image-classes'] if result['class'] == 'unicycle']
