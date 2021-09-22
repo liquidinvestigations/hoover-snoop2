@@ -10,7 +10,7 @@ pytestmark = [pytest.mark.django_db]
 TEST_IMAGE = TESTDATA / './disk-files/images/bikes.jpg'
 
 EXPECTED_OBJECTS = ['person', 'bicycle']
-EXPECTED_CLASSE = 'unicycle'
+EXPECTED_CLASS = 'unicycle'
 
 
 def test_classification_service_endpoint():
