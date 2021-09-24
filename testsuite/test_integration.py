@@ -43,7 +43,7 @@ def check_api_page(api, item_id, parent_id):
     assert item['id'] in children
 
 
-def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails):
+def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, settings_no_object_detection):
     blobs_path = settings.SNOOP_BLOB_STORAGE
     subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
 

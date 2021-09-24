@@ -32,3 +32,4 @@ django
 djangorestframework
 drf-yasg
 celery
+pillow

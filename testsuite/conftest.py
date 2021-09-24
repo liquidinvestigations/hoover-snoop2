@@ -49,6 +49,14 @@ def settings_no_thumbnails():
     settings.SNOOP_THUMBNAIL_URL = url
 
 
+@pytest.fixture
+def settings_no_object_detection():
+    url = settings.SNOOP_OBJECT_DETECTION_URL
+    settings.SNOOP_OBJECT_DETECTION_URL = None
+    yield
+    settings.SNOOP_OBJECT_DETECTION_URL = url
+
+
 @contextmanager
 def mask_out_current_collection():
     try:
