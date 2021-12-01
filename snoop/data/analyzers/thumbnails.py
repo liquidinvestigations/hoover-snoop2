@@ -5,10 +5,14 @@ Three Thumnbails in different sizes are created. The service used can be found h
 """
 
 import logging
-from .. import models
-from django.conf import settings
+import random
+import time
+
 import requests
-from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
+from django.conf import settings
+
+from .. import models
+from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
 
 log = logging.getLogger(__name__)
 
@@ -347,11 +351,17 @@ def call_thumbnails_service(data, size):
     resp = requests.post(url, files={'file': data})
     log.info(resp.status_code)
 
+    if resp.status_code == 404:
+        for i in range(3):
+            time.sleep(random.randint(15, 45))
+            resp = requests.post(url, files={'file': data})
+            if resp.status_code == 200:
+                break
+
     if resp.status_code == 500:
         print(resp.text)
         raise SnoopTaskBroken('thumbnail service returned http 500', 'thumbnail_http_500')
-
-    if (resp.status_code != 200
+    elif (resp.status_code != 200
             or resp.headers['Content-Type'] != 'image/jpeg'):
         raise RuntimeError(f"Unexpected response from thumbnails-service: {resp}")
     return resp.content
