@@ -352,7 +352,7 @@ def call_thumbnails_service(data, size):
     log.info(resp.status_code)
 
     if resp.status_code == 404:
-        for i in range(3):
+        for _ in range(3):
             time.sleep(random.randint(15, 45))
             resp = requests.post(url, files={'file': data})
             if resp.status_code == 200:
