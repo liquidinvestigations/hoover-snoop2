@@ -336,7 +336,7 @@ def call_thumbnails_service(blob, size):
     log.info(resp.status_code)
 
     if resp.status_code == 404 or resp.status_code == 500:
-        for i in range(5):
+        for _ in range(5):
             time.sleep(random.randint(20, 45))
             with blob.open() as data:
                 payload['file'] = data
