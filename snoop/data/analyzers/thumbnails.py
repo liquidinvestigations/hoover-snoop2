@@ -35,7 +35,6 @@ THUMBNAIL_MIME_TYPES = {
     'image/jp2',
     'image/jpeg',
     'image/jpm',
-    'application/json',
     'image/x-nikon-nef',
     'image/x-olympus-orf',
     'application/font-sfnt',
@@ -134,14 +133,6 @@ THUMBNAIL_MIME_TYPES = {
     'image/svg',
     'image/svg+xml',
     'image/svg',
-    'application/x-compressed',
-    'application/x-zip-compressed',
-    'application/zip',
-    'multipart/x-zip',
-    'application/x-tar',
-    'application/x-gzip',
-    'application/x-gtar',
-    'application/x-tgz',
     'application/vnd.scribus',
     'application/vnd.oasis.opendocument.chart',
     'application/vnd.oasis.opendocument.chart-template',
@@ -174,8 +165,6 @@ THUMBNAIL_MIME_TYPES = {
     'application/vnd.sun.xml.writer.global',
     'application/vnd.sun.xml.writer.template',
     'application/vnd.sun.xml.writer.web',
-    'application/rtf',
-    'text/rtf',
     'application/msword',
     'application/vnd.ms-powerpoint',
     'application/vnd.ms-excel',
@@ -211,7 +200,6 @@ THUMBNAIL_MIME_TYPES = {
     'application/mathml+xml',
     'text/html',
     'application/docbook+xml',
-    'text/csv',
     'text/spreadsheet',
     'application/x-qpro',
     'application/x-dbase',
@@ -273,11 +261,6 @@ THUMBNAIL_MIME_TYPES = {
     'image/x-sun-raster',
     'image/x-xbitmap',
     'image/x-xpixmap',
-    'text/plain',
-    'text/html',
-    'text/xml',
-    'application/xml',
-    'application/javascript',
     'application/sla',
     'application/vnd.ms-pki.stl',
     'application/x-navistyle',
@@ -337,7 +320,7 @@ def can_create(blob):
     return False
 
 
-def call_thumbnails_service(data, size):
+def call_thumbnails_service(blob, filename, size):
     """Executes HTTP PUT request to Thumbnail service.
 
     Args:
@@ -346,24 +329,26 @@ def call_thumbnails_service(data, size):
         """
 
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
-    log.info(url)
+    with blob.open() as data:
+        payload = {'file': (filename, data)}
+        resp = requests.post(url, files=payload)
 
-    resp = requests.post(url, files={'file': data})
     log.info(resp.status_code)
 
-    if resp.status_code == 404:
-        for _ in range(3):
-            time.sleep(random.randint(15, 45))
-            resp = requests.post(url, files={'file': data})
+    if resp.status_code == 404 or resp.status_code == 500:
+        for i in range(5):
+            time.sleep(random.randint(20, 45))
+            with blob.open() as data:
+                payload['file'] = ('retry_' + str(i) + '_' + filename, data)
+                resp = requests.post(url, files=payload)
             if resp.status_code == 200:
                 break
 
     if resp.status_code == 500:
-        print(resp.text)
-        raise SnoopTaskBroken('thumbnail service returned http 500', 'thumbnail_http_500')
+        raise SnoopTaskBroken(resp.text, 'thumbnail_http_500')
     elif (resp.status_code != 200
             or resp.headers['Content-Type'] != 'image/jpeg'):
-        raise RuntimeError(f"Unexpected response from thumbnails-service: {resp}")
+        raise RuntimeError(f"Unexpected response from thumbnails-service: {resp} {resp.text}")
     return resp.content
 
 
@@ -376,9 +361,9 @@ def get_thumbnail(blob):
     Returns the primary key of the created thumbnail blob.
     """
 
+    filename = models.File.objects.filter(original=blob.pk)[0].name
     for size in models.Thumbnail.SizeChoices.values:
-        with blob.open() as f:
-            resp = call_thumbnails_service(f, size)
+        resp = call_thumbnails_service(blob, str(size) + '_' + filename, size)
         blob_thumb = models.Blob.create_from_bytes(resp)
         _, _ = models.Thumbnail.objects.update_or_create(
             blob=blob,
