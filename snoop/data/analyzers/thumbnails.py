@@ -320,7 +320,7 @@ def can_create(blob):
     return False
 
 
-def call_thumbnails_service(blob, filename, size):
+def call_thumbnails_service(blob, size):
     """Executes HTTP PUT request to Thumbnail service.
 
     Args:
@@ -330,7 +330,7 @@ def call_thumbnails_service(blob, filename, size):
 
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
     with blob.open() as data:
-        payload = {'file': (filename, data)}
+        payload = {'file': data}
         resp = requests.post(url, files=payload)
 
     log.info(resp.status_code)
@@ -339,7 +339,7 @@ def call_thumbnails_service(blob, filename, size):
         for i in range(5):
             time.sleep(random.randint(20, 45))
             with blob.open() as data:
-                payload['file'] = ('retry_' + str(i) + '_' + filename, data)
+                payload['file'] = data
                 resp = requests.post(url, files=payload)
             if resp.status_code == 200:
                 break
@@ -361,9 +361,8 @@ def get_thumbnail(blob):
     Returns the primary key of the created thumbnail blob.
     """
 
-    filename = models.File.objects.filter(original=blob.pk)[0].name
     for size in models.Thumbnail.SizeChoices.values:
-        resp = call_thumbnails_service(blob, str(size) + '_' + filename, size)
+        resp = call_thumbnails_service(blob, size)
         blob_thumb = models.Blob.create_from_bytes(resp)
         _, _ = models.Thumbnail.objects.update_or_create(
             blob=blob,
