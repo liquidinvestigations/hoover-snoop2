@@ -311,6 +311,18 @@ THUMBNAIL_MIME_TYPES = {
 Based on [[https://github.com/algoo/preview-generator/blob/develop/doc/supported_mimetypes.rst]]
 """
 
+RETRY_ON_HTTP_CODES = [404, 500]
+"""List of HTTP status codes that will be retried"""
+
+MAX_RETRY_COUNT = 5
+"""Maximum mumber of retries, when receiving errors from the service."""
+
+RETRY_MIN_SLEEP = 20
+"""Minimum of time that the task will sleep before a retry."""
+
+RETRY_MAX_SLEEP = 45
+"""Maximum of time that the task will sleep before a retry."""
+
 
 def can_create(blob):
     """Checks if thumbnail generator service can process this mime type."""
@@ -335,7 +347,7 @@ def call_thumbnails_service(blob, size):
 
     log.info(resp.status_code)
 
-    if resp.status_code == 404 or resp.status_code == 500:
+    if resp.status_code in RETRY_ON_HTTP_CODES:
         for _ in range(5):
             time.sleep(random.randint(20, 45))
             with blob.open() as data:
@@ -344,11 +356,10 @@ def call_thumbnails_service(blob, size):
             if resp.status_code == 200:
                 break
 
-    if resp.status_code == 500:
-        raise SnoopTaskBroken(resp.text, 'thumbnail_http_500')
-    elif (resp.status_code != 200
+    if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'image/jpeg'):
-        raise RuntimeError(f"Unexpected response from thumbnails-service: {resp} {resp.text}")
+        raise SnoopTaskBroken(resp.text, 'thumbnail_http_' + str(resp.status_code))
+
     return resp.content
 
 
