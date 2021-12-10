@@ -348,8 +348,8 @@ def call_thumbnails_service(blob, size):
     log.info(resp.status_code)
 
     if resp.status_code in RETRY_ON_HTTP_CODES:
-        for _ in range(5):
-            time.sleep(random.randint(20, 45))
+        for _ in range(MAX_RETRY_COUNT):
+            time.sleep(random.randint(RETRY_MIN_SLEEP, RETRY_MAX_SLEEP))
             with blob.open() as data:
                 payload['file'] = data
                 resp = requests.post(url, files=payload)
