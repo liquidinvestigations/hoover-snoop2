@@ -22,7 +22,60 @@ depends_on:
 concurrency:
   limit: 1
 
+
 steps:
+
+- name: GH CR build base docker image
+  image: plugins/docker
+  settings:
+    repo: ghcr.io/liquidinvestigations/hoover-snoop2
+    registry: ghcr.io
+    auto_tag: true
+    auto_tag_suffix: base
+    dockerfile: Dockerfile.base
+    username:
+      from_secret: ghcr_docker_username
+    password:
+      from_secret: ghcr_docker_password
+  when:
+    event:
+    - push
+    - tag
+    branch:
+    - master
+
+
+- name: GH CR docker push branch
+  image: plugins/docker
+  settings:
+    repo: ghcr.io/liquidinvestigations/hoover-snoop2
+    registry: ghcr.io
+    tags: ${DRONE_COMMIT_BRANCH}
+    username:
+      from_secret: ghcr_docker_username
+    password:
+      from_secret: ghcr_docker_password
+  when:
+    event:
+    - push
+  depends_on:
+  - GH CR build base docker image
+
+
+- name: GH CR docker push autotag + latest
+  image: plugins/docker
+  settings:
+    repo: ghcr.io/liquidinvestigations/hoover-snoop2
+    registry: ghcr.io
+    auto_tag: true
+    username:
+      from_secret: ghcr_docker_username
+    password:
+      from_secret: ghcr_docker_password
+  depends_on:
+  - GH CR build base docker image
+
+
 - name: build base docker image
   image: plugins/docker
   settings:
@@ -41,6 +94,7 @@ steps:
     branch:
     - master
 
+
 - name: docker push branch
   image: plugins/docker
   settings:
@@ -53,6 +107,8 @@ steps:
   when:
     event:
     - push
+  depends_on:
+  - build base docker image
 
 - name: docker push autotag + latest
   image: plugins/docker
@@ -63,6 +119,8 @@ steps:
       from_secret: docker_username
     password:
       from_secret: docker_password
+  depends_on:
+  - build base docker image
 
 ---
 kind: pipeline
@@ -191,4 +249,17 @@ kind: secret
 name: docker_password
 get:
   path: liquid/ci/drone.docker
+  name: password
+---
+kind: secret
+name: ghcr_docker_username
+get:
+  path: liquid/ci/gh-cr.docker
+  name: username
+
+---
+kind: secret
+name: ghcr_docker_password
+get:
+  path: liquid/ci/gh-cr.docker
   name: password
