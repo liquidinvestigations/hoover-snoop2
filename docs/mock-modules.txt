@@ -44,6 +44,7 @@ click
 #django.utils.timezone
 django_filter
 django_silk
+django-ranged-response
 #djangorestframework
 psycopg2
 psycopg2.extensions
