@@ -59,6 +59,7 @@ googleapis_common_protos
 gprof2dot
 html5lib
 idna
+importlib-metadata
 jinja2
 kombu
 langdetect
@@ -115,3 +116,4 @@ waitress
 webencodings
 whitenoise
 whitenoise.middleware
+zipp
