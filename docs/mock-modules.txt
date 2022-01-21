@@ -45,6 +45,7 @@ click
 django_filter
 django_silk
 django-ranged-response
+ranged_response
 #djangorestframework
 psycopg2
 psycopg2.extensions
