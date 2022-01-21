@@ -44,8 +44,6 @@ click
 #django.utils.timezone
 django_filter
 django_silk
-django-ranged-response
-ranged_response
 #djangorestframework
 psycopg2
 psycopg2.extensions
@@ -60,7 +58,6 @@ googleapis_common_protos
 gprof2dot
 html5lib
 idna
-importlib-metadata
 jinja2
 kombu
 langdetect
@@ -98,6 +95,7 @@ python_dateutil
 dateutil
 pytz
 pyyaml
+ranged_response
 requests
 requests.exceptions
 #rest_framework
@@ -117,4 +115,3 @@ waitress
 webencodings
 whitenoise
 whitenoise.middleware
-zipp
