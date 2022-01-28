@@ -1,17 +1,16 @@
 """Django views, mostly JSON APIs.
 """
 from functools import wraps
-from django.http import HttpResponse, JsonResponse, FileResponse, Http404
-from django.shortcuts import get_object_or_404
+
 from django.conf import settings
-from rest_framework import viewsets
-from . import models
-from . import digests
-from . import ocr
-from . import collections
-from . import serializers
-from .analyzers import html
 from django.db.models import Q
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.shortcuts import get_object_or_404
+from ranged_response import RangedFileResponse
+from rest_framework import viewsets
+
+from . import collections, digests, models, ocr, serializers
+from .analyzers import html
 
 TEXT_LIMIT = 10 ** 6  # one million characters
 
@@ -191,8 +190,10 @@ def document_download(request, hash, filename):
 
     real_filename = first_file.name_bytes.tobytes().decode('utf-8', errors='replace')
 
-    return FileResponse(blob.open(), content_type=blob.content_type, as_attachment=True,
-                        filename=real_filename)
+    response = RangedFileResponse(request, blob.open(), content_type=blob.content_type)
+    response['Content-Disposition'] = f'attachment, filename={real_filename}'
+
+    return response
 
 
 @collection_view
