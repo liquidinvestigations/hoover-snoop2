@@ -8,9 +8,9 @@ pytestmark = [pytest.mark.django_db]
 
 
 def test_thumbnail_service():
-    test_doc = TESTDATA / './no-extension/file_doc'
-    with test_doc.open('rb') as f:
-        thumbnails.call_thumbnails_service(f, 100)
+    TEST_DOC = settings.SNOOP_TESTDATA + "/data/no-extension/file_doc"
+    doc_blob = models.Blob.create_from_file(TEST_DOC)
+    thumbnails.call_thumbnails_service(doc_blob, 100)
 
 
 def test_thumbnail_task():

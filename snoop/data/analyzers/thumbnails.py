@@ -5,10 +5,14 @@ Three Thumnbails in different sizes are created. The service used can be found h
 """
 
 import logging
-from .. import models
-from django.conf import settings
+import random
+import time
+
 import requests
-from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
+from django.conf import settings
+
+from .. import models
+from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
 
 log = logging.getLogger(__name__)
 
@@ -31,7 +35,6 @@ THUMBNAIL_MIME_TYPES = {
     'image/jp2',
     'image/jpeg',
     'image/jpm',
-    'application/json',
     'image/x-nikon-nef',
     'image/x-olympus-orf',
     'application/font-sfnt',
@@ -130,14 +133,6 @@ THUMBNAIL_MIME_TYPES = {
     'image/svg',
     'image/svg+xml',
     'image/svg',
-    'application/x-compressed',
-    'application/x-zip-compressed',
-    'application/zip',
-    'multipart/x-zip',
-    'application/x-tar',
-    'application/x-gzip',
-    'application/x-gtar',
-    'application/x-tgz',
     'application/vnd.scribus',
     'application/vnd.oasis.opendocument.chart',
     'application/vnd.oasis.opendocument.chart-template',
@@ -170,8 +165,6 @@ THUMBNAIL_MIME_TYPES = {
     'application/vnd.sun.xml.writer.global',
     'application/vnd.sun.xml.writer.template',
     'application/vnd.sun.xml.writer.web',
-    'application/rtf',
-    'text/rtf',
     'application/msword',
     'application/vnd.ms-powerpoint',
     'application/vnd.ms-excel',
@@ -207,7 +200,6 @@ THUMBNAIL_MIME_TYPES = {
     'application/mathml+xml',
     'text/html',
     'application/docbook+xml',
-    'text/csv',
     'text/spreadsheet',
     'application/x-qpro',
     'application/x-dbase',
@@ -269,11 +261,6 @@ THUMBNAIL_MIME_TYPES = {
     'image/x-sun-raster',
     'image/x-xbitmap',
     'image/x-xpixmap',
-    'text/plain',
-    'text/html',
-    'text/xml',
-    'application/xml',
-    'application/javascript',
     'application/sla',
     'application/vnd.ms-pki.stl',
     'application/x-navistyle',
@@ -324,6 +311,18 @@ THUMBNAIL_MIME_TYPES = {
 Based on [[https://github.com/algoo/preview-generator/blob/develop/doc/supported_mimetypes.rst]]
 """
 
+RETRY_ON_HTTP_CODES = [404, 500]
+"""List of HTTP status codes that will be retried"""
+
+MAX_RETRY_COUNT = 5
+"""Maximum mumber of retries, when receiving errors from the service."""
+
+RETRY_MIN_SLEEP = 20
+"""Minimum of time that the task will sleep before a retry."""
+
+RETRY_MAX_SLEEP = 45
+"""Maximum of time that the task will sleep before a retry."""
+
 
 def can_create(blob):
     """Checks if thumbnail generator service can process this mime type."""
@@ -333,7 +332,7 @@ def can_create(blob):
     return False
 
 
-def call_thumbnails_service(data, size):
+def call_thumbnails_service(blob, size):
     """Executes HTTP PUT request to Thumbnail service.
 
     Args:
@@ -342,18 +341,25 @@ def call_thumbnails_service(data, size):
         """
 
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
-    log.info(url)
+    with blob.open() as data:
+        payload = {'file': data}
+        resp = requests.post(url, files=payload)
 
-    resp = requests.post(url, files={'file': data})
     log.info(resp.status_code)
 
-    if resp.status_code == 500:
-        print(resp.text)
-        raise SnoopTaskBroken('thumbnail service returned http 500', 'thumbnail_http_500')
+    if resp.status_code in RETRY_ON_HTTP_CODES:
+        for _ in range(MAX_RETRY_COUNT):
+            time.sleep(random.randint(RETRY_MIN_SLEEP, RETRY_MAX_SLEEP))
+            with blob.open() as data:
+                payload['file'] = data
+                resp = requests.post(url, files=payload)
+            if resp.status_code == 200:
+                break
 
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'image/jpeg'):
-        raise RuntimeError(f"Unexpected response from thumbnails-service: {resp}")
+        raise SnoopTaskBroken(resp.text, 'thumbnail_http_' + str(resp.status_code))
+
     return resp.content
 
 
@@ -367,8 +373,7 @@ def get_thumbnail(blob):
     """
 
     for size in models.Thumbnail.SizeChoices.values:
-        with blob.open() as f:
-            resp = call_thumbnails_service(f, size)
+        resp = call_thumbnails_service(blob, size)
         blob_thumb = models.Blob.create_from_bytes(resp)
         _, _ = models.Thumbnail.objects.update_or_create(
             blob=blob,
