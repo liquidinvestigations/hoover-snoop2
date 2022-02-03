@@ -102,17 +102,18 @@ def test_people(taskmanager):
     assert len(content['to']) == 1
     assert "penultim_o@yahoo.com" in content['to']
 
-    assert type(content['from']) is str
-    assert "newsletter@mapbox.com" in content['from']
+    assert type(content['from']) is list
+    assert len(content['from']) == 1
+    assert "newsletter@mapbox.com" in content['from'][0]
 
-    assert ['yahoo.com', 'mapbox.com'] == content['email-domains']
+    assert set(['yahoo.com', 'mapbox.com']) == set(content['email-domains'])
 
 
 def test_email_with_byte_order_mark(taskmanager):
     content = parse_email(BYTE_ORDER_MARK, taskmanager)['content']
 
     assert content['subject'] == "xxxxxxxxxx"
-    assert content['from'] == 'yyy <yyyyyyyyyyyyyyy@gmail.com>'
+    assert content['from'] == ['yyy <yyyyyyyyyyyyyyy@gmail.com>']
 
 
 def test_attachment_children(taskmanager):

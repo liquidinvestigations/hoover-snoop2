@@ -7,5 +7,5 @@ docker build . --tag liquidinvestigations/hoover-snoop2:$(git branch --show-curr
 cp .drone.yml .drone.yml.bak
 sed -i 's/pull\: always/pull\: if-not-exists/g' .drone.yml.bak
 sed -i "s/py\.test -vv/py\.test `echo $@`/g" .drone.yml.bak
-time drone exec --branch $(git branch --show-current) --event push --pipeline test .drone.yml.bak
+time drone exec --branch $(git branch --show-current) --event push --pipeline test --timeout 2h0m0s .drone.yml.bak
 rm .drone.yml.bak

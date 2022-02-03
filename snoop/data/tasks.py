@@ -107,19 +107,20 @@ def queue_task(task):
         """
         col = collections.from_object(task)
         try:
+            logger.info(f'queueing task {task.func}(pk {task.pk})')
             laterz_snoop_task.apply_async(
                 (col.name, task.pk,),
                 queue=col.queue_name,
                 priority=task_map[task.func].priority,
                 retry=False,
             )
-            logger.debug(f'queued task {task.func}(pk {task.pk})')
         except laterz_snoop_task.OperationalError as e:
             logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
 
     import_snoop_tasks()
-    if not task_map[task.func].bulk:
-        transaction.on_commit(send_to_celery)
+    if task_map[task.func].bulk:
+        return
+    transaction.on_commit(send_to_celery)
 
 
 def queue_next_tasks(task, reset=False):
@@ -212,6 +213,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     with transaction.atomic(using=col.db_alias), col.set_current():
         with snoop_task_log_handler() as handler:
             try:
+                logger.info('fetching task col=%s func=%s id=%s', col_name, '?', 'pk')
                 task = (
                     models.Task.objects
                     .select_for_update(nowait=True)
@@ -922,8 +924,8 @@ def run_single_batch_for_bulk_task():
 
     # max number of tasks to pull. We estimate 5K / task in the database, so this means about 25 MB
     MAX_BULK_TASK_COUNT = 5000
-    # stop adding Tasks to bulk when current size is larger than this 40 MB
-    MAX_BULK_SIZE = 40 * 2 ** 20
+    # stop adding Tasks to bulk when current size is larger than this 32 MB
+    MAX_BULK_SIZE = 32 * 2 ** 20
 
     all_functions = [
         x['func']
@@ -964,6 +966,7 @@ def run_single_batch_for_bulk_task():
             # Annotate important parameters. Since our only batch task is digests.index(),
             # we only need to annotate the following:
             # - digests_gather result
+
             .annotate(digest_gather_result=Subquery(
                 models.TaskDependency.objects
                 .filter(next=OuterRef('pk'), name='digests_gather')
@@ -996,7 +999,7 @@ def run_single_batch_for_bulk_task():
         current_size = 0
         for task in task_query[:MAX_BULK_TASK_COUNT]:
             task_list.append(task)
-            current_size += task.size
+            current_size += ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
             if current_size > MAX_BULK_SIZE:
                 break
 
@@ -1048,7 +1051,8 @@ def run_single_batch_for_bulk_task():
             task.status = status if result.get(task.blob_arg.pk) else models.Task.STATUS_BROKEN
             task.date_finished = timezone.now()
             # adjust date started so duration is scaled for task size
-            relative_duration = t_elapsed * task.size / current_size
+            current_task_size = ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
+            relative_duration = t_elapsed * current_task_size / current_size
             task.date_started = task.date_finished - timedelta(seconds=relative_duration)
             task.date_modified = timezone.now()
             task.error = error
@@ -1070,6 +1074,10 @@ def run_single_batch_for_bulk_task():
 @celery.app.task
 def run_bulk_tasks():
     """Periodic task that runs some batches of bulk tasks for all collections."""
+
+    if not single_task_running('run_bulk_tasks'):
+        logger.warning('run_bulk_tasks function already running, exiting')
+        return
 
     # Stop processing each collection after this many batches and/or seconds
     BATCHES_IN_A_ROW = 20

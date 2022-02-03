@@ -177,7 +177,8 @@ def gather(blob, **depends_on):
         else:
             with email_parse_blob.open(encoding='utf8') as f:
                 email_parse = json.load(f)
-            rv.update(email.email_meta(email_parse))
+            email_meta = email.email_meta(email_parse)
+            rv.update(email_meta)
 
     # For large text/CSV files, Tika (and text extraction) fails. For these, we want to read the text
     # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any
@@ -281,7 +282,7 @@ def gather(blob, **depends_on):
                 image_classes = json.load(f)
             rv['image-classes'] = image_classes
 
-    _delete_empty_keys(rv)
+    # _delete_empty_keys(rv)
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))

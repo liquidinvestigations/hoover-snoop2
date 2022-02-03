@@ -345,15 +345,20 @@ celery.app.conf.beat_schedule = {
         'task': 'snoop.data.tasks.update_all_tags',
         'schedule': timedelta(seconds=35),
     },
+    'run_bulk_tasks': {
+        'task': 'snoop.data.tasks.run_bulk_tasks',
+        'schedule': timedelta(seconds=66),
+    },
 }
 
 celery.app.conf.task_routes = {
     'snoop.data.tasks.run_dispatcher': {'queue': 'run_dispatcher'},
     'snoop.data.tasks.save_stats': {'queue': 'save_stats'},
     'snoop.data.tasks.update_all_tags': {'queue': 'update_all_tags'},
+    'snoop.data.tasks.run_bulk_tasks': {'queue': 'run_bulk_tasks'},
 }
 
-SYSTEM_QUEUES = ['run_dispatcher', 'save_stats', 'update_all_tags']
+SYSTEM_QUEUES = ['run_dispatcher', 'save_stats', 'update_all_tags', 'run_bulk_tasks']
 """List of "system queues" - celery that must be executed periodically.
 
 One execution of any of these functions will work on all collections under a `for` loop.

@@ -94,7 +94,7 @@ def feed(request):
     if lt:
         query = query.filter(date_modified__lt=lt)
 
-    documents = [digests.get_document_data(d) for d in query[:limit]]
+    documents = [digests.get_document_data(d.blob) for d in query[:limit]]
 
     if len(documents) < limit:
         next_page = None

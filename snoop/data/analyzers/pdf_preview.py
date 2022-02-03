@@ -46,6 +46,14 @@ PDF_PREVIEW_EXTENSIONS = {
 Based on [[https://thecodingmachine.github.io/gotenberg/#office.basic]].
 """
 
+PDF_PREVIEW_TIMEOUT_BASE = 60
+"""Minimum number of seconds to wait for this service."""
+
+PDF_PREVIEW_MIN_SPEED_BPS = 35 * 1024  # 35 KB/s
+"""Minimum reference speed for this task. Saved as 10% of the Average Success
+Speed in the Admin UI. The timeout is calculated using this value, the request
+file size, and the previous `TIMEOUT_BASE` constant."""
+
 
 def can_create(blob):
     """Checks if the pdf generator can process this file."""
@@ -53,12 +61,14 @@ def can_create(blob):
         return True
 
 
-def call_pdf_generator(data, filename):
+def call_pdf_generator(data, filename, size):
     """Executes HTTP PUT request to the pdf generator service."""
 
     url = settings.SNOOP_PDF_PREVIEW_URL + 'convert/office'
 
-    resp = requests.post(url, files={'files': (filename, data)})
+    timeout = int(PDF_PREVIEW_TIMEOUT_BASE + size / PDF_PREVIEW_MIN_SPEED_BPS)
+
+    resp = requests.post(url, files={'files': (filename, data)}, timeout=timeout)
 
     if resp.status_code == 504:
         raise SnoopTaskBroken('pdf generator timed out and returned http 504', 'pdf_preview_http_504')
@@ -87,7 +97,7 @@ def get_pdf(blob):
             raise SnoopTaskBroken('no valid file extension found', 'invalid_file_extension')
 
     with blob.open() as f:
-        resp = call_pdf_generator(f, DEFAULT_FILENAME + ext)
+        resp = call_pdf_generator(f, DEFAULT_FILENAME + ext, blob.size)
     blob_pdf_preview = models.Blob.create_from_bytes(resp)
     # create PDF object in pdf preview model
     _, _ = models.PdfPreview.objects.update_or_create(

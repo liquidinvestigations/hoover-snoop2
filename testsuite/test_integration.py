@@ -57,6 +57,9 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
     taskmanager.run(limit=20000)
 
     with mask_out_current_collection():
+        tasks.run_bulk_tasks()
+
+    with mask_out_current_collection():
         col_url = '/collections/testdata/json'
         col = client.get(col_url).json()
 

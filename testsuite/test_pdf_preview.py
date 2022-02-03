@@ -6,11 +6,12 @@ from snoop.data import models
 pytestmark = [pytest.mark.django_db]
 
 TEST_DOC = TESTDATA / './disk-files/word/sample-doc-file-for-testing-1.doc'
+SIZE = 10000
 
 
 def test_pdf_preview_service():
     with TEST_DOC.open('rb') as f:
-        pdf_preview.call_pdf_generator(f, 'sample-doc-file-for-testing-1.doc')
+        pdf_preview.call_pdf_generator(f, 'sample-doc-file-for-testing-1.doc', SIZE)
 
 
 def test_pdf_preview_task(fakedata):

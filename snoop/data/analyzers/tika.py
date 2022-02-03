@@ -68,6 +68,14 @@ TIKA_MIME_TYPES_ORIG = {
 }
 ALL_TIKA_MIME_TYPES = TIKA_MIME_TYPES | TIKA_MIME_TYPES_ORIG
 
+TIKA_TIMEOUT_BASE = 120
+"""Minimum number of seconds to wait for this service."""
+
+TIKA_MIN_SPEED_BPS = 100 * 1024  # 100 KB/s
+"""Minimum reference speed for this task. Saved as 10% of the Average Success
+Speed in the Admin UI. The timeout is calculated using this value, the request
+file size, and the previous `TIMEOUT_BASE` constant."""
+
 
 def can_process(blob):
     """Checks if Tika can process this blob's mime type."""
@@ -88,9 +96,11 @@ def call_tika_server(endpoint, data, content_type, data_size):
             its own `libmagic` on it, and if that fails it will stop processing the request.
     """
 
+    timeout = timeout = int(TIKA_TIMEOUT_BASE + data_size / TIKA_MIN_SPEED_BPS)
+
     session = requests.Session()
     url = urljoin(settings.SNOOP_TIKA_URL, endpoint)
-    resp = session.put(url, data=data, headers={'Content-Type': content_type})
+    resp = session.put(url, data=data, headers={'Content-Type': content_type}, timeout=timeout)
 
     if resp.status_code == 422:
         raise SnoopTaskBroken("tika returned http 422, corrupt", "tika_http_422")

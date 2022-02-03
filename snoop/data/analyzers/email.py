@@ -229,14 +229,16 @@ def email_meta(email_data):
         'in-reply-to': ['In-Reply-To', 'References', 'Original-Message-ID', 'Resent-Message-Id'],
     }
 
-    for header in convert:
+    for target_field in convert:
         all_values = []
-        for val in headers.get(header, []):
-            for line in val.strip().splitlines():
-                line = line.strip()
-                if line and line not in all_values:
-                    all_values.append(line)
-        ret[header] = all_values
+        for header in convert[target_field]:
+            for val in headers.get(header, []):
+                for line in val.strip().splitlines():
+                    line = line.strip()
+                    if line and line not in all_values:
+                        all_values.append(line)
+
+        ret[target_field] = all_values
 
     message_date = None
     message_raw_date = headers.get('Date', [None])[0]
