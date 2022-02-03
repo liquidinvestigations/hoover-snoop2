@@ -192,6 +192,7 @@ def document_download(request, hash, filename):
 
     response = RangedFileResponse(request, blob.open(), content_type=blob.content_type)
     response['Content-Disposition'] = f'attachment, filename={real_filename}'
+    response['Accept-Ranges'] = 'bytes'
 
     return response
 
