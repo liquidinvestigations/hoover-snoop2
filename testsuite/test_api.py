@@ -56,3 +56,5 @@ def test_document_downloads(client, fakedata, taskmanager):
     api = CollectionApiClient(client)
     resp = api.get_download(blob.pk, 'some-filename')
     assert resp['Content-Disposition'].startswith('attach')
+
+    api.get_download(blob.pk, 'some-filename', range=True)
