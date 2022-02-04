@@ -192,7 +192,7 @@ class CollectionApiClient:
             resp = self.client.get(url)
         assert resp.status_code == 200
 
-    def get_pdf_preview(self, blob_hash, range=None):
+    def get_pdf_preview(self, blob_hash):
         col = collections.current()
         url = f'/collections/{col.name}/{blob_hash}/pdf-preview'
         with mask_out_current_collection():
