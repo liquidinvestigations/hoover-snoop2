@@ -334,7 +334,8 @@ def thumbnail(request, hash, size):
 @collection_view
 def pdf_preview(request, hash):
     pdf_preview_entry = get_object_or_404(models.PdfPreview.objects, blob__pk=hash)
-    response = RangedFileResponse(request, pdf_preview_entry.pdf_preview.open(), content_type='application/pdf')
+    response = RangedFileResponse(request, pdf_preview_entry.pdf_preview.open(),
+                                  content_type='application/pdf')
     response['Accept-Ranges'] = 'bytes'
     response['Content-Disposition'] = f'attachment, filename={hash}_preview.pdf'
     return response
