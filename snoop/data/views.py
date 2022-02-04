@@ -225,6 +225,11 @@ def document_ocr(request, hash, ocrname):
         digest_task = get_object_or_404(models.Task.objects, func='digests.gather', args=[hash])
         tesseract_task = digest_task.prev_set.get(name=ocrname).prev
         blob = tesseract_task.result
+
+    response = RangedFileResponse(request, blob.open(),
+                                  content_type=blob.content_type)
+    response['Content-Disposition'] = f'attachment, filename={hash}_{ocrname}'
+    response['Accept-Ranges'] = 'bytes'
     return FileResponse(blob.open(), content_type=blob.content_type, as_attachment=True,
                         filename=hash + '_' + ocrname)
 
@@ -330,4 +335,6 @@ def thumbnail(request, hash, size):
 @collection_view
 def pdf_preview(request, hash):
     pdf_preview_entry = get_object_or_404(models.PdfPreview.objects, blob__pk=hash)
-    return FileResponse(pdf_preview_entry.pdf_preview.open(), content_type='application/pdf')
+    response = RangedFileResponse(request, pdf_preview_entry.pdf_preview.open(), content_type='application/pdf')
+    response['Accept-Ranges'] = 'bytes'
+    return response
