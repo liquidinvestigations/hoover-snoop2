@@ -50,5 +50,3 @@ def test_pdf_preview_api(fakedata, taskmanager, client):
     api = CollectionApiClient(client)
 
     api.get_pdf_preview(blob.pk)
-
-    api.get_pdf_preview(blob.pk, range=True)
