@@ -178,12 +178,18 @@ class CollectionApiClient:
     def get_locations(self, blob_hash, page=1):
         return self.get(f'/{blob_hash}/locations?page={page}')
 
-    def get_download(self, blob_hash, filename):
+    def get_download(self, blob_hash, filename, range=None):
+        headers = {}
+        if range:
+            headers = {'Range': 'bytes=1-8'}
         col = collections.current()
         with mask_out_current_collection():
-            r = self.client.get(f'/collections/{col.name}/{blob_hash}/raw/{filename}')
-            assert r.status_code == 200
-            return r
+            r = self.client.get(f'/collections/{col.name}/{blob_hash}/raw/{filename}', headers=headers)
+            if range:
+                assert r.status_code == 206
+            else:
+                assert r.status_code == 200
+                return r
 
     def get_thumbnail(self, blob_hash, size):
         col = collections.current()
@@ -192,9 +198,15 @@ class CollectionApiClient:
             resp = self.client.get(url)
         assert resp.status_code == 200
 
-    def get_pdf_preview(self, blob_hash):
+    def get_pdf_preview(self, blob_hash, range=None):
+        headers = {}
+        if range:
+            headers = {'Range': 'bytes=1-8'}
         col = collections.current()
         url = f'/collections/{col.name}/{blob_hash}/pdf-preview'
         with mask_out_current_collection():
-            resp = self.client.get(url)
-        assert resp.status_code == 200
+            resp = self.client.get(url, headers=headers)
+            if range:
+                assert resp.status_code == 206
+            else:
+                assert resp.status_code == 200
