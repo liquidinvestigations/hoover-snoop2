@@ -108,7 +108,7 @@ def get_task_matrix(task_queryset, prev_matrix={}):
         fill = total_time / real_time * 100
         # get total system bytes/sec in this period
         size = (bucket['size'] or 0) + SIZE_OVERHEAD * count
-        bytes_sec = size / real_time
+        bytes_sec = size / total_time
         row[str(mins) + 'm_count'] = count
         row[str(mins) + 'm_fill'] = f'{fill:.02f}%'
         row[str(mins) + 'm_avg_duration'] = total_time / count
