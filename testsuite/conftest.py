@@ -197,4 +197,4 @@ class CollectionApiClient:
         url = f'/collections/{col.name}/{blob_hash}/pdf-preview'
         with mask_out_current_collection():
             resp = self.client.get(url)
-        assert resp.status_code == 200
+            assert resp.status_code == 200
