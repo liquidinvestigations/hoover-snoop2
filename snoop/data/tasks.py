@@ -145,7 +145,7 @@ def queue_next_tasks(task, reset=False):
                     version=task_map[task.func].version,
                 )
                 next_task.save()
-            logger.info("Queueing %r after %r", next_task, task)
+            logger.debug("Queueing %r after %r", next_task, task)
             queue_task(next_task)
 
 
@@ -213,7 +213,6 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     with transaction.atomic(using=col.db_alias), col.set_current():
         with snoop_task_log_handler() as handler:
             try:
-                logger.info('fetching task col=%s func=%s id=%s', col_name, '?', 'pk')
                 task = (
                     models.Task.objects
                     .select_for_update(nowait=True)
@@ -302,7 +301,7 @@ def run_task(task, log_handler, raise_exceptions=False):
             task.save()
 
         with tracing.span('run'):
-            logger.info("Running %r", task)
+            logger.debug("Running %r", task)
             t0 = time()
             try:
                 func = task_map[task.func]
@@ -317,7 +316,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
             except MissingDependency as dep:
                 with tracing.span('missing dependency'):
-                    msg = '%r requests an extra dependency: %r [%.03f s]' % (task, dep, time() - t0)
+                    msg = 'requests extra dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.info(msg)
                     tracing.add_annotation(msg)
 
@@ -336,7 +335,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
             except ExtraDependency as dep:
                 with tracing.span('extra dependency'):
-                    msg = '%r requests to remove a dependency: %r [%.03f s]' % (task, dep, time() - t0)
+                    msg = 'requests to remove dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.info(msg)
                     tracing.add_annotation(msg)
 
@@ -360,7 +359,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     log=log_handler.stream.getvalue(),
                     version=task_map[task.func].version,
                 )
-                msg = '%r broken: %s [%.03f s]' % (task, task.broken_reason, time() - t0)
+                msg = 'Broken: %r %s [%.03f s]' % (task, task.broken_reason, time() - t0)
                 logger.exception(msg)
                 tracing.add_annotation(msg)
 
@@ -388,14 +387,14 @@ def run_task(task, log_handler, raise_exceptions=False):
                     version=task_map[task.func].version,
                 )
 
-                msg = '%r failed: %s [%.03f s]' % (task, task.error, time() - t0)
+                msg = 'Failed: %r  %s [%.03f s]' % (task, task.error, time() - t0)
                 tracing.add_annotation(msg)
                 logger.exception(msg)
 
                 if raise_exceptions:
                     raise
             else:
-                logger.info("%r succeeded [%.03f s]", task, time() - t0)
+                logger.info("Succeeded: %r [%.03f s]", task, time() - t0)
                 task.update(
                     status=models.Task.STATUS_SUCCESS,
                     error='',
@@ -622,7 +621,7 @@ def retry_tasks(queryset):
 
         if not first_batch:
             first_batch = batch[:5000]
-            logger.info('Queueing first %s tasks...', len(first_batch))
+            logger.debug('Queueing first %s tasks...', len(first_batch))
             for task in first_batch:
                 queue_task(task)
 
@@ -1086,7 +1085,7 @@ def run_bulk_tasks():
     import_snoop_tasks()
     for collection in collections.ALL.values():
         with collection.set_current():
-            logger.info(f"Running bulk tasks for collection {collection.name}")
+            logger.debug(f"Running bulk tasks for collection {collection.name}")
             t0 = timezone.now()
             for _ in range(BATCHES_IN_A_ROW):
                 # stop at first sign of failure

@@ -52,13 +52,17 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
     indexing.create_index()
 
     with mask_out_current_collection():
+        print('Running dispatcher')
         tasks.run_dispatcher()
 
+    print('Running taskmanager')
     taskmanager.run(limit=20000)
 
     with mask_out_current_collection():
+        print('Running bulk tasks')
         tasks.run_bulk_tasks()
 
+    print("Iterate through the feed")
     with mask_out_current_collection():
         col_url = '/collections/testdata/json'
         col = client.get(col_url).json()
@@ -75,6 +79,7 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
             for doc in page_docs:
                 docs[doc['id']] = doc
 
+    print("Run checks...")
     # this file exists on the filesystem
     cheese = docs[ID['cheese']]
     assert cheese['content']['text'].strip() == "cheese!"
@@ -92,6 +97,7 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
     assert partialemlx['content']['subject'] == "Re: promulgare lege"
 
     # check that all successful digests.index tasks made it into es
+    print("Check Elasticsearch")
     es_count_url = f'{settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL}/testdata/_count'
     es_count_resp = requests.get(es_count_url)
     es_count = es_count_resp.json()['count']
@@ -108,6 +114,7 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
     assert models.Task.objects.filter(status='error').count() == 0
 
     # check that all files and directories are contained in their parent lists
+    print("Check API page")
     api = CollectionApiClient(client)
     for f in models.File.objects.all()[:500]:
         check_api_page(api, digests.file_id(f), digests.parent_id(f))
