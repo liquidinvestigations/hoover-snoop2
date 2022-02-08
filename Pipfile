@@ -74,6 +74,7 @@ drf-yasg = {extras = ["validation"], version = "*"}
 uritemplate = "*"
 pillow = "*"
 django-ranged-response = "*"
+pytest-timeout = "*"
 
 [requires]
 python_version = "3.9"
