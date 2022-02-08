@@ -924,7 +924,7 @@ def run_single_batch_for_bulk_task():
     # max number of tasks to pull. We estimate 5K / task in the database, so this means about 25 MB
     MAX_BULK_TASK_COUNT = 5000
     # stop adding Tasks to bulk when current size is larger than this 32 MB
-    MAX_BULK_SIZE = 32 * 2 ** 20
+    MAX_BULK_SIZE = 32 * (2 ** 20)
 
     all_functions = [
         x['func']
@@ -936,6 +936,7 @@ def run_single_batch_for_bulk_task():
 
     total_completed = 0
     for func in all_functions:
+        logger.debug('Running single batch of bulk tasks of type: %s', func)
         t0 = timezone.now()
 
         task_query = (
@@ -1001,6 +1002,8 @@ def run_single_batch_for_bulk_task():
             current_size += ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
             if current_size > MAX_BULK_SIZE:
                 break
+
+        logger.debug('%s: Selected %s items with total size: %s', func, len(task_list), current_size)
 
         if not task_list:
             continue

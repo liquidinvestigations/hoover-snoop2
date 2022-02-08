@@ -1,3 +1,4 @@
+import time
 from urllib.parse import urljoin
 import subprocess
 
@@ -58,6 +59,15 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
     print('Running taskmanager')
     taskmanager.run(limit=20000)
 
+    time.sleep(60)
+
+    with mask_out_current_collection():
+        print('Running bulk tasks')
+        tasks.run_bulk_tasks()
+
+    time.sleep(60)
+
+    print("Iterate through the feed")
     with mask_out_current_collection():
         print('Running bulk tasks')
         tasks.run_bulk_tasks()
