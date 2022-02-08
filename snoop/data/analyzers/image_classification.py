@@ -36,6 +36,22 @@ IMAGE_CLASSIFICATION_MIME_TYPES = {
 }
 """Based on https://pillow.readthedocs.io/en/stable/handbook/image-file-formats.html#image-file-formats"""
 
+CLASSIFICATION_TIMEOUT_BASE = 60
+"""Minimum number of seconds to wait for this service."""
+
+CLASSIFICATION_MIN_SPEED_BPS = 100 * 1024  # 100 KB/s
+"""Minimum reference speed for this task. Saved as 10% of the Average Success
+Speed in the Admin UI. The timeout is calculated using this value, the request
+file size, and the previous `TIMEOUT_BASE` constant."""
+
+DETECT_OBJECTS_TIMEOUT_BASE = 120
+"""Minimum number of seconds to wait for this service."""
+
+DETECT_OBJECTS_MIN_SPEED_BPS = 16 * 1024  # 16 KB/s
+"""Minimum reference speed for this task. Saved as 10% of the Average Success
+Speed in the Admin UI. The timeout is calculated using this value, the request
+file size, and the previous `TIMEOUT_BASE` constant."""
+
 
 def can_detect(blob):
     """Return true if the image type is supported.
@@ -61,12 +77,13 @@ def convert_image(blob):
     return buf.getvalue()
 
 
-def call_object_detection_service(imagedata, filename):
+def call_object_detection_service(imagedata, filename, data_size):
     """Executes HTTP PUT request to the object detection service."""
 
     url = settings.SNOOP_OBJECT_DETECTION_URL
+    timeout = timeout = int(DETECT_OBJECTS_TIMEOUT_BASE + data_size / DETECT_OBJECTS_MIN_SPEED_BPS)
 
-    resp = requests.post(url, files={'image': (filename, imagedata)})
+    resp = requests.post(url, files={'image': (filename, imagedata)}, timeout=timeout)
 
     if resp.status_code == 500:
         raise SnoopTaskBroken('Object detection service could not process the image',
@@ -78,12 +95,13 @@ def call_object_detection_service(imagedata, filename):
     return resp.json()
 
 
-def call_image_classification_service(imagedata, filename):
+def call_image_classification_service(imagedata, filename, data_size):
     """Executes HTTP PUT request to the object detection service."""
 
     url = settings.SNOOP_IMAGE_CLASSIFICATION_URL
+    timeout = timeout = int(CLASSIFICATION_TIMEOUT_BASE + data_size / CLASSIFICATION_MIN_SPEED_BPS)
 
-    resp = requests.post(url, files={'image': (filename, imagedata)})
+    resp = requests.post(url, files={'image': (filename, imagedata)}, timeout=timeout)
 
     if resp.status_code == 500:
         raise SnoopTaskBroken('Image classification service could not process the image',
@@ -106,11 +124,11 @@ def detect_objects(blob):
     filename = models.File.objects.filter(original=blob.pk)[0].name
     if blob.mime_type == 'image/jpeg':
         with blob.open() as f:
-            detections = call_object_detection_service(f, filename)
+            detections = call_object_detection_service(f, filename, blob.size)
     else:
         image_bytes = convert_image(blob)
         image = io.BytesIO(image_bytes)
-        detections = call_object_detection_service(image, filename)
+        detections = call_object_detection_service(image, filename, blob.size)
 
     filtered_detections = []
     for hit in detections:
@@ -131,11 +149,11 @@ def classify_image(blob):
     filename = models.File.objects.filter(original=blob.pk)[0].name
     if blob.mime_type == 'image/jpeg':
         with blob.open() as f:
-            predictions = call_image_classification_service(f, filename)
+            predictions = call_image_classification_service(f, filename, blob.size)
     else:
         image_bytes = convert_image(blob)
         image = io.BytesIO(image_bytes)
-        predictions = call_image_classification_service(image, filename)
+        predictions = call_image_classification_service(image, filename, blob.size)
 
     filtered_predictions = []
     for hit in predictions:

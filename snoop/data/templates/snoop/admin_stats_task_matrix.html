@@ -1,31 +1,19 @@
+{% load pretty_size %}
+
 <h2>Tasks</h2>
 <table>
   <thead>
-    <th>func</th>
-    <th>pending</th>
-    <th>deferred</th>
-    <th>success</th>
-    <th>broken</th>
-    <th>error</th>
-    <th>5m</th>
-    <th>5m duration</th>
-    <th>5m fill</th>
-    <th>eta</th>
+    {% for x in task_matrix_header %}
+      <th>{{x}}</th>
+    {% endfor %}
   </thead>
 
   <tbody>
-    {% for func, row in task_matrix %}
+    {% for row in task_matrix %}
     <tr>
-      <th>{{ func }}</th>
-      <td>{{ row.pending }}</td>
-      <td>{{ row.deferred }}</td>
-      <td>{{ row.success }}</td>
-      <td>{{ row.broken }}</td>
-      <td>{{ row.error }}</td>
-      <td>{{ row.5m }}</td>
-      <td>{{ row.5m_duration }}</td>
-      <td>{{ row.5m_fill }}</td>
-      <td>{{ row.eta }}</td>
+      {% for r in row %}
+        <td>{{ r }}</td>
+      {% endfor %}
     </tr>
     {% endfor %}
   </tbody>

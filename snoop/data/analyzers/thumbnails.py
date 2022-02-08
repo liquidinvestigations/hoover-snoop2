@@ -323,6 +323,14 @@ RETRY_MIN_SLEEP = 20
 RETRY_MAX_SLEEP = 45
 """Maximum of time that the task will sleep before a retry."""
 
+TIMEOUT_BASE = 60
+"""Minimum number of seconds to wait for this service."""
+
+MIN_SPEED_BPS = 27 * 1024  # 27 KB/s
+"""Minimum reference speed for this task. Saved as 10% of the Average Success
+Speed in the Admin UI. The timeout is calculated using this value, the request
+file size, and the previous `TIMEOUT_BASE` constant."""
+
 
 def can_create(blob):
     """Checks if thumbnail generator service can process this mime type."""
@@ -341,6 +349,8 @@ def call_thumbnails_service(blob, size):
         """
 
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
+    timeout = timeout = int(TIMEOUT_BASE + blob.size / MIN_SPEED_BPS)
+
     with blob.open() as data:
         payload = {'file': data}
         resp = requests.post(url, files=payload)
@@ -352,7 +362,7 @@ def call_thumbnails_service(blob, size):
             time.sleep(random.randint(RETRY_MIN_SLEEP, RETRY_MAX_SLEEP))
             with blob.open() as data:
                 payload['file'] = data
-                resp = requests.post(url, files=payload)
+                resp = requests.post(url, files=payload, timeout=timeout)
             if resp.status_code == 200:
                 break
 

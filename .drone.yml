@@ -218,6 +218,8 @@ steps:
   commands:
   - whoami
   - cd /opt/hoover/snoop
+  - mkdir -p /opt/hoover/snoop/blobs
+  - mkdir -p /opt/hoover/collections
   - chown -R 666:666 /opt/hoover/collections
   - py.test -vv
 

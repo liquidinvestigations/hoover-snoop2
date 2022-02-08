@@ -71,7 +71,7 @@ def collection(request):
         'description': col.name,
         'feed': 'feed',
         'data_urls': '{id}/json',
-        'stats': stats.value,
+        'stats': {k: v for k, v in stats.value.items() if not k.startswith('_')},
         'max_result_window': col.max_result_window,
         'refresh_interval': col.refresh_interval,
     })
@@ -94,7 +94,7 @@ def feed(request):
     if lt:
         query = query.filter(date_modified__lt=lt)
 
-    documents = [digests.get_document_data(d) for d in query[:limit]]
+    documents = [digests.get_document_data(d.blob) for d in query[:limit]]
 
     if len(documents) < limit:
         next_page = None
@@ -151,15 +151,16 @@ def trim_text(data):
 def document(request, hash):
     """JSON view with data for a Digest.
 
-    The primary key of the Digest is used to fetch it.
+    The hash of the Digest source object is used to fetch it. If a Digest object doesn't exist, that means
+    processing has failed and we need to fetch the File for metadata.
 
     These are the de-duplicated variants of the objects returned from `file_view()` above, with some
     differences. See `snoop.data.digests.get_document_data()` versus `snoop.data.digests.get_file_data()`.
     """
 
-    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
+    blob = models.Blob.objects.get(pk=hash)
     children_page = int(request.GET.get('children_page', 1))
-    return JsonResponse(trim_text(digests.get_document_data(digest, children_page)))
+    return JsonResponse(trim_text(digests.get_document_data(blob, children_page)))
 
 
 @collection_view
@@ -274,11 +275,16 @@ class TagViewSet(viewsets.ModelViewSet):
                 'uuid': 'invalid',
             }
         else:
+            try:
+                digest_id = models.Digest.objects.filter(blob=self.kwargs['hash']).get().id
+            except models.Digest.DoesNotExist:
+                digest_id = None
+
             context = {
                 'collection': self.kwargs['collection'],
                 'blob': self.kwargs['hash'],
                 'user': self.kwargs['username'],
-                'digest_id': models.Digest.objects.filter(blob=self.kwargs['hash']).get().id,
+                'digest_id': digest_id,
                 'uuid': self.kwargs['uuid'],
             }
         return super().get_serializer(*args, **kwargs, context=context)
@@ -295,7 +301,10 @@ class TagViewSet(viewsets.ModelViewSet):
 
         user = self.kwargs['username']
         blob = self.kwargs['hash']
-        assert models.Digest.objects.filter(blob=blob).exists(), 'hash is not digest'
+
+        # let queryset return empty list
+        # assert models.Digest.objects.filter(blob=blob).exists(), 'hash is not digest'
+
         return models.DocumentUserTag.objects.filter(Q(user=user) | Q(public=True), Q(digest__blob=blob))
 
     def check_ownership(self, pk):
