@@ -318,8 +318,16 @@ SNOOP_RABBITMQ_HTTP_URL = os.getenv('SNOOP_RABBITMQ_HTTP_URL')
 """URL pointing to RabbitMQ message queue.
 
 Of the form "1.2.3.4:1234/_path/" (no "http://" prefix).
-Used to query queue lengths. Assumes user/password guest/guest.
+Used to query queue lengths.
+
+Username and password configs follow.
 """
+
+SNOOP_RABBITMQ_HTTP_USERNAME = os.getenv('SNOOP_RABBITMQ_HTTP_USERNAME', 'guest')
+"""Username for rabbitmq HTTP interface. Default 'guest' """
+
+SNOOP_RABBITMQ_HTTP_PASSWORD = os.getenv('SNOOP_RABBITMQ_HTTP_PASSWORD', 'guest')
+"""Password for rabbitmq HTTP interface. Default 'guest' """
 
 _tracing_url = os.environ.get('TRACING_URL')
 if _tracing_url:

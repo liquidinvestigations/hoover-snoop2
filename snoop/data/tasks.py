@@ -727,7 +727,9 @@ def get_rabbitmq_queue_length(q):
 
     from pyrabbit.api import Client
 
-    cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL, 'guest', 'guest')
+    cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL,
+                settings.SNOOP_RABBITMQ_HTTP_USERNAME,
+                settings.SNOOP_RABBITMQ_HTTP_PASSWORD)
     return cl.get_queue_depth('/', q)
 
 
