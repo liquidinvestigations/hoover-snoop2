@@ -49,6 +49,9 @@ Based on [[https://thecodingmachine.github.io/gotenberg/#office.basic]].
 PDF_PREVIEW_TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
 
+PDF_PREVIEW_TIMEOUT_MAX = 2 * 3600
+"""Maximum number of seconds to wait for this service. For PDF preview we allow 2h."""
+
 PDF_PREVIEW_MIN_SPEED_BPS = 35 * 1024  # 35 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
@@ -66,7 +69,8 @@ def call_pdf_generator(data, filename, size):
 
     url = settings.SNOOP_PDF_PREVIEW_URL + 'convert/office'
 
-    timeout = int(PDF_PREVIEW_TIMEOUT_BASE + size / PDF_PREVIEW_MIN_SPEED_BPS)
+    timeout = min(PDF_PREVIEW_TIMEOUT_MAX,
+                  int(PDF_PREVIEW_TIMEOUT_BASE + size / PDF_PREVIEW_MIN_SPEED_BPS))
 
     resp = requests.post(url, files={'files': (filename, data)}, timeout=timeout)
 

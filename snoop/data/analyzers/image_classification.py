@@ -38,6 +38,8 @@ IMAGE_CLASSIFICATION_MIME_TYPES = {
 
 CLASSIFICATION_TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
+CLASSIFICATION_TIMEOUT_MAX = 200
+"""Maximum number of seconds to wait for this service."""
 
 CLASSIFICATION_MIN_SPEED_BPS = 100 * 1024  # 100 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
@@ -46,6 +48,9 @@ file size, and the previous `TIMEOUT_BASE` constant."""
 
 DETECT_OBJECTS_TIMEOUT_BASE = 120
 """Minimum number of seconds to wait for this service."""
+
+DETECT_OBJECTS_TIMEOUT_MAX = 300
+"""Maximum number of seconds to wait for this service."""
 
 DETECT_OBJECTS_MIN_SPEED_BPS = 16 * 1024  # 16 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
@@ -81,7 +86,10 @@ def call_object_detection_service(imagedata, filename, data_size):
     """Executes HTTP PUT request to the object detection service."""
 
     url = settings.SNOOP_OBJECT_DETECTION_URL
-    timeout = timeout = int(DETECT_OBJECTS_TIMEOUT_BASE + data_size / DETECT_OBJECTS_MIN_SPEED_BPS)
+    timeout = min(
+        DETECT_OBJECTS_TIMEOUT_MAX,
+        int(DETECT_OBJECTS_TIMEOUT_BASE + data_size / DETECT_OBJECTS_MIN_SPEED_BPS)
+    )
 
     resp = requests.post(url, files={'image': (filename, imagedata)}, timeout=timeout)
 
@@ -99,7 +107,10 @@ def call_image_classification_service(imagedata, filename, data_size):
     """Executes HTTP PUT request to the object detection service."""
 
     url = settings.SNOOP_IMAGE_CLASSIFICATION_URL
-    timeout = timeout = int(CLASSIFICATION_TIMEOUT_BASE + data_size / CLASSIFICATION_MIN_SPEED_BPS)
+    timeout = min(
+        CLASSIFICATION_TIMEOUT_MAX,
+        int(CLASSIFICATION_TIMEOUT_BASE + data_size / CLASSIFICATION_MIN_SPEED_BPS)
+    )
 
     resp = requests.post(url, files={'image': (filename, imagedata)}, timeout=timeout)
 

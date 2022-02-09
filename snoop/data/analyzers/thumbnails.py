@@ -326,6 +326,9 @@ RETRY_MAX_SLEEP = 45
 TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
 
+TIMEOUT_MAX = 300
+"""Maximum number of seconds to wait for this service."""
+
 MIN_SPEED_BPS = 27 * 1024  # 27 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
@@ -349,7 +352,7 @@ def call_thumbnails_service(blob, size):
         """
 
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
-    timeout = timeout = int(TIMEOUT_BASE + blob.size / MIN_SPEED_BPS)
+    timeout = min(TIMEOUT_MAX, int(TIMEOUT_BASE + blob.size / MIN_SPEED_BPS))
 
     with blob.open() as data:
         payload = {'file': data}
