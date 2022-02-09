@@ -239,7 +239,7 @@ WORKER_COUNT = min(SNOOP_MAX_WORKERS,
 TASK_RETRY_AFTER_MINUTES = 10
 """Errored tasks are retried at most every this number of minutes."""
 
-TASK_RETRY_FAIL_LIMIT = 5
+TASK_RETRY_FAIL_LIMIT = 2
 """Errored tasks are retried at most this number of times."""
 
 WORKER_TASK_LIMIT = 50000
