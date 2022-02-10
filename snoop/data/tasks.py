@@ -40,6 +40,7 @@ from .utils import run_once
 from requests.exceptions import ConnectionError
 from snoop import tracing
 from django.db.utils import OperationalError
+from psycopg2.errors import QueryCanceled
 
 logger = logging.getLogger(__name__)
 
@@ -1097,12 +1098,13 @@ def run_bulk_tasks():
             for _ in range(BATCHES_IN_A_ROW):
                 try:
                     count = run_single_batch_for_bulk_task()
-                except OperationalError as e:
+                except (QueryCanceled, OperationalError) as e:
+                    logger.error("Failed to run single batch!")
                     logger.exception(e)
-                    time.sleep(30)
+                    sleep(30)
                     continue
                 if not count:
                     break
                 if (timezone.now() - t0).total_seconds() > SECONDS_IN_A_ROW:
-                    logger.info("Stopping batches because of timeout")
+                    logger.warning("Stopping batches because of timeout")
                     break
