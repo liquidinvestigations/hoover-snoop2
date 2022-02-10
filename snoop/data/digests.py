@@ -47,7 +47,7 @@ def get_collection_langs():
     return current().ocr_languages
 
 
-@snoop_task('digests.launch', priority=4)
+@snoop_task('digests.launch', priority=4, version=4)
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -145,7 +145,7 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', priority=7, version=3)
+@snoop_task('digests.gather', priority=7, version=4)
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
@@ -282,7 +282,7 @@ def gather(blob, **depends_on):
                 image_classes = json.load(f)
             rv['image-classes'] = image_classes
 
-    # _delete_empty_keys(rv)
+    _delete_empty_keys(rv)
 
     with models.Blob.create() as writer:
         writer.write(json.dumps(rv).encode('utf-8'))

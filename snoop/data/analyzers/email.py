@@ -173,7 +173,7 @@ def dump_part(message, depends_on):
     return rv
 
 
-@snoop_task('email.parse', priority=3, version=1)
+@snoop_task('email.parse', priority=3, version=2)
 @returns_json_blob
 def parse(blob, **depends_on):
     """Task function to parse emails into a dict with its structure."""
@@ -226,6 +226,7 @@ def email_meta(email_data):
         'bcc': ['Bcc', 'Resent-Bcc'],
         'from': ['From', 'Resent-From'],
         'message-id': ['Message-Id'],
+        'thread-index': ['Thread-Index'],
         'in-reply-to': ['In-Reply-To', 'References', 'Original-Message-ID', 'Resent-Message-Id'],
     }
 
@@ -258,14 +259,11 @@ def email_meta(email_data):
         'email-header-key': list(set(headers.keys())),
         'email-header': sum(([k + '=' + v for v in headers[k]] for k in headers), start=[]),
     })
-    # not here:
-    # "thread-index": {"type": "keyword"},
-    #       "message": {"type": "keyword"},
 
     # delete empty values for all headers
-    # for k in list(ret.keys()):
-    #     if not ret[k]:
-    #         del ret[k]
+    for k in list(ret.keys()):
+        if not ret[k]:
+            del ret[k]
     return ret
 
 
