@@ -39,6 +39,7 @@ from .templatetags import pretty_size
 from .utils import run_once
 from requests.exceptions import ConnectionError
 from snoop import tracing
+from django.db.utils import OperationalError
 
 logger = logging.getLogger(__name__)
 
@@ -1086,7 +1087,7 @@ def run_bulk_tasks():
 
     # Stop processing each collection after this many batches and/or seconds
     BATCHES_IN_A_ROW = 20
-    SECONDS_IN_A_ROW = 500
+    SECONDS_IN_A_ROW = 600
 
     import_snoop_tasks()
     for collection in collections.ALL.values():
@@ -1094,8 +1095,12 @@ def run_bulk_tasks():
             logger.debug(f"Running bulk tasks for collection {collection.name}")
             t0 = timezone.now()
             for _ in range(BATCHES_IN_A_ROW):
-                # stop at first sign of failure
-                count = run_single_batch_for_bulk_task()
+                try:
+                    count = run_single_batch_for_bulk_task()
+                except OperationalError as e:
+                    logger.exception(e)
+                    time.sleep(30)
+                    continue
                 if not count:
                     break
                 if (timezone.now() - t0).total_seconds() > SECONDS_IN_A_ROW:

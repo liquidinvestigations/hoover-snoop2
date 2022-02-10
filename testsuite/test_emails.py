@@ -78,13 +78,10 @@ def test_subject_and_date(taskmanager):
 def test_no_subject_or_text(taskmanager):
     content = parse_email(NO_SUBJECT, taskmanager)['content']
 
-    assert 'subject' in content
-    assert len(content['subject']) == 0
-    assert type(content['subject']) is str
+    assert 'subject' not in content
 
     text = content['text']
-    assert type(text) is str
-    assert len(text) <= 2
+    assert text is None
 
 
 def test_text(taskmanager):
