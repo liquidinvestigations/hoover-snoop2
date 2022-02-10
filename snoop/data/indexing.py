@@ -56,6 +56,7 @@ MAPPINGS = {
             "references": {"type": "keyword"},
             "rev": {"type": "integer"},
             "sha1": {"type": "keyword"},
+            "sha3-256": {"type": "keyword"},
             "size": {"type": "integer"},
             "suffix": {"type": "keyword"},
             "thread-index": {"type": "keyword"},

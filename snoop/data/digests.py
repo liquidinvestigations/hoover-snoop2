@@ -675,6 +675,7 @@ def _get_document_content(digest, the_file=None):
         'md5': original.md5,
         'sha1': original.sha1,
         'id': original.sha3_256,
+        'sha3-256': original.sha3_256,
         'size': original.size,
         'filename': the_file.name,
         'path': path,
