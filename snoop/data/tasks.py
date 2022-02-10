@@ -1000,6 +1000,7 @@ def run_single_batch_for_bulk_task():
         task_list = []
         current_size = 0
         for task in task_query[:MAX_BULK_TASK_COUNT]:
+            logger.debug('%s: Selected task %s', func, task)
             task_list.append(task)
             current_size += ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
             if current_size > MAX_BULK_SIZE:
