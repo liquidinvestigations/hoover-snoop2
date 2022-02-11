@@ -1097,7 +1097,8 @@ def run_bulk_tasks():
             t0 = timezone.now()
             for _ in range(BATCHES_IN_A_ROW):
                 try:
-                    count = run_single_batch_for_bulk_task()
+                    with transaction.atomic():
+                        count = run_single_batch_for_bulk_task()
                 except (QueryCanceled, OperationalError) as e:
                     logger.error("Failed to run single batch!")
                     logger.exception(e)
