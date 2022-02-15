@@ -925,10 +925,13 @@ def run_single_batch_for_bulk_task():
         int: the number of Tasks completed successfully
     """
 
-    # max number of tasks to pull. We estimate 5K / task in the database, so this means about 25 MB
-    MAX_BULK_TASK_COUNT = 5000
-    # stop adding Tasks to bulk when current size is larger than this 32 MB
-    MAX_BULK_SIZE = 32 * (2 ** 20)
+    # Max number of tasks to pull.
+    # We estimate metadata: 5KB / task  = 1 MB / chunk
+    # And for data, can you have anything in the 2KB - 100MB+ range for each document.
+    MAX_BULK_TASK_COUNT = 200
+
+    # Stop adding Tasks to bulk when current size is larger than this 50 MB
+    MAX_BULK_SIZE = 50 * (2 ** 20)
 
     all_functions = [
         x['func']
@@ -948,6 +951,14 @@ def run_single_batch_for_bulk_task():
             .filter(func=func)
             # don't do anything to successful, up to date tasks
             .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
+        )
+        total_task_count = task_query.count()
+        logger.info('Found %s total possible tasks of type %s to run', total_task_count, func)
+        if not total_task_count:
+            continue
+
+        task_query = (
+            task_query
             # filter out any taks with non-completed dependencies
             .filter(
                 ~Exists(
@@ -1001,14 +1012,14 @@ def run_single_batch_for_bulk_task():
 
         task_list = []
         current_size = 0
-        for task in task_query[:MAX_BULK_TASK_COUNT]:
+        for task in list(task_query[:MAX_BULK_TASK_COUNT]):
             logger.debug('%s: Selected task %s', func, task)
             task_list.append(task)
             current_size += ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
             if current_size > MAX_BULK_SIZE:
                 break
 
-        logger.debug('%s: Selected %s items with total size: %s', func, len(task_list), current_size)
+        logger.warning('%s: Selected %s items with total size: %s', func, len(task_list), current_size)
 
         if not task_list:
             continue
@@ -1087,7 +1098,7 @@ def run_bulk_tasks():
         return
 
     # Stop processing each collection after this many batches and/or seconds
-    BATCHES_IN_A_ROW = 20
+    BATCHES_IN_A_ROW = 200
     SECONDS_IN_A_ROW = 600
 
     import_snoop_tasks()
@@ -1096,14 +1107,15 @@ def run_bulk_tasks():
             logger.debug(f"Running bulk tasks for collection {collection.name}")
             t0 = timezone.now()
             for _ in range(BATCHES_IN_A_ROW):
-                try:
-                    with transaction.atomic():
+                with transaction.atomic():
+                    try:
                         count = run_single_batch_for_bulk_task()
-                except (QueryCanceled, OperationalError) as e:
-                    logger.error("Failed to run single batch!")
-                    logger.exception(e)
-                    sleep(30)
-                    continue
+                    except (QueryCanceled, OperationalError) as e:
+                        logger.error("Failed to run single batch!")
+                        logger.exception(e)
+                        sleep(30)
+                        logger.warning("Skipping iteration!")
+                        continue
                 if not count:
                     break
                 if (timezone.now() - t0).total_seconds() > SECONDS_IN_A_ROW:
