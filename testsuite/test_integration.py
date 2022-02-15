@@ -60,18 +60,18 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
     print('Running taskmanager')
     taskmanager.run(limit=20000)
 
-    time.sleep(60)
+    time.sleep(100)
 
-    with mask_out_current_collection():
-        print('Running bulk tasks')
-        tasks.run_bulk_tasks()
+    try:
+        with mask_out_current_collection():
+            print('Running bulk tasks')
+            tasks.run_bulk_tasks()
+    except Exception:
+        time.sleep(100)
+        with mask_out_current_collection():
+            tasks.run_bulk_tasks()
 
-    time.sleep(60)
-
-    print("Iterate through the feed")
-    with mask_out_current_collection():
-        print('Running bulk tasks')
-        tasks.run_bulk_tasks()
+    time.sleep(10)
 
     print("Iterate through the feed")
     with mask_out_current_collection():

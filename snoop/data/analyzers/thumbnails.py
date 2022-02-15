@@ -314,7 +314,7 @@ Based on [[https://github.com/algoo/preview-generator/blob/develop/doc/supported
 RETRY_ON_HTTP_CODES = [404, 500]
 """List of HTTP status codes that will be retried"""
 
-MAX_RETRY_COUNT = 5
+MAX_RETRY_COUNT = 3
 """Maximum mumber of retries, when receiving errors from the service."""
 
 RETRY_MIN_SLEEP = 20
@@ -326,7 +326,7 @@ RETRY_MAX_SLEEP = 45
 TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
 
-TIMEOUT_MAX = 300
+TIMEOUT_MAX = 180
 """Maximum number of seconds to wait for this service."""
 
 MIN_SPEED_BPS = 27 * 1024  # 27 KB/s
@@ -356,13 +356,19 @@ def call_thumbnails_service(blob, size):
 
     with blob.open() as data:
         payload = {'file': data}
-        resp = requests.post(url, files=payload)
+        try:
+            resp = requests.post(url, files=payload, timeout=timeout)
+        except Exception as e:
+            log.exception(e)
+            raise SnoopTaskBroken('timeout and/or connection error, timeout = ' + str(round(timeout)) + 's',
+                                  'thumbnail_timeout')
 
-    log.info(resp.status_code)
+    log.debug('timestamp service got: %s', resp.status_code)
 
     if resp.status_code in RETRY_ON_HTTP_CODES:
         for _ in range(MAX_RETRY_COUNT):
             time.sleep(random.randint(RETRY_MIN_SLEEP, RETRY_MAX_SLEEP))
+            log.info(resp.status_code)
             with blob.open() as data:
                 payload['file'] = data
                 resp = requests.post(url, files=payload, timeout=timeout)

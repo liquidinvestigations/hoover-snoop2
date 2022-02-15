@@ -236,10 +236,10 @@ WORKER_COUNT = min(SNOOP_MAX_WORKERS,
                        int(SNOOP_CPU_MULTIPLIER * cpu_count())))
 """Computed worker count for this node."""
 
-TASK_RETRY_AFTER_MINUTES = 10
+TASK_RETRY_AFTER_MINUTES = 3
 """Errored tasks are retried at most every this number of minutes."""
 
-TASK_RETRY_FAIL_LIMIT = 2
+TASK_RETRY_FAIL_LIMIT = 3
 """Errored tasks are retried at most this number of times."""
 
 WORKER_TASK_LIMIT = 50000
@@ -276,11 +276,11 @@ SYNC_RETRY_LIMIT = 60 * _scale_coef
 will be retried by sync every minute.
 """
 
-PDF2PDFOCR_MAX_STRLEN = 4 * (2 ** 20)
+PDF2PDFOCR_MAX_STRLEN = 2 * (2 ** 20)
 """ Only run pdf2pdfocr if pdf text length less than this value.
 
 This should defend us from over-1000-page documents that hang up the processing for days. The english bible
-has about 4 MB of text, so we use that as a simple value of when to stop.
+has about 4 MB of text, so we use 50% of that as a simple value of when to stop.
 """
 
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')
