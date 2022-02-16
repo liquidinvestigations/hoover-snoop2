@@ -225,6 +225,32 @@ def update_mapping():
     check_response(put_resp)
 
 
+def update_refresh_interval(interval=None):
+    """Override the current collection index refresh interval.
+    Useful when bulk indexing, to switch to `-1` and back.
+    When `None` is given as an argument (default argument)
+    will reset to default value (set by environment variable)."""
+
+    if interval is None:
+        interval = collections.current().refresh_interval
+
+    es_index = collections.current().es_index
+    url = f'{ES_URL}/{es_index}/_mapping/{DOCUMENT_TYPE}'
+    log.info("PUT %s", url)
+    put_resp = put_json(url, MAPPINGS[DOCUMENT_TYPE])
+    check_response(put_resp)
+
+    index_settings = {
+        "index": {
+            "refresh_interval": interval,
+        }
+    }
+    url = f'{ES_URL}/{es_index}/_settings'
+    log.info("PUT %s", url)
+    put_resp = put_json(url, index_settings)
+    check_response(put_resp)
+
+
 def all_indices():
     """Return a list with all Elasticsearch indexes created for collections."""
 

@@ -34,6 +34,7 @@ from django.utils import timezone
 from . import collections
 from . import celery
 from . import models
+from . import indexing
 from ..profiler import profile
 from .templatetags import pretty_size
 from .utils import run_once
@@ -914,6 +915,41 @@ def dispatch_for(collection):
     logger.info(f'dispatch for collection "{collection.name}" done\n')
 
 
+def have_bulk_tasks_to_run():
+    """Checks current collection if we have bulk tasks run."""
+
+    all_functions = [
+        x['func']
+        for x in models.Task.objects.values('func').distinct()
+        if task_map[x['func']].bulk
+    ]
+    version_whens = [When(prev__func=k, then=task_map[k].version) for k in task_map]
+    version_case = Case(*version_whens, default=Value(0))
+
+    total = 0
+    for func in all_functions:
+        task_query = (
+            models.Task.objects
+            .filter(func=func)
+            # don't do anything to successful, up to date tasks
+            .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
+            # filter out any taks with non-completed dependencies
+            .filter(
+                ~Exists(
+                    models.TaskDependency.objects.filter(
+                        Q(next=OuterRef('pk'))
+                        & (
+                            ~Q(prev__version=version_case)
+                            | ~Q(prev__status__in=[models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN])
+                        ),
+                    )
+                )
+            )
+        )
+        total += task_query[:5].count()
+    return total > 0
+
+
 def run_single_batch_for_bulk_task():
     """Directly runs a single batch for each bulk task type.
 
@@ -924,9 +960,9 @@ def run_single_batch_for_bulk_task():
     """
 
     # Max number of tasks to pull.
-    # We estimate metadata: 5KB / task  = 1 MB / chunk
+    # We estimate metadata: 5KB / task  = max 2.5 MB / chunk
     # And for data, can you have anything in the 2KB - 100MB+ range for each document.
-    MAX_BULK_TASK_COUNT = 200
+    MAX_BULK_TASK_COUNT = 500
 
     # Stop adding Tasks to bulk when current size is larger than this 50 MB
     MAX_BULK_SIZE = 50 * (2 ** 20)
@@ -1010,7 +1046,7 @@ def run_single_batch_for_bulk_task():
 
         task_list = []
         current_size = 0
-        for task in list(task_query[:MAX_BULK_TASK_COUNT]):
+        for task in task_query[:MAX_BULK_TASK_COUNT]:
             logger.debug('%s: Selected task %s', func, task)
             task_list.append(task)
             current_size += ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
@@ -1087,13 +1123,8 @@ def run_single_batch_for_bulk_task():
     return total_completed
 
 
-@celery.app.task
-def run_bulk_tasks():
-    """Periodic task that runs some batches of bulk tasks for all collections."""
-
-    if not single_task_running('run_bulk_tasks'):
-        logger.warning('run_bulk_tasks function already running, exiting')
-        return
+def _run_bulk_tasks_for_collection():
+    """Helper method that runs a number of bulk task batches in the current collection."""
 
     # Stop processing each collection after this many batches or seconds
     BATCHES_IN_A_ROW = 200
@@ -1101,26 +1132,55 @@ def run_bulk_tasks():
     SECONDS_IN_A_ROW = 900
 
     import_snoop_tasks()
-    for collection in collections.ALL.values():
-        with collection.set_current():
-            logger.debug(f"Running bulk tasks for collection {collection.name}")
-            t0 = timezone.now()
-            failed_count = 0
-            for _ in range(BATCHES_IN_A_ROW):
-                with transaction.atomic():
-                    try:
-                        count = run_single_batch_for_bulk_task()
-                    except Exception as e:
-                        failed_count += 1
-                        if failed_count > MAX_FAILED_BATCHES:
-                            raise
 
-                        logger.error("Failed to run single batch! Attempt #%s", failed_count)
-                        logger.exception(e)
-                        sleep(30)
-                        continue
-                if not count:
-                    break
-                if (timezone.now() - t0).total_seconds() > SECONDS_IN_A_ROW:
-                    logger.warning("Stopping batches because of timeout")
-                    break
+    t0 = timezone.now()
+    failed_count = 0
+    for _ in range(BATCHES_IN_A_ROW):
+        try:
+            with transaction.atomic():
+                count = run_single_batch_for_bulk_task()
+        except Exception as e:
+            failed_count += 1
+            if failed_count > MAX_FAILED_BATCHES:
+                raise
+
+            logger.error("Failed to run single batch! Attempt #%s", failed_count)
+            logger.exception(e)
+            sleep(30)
+            continue
+        if not count:
+            break
+        if (timezone.now() - t0).total_seconds() > SECONDS_IN_A_ROW:
+            logger.warning("Stopping batches because of timeout")
+            break
+
+
+@celery.app.task
+def run_bulk_tasks():
+    """Periodic task that runs some batches of bulk tasks for all collections.
+    For each collection, we update the ES index refresh interval."""
+
+    if not single_task_running('run_bulk_tasks'):
+        logger.warning('run_bulk_tasks function already running, exiting')
+        return
+
+    for collection in collections.ALL.values():
+        # if no tasks to do, continue
+        with collection.set_current():
+            if not have_bulk_tasks_to_run():
+                logger.info('Skipping collection %s, no bulk tasks to run', collection.name)
+                continue
+
+            # disable refreshing
+            logger.info('Disable index refresh for collection %s', collection.name)
+            indexing.update_refresh_interval("-1")
+
+            try:
+                logger.info('Running bulk tasks for collection %s', collection.name)
+                _run_bulk_tasks_for_collection()
+            except Exception:
+                logger.error("Running bulk tasks failed for %s!", collection.name)
+            finally:
+                # restore default
+                logger.info('Enable index refresh for collection %s', collection.name)
+                indexing.update_refresh_interval()
