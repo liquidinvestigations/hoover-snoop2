@@ -1029,13 +1029,10 @@ def run_single_batch_for_bulk_task():
 
             # Annotate important parameters. Since our only batch task is digests.index(),
             # we only need to annotate the following:
-            # - digests_gather result
+            # - dependency digests_gather --> status
+            # - digest object --> ID
+            # - digest tags --> count
 
-            .annotate(digest_gather_result=Subquery(
-                models.TaskDependency.objects
-                .filter(next=OuterRef('pk'), name='digests_gather')
-                .values('prev__result__pk')[:1]
-            ))
             # - digests_gather status (between success and broken)
             .annotate(digest_gather_status=Subquery(
                 models.TaskDependency.objects
