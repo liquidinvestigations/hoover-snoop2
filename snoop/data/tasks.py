@@ -997,20 +997,35 @@ def run_single_batch_for_bulk_task():
                     )
                 )
             )
-        )
-        total_task_count = task_query.order_by('date_modified')[:MAX_BULK_TASK_COUNT].count()
-        logger.info('Found %s total possible tasks of type %s to run', total_task_count, func)
-        if not total_task_count:
-            continue
-
-        task_query = (
-            task_query
             # annotate task size (sum of results of dependencies, not blob_arg size)
             .annotate(size=Sum(
                 models.TaskDependency.objects
                 .filter(next=OuterRef('pk'))
                 .values('prev__result__size')
             ))
+
+            # oldest pending tasks first, since we reset them
+            .order_by('date_modified')
+        )
+        task_list = []
+        task_sizes = {}
+        current_size = 0
+        for task in task_query[:MAX_BULK_TASK_COUNT]:
+            logger.debug('%s: Selected task %s', func, task)
+            task_list.append(task)
+            task_size = ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
+            current_size += task_size
+            task_sizes[task.pk] = task_size
+            if current_size > MAX_BULK_SIZE:
+                break
+
+        logger.warning('%s: Selected %s items with total size: %s', func, len(task_list), current_size)
+        if not task_list:
+            continue
+
+        task_query = (
+            models.Task.objects
+            .filter(pk__in=[t.pk for t in task_list])
 
             # Annotate important parameters. Since our only batch task is digests.index(),
             # we only need to annotate the following:
@@ -1039,24 +1054,8 @@ def run_single_batch_for_bulk_task():
                 .filter(digest=OuterRef('digest_id'))
                 .values('pk')
             ))
-
-            # oldest pending tasks first, since we reset them
-            .order_by('date_modified')
         )
-
-        task_list = []
-        current_size = 0
-        for task in task_query[:MAX_BULK_TASK_COUNT]:
-            logger.debug('%s: Selected task %s', func, task)
-            task_list.append(task)
-            current_size += ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
-            if current_size > MAX_BULK_SIZE:
-                break
-
-        logger.warning('%s: Selected %s items with total size: %s', func, len(task_list), current_size)
-
-        if not task_list:
-            continue
+        task_list = list(task_query.all())
 
         # set data on rows before running function
         for task in task_list:
@@ -1103,7 +1102,7 @@ def run_single_batch_for_bulk_task():
             task.status = status if result.get(task.blob_arg.pk) else models.Task.STATUS_BROKEN
             task.date_finished = timezone.now()
             # adjust date started so duration is scaled for task size
-            current_task_size = ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
+            current_task_size = task_sizes[task.pk]
             relative_duration = t_elapsed * current_task_size / current_size
             task.date_started = task.date_finished - timedelta(seconds=relative_duration)
             task.date_modified = timezone.now()
