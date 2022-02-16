@@ -39,8 +39,6 @@ from .templatetags import pretty_size
 from .utils import run_once
 from requests.exceptions import ConnectionError
 from snoop import tracing
-from django.db.utils import OperationalError
-from psycopg2.errors import QueryCanceled
 
 logger = logging.getLogger(__name__)
 
@@ -1097,24 +1095,29 @@ def run_bulk_tasks():
         logger.warning('run_bulk_tasks function already running, exiting')
         return
 
-    # Stop processing each collection after this many batches and/or seconds
+    # Stop processing each collection after this many batches or seconds
     BATCHES_IN_A_ROW = 200
-    SECONDS_IN_A_ROW = 600
+    MAX_FAILED_BATCHES = 10
+    SECONDS_IN_A_ROW = 900
 
     import_snoop_tasks()
     for collection in collections.ALL.values():
         with collection.set_current():
             logger.debug(f"Running bulk tasks for collection {collection.name}")
             t0 = timezone.now()
+            failed_count = 0
             for _ in range(BATCHES_IN_A_ROW):
                 with transaction.atomic():
                     try:
                         count = run_single_batch_for_bulk_task()
-                    except (QueryCanceled, OperationalError) as e:
-                        logger.error("Failed to run single batch!")
+                    except Exception as e:
+                        failed_count += 1
+                        if failed_count > MAX_FAILED_BATCHES:
+                            raise
+
+                        logger.error("Failed to run single batch! Attempt #%s", failed_count)
                         logger.exception(e)
                         sleep(30)
-                        logger.warning("Skipping iteration!")
                         continue
                 if not count:
                     break
