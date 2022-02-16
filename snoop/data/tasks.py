@@ -951,14 +951,6 @@ def run_single_batch_for_bulk_task():
             .filter(func=func)
             # don't do anything to successful, up to date tasks
             .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
-        )
-        total_task_count = task_query.count()
-        logger.info('Found %s total possible tasks of type %s to run', total_task_count, func)
-        if not total_task_count:
-            continue
-
-        task_query = (
-            task_query
             # filter out any taks with non-completed dependencies
             .filter(
                 ~Exists(
@@ -971,6 +963,14 @@ def run_single_batch_for_bulk_task():
                     )
                 )
             )
+        )
+        total_task_count = task_query.order_by('date_modified')[:MAX_BULK_TASK_COUNT].count()
+        logger.info('Found %s total possible tasks of type %s to run', total_task_count, func)
+        if not total_task_count:
+            continue
+
+        task_query = (
+            task_query
             # annotate task size (sum of results of dependencies, not blob_arg size)
             .annotate(size=Sum(
                 models.TaskDependency.objects
