@@ -7,6 +7,7 @@ import pytest
 from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
+from ranged_response import RangedFileResponse
 
 from snoop.data import tasks
 from snoop.data import models
@@ -178,11 +179,19 @@ class CollectionApiClient:
     def get_locations(self, blob_hash, page=1):
         return self.get(f'/{blob_hash}/locations?page={page}')
 
-    def get_download(self, blob_hash, filename):
+    def get_download(self, blob_hash, filename, range=False):
+        headers = {}
+        if range:
+            headers = {'HTTP_RANGE': 'bytes=0-15'}
         col = collections.current()
         with mask_out_current_collection():
-            r = self.client.get(f'/collections/{col.name}/{blob_hash}/raw/{filename}')
-            assert r.status_code == 200
+            r = self.client.get(f'/collections/{col.name}/{blob_hash}/raw/{filename}', **headers)
+            if range:
+                assert type(r) is RangedFileResponse
+                assert r.status_code == 206
+                assert len(r.getvalue()) == 16
+            else:
+                assert r.status_code == 200
             return r
 
     def get_thumbnail(self, blob_hash, size):
@@ -192,9 +201,17 @@ class CollectionApiClient:
             resp = self.client.get(url)
         assert resp.status_code == 200
 
-    def get_pdf_preview(self, blob_hash):
+    def get_pdf_preview(self, blob_hash, range=False):
+        headers = {}
+        if range:
+            headers = {'HTTP_RANGE': 'bytes=0-15'}
         col = collections.current()
         url = f'/collections/{col.name}/{blob_hash}/pdf-preview'
         with mask_out_current_collection():
-            resp = self.client.get(url)
-            assert resp.status_code == 200
+            resp = self.client.get(url, **headers)
+            if range:
+                assert type(resp) is RangedFileResponse
+                assert resp.status_code == 206
+                assert len(resp.getvalue()) == 16
+            else:
+                assert resp.status_code == 200
