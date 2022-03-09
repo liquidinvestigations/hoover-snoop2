@@ -376,3 +376,18 @@ def rename(request, hash):
 def delete(request, hash):
     file_management.delete(hash)
     return HttpResponse(200)
+
+
+@collection_view
+def delete_dir(request, dir_pk):
+    file_management.delete_dir(dir_pk)
+    return HttpResponse(200)
+
+
+@collection_view
+@api_view(['PUT'])
+def move_dir(request, dir_pk):
+    if request.method == 'PUT':
+        new_path = request.data['new_path']
+        file_management.move_dir(dir_pk, new_path)
+        return HttpResponse(200)

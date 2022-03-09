@@ -31,4 +31,6 @@ urlpatterns = [
 
     path('<collection>/<hash>/rename', views.rename),
     path('<collection>/<hash>/delete', views.delete),
+    path('<collection>/<dir_pk>/delete-dir', views.delete_dir),
+    path('<collection>/<dir_pk>/move-dir', views.move_dir),
 ]
