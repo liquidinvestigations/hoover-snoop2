@@ -431,7 +431,7 @@ class File(models.Model):
     """
 
     original = models.ForeignKey(Blob, on_delete=models.RESTRICT,
-                                 related_name='+')
+                                 related_name='original_file_set')
     """The original data found for this File.
     """
 
@@ -527,7 +527,7 @@ class Task(models.Model):
 
     blob_arg = models.ForeignKey(Blob, null=True, blank=True,
                                  on_delete=models.CASCADE,
-                                 related_name='+')
+                                 related_name='task_arg_set')
     """ If the first argument is a Blob, it will be duplicated here.
 
     Used to optimize fetching tasks, as most tasks will only process one Blob as input.
@@ -752,7 +752,7 @@ class Digest(models.Model):
         Blob,
         null=True,
         on_delete=models.RESTRICT,
-        related_name='+',
+        related_name='digest_result_set',
     )
     """The Blob that contains the result of parsing the document, encoded as JSON.
 
@@ -765,7 +765,7 @@ class Digest(models.Model):
         Blob,
         null=True,
         on_delete=models.RESTRICT,
-        related_name='+',
+        related_name='digest_extra_result_set',
     )
     """The Blob that contains the result of the `digests.index` task, encoded as JSON.
     The field is optional, and required by tasks that depend on the `
@@ -998,7 +998,7 @@ class OcrDocument(models.Model):
     """
 
     text = models.ForeignKey(Blob, on_delete=models.RESTRICT,
-                             related_name='+')
+                             related_name='ocr_document_text_set')
     """The extracted text for this entry (either read directly, or with pdftotext).
     """
 
@@ -1045,17 +1045,25 @@ class Thumbnail(models.Model):
         MEDIUM = 200
         LARGE = 400
 
+    source = models.ForeignKey(
+        Blob,
+        null=True,
+        on_delete=models.CASCADE,
+        related_name='thumbnail_source_set',
+    )
+    """Foreign Key to the blob used for computation."""
+
     blob = models.ForeignKey(
         Blob,
         on_delete=models.CASCADE,
-        related_name='+',
+        related_name='thumbnail_original_set',
     )
     """Foreign Key to the original File's blob"""
 
     thumbnail = models.ForeignKey(
         Blob,
-        on_delete=models.CASCADE,
-        related_name='+',
+        on_delete=models.RESTRICT,
+        related_name='thumbnail_result_set',
     )
     """Foreign Key to the corresponding thumbnail-blob."""
 
@@ -1069,11 +1077,11 @@ class PdfPreview(models.Model):
     blob = models.ForeignKey(
         Blob,
         on_delete=models.CASCADE,
-        related_name='+'
+        related_name='pdf_preview_original_set'
     )
 
     pdf_preview = models.ForeignKey(
         Blob,
-        on_delete=models.CASCADE,
-        related_name='+'
+        on_delete=models.RESTRICT,
+        related_name='pdf_preview_result_set'
     )

@@ -48,7 +48,7 @@ def get_collection_langs():
     return current().ocr_languages
 
 
-@snoop_task('digests.launch', priority=4, version=6)
+@snoop_task('digests.launch', priority=4, version=7)
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -73,12 +73,18 @@ def launch(blob):
         for lang in get_collection_langs():
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
-    # launch thumbnail creation
-    if settings.SNOOP_THUMBNAIL_URL and thumbnails.can_create(blob):
-        depends_on['get_thumbnail'] = (thumbnails.get_thumbnail.laterz(blob))
-
     if settings.SNOOP_PDF_PREVIEW_URL and pdf_preview.can_create(blob):
         depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
+
+    if settings.SNOOP_THUMBNAIL_URL and thumbnails.can_create(blob):
+        if depends_on.get('get_pdf_preview'):
+            # if we just launched a pdf preview, add it to the deps
+            depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(
+                blob,
+                depends_on={'pdf_preview': depends_on.get('get_pdf_preview')},
+            )
+        elif thumbnails.can_create(blob):
+            depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
 
     if settings.SNOOP_OBJECT_DETECTION_URL and image_classification.can_detect(blob):
         depends_on['detect_objects'] = (image_classification.detect_objects.laterz(blob))
@@ -150,27 +156,13 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', priority=7, version=5)
+@snoop_task('digests.gather', priority=7, version=6)
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
     """
 
     rv = {'broken': []}
-
-    # extract text and meta with apache tika
-    tika_rmeta_blob = depends_on.get('tika_rmeta')
-    if tika_rmeta_blob:
-        if isinstance(tika_rmeta_blob, SnoopTaskBroken):
-            rv['broken'].append(tika_rmeta_blob.reason)
-            log.debug("tika_rmeta task is broken; skipping")
-
-        else:
-            tika_rmeta = tika_rmeta_blob.read_json()
-            rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
-            rv['date'] = tika.get_date_modified(tika_rmeta)
-            rv['date-created'] = tika.get_date_created(tika_rmeta)
-            rv.update(tika.convert_for_indexing(tika_rmeta))
 
     # parse email for text and headers
     email_parse_blob = depends_on.get('email_parse')
@@ -182,6 +174,19 @@ def gather(blob, **depends_on):
             email_parse = email_parse_blob.read_json()
             email_meta = email.email_meta(email_parse)
             rv.update(email_meta)
+
+    # extract text and meta with apache tika
+    tika_rmeta_blob = depends_on.get('tika_rmeta')
+    if tika_rmeta_blob:
+        if isinstance(tika_rmeta_blob, SnoopTaskBroken):
+            rv['broken'].append(tika_rmeta_blob.reason)
+            log.debug("tika_rmeta task is broken; skipping")
+        else:
+            tika_rmeta = tika_rmeta_blob.read_json()
+            rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
+            rv['date'] = tika.get_date_modified(tika_rmeta)
+            rv['date-created'] = tika.get_date_created(tika_rmeta)
+            rv.update(tika.convert_for_indexing(tika_rmeta))
 
     # For large text/CSV files, Tika (and text extraction) fails. For these, we want to read the text
     # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any
@@ -218,6 +223,31 @@ def gather(blob, **depends_on):
             else:
                 rv['ocrimage'] = True
         rv['ocrtext'] = ocr_results
+
+    # Text and ocrtext are now final; let's write a blob with the concatenated text,
+    # then run language detection and possibly translation on them.
+    if settings.DETECT_LANGUAGE:
+        texts = [rv.get('text', "")] + list(rv.get('ocrtext', {}).values())
+        texts = [t.strip() for t in texts if len(t.strip()) > 1]
+        if len(texts) > 0:
+            texts = "\n\n".join(texts).strip()
+            args_blob = models.Blob.create_from_bytes(texts.encode('utf-8'))
+            result = require_dependency(
+                'detect_language_and_translate',
+                {},
+                lambda: entities.detect_language_and_translate.laterz(args_blob),
+            )
+            if not result or isinstance(result, SnoopTaskBroken):
+                log.warning('detect_language failed!')
+                rv['broken'].append('detect_language_failed')
+            else:
+                result = result.read_json()
+                rv['lang'] = result['lang']
+                if result.get('translated-text'):
+                    if not rv.get('ocrtext'):
+                        rv['ocrtext'] = result['translated-text']
+                    else:
+                        rv['ocrtext'].update(result['translated-text'])
 
     # try and extract exif data
     exif_data_blob = depends_on.get('exif_data')
@@ -283,7 +313,7 @@ def gather(blob, **depends_on):
     return result_blob
 
 
-@snoop_task('digests.index', priority=8, version=11)
+@snoop_task('digests.index', priority=8, version=12)
 def index(blob, **depends_on):
     """Task used to call the entity extraction for a document.
 
@@ -298,7 +328,7 @@ def index(blob, **depends_on):
         raise depends_on.get('digests_gather')
 
     digest = models.Digest.objects.get(blob=blob)
-    if not settings.EXTRACT_ENTITIES and not settings.DETECT_LANGUAGE:
+    if not settings.EXTRACT_ENTITIES or not settings.DETECT_LANGUAGE:
         log.warning('Settings disabled. Exiting')
         return None
 
@@ -308,8 +338,11 @@ def index(blob, **depends_on):
         log.warning('No text data. Exiting')
         return None
 
-    entity_service_results = require_dependency('get_entity_results', depends_on,
-                                                lambda: entities.get_entity_results.laterz(blob),)
+    entity_service_results = require_dependency(
+        'get_entity_results',
+        depends_on,
+        lambda: entities.get_entity_results.laterz(blob, digest_data.get('lang')),
+    )
 
     if isinstance(entity_service_results, SnoopTaskBroken):
         log.warning('get_entity_results dependency is BROKEN. Exiting')

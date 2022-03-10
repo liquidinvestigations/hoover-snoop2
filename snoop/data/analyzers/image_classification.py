@@ -1,6 +1,7 @@
 """Task to call a service that runs object detection and/or image classification on images"""
 
 import io
+import logging
 
 import requests
 from django.conf import settings
@@ -8,6 +9,9 @@ from PIL import Image, UnidentifiedImageError
 
 from .. import models
 from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
+
+
+log = logging.getLogger(__name__)
 
 PROBABILITY_LIMIT = 20
 
@@ -93,12 +97,10 @@ def call_object_detection_service(imagedata, filename, data_size):
 
     resp = requests.post(url, files={'image': (filename, imagedata)}, timeout=timeout)
 
-    if resp.status_code == 500:
-        raise SnoopTaskBroken('Object detection service could not process the image',
-                              'ojbect_detection_http_500')
-
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
-        raise RuntimeError(f'Unexpected response from object detection service: {resp}')
+        log.error(resp.content)
+        raise SnoopTaskBroken('Object detection service could not process the image',
+                              f'object_detection_http_{resp.status_code}')
 
     return resp.json()
 
@@ -114,12 +116,10 @@ def call_image_classification_service(imagedata, filename, data_size):
 
     resp = requests.post(url, files={'image': (filename, imagedata)}, timeout=timeout)
 
-    if resp.status_code == 500:
-        raise SnoopTaskBroken('Image classification service could not process the image',
-                              'image_classification_http_500')
-
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
-        raise RuntimeError(f'Unexpected response from image classification service: {resp}')
+        log.error(resp.content)
+        raise SnoopTaskBroken('Image classification service could not process the image',
+                              f'image_classification_http_{resp.status_code}')
 
     return resp.json()
 

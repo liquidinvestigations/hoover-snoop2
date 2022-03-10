@@ -67,7 +67,25 @@ def call_nlp_server(endpoint, data_dict, timeout=ENTITIES_TIMEOUT_MAX):
     return resp.json()
 
 
-@snoop_task('entities.get_entity_results')
+@snoop_task('entities.detect_language_and_translate')
+@returns_json_blob
+def detect_language_and_translate(text_blob):
+    timeout = min(ENTITIES_TIMEOUT_MAX,
+                  int(ENTITIES_TIMEOUT_BASE + text_blob.size / ENTITIES_MIN_SPEED_BPS))
+
+    with text_blob.open(encoding='utf-8') as f:
+        lang_args = {'text': f.read()}
+    lang = call_nlp_server('/language_detection', lang_args, timeout)['language']
+
+    return {
+        'lang': lang,
+        # 'translated-text': {
+        #     'translated_XX_to_en': 'XXX',
+        # },
+    }
+
+
+@snoop_task('entities.get_entity_results', version=2)
 @returns_json_blob
 def get_entity_results(blob, language=None):
     """ Gets all entities and the language for all text sources in a digest.
@@ -109,10 +127,8 @@ def get_entity_results(blob, language=None):
         if settings.EXTRACT_ENTITIES:
             if language:
                 data['language'] = language
+                response['language'] = language
             response['entities'] = call_nlp_server('entity_extraction', data, timeout)
-
-        if settings.DETECT_LANGUAGE:
-            response['language'] = call_nlp_server('language_detection', data, timeout)['language']
 
         collected_responses.append(response)
 
@@ -339,7 +355,7 @@ def process_results(digest, entity_result_parts):
 
     rv = defaultdict(list)
     for entity_result in entity_result_parts:
-        rv['lang'].append(entity_result['entities']['language'])
+        # rv['lang'].append(entity_result['entities']['language'])
         rv['entity'] += [
             k['text']
             for k in entity_result['entities']['entities']
@@ -362,7 +378,7 @@ def process_results(digest, entity_result_parts):
     rv = dict(rv)
 
     # fold together the various languages, pick the first
-    if rv['lang']:
-        # rv['lang'] = list(set(rv['lang']))
-        rv['lang'] = rv['lang'][0]
+    # if rv['lang']:
+    #     # rv['lang'] = list(set(rv['lang']))
+    #     rv['lang'] = rv['lang'][0]
     return rv

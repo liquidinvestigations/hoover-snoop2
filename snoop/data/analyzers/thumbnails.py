@@ -16,7 +16,7 @@ from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
 log = logging.getLogger(__name__)
 
 
-THUMBNAIL_TRUNCATE_FILE_SIZE = 20 * (2 ** 20)  # 20 MB
+THUMBNAIL_TRUNCATE_FILE_SIZE = 32 * (2 ** 20)  # 32 MB
 """On files larger than this limit, truncate them when sending.
 This ensures thumbnail generation doesn't clog up our pipeline,
 instead preferring to fail after 50/300MB for huge PDFs/Words."""
@@ -320,7 +320,7 @@ Based on [[https://github.com/algoo/preview-generator/blob/develop/doc/supported
 TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
 
-TIMEOUT_MAX = 200
+TIMEOUT_MAX = 120
 """Maximum number of seconds to wait for this service."""
 
 MIN_SPEED_BPS = 10 * 1024  # 10 KB/s
@@ -331,7 +331,7 @@ file size, and the previous `TIMEOUT_BASE` constant."""
 
 def can_create(blob):
     """Checks if thumbnail generator service can process this mime type."""
-    if blob.mime_type in THUMBNAIL_MIME_TYPES:
+    if blob.mime_type in THUMBNAIL_MIME_TYPES and blob.size < THUMBNAIL_TRUNCATE_FILE_SIZE:
         return True
 
     return False
@@ -346,7 +346,8 @@ def call_thumbnails_service(blob, size):
         """
 
     url = settings.SNOOP_THUMBNAIL_URL + f'preview/{size}x{size}'
-    timeout = min(TIMEOUT_MAX, int(TIMEOUT_BASE + blob.size / MIN_SPEED_BPS))
+    actual_size = min(blob.size, THUMBNAIL_TRUNCATE_FILE_SIZE)
+    timeout = min(TIMEOUT_MAX, int(TIMEOUT_BASE + actual_size / MIN_SPEED_BPS))
 
     # instead of streaming the file, just read some 50MB into a bytes string and send that, capping out
     # the data sent per file for this very slow service.
@@ -369,20 +370,30 @@ def call_thumbnails_service(blob, size):
     return resp.content
 
 
-@snoop_task('thumbnails.get_thumbnail')
+@snoop_task('thumbnails.get_thumbnail', version=4)
 # the @returns_json_blob decorator is only needed to check if this function ran in digests.gather
 @returns_json_blob
-def get_thumbnail(blob):
+def get_thumbnail(blob, pdf_preview=None):
     """Function that calls the thumbnail service for a given blob.
 
-    Returns the primary key of the created thumbnail blob.
+    Args:
+        blob: Original file that we need a thumbnail for
+        source: If set, will use this data for the actual creation of the thumbnail.
+                Useful if we have PDF conversions.
     """
 
+    if pdf_preview and isinstance(pdf_preview, models.Blob) and pdf_preview.size > 0:
+        source = pdf_preview
+    else:
+        source = blob
+
     for size in models.Thumbnail.SizeChoices.values:
-        resp = call_thumbnails_service(blob, size)
+        resp = call_thumbnails_service(source, size)
         blob_thumb = models.Blob.create_from_bytes(resp)
         _, _ = models.Thumbnail.objects.update_or_create(
             blob=blob,
             size=size,
-            defaults={'thumbnail': blob_thumb}
+            defaults={'thumbnail': blob_thumb, 'source': source}
         )
+
+    return True
