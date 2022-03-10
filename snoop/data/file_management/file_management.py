@@ -67,6 +67,22 @@ def child_directories(dir, leafs=set()):
     return leafs
 
 
+def delete_files(dir):
+    '''Utility function to delete files and their blobs from a directory.
+
+    Args:
+        dir (directory object): The directory containing the files.
+    '''
+
+    files = models.File.objects.filter(parent_directory=dir)
+    for f in files:
+        orig_blob = f.original
+        blob = f.blob
+        f.delete()
+        orig_blob.delete()
+        blob.delete()
+
+
 def delete_parents(dir, target_dir):
     '''Utility function to delete all parents of a given directory up to a target directory.
 
@@ -81,6 +97,7 @@ def delete_parents(dir, target_dir):
         log.info('Deleted: ' + dir.name)
         parent = dir.parent
         if dir.pk:  # we might have deleted the parent earlier as some other dirs parent
+            delete_files(dir)
             dir.delete()
         delete_parents(parent, target_dir)
 
@@ -118,8 +135,7 @@ def delete(blob_hash):
     original_disk_path = disk_path(str(file.parent_directory), file.name)  # make this a function eventually
     original_disk_path.unlink()
     file.delete()
-
-    # TODO delete blob when deleting the file.
+    models.Blob.objects.get(pk=blob_hash).delete()
 
 
 def delete_dir(dir_pk):
@@ -133,13 +149,14 @@ def delete_dir(dir_pk):
         dir_pk (str or int): Primary key of the directory that will be removed.
     '''
     directory = models.Directory.objects.get(pk=int(dir_pk))
-    original_disk_path = disk_path(directory.name)
+    original_disk_path = disk_path(str(directory))
 
     for leaf in child_directories(directory, set()):
         delete_parents(leaf, directory)
 
-    shutil.rmtree(original_disk_path)
+    delete_files(directory)
     directory.delete()
+    shutil.rmtree(original_disk_path)
     log.info('Successfully deleted "' + directory.name + '" and all subdirectories!')
 
     # TODO delete all blobs in the directory and its subdirectories when deleting the file.
