@@ -15,8 +15,8 @@ def disk_path(path, *parts):
     '''Utility function to build the disk path from a files or directories path.
 
     Args:
-        path (str or pathlike): A path for which the full disk path is needed.
-        *parts (str or pathlike): Optional additional parts, e.g. a filename.
+        path (str): A path for which the full disk path is needed.
+        *parts (str): Optional additional parts, e.g. a filename.
 
     Returns:
        The full disk path of the given path and all parts, joined as a Path object.
@@ -158,9 +158,6 @@ def delete_dir(dir_pk):
     directory.delete()
     shutil.rmtree(original_disk_path)
     log.info('Successfully deleted "' + directory.name + '" and all subdirectories!')
-
-    # TODO delete all blobs in the directory and its subdirectories when deleting the file.
-    # Also delete all File objects for the directories in the database.
 
 
 def move_dir(dir_pk, new_path):
