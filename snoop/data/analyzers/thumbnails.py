@@ -320,7 +320,7 @@ Based on [[https://github.com/algoo/preview-generator/blob/develop/doc/supported
 TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
 
-TIMEOUT_MAX = 120
+TIMEOUT_MAX = 400
 """Maximum number of seconds to wait for this service."""
 
 MIN_SPEED_BPS = 10 * 1024  # 10 KB/s
@@ -370,7 +370,7 @@ def call_thumbnails_service(blob, size):
     return resp.content
 
 
-@snoop_task('thumbnails.get_thumbnail', version=4)
+@snoop_task('thumbnails.get_thumbnail', version=5)
 # the @returns_json_blob decorator is only needed to check if this function ran in digests.gather
 @returns_json_blob
 def get_thumbnail(blob, pdf_preview=None):

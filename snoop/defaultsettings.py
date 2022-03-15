@@ -170,11 +170,15 @@ LANGUAGE_CODE = 'en-us'
 """Django locale."""
 
 
-DETECT_LANGUAGE = os.getenv('DETECT_LANGUAGE', 'False').lower() == 'true'
-EXTRACT_ENTITIES = os.getenv('EXTRACT_ENTITIES', 'False').lower() == 'true'
+DETECT_LANGUAGE = os.getenv('SNOOP_DETECT_LANGUAGES', 'False').lower() == 'true'
+EXTRACT_ENTITIES = os.getenv('SNOOP_EXTRACT_ENTITIES', 'False').lower() == 'true'
 SNOOP_NLP_URL = os.environ.get('SNOOP_NLP_URL', 'http://127.0.0.1:5000/')
 """ URL pointing to NLP server"""
 
+TRANSLATION_URL = os.getenv('SNOOP_TRANSLATION_URL')
+TRANSLATION_TARGET_LANGUAGES = os.getenv('SNOOP_TRANSLATION_TARGET_LANGUAGES', "en,de").split(',')
+if TRANSLATION_URL:
+    assert len(TRANSLATION_TARGET_LANGUAGES) > 0
 
 TIME_ZONE = 'UTC'
 USE_I18N = True

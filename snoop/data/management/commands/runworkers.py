@@ -28,7 +28,7 @@ def celery_argv(queues):
         .strip()
     )
 
-    loglevel = 'warning' if settings.DEBUG else 'error'
+    loglevel = 'info' if settings.DEBUG else 'warning'
     argv = [
         celery_binary,
         '-A', 'snoop.data',

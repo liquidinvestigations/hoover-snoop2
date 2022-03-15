@@ -42,10 +42,10 @@ IMAGE_CLASSIFICATION_MIME_TYPES = {
 
 CLASSIFICATION_TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
-CLASSIFICATION_TIMEOUT_MAX = 200
+CLASSIFICATION_TIMEOUT_MAX = 1000
 """Maximum number of seconds to wait for this service."""
 
-CLASSIFICATION_MIN_SPEED_BPS = 100 * 1024  # 100 KB/s
+CLASSIFICATION_MIN_SPEED_BPS = 50 * 1024  # 50 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
 file size, and the previous `TIMEOUT_BASE` constant."""
@@ -53,10 +53,10 @@ file size, and the previous `TIMEOUT_BASE` constant."""
 DETECT_OBJECTS_TIMEOUT_BASE = 120
 """Minimum number of seconds to wait for this service."""
 
-DETECT_OBJECTS_TIMEOUT_MAX = 300
+DETECT_OBJECTS_TIMEOUT_MAX = 1000
 """Maximum number of seconds to wait for this service."""
 
-DETECT_OBJECTS_MIN_SPEED_BPS = 16 * 1024  # 16 KB/s
+DETECT_OBJECTS_MIN_SPEED_BPS = 8 * 1024  # 8 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
 file size, and the previous `TIMEOUT_BASE` constant."""

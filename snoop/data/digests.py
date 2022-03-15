@@ -48,7 +48,7 @@ def get_collection_langs():
     return current().ocr_languages
 
 
-@snoop_task('digests.launch', priority=4, version=7)
+@snoop_task('digests.launch', priority=4, version=9)
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -156,7 +156,7 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', priority=7, version=6)
+@snoop_task('digests.gather', priority=7, version=7)
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
@@ -224,31 +224,6 @@ def gather(blob, **depends_on):
                 rv['ocrimage'] = True
         rv['ocrtext'] = ocr_results
 
-    # Text and ocrtext are now final; let's write a blob with the concatenated text,
-    # then run language detection and possibly translation on them.
-    if settings.DETECT_LANGUAGE:
-        texts = [rv.get('text', "")] + list(rv.get('ocrtext', {}).values())
-        texts = [t.strip() for t in texts if len(t.strip()) > 1]
-        if len(texts) > 0:
-            texts = "\n\n".join(texts).strip()
-            args_blob = models.Blob.create_from_bytes(texts.encode('utf-8'))
-            result = require_dependency(
-                'detect_language_and_translate',
-                {},
-                lambda: entities.detect_language_and_translate.laterz(args_blob),
-            )
-            if not result or isinstance(result, SnoopTaskBroken):
-                log.warning('detect_language failed!')
-                rv['broken'].append('detect_language_failed')
-            else:
-                result = result.read_json()
-                rv['lang'] = result['lang']
-                if result.get('translated-text'):
-                    if not rv.get('ocrtext'):
-                        rv['ocrtext'] = result['translated-text']
-                    else:
-                        rv['ocrtext'].update(result['translated-text'])
-
     # try and extract exif data
     exif_data_blob = depends_on.get('exif_data')
     if exif_data_blob:
@@ -313,7 +288,7 @@ def gather(blob, **depends_on):
     return result_blob
 
 
-@snoop_task('digests.index', priority=8, version=12)
+@snoop_task('digests.index', priority=8, version=13)
 def index(blob, **depends_on):
     """Task used to call the entity extraction for a document.
 
@@ -324,31 +299,50 @@ def index(blob, **depends_on):
     save it's results.
     """
 
+    if not settings.EXTRACT_ENTITIES and not settings.DETECT_LANGUAGE and not settings.TRANSLATION_URL:
+        log.warning('Settings disabled. Exiting')
+        return None
+
     if isinstance(depends_on.get('digests_gather'), SnoopTaskBroken):
         raise depends_on.get('digests_gather')
 
     digest = models.Digest.objects.get(blob=blob)
-    if not settings.EXTRACT_ENTITIES or not settings.DETECT_LANGUAGE:
-        log.warning('Settings disabled. Exiting')
-        return None
-
     digest_data = digest.result.read_json()
-
     if not digest_data.get('text') and not digest_data.get('ocrtext'):
         log.warning('No text data. Exiting')
         return None
 
-    entity_service_results = require_dependency(
-        'get_entity_results',
-        depends_on,
-        lambda: entities.get_entity_results.laterz(blob, digest_data.get('lang')),
-    )
+    result = {}
 
-    if isinstance(entity_service_results, SnoopTaskBroken):
-        log.warning('get_entity_results dependency is BROKEN. Exiting')
-        return None
+    # Text and ocrtext are now final; let's write a blob with the concatenated text,
+    # then run language detection and possibly translation on them.
+    lang_result = None
+    if settings.DETECT_LANGUAGE or settings.TRANSLATION_URL:
+        lang_result = require_dependency(
+            'detect_language_and_translate',
+            depends_on,
+            lambda: entities.detect_language_and_translate.laterz(blob),
+        )
+        if not lang_result or isinstance(lang_result, SnoopTaskBroken):
+            log.warning('detect_language failed!')
+            lang_result = None
+        else:
+            result.update(lang_result.read_json())
 
-    result = entities.process_results(digest, entity_service_results.read_json())
+    if settings.EXTRACT_ENTITIES:
+        if lang_result:
+            depends_on['lang_result'] = lang_result
+        entity_service_results = require_dependency(
+            'get_entity_results',
+            depends_on,
+            lambda: entities.get_entity_results.laterz(blob, result.get('lang'), lang_result.pk),
+        )
+
+        if isinstance(entity_service_results, SnoopTaskBroken):
+            log.warning('get_entity_results dependency is BROKEN. Exiting')
+            return None
+
+        result.update(entities.process_results(digest, entity_service_results.read_json()))
 
     digest.extra_result = models.Blob.create_json(result)
     digest.save()
@@ -772,6 +766,10 @@ def _get_document_content(digest, the_file=None):
     # (data from entities and langauge detection)
     if digest.extra_result:
         content.update(digest.extra_result.read_json())
+        if content['translated-text']:
+            content['ocrtext'] = content.get('ocrtext', {})
+            content['ocrtext'].update(content['translated-text'])
+            del content['translated-text']
 
     # delete old "email" field that may be left behind on older digest data.
     if 'email' in content:

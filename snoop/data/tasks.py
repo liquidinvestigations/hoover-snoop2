@@ -18,6 +18,7 @@ de-duplication), and other K8s-oriented container-native solutions were not inve
 thumb, if it can't run 1000-5000 idle (no-op) Tasks per minute per CPU, it's too slow for our use.
 """
 
+import random
 from contextlib import contextmanager
 from io import StringIO
 import logging
@@ -43,6 +44,19 @@ logger = logging.getLogger(__name__)
 
 task_map = {}
 ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
+
+
+def shuffle_priority(pri):
+    """Randomize the task priority: add a randint(-2, 2)
+    to argument and return value clamped to [1, 9].
+
+    This helps with spreading out tasks types executed by the different services.
+    """
+
+    pri = pri + random.randint(-2, 2)
+    pri = max(1, pri)
+    pri = min(9, pri)
+    return pri
 
 
 class SnoopTaskError(Exception):
@@ -110,7 +124,7 @@ def queue_task(task):
             laterz_snoop_task.apply_async(
                 (col.name, task.pk,),
                 queue=col.queue_name,
-                priority=task_map[task.func].priority,
+                priority=shuffle_priority(task_map[task.func].priority),
                 retry=False,
             )
         except laterz_snoop_task.OperationalError as e:
