@@ -22,11 +22,8 @@ MAX_ENTITY_TEXT_LENGTH = 200
 MAX_ENTITY_COUNT_PER_DOC = 10000
 """Stop looking at entitites in a document after this many distinct results."""
 
-MAX_ENTITY_DOC_READ = 2 * (2 ** 20)  # 2 MB, for reference, 5 MB = about one King James Bible
+MAX_ENTITY_DOC_READ = 3 * (2 ** 10)  # 3 MB, for reference, 5 MB = about one King James Bible
 """Stop looking at the document text after this many characters."""
-
-MAX_TRANSLATE_DOC_READ = 512 * (2 ** 10)  # 0.5 MB, about 10% of one Bible
-"""Stop translating the document text after this many characters."""
 
 ENTITIES_TIMEOUT_BASE = 120
 """Minimum number of seconds to wait for this service."""
@@ -41,6 +38,27 @@ ENTITIES_MIN_SPEED_BPS = 256
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
 file size, and the previous `TIMEOUT_BASE` constant."""
+
+
+MAX_TRANSLATE_DOC_READ = 400
+"""Stop translating the document text after this many characters.
+
+For comparison, 2 KB is about 300 english words or 1 min reading time.
+Processing 2 languages for 2 KB takes around 40-150s on CPU,
+depending on text.
+
+Because of that long CPU runtime, we set a very small default here.
+"""
+
+
+TRANSLATION_MIN_SPEED_BPS = 60
+"""Minimum reference speed used for translation tasks."""
+
+TRANSLATION_TIMEOUT_BASE = 300
+"""Minimum number of seconds to wait for translation service."""
+
+TRANSLATION_TIMEOUT_MAX = 1200
+"""Maximum number of seconds to wait for translation service."""
 
 
 def call_nlp_server(endpoint, data_dict, timeout=ENTITIES_TIMEOUT_MAX):
@@ -72,7 +90,7 @@ def call_nlp_server(endpoint, data_dict, timeout=ENTITIES_TIMEOUT_MAX):
     return resp.json()
 
 
-def call_translate_server(endpoint, data_dict, timeout=ENTITIES_TIMEOUT_MAX):
+def call_translate_server(endpoint, data_dict, timeout=TRANSLATION_TIMEOUT_MAX):
     """Calls theh translation server with given arguments."""
 
     url = f'{settings.TRANSLATION_URL}/{endpoint}'
@@ -96,10 +114,10 @@ def detect_language_and_translate(blob):
     digest_data = digest.result.read_json()
     texts = [digest_data.get('text', "")] + list(digest_data.get('ocrtext', {}).values())
     texts = [t[:MAX_TRANSLATE_DOC_READ].strip() for t in texts if len(t.strip()) > 1]
-    texts = "\n\n".join(texts).strip()
+    texts = "\n\n".join(texts).strip()[:MAX_TRANSLATE_DOC_READ]
 
-    timeout = min(ENTITIES_TIMEOUT_MAX,
-                  int(ENTITIES_TIMEOUT_BASE + len(texts) / ENTITIES_MIN_SPEED_BPS))
+    timeout = min(TRANSLATION_TIMEOUT_MAX,
+                  int(TRANSLATION_TIMEOUT_BASE + len(texts) / TRANSLATION_MIN_SPEED_BPS))
 
     if settings.DETECT_LANGUAGE:
         lang = call_nlp_server('language_detection', {'text': texts}, timeout)['language']

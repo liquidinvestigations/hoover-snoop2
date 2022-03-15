@@ -141,7 +141,9 @@ def get_task_matrix(task_queryset, prev_matrix={}):
         count = bucket['count']
         real_time = (bucket['end'] - bucket['start']).total_seconds() + TIME_OVERHEAD
         total_time = bucket['time'].total_seconds() + TIME_OVERHEAD
-        fill = round(total_time / real_time, 3)
+        fill_a = total_time / real_time
+        fill_b = total_time / (mins * 60)
+        fill = round((fill_a + fill_b) / 2, 4)
         # get total system bytes/sec in this period
         size = (bucket['size'] or 0) + SIZE_OVERHEAD * count
         bytes_sec = size / total_time
@@ -158,11 +160,8 @@ def get_task_matrix(task_queryset, prev_matrix={}):
             if not isinstance(old, (int, float)):
                 old = 0
             new = task_matrix.get(func, {}).get(key, 0)
-            if not new:
-                task_matrix[func][key] = old
-            elif old > 0:
-                new = (old + new) / 2
-                task_matrix[func][key] = round(new, 3)
+            new = (old + new) / 2
+            task_matrix[func][key] = round(new, 3)
 
     task_success_speed = (
         task_queryset

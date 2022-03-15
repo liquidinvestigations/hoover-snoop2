@@ -47,13 +47,13 @@ ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
 
 
 def shuffle_priority(pri):
-    """Randomize the task priority: add a randint(-2, 2)
+    """Randomize the task priority: add a randint(-1, 1)
     to argument and return value clamped to [1, 9].
 
     This helps with spreading out tasks types executed by the different services.
     """
 
-    pri = pri + random.randint(-2, 2)
+    pri = pri + random.randint(-1, 1)
     pri = max(1, pri)
     pri = min(9, pri)
     return pri
