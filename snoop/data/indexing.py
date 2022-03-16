@@ -73,6 +73,8 @@ MAPPINGS = {
             # remove the trailing '.' here
             PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},
             ENTITY_TYPE_PREFIX[:-1]: {"type": "object"},
+            "translated-from": {"type": "keyword"},
+            "translated-to": {"type": "keyword"},
 
             # Don't be explicit, because the implicit texts have .keyword
             # while explicit texts do not.

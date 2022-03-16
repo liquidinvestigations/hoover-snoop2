@@ -130,6 +130,8 @@ def detect_language_and_translate(blob):
 
     if settings.TRANSLATION_URL:
         rv['translated-text'] = {}
+        rv['translated-from'] = []
+        rv['translated-to'] = []
         for target in settings.TRANSLATION_TARGET_LANGUAGES:
             if target == lang:
                 log.warning("skipping translation from %s into %s", lang, target)
@@ -141,6 +143,8 @@ def detect_language_and_translate(blob):
             tr_text = tr_text.get('translatedText', '').strip()
             if tr_text and len(tr_text) > 1:
                 rv['translated-text'][f'translated_{tr_source}_to_{target}'] = tr_text
+                rv['translated-from'].append(tr_source)
+                rv['translated-to'].append(target)
             else:
                 log.warning("failed translation from %s into %s", lang, target)
     else:
