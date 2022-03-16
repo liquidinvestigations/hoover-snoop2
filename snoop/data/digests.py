@@ -164,17 +164,6 @@ def gather(blob, **depends_on):
 
     rv = {'broken': []}
 
-    # parse email for text and headers
-    email_parse_blob = depends_on.get('email_parse')
-    if email_parse_blob:
-        if isinstance(email_parse_blob, SnoopTaskBroken):
-            rv['broken'].append(email_parse_blob.reason)
-            log.debug("email_parse task is broken; skipping")
-        else:
-            email_parse = email_parse_blob.read_json()
-            email_meta = email.email_meta(email_parse)
-            rv.update(email_meta)
-
     # extract text and meta with apache tika
     tika_rmeta_blob = depends_on.get('tika_rmeta')
     if tika_rmeta_blob:
@@ -187,6 +176,17 @@ def gather(blob, **depends_on):
             rv['date'] = tika.get_date_modified(tika_rmeta)
             rv['date-created'] = tika.get_date_created(tika_rmeta)
             rv.update(tika.convert_for_indexing(tika_rmeta))
+
+    # parse email for text and headers
+    email_parse_blob = depends_on.get('email_parse')
+    if email_parse_blob:
+        if isinstance(email_parse_blob, SnoopTaskBroken):
+            rv['broken'].append(email_parse_blob.reason)
+            log.debug("email_parse task is broken; skipping")
+        else:
+            email_parse = email_parse_blob.read_json()
+            email_meta = email.email_meta(email_parse)
+            rv.update(email_meta)
 
     # For large text/CSV files, Tika (and text extraction) fails. For these, we want to read the text
     # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any
