@@ -142,17 +142,16 @@ services:
   image: liquidinvestigations/nlp-service:main
   pull: always
   environment:
-    NLP_SERVICE_PRESET: "full_sm"
+    NLP_SERVICE_PRESET: "full_md"
     NLP_SERVICE_FALLBACK_LANGUAGE: "en"
   volumes:
   - name: nlp-service
     path: /data
   commands:
-  - /opt/app/download
   - /opt/app/runserver
 
 - name: snoop-tika
-  image: logicalspark/docker-tikaserver
+  image: logicalspark/docker-tikaserver:1.28.1
 
 - name: snoop-thumbnail
   image: fpurchess/preview-service
@@ -235,8 +234,8 @@ steps:
     SNOOP_OBJECT_DETECTION_URL: "http://snoop-image-classification:5001/detect-objects"
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_NLP_URL: "http://snoop-nlp-service:5000"
-    EXTRACT_ENTITIES:  True
-    DETECT_LANGUAGE: True
+    SNOOP_EXTRACT_ENTITIES:  True
+    SNOOP_DETECT_LANGUAGE: True
     SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
     SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
     USER_MODE: "TEST"

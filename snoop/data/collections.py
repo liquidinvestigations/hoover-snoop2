@@ -85,6 +85,7 @@ class Collection:
         self.ocr_languages = opt.get('ocr_languages', [])
         self.max_result_window = opt.get('max_result_window', 10000)
         self.refresh_interval = opt.get('refresh_interval', "5s")
+        self.opt = opt
 
         for lang_grp in self.ocr_languages:
             assert lang_grp.strip() != ''
@@ -92,45 +93,64 @@ class Collection:
                 assert lang in ALL_TESSERACT_LANGS, \
                     f'language code "{lang}" is not available'
 
-        self.pdf_preview_enabled = opt.get('pdf_preview_enabled', bool(settings.SNOOP_PDF_PREVIEW_URL)) \
+    @property
+    def pdf_preview_enabled(self):
+        return self.opt.get('pdf_preview_enabled', bool(settings.SNOOP_PDF_PREVIEW_URL)) \
             and bool(settings.SNOOP_PDF_PREVIEW_URL)
 
-        self.thumbnail_generator_enabled = opt.get('thumbnail_generator_enabled',
-                                                   bool(settings.SNOOP_THUMBNAIL_URL)) \
+    @property
+    def thumbnail_generator_enabled(self):
+        return self.opt.get(
+            'thumbnail_generator_enabled',
+            bool(settings.SNOOP_THUMBNAIL_URL)) \
             and bool(settings.SNOOP_THUMBNAIL_URL)
 
-        self.image_classification_object_detection_enabled = opt.get(
+    @property
+    def image_classification_object_detection_enabled(self):
+        return self.opt.get(
             'image_classification_object_detection_enabled',
             bool(settings.SNOOP_OBJECT_DETECTION_URL)) \
             and bool(settings.SNOOP_OBJECT_DETECTION_URL)
 
-        self.image_classification_classify_images_enabled = opt.get(
+    @property
+    def image_classification_classify_images_enabled(self):
+        return self.opt.get(
             'image_classification_classify_images_enabled',
             bool(settings.SNOOP_IMAGE_CLASSIFICATION_URL)) \
             and bool(settings.SNOOP_IMAGE_CLASSIFICATION_URL)
 
-        self.nlp_language_detection_enabled = opt.get(
+    @property
+    def nlp_language_detection_enabled(self):
+        return self.opt.get(
             'nlp_language_detection_enabled',
             settings.DETECT_LANGUAGE) \
             and settings.DETECT_LANGUAGE
 
-        self.nlp_entity_extraction_enabled = opt.get(
+    @property
+    def nlp_entity_extraction_enabled(self):
+        return self.opt.get(
             'nlp_entity_extraction_enabled',
             settings.EXTRACT_ENTITIES) \
             and settings.EXTRACT_ENTITIES
 
-        self.translation_enabled = opt.get(
+    @property
+    def translation_enabled(self):
+        return self.opt.get(
             'translation_enabled',
             bool(settings.TRANSLATION_URL)) \
             and bool(settings.TRANSLATION_URL)
 
-        self.translation_target_languages = opt.get(
+    @property
+    def translation_target_languages(self):
+        return self.opt.get(
             'translation_target_languages',
             '').split(',') \
             or settings.TRANSLATION_TARGET_LANGUAGES
 
-        self.translation_text_length_limit = int(
-            opt.get(
+    @property
+    def translation_text_length_limit(self):
+        return int(
+            self.opt.get(
                 'translation_text_length_limit',
                 settings.TRANSLATION_TEXT_LENGTH_LIMIT,
             )

@@ -1,5 +1,6 @@
 import pytest
 from snoop.data import models
+from snoop.data import collections
 from snoop.data.analyzers import entities
 
 from conftest import TESTDATA, CollectionApiClient
@@ -29,6 +30,13 @@ def test_extract_entities(fakedata, taskmanager, client):
     api = CollectionApiClient(client)
     digest = api.get_digest(blob.pk)['content']
 
-    assert models.Entity.objects.filter(entity='Masterminded').exists()
-    assert 'EasyChair' in digest['entity']
-    assert 'US' in digest['entity-type.location']
+    print(collections.current())
+    print(models.Task.objects.all())
+    print(models.Entity.objects.all())
+    print(api.get_digest(blob.pk))
+
+    assert models.Entity.objects.filter(entity='Andrei Voronkov').exists()
+
+    assert 'Microsoft' in digest['entity-type.organization']
+    assert 'Microsoft' in digest['entity']
+    assert 'Manchester' in digest['entity-type.location']

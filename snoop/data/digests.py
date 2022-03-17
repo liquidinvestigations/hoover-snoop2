@@ -334,7 +334,11 @@ def index(blob, **depends_on):
         entity_service_results = require_dependency(
             'get_entity_results',
             depends_on,
-            lambda: entities.get_entity_results.laterz(blob, result.get('lang'), lang_result.pk),
+            lambda: entities.get_entity_results.laterz(
+                blob,
+                result.get('lang'),
+                lang_result.pk if lang_result else None,
+            ),
         )
 
         if isinstance(entity_service_results, SnoopTaskBroken):
@@ -763,9 +767,10 @@ def _get_document_content(digest, the_file=None):
 
     # populate from digests.extra_result if it's set
     # (data from entities and langauge detection)
-    if digest.extra_result:
+    if digest is not None and digest.extra_result:
         content.update(digest.extra_result.read_json())
-        if content['translated-text']:
+        # TODO delete the ocrtext hack and use this separate field
+        if content.get('translated-text'):
             content['ocrtext'] = content.get('ocrtext', {})
             content['ocrtext'].update(content['translated-text'])
             del content['translated-text']
