@@ -36,16 +36,10 @@ from .analyzers import entities
 from . import ocr
 from . import indexing
 from ._file_types import FILE_TYPES
+from .collections import current as current_collection
 
 log = logging.getLogger(__name__)
 ES_MAX_INTEGER = 2 ** 31 - 1
-
-
-def get_collection_langs():
-    """Return the list of OCR languages configured for the current collection."""
-
-    from .collections import current
-    return current().ocr_languages
 
 
 @snoop_task('digests.launch', priority=4, version=9)
@@ -70,13 +64,13 @@ def launch(blob):
         depends_on['exif_data'] = exif.extract.laterz(blob)
 
     if ocr.can_process(blob):
-        for lang in get_collection_langs():
+        for lang in current_collection().ocr_languages:
             depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
-    if settings.SNOOP_PDF_PREVIEW_URL and pdf_preview.can_create(blob):
+    if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
         depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
 
-    if settings.SNOOP_THUMBNAIL_URL and thumbnails.can_create(blob):
+    if current_collection().thumbnail_generator_enabled and thumbnails.can_create(blob):
         if depends_on.get('get_pdf_preview'):
             # if we just launched a pdf preview, add it to the deps
             depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(
@@ -86,10 +80,12 @@ def launch(blob):
         elif thumbnails.can_create(blob):
             depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
 
-    if settings.SNOOP_OBJECT_DETECTION_URL and image_classification.can_detect(blob):
+    if current_collection().image_classification_object_detection_enabled \
+            and image_classification.can_detect(blob):
         depends_on['detect_objects'] = (image_classification.detect_objects.laterz(blob))
 
-    if settings.SNOOP_IMAGE_CLASSIFICATION_URL and image_classification.can_detect(blob):
+    if current_collection().image_classification_classify_images_enabled \
+            and image_classification.can_detect(blob):
         depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
@@ -196,7 +192,7 @@ def gather(blob, **depends_on):
     # combine OCR results, limiting string sizes to indexing.MAX_TEXT_FIELD_SIZE
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
     if ocr.can_process(blob):
-        for lang in get_collection_langs():
+        for lang in current_collection().ocr_languages:
             ocr_blob = depends_on.get(f'tesseract_{lang}')
             if not ocr_blob or isinstance(ocr_blob, SnoopTaskBroken):
                 log.warning(f'tesseract ocr result missing for lang {lang}')
@@ -299,7 +295,9 @@ def index(blob, **depends_on):
     save it's results.
     """
 
-    if not settings.EXTRACT_ENTITIES and not settings.DETECT_LANGUAGE and not settings.TRANSLATION_URL:
+    if not current_collection().nlp_entity_extraction_enabled \
+            and not current_collection().nlp_language_detection_enabled \
+            and not current_collection().translation_enabled:
         log.warning('Settings disabled. Exiting')
         return None
 
@@ -317,7 +315,8 @@ def index(blob, **depends_on):
     # Text and ocrtext are now final; let's write a blob with the concatenated text,
     # then run language detection and possibly translation on them.
     lang_result = None
-    if settings.DETECT_LANGUAGE or settings.TRANSLATION_URL:
+    if current_collection().nlp_language_detection_enabled \
+            or current_collection().translation_enabled:
         lang_result = require_dependency(
             'detect_language_and_translate',
             depends_on,
@@ -329,7 +328,7 @@ def index(blob, **depends_on):
         else:
             result.update(lang_result.read_json())
 
-    if settings.EXTRACT_ENTITIES:
+    if current_collection().nlp_entity_extraction_enabled:
         if lang_result:
             depends_on['lang_result'] = lang_result
         entity_service_results = require_dependency(

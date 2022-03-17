@@ -92,6 +92,50 @@ class Collection:
                 assert lang in ALL_TESSERACT_LANGS, \
                     f'language code "{lang}" is not available'
 
+        self.pdf_preview_enabled = opt.get('pdf_preview_enabled', bool(settings.SNOOP_PDF_PREVIEW_URL)) \
+            and bool(settings.SNOOP_PDF_PREVIEW_URL)
+
+        self.thumbnail_generator_enabled = opt.get('thumbnail_generator_enabled',
+                                                   bool(settings.SNOOP_THUMBNAIL_URL)) \
+            and bool(settings.SNOOP_THUMBNAIL_URL)
+
+        self.image_classification_object_detection_enabled = opt.get(
+            'image_classification_object_detection_enabled',
+            bool(settings.SNOOP_OBJECT_DETECTION_URL)) \
+            and bool(settings.SNOOP_OBJECT_DETECTION_URL)
+
+        self.image_classification_classify_images_enabled = opt.get(
+            'image_classification_classify_images_enabled',
+            bool(settings.SNOOP_IMAGE_CLASSIFICATION_URL)) \
+            and bool(settings.SNOOP_IMAGE_CLASSIFICATION_URL)
+
+        self.nlp_language_detection_enabled = opt.get(
+            'nlp_language_detection_enabled',
+            settings.DETECT_LANGUAGE) \
+            and settings.DETECT_LANGUAGE
+
+        self.nlp_entity_extraction_enabled = opt.get(
+            'nlp_entity_extraction_enabled',
+            settings.EXTRACT_ENTITIES) \
+            and settings.EXTRACT_ENTITIES
+
+        self.translation_enabled = opt.get(
+            'translation_enabled',
+            bool(settings.TRANSLATION_URL)) \
+            and bool(settings.TRANSLATION_URL)
+
+        self.translation_target_languages = opt.get(
+            'translation_target_languages',
+            '').split(',') \
+            or settings.TRANSLATION_TARGET_LANGUAGES
+
+        self.translation_text_length_limit = int(
+            opt.get(
+                'translation_text_length_limit',
+                settings.TRANSLATION_TEXT_LENGTH_LIMIT,
+            )
+        )
+
     def __repr__(self):
         """String representation for a Collection.
         """

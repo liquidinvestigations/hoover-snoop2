@@ -22,7 +22,7 @@ MAX_ENTITY_TEXT_LENGTH = 200
 MAX_ENTITY_COUNT_PER_DOC = 10000
 """Stop looking at entitites in a document after this many distinct results."""
 
-MAX_ENTITY_DOC_READ = 3 * (2 ** 10)  # 3 MB, for reference, 5 MB = about one King James Bible
+MAX_ENTITY_DOC_READ = 3 * (2 ** 20)  # 3 MB, for reference, 5 MB = about one King James Bible
 """Stop looking at the document text after this many characters."""
 
 ENTITIES_TIMEOUT_BASE = 120
@@ -39,6 +39,8 @@ ENTITIES_MIN_SPEED_BPS = 256
 Speed in the Admin UI. The timeout is calculated using this value, the request
 file size, and the previous `TIMEOUT_BASE` constant."""
 
+MAX_LANGDETECT_DOC_READ = 1 * (2 ** 20)  # 1 MB
+"""Max text length to read when running language detection."""
 
 MAX_TRANSLATE_DOC_READ = 400
 """Stop translating the document text after this many characters.
@@ -113,13 +115,13 @@ def detect_language_and_translate(blob):
     digest = models.Digest.objects.get(blob=blob)
     digest_data = digest.result.read_json()
     texts = [digest_data.get('text', "")] + list(digest_data.get('ocrtext', {}).values())
-    texts = [t[:MAX_TRANSLATE_DOC_READ].strip() for t in texts if len(t.strip()) > 1]
-    texts = "\n\n".join(texts).strip()[:MAX_TRANSLATE_DOC_READ]
+    texts = [t[:MAX_LANGDETECT_DOC_READ].strip() for t in texts if len(t.strip()) > 1]
+    texts = "\n\n".join(texts).strip()[:MAX_LANGDETECT_DOC_READ]
 
     timeout = min(TRANSLATION_TIMEOUT_MAX,
                   int(TRANSLATION_TIMEOUT_BASE + len(texts) / TRANSLATION_MIN_SPEED_BPS))
 
-    if settings.DETECT_LANGUAGE:
+    if collections.current().nlp_language_detection_enabled:
         lang = call_nlp_server('language_detection', {'text': texts}, timeout)['language']
         rv = {'lang': lang}
         log.info('language detected as %s', lang)
@@ -128,7 +130,8 @@ def detect_language_and_translate(blob):
         lang = None
         rv = {}
 
-    if settings.TRANSLATION_URL:
+    if collections.current().translation_enabled:
+        texts = texts[:collections.current().translation_text_length_limit]
         rv['translated-text'] = {}
         rv['translated-from'] = []
         rv['translated-to'] = []
