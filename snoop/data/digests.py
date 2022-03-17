@@ -165,7 +165,7 @@ def gather(blob, **depends_on):
     if tika_rmeta_blob:
         if isinstance(tika_rmeta_blob, SnoopTaskBroken):
             rv['broken'].append(tika_rmeta_blob.reason)
-            log.debug("tika_rmeta task is broken; skipping")
+            log.warning("tika_rmeta task is broken; skipping")
         else:
             tika_rmeta = tika_rmeta_blob.read_json()
             rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
@@ -178,7 +178,7 @@ def gather(blob, **depends_on):
     if email_parse_blob:
         if isinstance(email_parse_blob, SnoopTaskBroken):
             rv['broken'].append(email_parse_blob.reason)
-            log.debug("email_parse task is broken; skipping")
+            log.warning("email_parse task is broken; skipping")
         else:
             email_parse = email_parse_blob.read_json()
             email_meta = email.email_meta(email_parse)
@@ -225,7 +225,7 @@ def gather(blob, **depends_on):
     if exif_data_blob:
         if isinstance(exif_data_blob, SnoopTaskBroken):
             rv['broken'].append(exif_data_blob.reason)
-            log.debug("exif_data task is broken; skipping")
+            log.warning("exif_data task is broken; skipping")
 
         else:
             exif_data = exif_data_blob.read_json()
@@ -237,26 +237,27 @@ def gather(blob, **depends_on):
     if thumbnails:
         if isinstance(thumbnails, SnoopTaskBroken):
             rv['broken'].append(thumbnails.reason)
-            log.debug('get_thumbnail task is broken; skipping')
+            log.warning('get_thumbnail task is broken; skipping')
         else:
             rv['has-thumbnails'] = True
 
     # check if pdf-preview is available
     rv['has-pdf-preview'] = False
-    pdf_preview = depends_on.get('get_pdf_preview', False)
-    if pdf_preview is None:
-        if isinstance(pdf_preview, SnoopTaskBroken):
-            rv['broken'].append(pdf_preview.reason)
-            log.debug('get_pdf_preview task is broken; skipping')
-        else:
-            rv['has-pdf-preview'] = True
+    pdf_preview = depends_on.get('get_pdf_preview')
+    if isinstance(pdf_preview, SnoopTaskBroken):
+        rv['broken'].append(pdf_preview.reason)
+        log.warning('get_pdf_preview task is broken; skipping')
+    elif isinstance(pdf_preview, models.Blob):
+        rv['has-pdf-preview'] = True
+    else:
+        log.warning('unsupported return value for pdf preview.')
 
     rv['detected-objects'] = []
     detections = depends_on.get('detect_objects')
     if detections:
         if isinstance(detections, SnoopTaskBroken):
             rv['broken'].append(detections.reason)
-            log.debug('object_detection task is broken; skipping')
+            log.warning('object_detection task is broken; skipping')
         else:
             detected_objects = detections.read_json()
             rv['detected-objects'] = detected_objects
@@ -266,7 +267,7 @@ def gather(blob, **depends_on):
     if predictions:
         if isinstance(predictions, SnoopTaskBroken):
             rv['broken'].append(predictions.reason)
-            log.debug('image_classification task is broken; skipping')
+            log.warning('image_classification task is broken; skipping')
         else:
             image_classes = predictions.read_json()
             rv['image-classes'] = image_classes

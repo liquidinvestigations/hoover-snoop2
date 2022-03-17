@@ -79,7 +79,6 @@ def call_pdf_generator(data, filename, size):
 
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'application/pdf'):
-        # print(resp.content)
         raise SnoopTaskBroken(f'pdf generator returned unexpected response {resp}',
                               'pdf_preview_http_' + str(resp.status_code))
 
