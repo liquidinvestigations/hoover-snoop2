@@ -1,4 +1,4 @@
-FROM debian:bullseye
+FROM debian:11.2
 ENV PYTHONUNBUFFERED 1
 
 RUN set -e \
