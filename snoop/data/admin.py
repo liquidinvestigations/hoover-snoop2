@@ -10,6 +10,8 @@ tunneling onto the machine.
 All the different admin sites are kept in the global dict `sites`. The default admin site is also part of
 this dict, under the key "_default". The sites are mapped to URLs in `snoop.data.urls` using this global.
 """
+
+import math
 import json
 import time
 from datetime import timedelta
@@ -35,6 +37,38 @@ def blob_link(blob_pk):
 
     url = reverse(f'{collections.current().name}:data_blob_change', args=[blob_pk])
     return mark_safe(f'<a href="{url}">{blob_pk[:10]}...{blob_pk[-4:]}</a>')
+
+
+def create_link(model_name, pk, url_description):
+    """Creates a link to any other Data entry in the database.
+
+    It uses the auto generated urls from django admin and takes the description
+    as input.
+
+    Args:
+        model_name: The name of the model that the entry belongs to
+        pk: the pk of the object
+        url_description: The string that the link should show.
+    """
+
+    def escape(htmlstring):
+        """Escape HTML tags in admin links."""
+        # Stolen from https://stackoverflow.com/a/11550901
+        escapes = {
+            '\"': '&quot;',
+            '\'': '&#39;',
+            '<': '&lt;',
+            '>': '&gt;',
+        }
+        # This is done first to prevent escaping other escapes.
+        htmlstring = htmlstring.replace('&', '&amp;')
+        for seq, esc in escapes.items():
+            htmlstring = htmlstring.replace(seq, esc)
+        return htmlstring
+
+    url = reverse(f'{collections.current().name}:data_{model_name.lower()}_change', args=[pk])
+    url_description = escape(str(url_description))
+    return mark_safe(f'<a href="{url}">{url_description}</a>')
 
 
 def raw_sql(query):
@@ -89,6 +123,8 @@ def get_task_matrix(task_queryset, prev_matrix={}):
     # Overhead measured for NO-OP tasks; used here to make sure we never divide by 0
     TIME_OVERHEAD = 0.02
     RECENT_SPEED_KEY = str(mins) + 'm_avg_bytes_sec'
+    AVG_WORKERS_KEY = str(mins) + 'm_avg_workers'
+
     task_5m_query = (
         task_queryset
         .filter(date_finished__gt=timezone.now() - timedelta(minutes=mins),
@@ -105,26 +141,27 @@ def get_task_matrix(task_queryset, prev_matrix={}):
         count = bucket['count']
         real_time = (bucket['end'] - bucket['start']).total_seconds() + TIME_OVERHEAD
         total_time = bucket['time'].total_seconds() + TIME_OVERHEAD
-        fill = total_time / real_time * 100
+        fill_a = total_time / real_time
+        fill_b = total_time / (mins * 60)
+        fill = round((fill_a + fill_b) / 2, 2)
         # get total system bytes/sec in this period
         size = (bucket['size'] or 0) + SIZE_OVERHEAD * count
         bytes_sec = size / total_time
         row[str(mins) + 'm_count'] = count
-        row[str(mins) + 'm_fill'] = f'{fill:.02f}%'
+        row[AVG_WORKERS_KEY] = fill
         row[str(mins) + 'm_avg_duration'] = total_time / count
         row[str(mins) + 'm_avg_size'] = size / count
         row[RECENT_SPEED_KEY] = bytes_sec
+
     for func in prev_matrix:
-        old = prev_matrix.get(func, {}).get(RECENT_SPEED_KEY, 0)
-        # sometimes garbage appears in the JSON (say, if you edit it manually while working on it)
-        if not isinstance(old, (int, float)):
-            old = 0
-        new = task_matrix.get(func, {}).get(RECENT_SPEED_KEY, 0)
-        if not new:
-            task_matrix[func][RECENT_SPEED_KEY] = old
-        elif old > 0:
+        for key in [RECENT_SPEED_KEY, AVG_WORKERS_KEY]:
+            old = prev_matrix.get(func, {}).get(key, 0)
+            # sometimes garbage appears in the JSON (say, if you edit it manually while working on it)
+            if not isinstance(old, (int, float)):
+                old = 0
+            new = task_matrix.get(func, {}).get(key, 0)
             new = (old + new) / 2
-            task_matrix[func][RECENT_SPEED_KEY] = new
+            task_matrix[func][key] = round(new, 2)
 
     task_success_speed = (
         task_queryset
@@ -157,16 +194,12 @@ def get_task_matrix(task_queryset, prev_matrix={}):
     )
     for bucket in task_remaining_total_bytes:
         row = task_matrix[bucket['func']]
-        row['remaining_size'] = (bucket['size'] or 0) + bucket['count'] * SIZE_OVERHEAD
+        prev_matrix_row = prev_matrix.get(bucket['func'], {})
 
-        # The "success_avg_bytes_sec" is measured per single thread, so we have to scale it up to average
-        # worker count. Parallelization has diminishing returns, so we model this by setting max average
-        # worker count to 6
-        average_worker_count = min(6, (
-            (settings.WORKER_COUNT + settings.SNOOP_MIN_WORKERS + settings.SNOOP_MAX_WORKERS) / 3
-        ))
-        speed_success = row.get('success_avg_bytes_sec', 0) * average_worker_count
-        # the other one is measured over the previous few minutes; average it with this one if it exists
+        row['remaining_size'] = (bucket['size'] or 0) + bucket['count'] * SIZE_OVERHEAD
+        speed_success = row.get('success_avg_bytes_sec', 0)
+        # the other one is measured over the previous few minutes;
+        # average it with this one if it exists
         recent_speed = row.get(RECENT_SPEED_KEY, 0)
         if recent_speed:
             speed = (speed_success + recent_speed) / 2
@@ -174,8 +207,28 @@ def get_task_matrix(task_queryset, prev_matrix={}):
             speed = speed_success
         if speed:
             remaining_time = row['remaining_size'] / speed
-            eta = remaining_time + row.get('pending', 0) * TIME_OVERHEAD / average_worker_count
-            row['eta'] = round(eta, 2)
+            eta = remaining_time + row.get('pending', 0) * TIME_OVERHEAD
+
+            # Set a small 0.5=5/10 default worker count instead of 0,
+            # estimating off of 5 CPU / collection, with 10 main tasks per document.
+            # in batches much larger than the 5min window.
+            avg_worker_count = row.get(AVG_WORKERS_KEY, 0) + 0.5
+            # Divide by avg workers count for this task, to obtain ETA.
+            eta = eta / avg_worker_count
+
+            # double the estimation, since 3X is too much
+            eta = round(eta, 1) * 2
+
+            # Add small time overhead for pending task types,
+            # accounting for the 50s refresh interval in queueing new tasks
+            # (the dispatcher periodic task) -- the average wait is half that.
+            eta += 25
+
+            # if available, average with previous value
+            if prev_matrix_row.get('eta', 0) > 1:
+                eta = (eta + prev_matrix_row.get('eta', 0)) / 2
+
+            row['eta'] = eta
 
     return task_matrix
 
@@ -240,7 +293,10 @@ def _get_stats(old_values):
 
     def get_progress_str():
         task_states = defaultdict(int)
-        eta = sum((row.get('eta', 0) for row in task_matrix.values()), start=0) * 2
+        eta = sum((row.get('eta', 0) for row in task_matrix.values()), start=0)
+        # if set, round up to exact minutes
+        if eta > 1:
+            eta = int(math.ceil(eta / 60) * 60)
         eta_str = ', ETA: ' + tr('eta', eta) if eta > 1 else ''
         for row in task_matrix.values():
             for state in row:
@@ -375,6 +431,116 @@ class DirectoryAdmin(MultiDBModelAdmin):
     list_display = ['pk', '__str__', 'name', 'date_created', 'date_modified']
 
 
+class EntityAdmin(MultiDBModelAdmin):
+    """List and detail views for entities."""
+
+    raw_id_fields = ['type']
+    search_fields = ['pk', 'type__pk', 'type__type', 'entity']
+    readonly_fields = [
+        'pk',
+        'entity',
+        '_type',
+        'parent_link',
+        'blacklisted',
+        'hit_count',
+    ]
+    list_display = ['pk', '_type', 'entity',
+                    'parent_link', 'blacklisted', 'hit_count']
+
+    def parent_link(self, obj):
+        with self.collection.set_current():
+            if obj.parent:
+                return create_link('entity', obj.parent.pk, obj.parent)
+            return '/'
+
+    def hit_count(self, obj):
+        with self.collection.set_current():
+            return models.EntityHit.objects.filter(entity=obj.pk).count()
+
+    def _type(self, obj):
+        with self.collection.set_current():
+            return create_link('entitytype', obj.type.pk, str(obj.type))
+
+    allow_delete = True
+
+
+class EntityHitAdmin(MultiDBModelAdmin):
+    """List and detail views for entities."""
+
+    raw_id_fields = ['entity', 'model']
+    search_fields = ['pk', 'entity__entity', 'entity__type__type',
+                     'digest__blob__pk', 'digest__result__pk']
+    readonly_fields = [
+        'pk',
+        'entity_link',
+        'type_link',
+        'digest',
+        'digest_extra_result',
+        'model_link',
+        'text_source',
+        'start',
+        'end',
+    ]
+    list_display = ['pk', 'entity_link', 'type_link', 'digest',
+                    'digest_extra_result', 'model_link',
+                    'text_source', 'start', 'end']
+
+    def entity_link(self, obj):
+        with self.collection.set_current():
+            return create_link('entity', obj.entity.pk, obj.entity.entity)
+
+    def digest_extra_result(self, obj):
+        with self.collection.set_current():
+            if obj.digest.extra_result:
+                return blob_link(obj.digest.extra_result.pk)
+    digest_extra_result.admin_order_field = 'digest__extra_result'
+
+    def type_link(self, obj):
+        with self.collection.set_current():
+            return create_link('entitytype', obj.entity.type.pk, obj.entity.type)
+
+    def model_link(self, obj):
+        with self.collection.set_current():
+            if obj.model:
+                return create_link('languagemodel', obj.model.pk, obj.model)
+            return '/'
+
+
+class EntityTypeAdmin(MultiDBModelAdmin):
+    """List and detail views for types."""
+
+    search_fields = ['type']
+    readonly_fields = [
+        'pk',
+        'type',
+        'distinct_entity_count',
+        'hit_count',
+    ]
+    list_display = ['pk', 'type', 'distinct_entity_count', 'hit_count']
+
+    def distinct_entity_count(self, obj):
+        with self.collection.set_current():
+            return models.Entity.objects.filter(type=obj.pk).count()
+
+    def hit_count(self, obj):
+        with self.collection.set_current():
+            return models.EntityHit.objects.filter(entity__type=obj.pk).count()
+
+
+class LanguageModelAdmin(MultiDBModelAdmin):
+    """List and detail views for entities."""
+
+    search_fields = ['language_code', 'engine', 'model_name']
+    readonly_fields = [
+        'pk',
+        'language_code',
+        'engine',
+        'model_name',
+
+    ]
+    list_display = ['pk', 'language_code', 'engine', 'model_name']
+
+
 class FileAdmin(MultiDBModelAdmin):
     """List and detail views for the files."""
 
@@ -483,15 +649,16 @@ class TaskAdmin(MultiDBModelAdmin):
     """
 
     raw_id_fields = ['blob_arg', 'result']
-    readonly_fields = ['blob_arg', 'result', 'pk', 'func', 'args',
-                       'date_created', 'date_started', 'date_finished', 'date_modified',
-                       'status', 'details', 'error', 'log', 'broken_reason', 'version', 'fail_count',
+    readonly_fields = ['_blob_arg', '_result', 'pk', 'func', 'args', 'date_created', 'date_started',
+                       'date_finished', 'date_modified', 'status', 'details', 'error', 'log',
+                       'broken_reason', 'version', 'fail_count',
                        'duration', 'size']
-    list_display = ['pk', 'func', 'args', 'created', 'finished',
+    list_display = ['pk', 'func', 'args', '_blob_arg', '_result', 'created', 'finished',
                     'status', 'details', 'broken_reason', 'duration',
                     'size']
     list_filter = ['func', 'status', 'broken_reason']
-    search_fields = ['pk', 'func', 'args', 'error', 'log', 'broken_reason']
+    search_fields = ['pk', 'func', 'args', 'error', 'log',
+                     'broken_reason', 'blob_arg__pk', 'result__pk']
     actions = ['retry_selected_tasks']
 
     change_form_template = 'snoop/admin_task_change_form.html'
@@ -559,10 +726,20 @@ class TaskAdmin(MultiDBModelAdmin):
     duration.admin_order_field = F('date_finished') - F('date_started')
 
     def size(self, obj):
-        if obj.blob_arg:
-            return pretty_size.pretty_size(obj.blob_arg.size)
-        return ''
+        return pretty_size.pretty_size(obj.size())
     size.admin_order_field = 'blob_arg__size'
+
+    def _blob_arg(self, obj):
+        with self.collection.set_current():
+            if obj.blob_arg:
+                return blob_link(obj.blob_arg.pk)
+    _blob_arg.admin_order_field = 'blob_arg__pk'
+
+    def _result(self, obj):
+        with self.collection.set_current():
+            if obj.result:
+                return blob_link(obj.result.pk)
+    _result.admin_order_field = 'result__pk'
 
 
 class TaskDependencyAdmin(MultiDBModelAdmin):
@@ -583,10 +760,11 @@ class DigestAdmin(MultiDBModelAdmin):
 
     raw_id_fields = ['blob', 'result']
     readonly_fields = [
-        'blob', 'blob_link', 'result', 'result_link',
+        'blob', 'blob_link', 'result', 'result_link', 'extra_result_link',
         'blob__mime_type', 'date_modified',
     ]
-    list_display = ['pk', 'blob__mime_type', 'blob_link', 'result_link', 'date_modified']
+    list_display = ['pk', 'blob__mime_type', 'blob_link',
+                    'result_link', 'extra_result_link', 'date_modified']
     search_fields = ['pk', 'blob__pk', 'result__pk']
     # TODO subclass django.contrib.admin.filters.AllValuesFieldListFilter.choices()
     # to set the current collection
@@ -603,6 +781,10 @@ class DigestAdmin(MultiDBModelAdmin):
     def result_link(self, obj):
         with self.collection.set_current():
             return blob_link(obj.result.pk)
+
+    def extra_result_link(self, obj):
+        with self.collection.set_current():
+            return blob_link(obj.extra_result.pk) if obj.extra_result else None
 
 
 class DocumentUserTagAdmin(MultiDBModelAdmin):
@@ -699,6 +881,10 @@ def make_collection_admin_site(collection):
         site.register(models.OcrSource, OcrSourceAdmin)
         site.register(models.OcrDocument, MultiDBModelAdmin)
         site.register(models.Statistics, MultiDBModelAdmin)
+        site.register(models.Entity, EntityAdmin)
+        site.register(models.EntityHit, EntityHitAdmin)
+        site.register(models.EntityType, EntityTypeAdmin)
+        site.register(models.LanguageModel, LanguageModelAdmin)
         return site
 
 

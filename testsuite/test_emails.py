@@ -65,17 +65,17 @@ def parse_email(path, taskmanager):
     file = add_email_to_collection(path)
     filesystem.handle_file(file.pk)
     digests.launch(file.blob)
-    taskmanager.run()
+    taskmanager.run(600)
     return digests.get_document_data(file.blob)
 
 
-def test_subject_and_date(taskmanager):
+def test_subject_and_date(taskmanager, settings_no_entities):
     content = parse_email(MAPBOX, taskmanager)['content']
     assert content['subject'] == "Introducing Mapbox Android Services"
     assert content['date'] == '2016-04-20T13:03:20Z'
 
 
-def test_no_subject_or_text(taskmanager):
+def test_no_subject_or_text(taskmanager, settings_no_entities):
     content = parse_email(NO_SUBJECT, taskmanager)['content']
 
     assert 'subject' not in content
@@ -84,7 +84,7 @@ def test_no_subject_or_text(taskmanager):
     assert text is None
 
 
-def test_text(taskmanager):
+def test_text(taskmanager, settings_no_entities):
     data_codin = parse_email(CODINGAME, taskmanager)['content']
     assert data_codin['text'].startswith("New on CodinGame: Check it out!")
 
@@ -92,7 +92,7 @@ def test_text(taskmanager):
     assert "Android Services includes RxJava" in data_mapbox['text']
 
 
-def test_people(taskmanager):
+def test_people(taskmanager, settings_no_entities):
     content = parse_email(MAPBOX, taskmanager)['content']
 
     assert type(content['to']) is list
@@ -106,17 +106,17 @@ def test_people(taskmanager):
     assert set(['yahoo.com', 'mapbox.com']) == set(content['email-domains'])
 
 
-def test_email_with_byte_order_mark(taskmanager):
+def test_email_with_byte_order_mark(taskmanager, settings_no_entities):
     content = parse_email(BYTE_ORDER_MARK, taskmanager)['content']
 
     assert content['subject'] == "xxxxxxxxxx"
     assert content['from'] == ['yyy <yyyyyyyyyyyyyyy@gmail.com>']
 
 
-def test_attachment_children(taskmanager):
+def test_attachment_children(taskmanager, settings_no_entities):
     file = add_email_to_collection(OCTET_STREAM_CONTENT_TYPE)
     filesystem.handle_file(file.pk)
-    taskmanager.run()
+    taskmanager.run(600)
 
     attachments_dir = file.child_directory_set.get()
     children = attachments_dir.child_file_set.order_by('pk').all()
@@ -127,21 +127,21 @@ def test_attachment_children(taskmanager):
     assert children[2].name == 'length.png'
 
 
-def test_normal_attachments(taskmanager):
+def test_normal_attachments(taskmanager, settings_no_entities):
     data = parse_email(CAMPUS, taskmanager)
     children = data['children']
 
     assert len(children) == 2
 
 
-def test_attachment_with_long_filename(taskmanager):
+def test_attachment_with_long_filename(taskmanager, settings_no_entities):
     data = parse_email(LONG_FILENAMES, taskmanager)
     children = data['children']
 
     assert len(children) == 3
 
 
-def test_double_decoding_of_attachment_filenames(taskmanager):
+def test_double_decoding_of_attachment_filenames(taskmanager, settings_no_entities):
     data = parse_email(DOUBLE_DECODE_ATTACHMENT_FILENAME, taskmanager)
     without_encoding = "atașament_pârș.jpg"
     simple_encoding = "=?utf-8?b?YXRhyJlhbWVudF9ww6JyyJkuanBn?="
@@ -153,7 +153,7 @@ def test_double_decoding_of_attachment_filenames(taskmanager):
     assert {simple_encoding, without_encoding} == set(filenames)
 
 
-def test_attachment_with_octet_stream_content_type(taskmanager):
+def test_attachment_with_octet_stream_content_type(taskmanager, settings_no_entities):
     data = parse_email(OCTET_STREAM_CONTENT_TYPE, taskmanager)
 
     assert data['children'][0]['content_type'] == 'image/png'
@@ -173,7 +173,7 @@ def test_broken_header():
     )]
 
 
-def test_emlx_reconstruction(taskmanager):
+def test_emlx_reconstruction(taskmanager, settings_no_entities):
     root = mkdir(None, '')
     d1 = mkdir(root, 'lists.mbox')
     d2 = mkdir(d1, 'F2D0D67E-7B19-4C30-B2E9-B58FE4789D51')

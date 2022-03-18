@@ -123,7 +123,10 @@ def call_tika_server(endpoint, data, content_type, data_size):
 
     if (resp.status_code != 200
             or resp.headers['Content-Type'] != 'application/json'):
-        raise RuntimeError(f"Unexpected response from tika: {resp}")
+        raise SnoopTaskBroken(
+            f"tika returned unexpected response http {resp.status_code}",
+            "tika_http_" + str(resp.status_code),
+        )
 
     return resp
 

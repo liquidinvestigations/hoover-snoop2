@@ -72,3 +72,17 @@ class DocumentUserTagSerializer(serializers.ModelSerializer):
         data['uuid'] = self.context['uuid']
         data['digest_id'] = self.context['digest_id']
         return super().update(instance, data)
+
+
+class EntitySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = models.Entity
+        fields = [
+            'entity',
+            'label',
+        ]
+        read_only_fields = [
+            'entity',
+            'label',
+        ]

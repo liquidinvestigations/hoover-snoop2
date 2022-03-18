@@ -18,9 +18,9 @@ de-duplication), and other K8s-oriented container-native solutions were not inve
 thumb, if it can't run 1000-5000 idle (no-op) Tasks per minute per CPU, it's too slow for our use.
 """
 
+import random
 from contextlib import contextmanager
 from io import StringIO
-import json
 import logging
 from time import time, sleep
 from datetime import timedelta
@@ -28,7 +28,6 @@ from functools import wraps
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
-from django.db.models import Exists, OuterRef, Q, Case, When, Value, Sum, Subquery, Count
 from django.utils import timezone
 
 from . import collections
@@ -45,6 +44,19 @@ logger = logging.getLogger(__name__)
 
 task_map = {}
 ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
+
+
+def shuffle_priority(pri):
+    """Randomize the task priority: add a randint(-1, 1)
+    to argument and return value clamped to [1, 9].
+
+    This helps with spreading out tasks types executed by the different services.
+    """
+
+    pri = pri + random.randint(-1, 1)
+    pri = max(1, pri)
+    pri = min(9, pri)
+    return pri
 
 
 class SnoopTaskError(Exception):
@@ -112,7 +124,7 @@ def queue_task(task):
             laterz_snoop_task.apply_async(
                 (col.name, task.pk,),
                 queue=col.queue_name,
-                priority=task_map[task.func].priority,
+                priority=shuffle_priority(task_map[task.func].priority),
                 retry=False,
             )
         except laterz_snoop_task.OperationalError as e:
@@ -134,9 +146,6 @@ def queue_next_tasks(task, reset=False):
     with tracing.span('queue_next_tasks'):
         for next_dependency in task.next_set.all():
             next_task = next_dependency.next
-            if task_map[next_task.func].bulk:
-                continue
-
             if reset:
                 next_task.update(
                     status=models.Task.STATUS_PENDING,
@@ -146,6 +155,11 @@ def queue_next_tasks(task, reset=False):
                     version=task_map[task.func].version,
                 )
                 next_task.save()
+
+            if task_map[next_task.func].bulk:
+                logger.debug("Not queueing bulk task %r after %r", next_task, task)
+                continue
+
             logger.debug("Queueing %r after %r", next_task, task)
             queue_task(next_task)
 
@@ -160,6 +174,16 @@ def import_snoop_tasks():
     from . import filesystem  # noqa
     from .analyzers import archives  # noqa
     from .analyzers import text  # noqa
+    from .analyzers import email  # noqa
+    from .analyzers import emlx  # noqa
+    from .analyzers import entities  # noqa
+    from .analyzers import exif  # noqa
+    from .analyzers import html  # noqa
+    from .analyzers import image_classification  # noqa
+    from .analyzers import pdf_preview  # noqa
+    from .analyzers import pgp  # noqa
+    from .analyzers import thumbnails  # noqa
+    from .analyzers import tika  # noqa
 
 
 def is_completed(task):
@@ -308,12 +332,21 @@ def run_task(task, log_handler, raise_exceptions=False):
                 func = task_map[task.func]
                 with tracing.span('call func'):
                     with tracing.trace(name=task.func, service_name='func'):
-                        result = func(*args, **depends_on)
+                        if func.bulk:
+                            result = func([task])
+                        else:
+                            result = func(*args, **depends_on)
                         tracing.add_annotation('success')
 
                 if result is not None:
-                    assert isinstance(result, models.Blob)
-                    task.result = result
+                    if func.bulk:
+                        assert isinstance(result, dict)
+                        result_ok = result[task.blob_arg.pk]
+                        if not result_ok:
+                            raise RuntimeError('bulk task result not OK')
+                    else:
+                        assert isinstance(result, models.Blob)
+                        task.result = result
 
             except MissingDependency as dep:
                 with tracing.span('missing dependency'):
@@ -688,12 +721,7 @@ def returns_json_blob(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         rv = func(*args, **kwargs)
-
-        data = json.dumps(rv, indent=2).encode('utf8')
-        with models.Blob.create() as output:
-            output.write(data)
-
-        return output.blob
+        return models.Blob.create_json(rv)
 
     return wrapper
 
@@ -896,7 +924,7 @@ def dispatch_for(collection):
                 .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
                 .filter(date_modified__lt=timezone.now() - timedelta(minutes=1))
                 .exclude(status=models.Task.STATUS_PENDING)
-                .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT]
+                .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT_DIRS]
             )
 
         # retry errors
@@ -906,7 +934,7 @@ def dispatch_for(collection):
             .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
             .filter(fail_count__lt=settings.TASK_RETRY_FAIL_LIMIT)
             .filter(date_modified__lt=error_date)
-            .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT]
+            .order_by('date_modified')[:settings.RETRY_LIMIT_TASKS]
         )
         if old_error_qs.exists():
             logger.info(f'{collection} found {old_error_qs.count()} ERROR|BROKEN tasks to retry')
@@ -915,39 +943,76 @@ def dispatch_for(collection):
     logger.info(f'dispatch for collection "{collection.name}" done\n')
 
 
-def have_bulk_tasks_to_run():
-    """Checks current collection if we have bulk tasks run."""
+def get_bulk_tasks_to_run():
+    """Checks current collection if we have bulk tasks run.
+
+    Returns: a tuple (TASKS, SIZES) where:
+        - TASKS is a dict, keyed by function name, containing a batch of tasks for that function
+        - SIZES contains the total size, in bytes, for each task.
+    """
+
+    # Max number of tasks to pull.
+    # We estimate metadata: 5KB / task  = max 1 MB / chunk
+    # And for data, can you have anything in the 2KB - 100MB+ range for each document.
+    MAX_BULK_TASK_COUNT = 200
+
+    # Stop adding Tasks to bulk when current size is larger than this 30 MB
+    MAX_BULK_SIZE = 30 * (2 ** 20)
+
+    import_snoop_tasks()
+
+    def all_deps_finished(task):
+        for dep in task.prev_set.all():
+            if dep.prev.status not in [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN]:
+                return False
+            if dep.prev.version != task_map[dep.prev.func].version:
+                return False
+        return True
 
     all_functions = [
         x['func']
         for x in models.Task.objects.values('func').distinct()
         if task_map[x['func']].bulk
     ]
-    version_whens = [When(prev__func=k, then=task_map[k].version) for k in task_map]
-    version_case = Case(*version_whens, default=Value(0))
-
-    total = 0
+    task_list = {}
+    task_sizes = {}
     for func in all_functions:
+        task_list[func] = []
+        task_sizes[func] = {}
+        current_size = 0
+
         task_query = (
             models.Task.objects
             .filter(func=func)
             # don't do anything to successful, up to date tasks
             .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
-            # filter out any taks with non-completed dependencies
-            .filter(
-                ~Exists(
-                    models.TaskDependency.objects.filter(
-                        Q(next=OuterRef('pk'))
-                        & (
-                            ~Q(prev__version=version_case)
-                            | ~Q(prev__status__in=[models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN])
-                        ),
-                    )
-                )
-            )
+            .order_by('date_modified')
         )
-        total += task_query[:5].count()
-    return total > 0
+
+        for task in task_query[:MAX_BULK_TASK_COUNT]:
+            # filter out any taks with non-completed dependencies
+            # we could have done this in the DB query above, but it times out on weak machines
+            if all_deps_finished(task):
+                logger.warning('%s: Selected task %s', func, task)
+                task_list[func].append(task)
+                task_size = task.size()
+                current_size += task_size
+                task_sizes[func][task.pk] = task_size
+                if current_size > MAX_BULK_SIZE:
+                    break
+        logger.warning('%s: Selected %s items with total size: %s', func, len(task_list[func]), current_size)
+
+    return task_list, task_sizes
+
+
+def have_bulk_tasks_to_run():
+    task_list, _ = get_bulk_tasks_to_run()
+    if not task_list:
+        return False
+    for lst in task_list.values():
+        if len(lst) > 0:
+            return True
+    return False
 
 
 def run_single_batch_for_bulk_task():
@@ -959,100 +1024,17 @@ def run_single_batch_for_bulk_task():
         int: the number of Tasks completed successfully
     """
 
-    # Max number of tasks to pull.
-    # We estimate metadata: 5KB / task  = max 2.5 MB / chunk
-    # And for data, can you have anything in the 2KB - 100MB+ range for each document.
-    MAX_BULK_TASK_COUNT = 500
-
-    # Stop adding Tasks to bulk when current size is larger than this 50 MB
-    MAX_BULK_SIZE = 50 * (2 ** 20)
-
-    all_functions = [
-        x['func']
-        for x in models.Task.objects.values('func').distinct()
-        if task_map[x['func']].bulk
-    ]
-    version_whens = [When(prev__func=k, then=task_map[k].version) for k in task_map]
-    version_case = Case(*version_whens, default=Value(0))
-
     total_completed = 0
-    for func in all_functions:
+    all_task_list, all_task_sizes = get_bulk_tasks_to_run()
+    for func in all_task_list:
+        task_list = all_task_list[func]
+        task_sizes = all_task_sizes[func]
+        current_size = sum(task_sizes.values())
+
         logger.debug('Running single batch of bulk tasks of type: %s', func)
         t0 = timezone.now()
-
-        task_query = (
-            models.Task.objects
-            .filter(func=func)
-            # don't do anything to successful, up to date tasks
-            .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
-            # filter out any taks with non-completed dependencies
-            .filter(
-                ~Exists(
-                    models.TaskDependency.objects.filter(
-                        Q(next=OuterRef('pk'))
-                        & (
-                            ~Q(prev__version=version_case)
-                            | ~Q(prev__status__in=[models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN])
-                        ),
-                    )
-                )
-            )
-            # annotate task size (sum of results of dependencies, not blob_arg size)
-            .annotate(size=Sum(
-                models.TaskDependency.objects
-                .filter(next=OuterRef('pk'))
-                .values('prev__result__size')
-            ))
-
-            # oldest pending tasks first, since we reset them
-            .order_by('date_modified')
-        )
-        task_list = []
-        task_sizes = {}
-        current_size = 0
-        for task in task_query[:MAX_BULK_TASK_COUNT]:
-            logger.debug('%s: Selected task %s', func, task)
-            task_list.append(task)
-            task_size = ((task.size) or 0) + (task.blob_arg.size if task.blob_arg else 0)
-            current_size += task_size
-            task_sizes[task.pk] = task_size
-            if current_size > MAX_BULK_SIZE:
-                break
-
-        logger.warning('%s: Selected %s items with total size: %s', func, len(task_list), current_size)
         if not task_list:
             continue
-
-        task_query = (
-            models.Task.objects
-            .filter(pk__in=[t.pk for t in task_list])
-
-            # Annotate important parameters. Since our only batch task is digests.index(),
-            # we only need to annotate the following:
-            # - dependency digests_gather --> status
-            # - digest object --> ID
-            # - digest tags --> count
-
-            # - digests_gather status (between success and broken)
-            .annotate(digest_gather_status=Subquery(
-                models.TaskDependency.objects
-                .filter(next=OuterRef('pk'), name='digests_gather')
-                .values('prev__status')[:1]
-            ))
-            # - digest ID, for fetching tags
-            .annotate(digest_id=Subquery(
-                models.Digest.objects
-                .filter(blob=OuterRef('blob_arg'))
-                .values('pk')[:1]
-            ))
-            # - and the number of tags. We use these to avoid making a query to fetch them
-            .annotate(tags_count=Count(
-                models.DocumentUserTag.objects
-                .filter(digest=OuterRef('digest_id'))
-                .values('pk')
-            ))
-        )
-        task_list = list(task_query.all())
 
         # set data on rows before running function
         for task in task_list:

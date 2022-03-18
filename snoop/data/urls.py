@@ -2,9 +2,11 @@
 
 Includes routes for the DRF Tags API, and the various document and collection APIs.
 """
-from django.urls import path, include
+from django.urls import include, path
+from graphene_django.views import GraphQLView
 from rest_framework.routers import SimpleRouter
-from . import views, apps
+
+from . import apps, views
 
 app_name = apps.DataConfig.name
 tags_router = SimpleRouter(trailing_slash=False)
@@ -25,4 +27,5 @@ urlpatterns = [
     path('<collection>/<hash>/tags/<username>/<uuid>', include(tags_router.urls)),
     path('<collection>/<hash>/thumbnail/<size>.jpg', views.thumbnail),
     path('<collection>/<hash>/pdf-preview', views.pdf_preview),
+    path('<collection>/graphql', views.collection_view(GraphQLView.as_view(graphiql=True))),
 ]

@@ -1,6 +1,7 @@
 """Task to call a service that runs object detection and/or image classification on images"""
 
 import io
+import logging
 
 import requests
 from django.conf import settings
@@ -8,6 +9,9 @@ from PIL import Image, UnidentifiedImageError
 
 from .. import models
 from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
+
+
+log = logging.getLogger(__name__)
 
 PROBABILITY_LIMIT = 20
 
@@ -38,10 +42,10 @@ IMAGE_CLASSIFICATION_MIME_TYPES = {
 
 CLASSIFICATION_TIMEOUT_BASE = 60
 """Minimum number of seconds to wait for this service."""
-CLASSIFICATION_TIMEOUT_MAX = 200
+CLASSIFICATION_TIMEOUT_MAX = 1000
 """Maximum number of seconds to wait for this service."""
 
-CLASSIFICATION_MIN_SPEED_BPS = 100 * 1024  # 100 KB/s
+CLASSIFICATION_MIN_SPEED_BPS = 50 * 1024  # 50 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
 file size, and the previous `TIMEOUT_BASE` constant."""
@@ -49,10 +53,10 @@ file size, and the previous `TIMEOUT_BASE` constant."""
 DETECT_OBJECTS_TIMEOUT_BASE = 120
 """Minimum number of seconds to wait for this service."""
 
-DETECT_OBJECTS_TIMEOUT_MAX = 300
+DETECT_OBJECTS_TIMEOUT_MAX = 1000
 """Maximum number of seconds to wait for this service."""
 
-DETECT_OBJECTS_MIN_SPEED_BPS = 16 * 1024  # 16 KB/s
+DETECT_OBJECTS_MIN_SPEED_BPS = 8 * 1024  # 8 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
 file size, and the previous `TIMEOUT_BASE` constant."""
@@ -93,12 +97,10 @@ def call_object_detection_service(imagedata, filename, data_size):
 
     resp = requests.post(url, files={'image': (filename, imagedata)}, timeout=timeout)
 
-    if resp.status_code == 500:
-        raise SnoopTaskBroken('Object detection service could not process the image',
-                              'ojbect_detection_http_500')
-
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
-        raise RuntimeError(f'Unexpected response from object detection service: {resp}')
+        log.error(resp.content)
+        raise SnoopTaskBroken('Object detection service could not process the image',
+                              f'object_detection_http_{resp.status_code}')
 
     return resp.json()
 
@@ -114,12 +116,10 @@ def call_image_classification_service(imagedata, filename, data_size):
 
     resp = requests.post(url, files={'image': (filename, imagedata)}, timeout=timeout)
 
-    if resp.status_code == 500:
-        raise SnoopTaskBroken('Image classification service could not process the image',
-                              'image_classification_http_500')
-
     if (resp.status_code != 200 or resp.headers['Content-Type'] != 'application/json'):
-        raise RuntimeError(f'Unexpected response from image classification service: {resp}')
+        log.error(resp.content)
+        raise SnoopTaskBroken('Image classification service could not process the image',
+                              f'image_classification_http_{resp.status_code}')
 
     return resp.json()
 

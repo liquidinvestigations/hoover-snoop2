@@ -58,6 +58,17 @@ def settings_no_object_detection():
     settings.SNOOP_OBJECT_DETECTION_URL = url
 
 
+@pytest.fixture
+def settings_no_entities():
+    extract_entities = settings.EXTRACT_ENTITIES
+    detect_language = settings.DETECT_LANGUAGE
+    settings.EXTRACT_ENTITIES = False
+    settings.DETECT_LANGUAGE = False
+    yield
+    settings.EXTRACT_ENTITIES = extract_entities
+    settings.DETECT_LANGUAGE = detect_language
+
+
 @contextmanager
 def mask_out_current_collection():
     try:

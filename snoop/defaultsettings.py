@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_yasg',
     'snoop.data',
+    'graphene_django'
 ]
 """List of Django apps to load."""
 
@@ -168,12 +169,17 @@ CELERY_DB_REUSE_MAX = 0
 LANGUAGE_CODE = 'en-us'
 """Django locale."""
 
-DETECT_LANGUAGE = True
-"""Enable language detection."""
 
-LANGUAGE_DETECTOR_NAME = 'polyglot'
-"""Configure which language detector library to use.
-"""
+DETECT_LANGUAGE = os.getenv('SNOOP_DETECT_LANGUAGES', 'False').lower() == 'true'
+EXTRACT_ENTITIES = os.getenv('SNOOP_EXTRACT_ENTITIES', 'False').lower() == 'true'
+SNOOP_NLP_URL = os.environ.get('SNOOP_NLP_URL', 'http://127.0.0.1:5000/')
+""" URL pointing to NLP server"""
+
+TRANSLATION_URL = os.getenv('SNOOP_TRANSLATION_URL')
+TRANSLATION_TEXT_LENGTH_LIMIT = int(os.getenv('SNOOP_TRANSLATION_TEXT_LENGTH_LIMIT', '400'))
+TRANSLATION_TARGET_LANGUAGES = os.getenv('SNOOP_TRANSLATION_TARGET_LANGUAGES', "en,de").split(',')
+if TRANSLATION_URL:
+    assert len(TRANSLATION_TARGET_LANGUAGES) > 0
 
 TIME_ZONE = 'UTC'
 USE_I18N = True
@@ -270,11 +276,15 @@ A single worker core running zero-length tasks gets at most around 40
 tasks/s, so to keep them all occupied for 6min: 14400
 """
 
-
-SYNC_RETRY_LIMIT = 60 * _scale_coef
+SYNC_RETRY_LIMIT_DIRS = 60 * _scale_coef
 """ If there are no pending tasks, this is how many directories
 will be retried by sync every minute.
 """
+
+RETRY_LIMIT_TASKS = 8000 * _scale_coef
+"""Number BROKEN/ERROR tasks to retry every minute, while their fail count has not reached the limit.
+
+See `TASK_RETRY_FAIL_LIMIT`."""
 
 PDF2PDFOCR_MAX_STRLEN = 2 * (2 ** 20)
 """ Only run pdf2pdfocr if pdf text length less than this value.
@@ -382,3 +392,7 @@ if not DEBUG:
     SWAGGER_SETTINGS = {
         'VALIDATOR_URL': None,
     }
+
+GRAPHENE = {
+    'SCHEMA': 'snoop.data.schema.schema'
+}

@@ -85,12 +85,76 @@ class Collection:
         self.ocr_languages = opt.get('ocr_languages', [])
         self.max_result_window = opt.get('max_result_window', 10000)
         self.refresh_interval = opt.get('refresh_interval', "5s")
+        self.opt = opt
 
         for lang_grp in self.ocr_languages:
             assert lang_grp.strip() != ''
             for lang in lang_grp.split('+'):
                 assert lang in ALL_TESSERACT_LANGS, \
                     f'language code "{lang}" is not available'
+
+    @property
+    def pdf_preview_enabled(self):
+        return self.opt.get('pdf_preview_enabled', bool(settings.SNOOP_PDF_PREVIEW_URL)) \
+            and bool(settings.SNOOP_PDF_PREVIEW_URL)
+
+    @property
+    def thumbnail_generator_enabled(self):
+        return self.opt.get(
+            'thumbnail_generator_enabled',
+            bool(settings.SNOOP_THUMBNAIL_URL)) \
+            and bool(settings.SNOOP_THUMBNAIL_URL)
+
+    @property
+    def image_classification_object_detection_enabled(self):
+        return self.opt.get(
+            'image_classification_object_detection_enabled',
+            bool(settings.SNOOP_OBJECT_DETECTION_URL)) \
+            and bool(settings.SNOOP_OBJECT_DETECTION_URL)
+
+    @property
+    def image_classification_classify_images_enabled(self):
+        return self.opt.get(
+            'image_classification_classify_images_enabled',
+            bool(settings.SNOOP_IMAGE_CLASSIFICATION_URL)) \
+            and bool(settings.SNOOP_IMAGE_CLASSIFICATION_URL)
+
+    @property
+    def nlp_language_detection_enabled(self):
+        return self.opt.get(
+            'nlp_language_detection_enabled',
+            settings.DETECT_LANGUAGE) \
+            and settings.DETECT_LANGUAGE
+
+    @property
+    def nlp_entity_extraction_enabled(self):
+        return self.opt.get(
+            'nlp_entity_extraction_enabled',
+            settings.EXTRACT_ENTITIES) \
+            and settings.EXTRACT_ENTITIES
+
+    @property
+    def translation_enabled(self):
+        return self.opt.get(
+            'translation_enabled',
+            bool(settings.TRANSLATION_URL)) \
+            and bool(settings.TRANSLATION_URL)
+
+    @property
+    def translation_target_languages(self):
+        return self.opt.get(
+            'translation_target_languages',
+            '').split(',') \
+            or settings.TRANSLATION_TARGET_LANGUAGES
+
+    @property
+    def translation_text_length_limit(self):
+        return int(
+            self.opt.get(
+                'translation_text_length_limit',
+                settings.TRANSLATION_TEXT_LENGTH_LIMIT,
+            )
+        )
 
     def __repr__(self):
         """String representation for a Collection.

@@ -24,8 +24,9 @@ ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
 
 PUBLIC_TAGS_FIELD_NAME = 'tags'
 PRIVATE_TAGS_FIELD_NAME_PREFIX = 'priv-tags.'
+ENTITY_TYPE_PREFIX = 'entity-type.'
 
-MAX_TEXT_FIELD_SIZE = 150 * 2 ** 20  # 150 MB, or about 33.3 Bibles
+MAX_TEXT_FIELD_SIZE = 100 * 2 ** 20  # 100 MB, or about 20 Bibles
 """Max length of string to pass as `text` and `ocrtext.*` fields into Elasticsearch.
 
 These are loaded into memory all at once, so this puts a limit on that size.
@@ -71,6 +72,14 @@ MAPPINGS = {
             PUBLIC_TAGS_FIELD_NAME: {"type": "keyword"},
             # remove the trailing '.' here
             PRIVATE_TAGS_FIELD_NAME_PREFIX[:-1]: {"type": "object"},
+            ENTITY_TYPE_PREFIX[:-1]: {"type": "object"},
+            "translated-from": {"type": "keyword"},
+            "translated-to": {"type": "keyword"},
+
+            # Don't be explicit, because the implicit texts have .keyword
+            # while explicit texts do not.
+            # "entity": {"type": "text"},
+
         },
         "dynamic_templates": [
             {
@@ -80,6 +89,16 @@ MAPPINGS = {
                     "mapping": {"type": "keyword"},
                 },
             },
+            # Don't be explicit about entities,
+            # because the implicit texts have .keyword
+            # while explicit texts do not.
+            # {
+            #     "entity_types_are_texts": {
+            #         "match_mapping_type": "*",
+            #         "path_match": ENTITY_TYPE_PREFIX + "*",
+            #         "mapping": {"type": "text"},
+            #     },
+            # },
         ],
     }
 }
@@ -339,9 +358,8 @@ def import_index(delete=False, stream=None):
     with snapshot_repo() as (repo, repo_path):
         log.info('Unpack tar archive')
 
-        tar = tarfile.open(mode='r|*', fileobj=stream or sys.stdin.buffer)
-        tar.extractall(repo_path)
-        tar.close()
+        with tarfile.open(mode='r|*', fileobj=stream or sys.stdin.buffer) as tar:
+            tar.extractall(repo_path)
 
         snapshots_resp = requests.get(f'{repo}/*')
         check_response(snapshots_resp)

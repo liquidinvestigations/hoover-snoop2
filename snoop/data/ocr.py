@@ -189,9 +189,8 @@ def run_tesseract_on_pdf(pdf_blob, lang):
         raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes of text',
                               'pdf_ocr_text_too_long')
 
-    tmp_f = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
-    tmp_f.close()
-    tmp = tmp_f.name
+    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_f:
+        tmp = tmp_f.name
     try:
         args = [
             'pdf2pdfocr.py',
