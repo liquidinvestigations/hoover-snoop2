@@ -285,7 +285,7 @@ def gather(blob, **depends_on):
     return result_blob
 
 
-@snoop_task('digests.index', priority=8, version=13)
+@snoop_task('digests.index', priority=8, version=14)
 def index(blob, **depends_on):
     """Task used to call the entity extraction for a document.
 
@@ -303,7 +303,8 @@ def index(blob, **depends_on):
         return None
 
     if isinstance(depends_on.get('digests_gather'), SnoopTaskBroken):
-        raise depends_on.get('digests_gather')
+        log.error('gather busted: %s', depends_on.get('digests_gather'))
+        return None
 
     digest = models.Digest.objects.get(blob=blob)
     digest_data = digest.result.read_json()
@@ -318,20 +319,24 @@ def index(blob, **depends_on):
     lang_result = None
     if current_collection().nlp_language_detection_enabled \
             or current_collection().translation_enabled:
+        log.info('running language detect / translation...')
         lang_result = require_dependency(
             'detect_language_and_translate',
             depends_on,
             lambda: entities.detect_language_and_translate.laterz(blob),
+            return_error=True,
         )
         if not lang_result or isinstance(lang_result, SnoopTaskBroken):
             log.warning('detect_language failed!')
             lang_result = None
         else:
+            log.info('running language detect / translation -- OK')
             result.update(lang_result.read_json())
 
     if current_collection().nlp_entity_extraction_enabled:
         if lang_result:
             depends_on['lang_result'] = lang_result
+        log.info('running entity extraction...')
         entity_service_results = require_dependency(
             'get_entity_results',
             depends_on,
@@ -340,13 +345,16 @@ def index(blob, **depends_on):
                 result.get('lang'),
                 lang_result.pk if lang_result else None,
             ),
+            return_error=True,
         )
 
         if isinstance(entity_service_results, SnoopTaskBroken):
             log.warning('get_entity_results dependency is BROKEN. Exiting')
             return None
 
-        result.update(entities.process_results(digest, entity_service_results.read_json()))
+        processed_results = entities.process_results(digest, entity_service_results.read_json())
+        if processed_results:
+            result.update(processed_results)
 
     digest.extra_result = models.Blob.create_json(result)
     digest.save()

@@ -665,7 +665,7 @@ def retry_tasks(queryset):
     logger.info('100% done submitting tasks.')
 
 
-def require_dependency(name, depends_on, callback):
+def require_dependency(name, depends_on, callback, return_error=False):
     """Dynamically adds a dependency to running task.
 
     Use this when a Task requires the result of another Task, but this is not known when queueing it.
@@ -679,7 +679,7 @@ def require_dependency(name, depends_on, callback):
     """
     if name in depends_on:
         result = depends_on[name]
-        if isinstance(result, Exception):
+        if isinstance(result, Exception) and not return_error:
             raise result
         return result
 
