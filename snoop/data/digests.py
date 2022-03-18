@@ -348,13 +348,16 @@ def index(blob, **depends_on):
             return_error=True,
         )
 
-        if isinstance(entity_service_results, SnoopTaskBroken):
-            log.warning('get_entity_results dependency is BROKEN. Exiting')
-            return None
-
-        processed_results = entities.process_results(digest, entity_service_results.read_json())
-        if processed_results:
-            result.update(processed_results)
+        if not entity_service_results or \
+                isinstance(entity_service_results, SnoopTaskBroken):
+            log.warning('get_entity_results dependency is BROKEN')
+        else:
+            processed_results = entities.process_results(
+                digest,
+                entity_service_results.read_json(),
+            )
+            if processed_results:
+                result.update(processed_results)
 
     digest.extra_result = models.Blob.create_json(result)
     digest.save()
