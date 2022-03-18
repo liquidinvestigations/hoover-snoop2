@@ -61,7 +61,7 @@ Jinja2 = '*'
 MarkupSafe = '*'
 prometheus_client = '*'
 Pygments = '*'
-PyICU = '*'
+PyICU = "==2.5"
 opencensus-ext-prometheus = "*"
 opencensus-ext-zipkin = "*"
 pyrabbit = "*"
