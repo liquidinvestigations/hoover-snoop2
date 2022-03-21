@@ -12,6 +12,8 @@ from django.conf import settings
 from .. import models
 from .. import utils
 from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
+import subprocess
+
 
 log = logging.getLogger(__name__)
 
@@ -387,13 +389,31 @@ def get_thumbnail(blob, pdf_preview=None):
     else:
         source = blob
 
-    for size in models.Thumbnail.SizeChoices.values:
-        resp = call_thumbnails_service(source, size)
-        blob_thumb = models.Blob.create_from_bytes(resp)
-        _, _ = models.Thumbnail.objects.update_or_create(
-            blob=blob,
-            size=size,
-            defaults={'thumbnail': blob_thumb, 'source': source}
-        )
+    sizes = models.Thumbnail.SizeChoices()
 
+    thumbnail_large_bytes = call_thumbnails_service(source, sizes.pop(sizes.index(max(sizes))))
+    thumbnail_large_blob = models.Blob.create_from_bytes(thumbnail_large_bytes())
+
+    _, _ = models.Thumbnail.objects.update_or_create(
+        blob=blob,
+        size=max(models.Thumbnail.SizeChoices.values),
+        defaults={'thumbnail': thumbnail_large_blob, 'source': source}
+    )
+
+    for size in sizes:
+        create_resized(size, thumbnail_large_blob, blob, source)
+
+    return True
+
+
+def create_resized(size, thumbnail_large_blob, original_blob, source):
+    with thumbnail_large_blob.open as f:
+        thumbnail_bytes = subprocess.check_output(
+            ['convert', '-', '-resize', f'{size}x{size}', 'jpg:-'], stdin=f)
+    thumbnail_blob = models.Blob.create_from_bytes(thumbnail_bytes)
+
+    _, _ = models.Thumbnail.objects.update_or_create(
+        blob=original_blob,
+        size=size,
+        defaults={'thumbnail': thumbnail_blob, 'source': source})
     return True
