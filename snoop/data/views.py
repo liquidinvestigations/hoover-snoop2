@@ -189,6 +189,7 @@ def document_download(request, hash, filename):
         return HttpResponse(clean_html, content_type='text/html')
 
     real_filename = first_file.name_bytes.tobytes().decode('utf-8', errors='replace')
+    real_filename = real_filename.replace("\r", "").replace("\n", "")
 
     response = RangedFileResponse(request, blob.open(), content_type=blob.content_type)
     response['Content-Disposition'] = f'attachment, filename={real_filename}'
