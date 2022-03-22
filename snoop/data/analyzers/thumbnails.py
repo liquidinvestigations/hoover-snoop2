@@ -378,6 +378,9 @@ def call_thumbnails_service(blob, size):
 def get_thumbnail(blob, pdf_preview=None):
     """Function that calls the thumbnail service for a given blob.
 
+    Gets the thumbnail in the largest resolution specified (in the thumbnail model) from the
+    thumbnail service. Then creates the smaller thumbnails by resizing that image in memory.
+
     Args:
         blob: Original file that we need a thumbnail for
         source: If set, will use this data for the actual creation of the thumbnail.
@@ -389,10 +392,10 @@ def get_thumbnail(blob, pdf_preview=None):
     else:
         source = blob
 
-    sizes = models.Thumbnail.SizeChoices()
+    sizes = models.Thumbnail.SizeChoices.values
 
     thumbnail_large_bytes = call_thumbnails_service(source, sizes.pop(sizes.index(max(sizes))))
-    thumbnail_large_blob = models.Blob.create_from_bytes(thumbnail_large_bytes())
+    thumbnail_large_blob = models.Blob.create_from_bytes(thumbnail_large_bytes)
 
     _, _ = models.Thumbnail.objects.update_or_create(
         blob=blob,
@@ -407,7 +410,19 @@ def get_thumbnail(blob, pdf_preview=None):
 
 
 def create_resized(size, thumbnail_large_blob, original_blob, source):
-    with thumbnail_large_blob.open as f:
+    """Utility function to create a resized thumbnail image.
+
+    Calls imagemagicks convert to do the resizing in memory and creates the
+    thumbnail blob and thumbnail object in the database.
+
+    Args:
+        size: The maximum size (size x size) the thumbnail image should have (ratio is preserved).
+        thumbnail_large_blob: blob of the original large thumbnail
+        original_blob: original blob of the document
+        source: either pdf_preview or blob
+
+    """
+    with thumbnail_large_blob.open() as f:
         thumbnail_bytes = subprocess.check_output(
             ['convert', '-', '-resize', f'{size}x{size}', 'jpg:-'], stdin=f)
     thumbnail_blob = models.Blob.create_from_bytes(thumbnail_bytes)
