@@ -193,7 +193,7 @@ def document_download(request, hash, filename):
     real_filename = real_filename.replace("\r", "").replace("\n", "")
 
     response = RangedFileResponse(request, blob.open(), content_type=blob.content_type)
-    response['Content-Disposition'] = f'attachment, filename={real_filename}'
+    response['Content-Disposition'] = f'attachment; filename="{real_filename}"'
     response['Accept-Ranges'] = 'bytes'
 
     return response
@@ -230,7 +230,7 @@ def document_ocr(request, hash, ocrname):
 
     response = RangedFileResponse(request, blob.open(),
                                   content_type=blob.content_type)
-    response['Content-Disposition'] = f'attachment, filename={hash}_{ocrname}'
+    response['Content-Disposition'] = f'attachment; filename="{hash}_{ocrname}"'
     response['Accept-Ranges'] = 'bytes'
     return response
 
@@ -347,5 +347,5 @@ def pdf_preview(request, hash):
     response = RangedFileResponse(request, pdf_preview_entry.pdf_preview.open(),
                                   content_type='application/pdf')
     response['Accept-Ranges'] = 'bytes'
-    response['Content-Disposition'] = f'attachment, filename={hash}_preview.pdf'
+    response['Content-Disposition'] = f'attachment; filename="{hash}_preview.pdf"'
     return response
