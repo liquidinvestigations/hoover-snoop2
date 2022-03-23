@@ -165,7 +165,7 @@ services:
     path: /tmp/cache/
 
 - name: snoop-pdf-preview
-  image: thecodingmachine/gotenberg:6
+  image: thecodingmachine/gotenberg:7
 
 - name: snoop-image-classification
   image: liquidinvestigations/image-classification-service:0.0.2
