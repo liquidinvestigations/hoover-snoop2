@@ -1,0 +1,5 @@
+- snoop/data/collections.py -- implement create_roots() using s3fs
+- snoop/data/blob.py -- rewrite using s3fs
+- snoop/management/command/purge.py -- add/remove minio buckets
+- testsuite/test_lifecycle.py -- delete all minio buckets; maybe also do in other tests?
+- CI -- add to drone

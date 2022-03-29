@@ -1,6 +1,5 @@
 import time
 from urllib.parse import urljoin
-import subprocess
 
 import requests
 import pytest
@@ -46,8 +45,7 @@ def check_api_page(api, item_id, parent_id):
 
 @pytest.mark.django_db(transaction=True)
 def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, settings_no_object_detection, settings_no_entities):
-    blobs_path = settings.SNOOP_BLOB_STORAGE
-    subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
+    # TODO: delete blobs from minio
 
     models.Directory.objects.create()
     indexing.delete_index()

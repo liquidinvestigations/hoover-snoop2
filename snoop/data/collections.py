@@ -223,14 +223,9 @@ class Collection:
         return self.name
 
     @property
-    def blob_root(self):
-        """Returns a Path with the current collection blob dir."""
-        return Path(settings.SNOOP_BLOB_STORAGE) / self.name
-
-    @property
     def tmp_dir(self):
         """Returns a Path to the blobs temporary directory."""
-        return self.blob_root / 'tmp'
+        return Path(settings.SNOOP_TEMP_STORAGE) / self.name
 
     def migrate(self):
         """Run `django migrate` on this collection's database."""
@@ -323,11 +318,7 @@ def create_roots():
 
     for col in ALL.values():
         with transaction.atomic(using=col.db_alias), col.set_current():
-            root_path = current().blob_root
-            # Avoid to run mkdir over a symlink.
-            # This will still error out if there's a file at that location.
-            if not root_path.is_symlink():
-                root_path.mkdir(exist_ok=True, parents=True)
+            # TODO create minio bucket if it doesn't exist
 
             root = Directory.root()
             if not root:

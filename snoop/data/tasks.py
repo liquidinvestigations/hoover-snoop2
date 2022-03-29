@@ -964,8 +964,12 @@ def get_bulk_tasks_to_run():
     def all_deps_finished(task):
         for dep in task.prev_set.all():
             if dep.prev.status not in [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN]:
+                logger.warning('Task %s skipped because dep %s status is %s',
+                               task, dep.prev, dep.prev.status)
                 return False
             if dep.prev.version != task_map[dep.prev.func].version:
+                logger.warning('Task %s skipped because dep %s version = %s, expected = %s',
+                               task, dep.prev, dep.prev.version, task_map[dep.prev.func].version)
                 return False
         return True
 
