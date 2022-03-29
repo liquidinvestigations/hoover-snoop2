@@ -943,7 +943,7 @@ def dispatch_for(collection):
     logger.info(f'dispatch for collection "{collection.name}" done\n')
 
 
-def get_bulk_tasks_to_run():
+def get_bulk_tasks_to_run(reverse=False):
     """Checks current collection if we have bulk tasks run.
 
     Returns: a tuple (TASKS, SIZES) where:
@@ -952,24 +952,26 @@ def get_bulk_tasks_to_run():
     """
 
     # Max number of tasks to pull.
-    # We estimate metadata: 5KB / task  = max 1 MB / chunk
-    # And for data, can you have anything in the 2KB - 100MB+ range for each document.
-    MAX_BULK_TASK_COUNT = 200
+    # We estimate extra ES metadata: 1 KB / task
+    TASK_SIZE_OVERHEAD = 1000
 
-    # Stop adding Tasks to bulk when current size is larger than this 30 MB
-    MAX_BULK_SIZE = 30 * (2 ** 20)
+    # stop looking in database after the first X tasks:
+    MAX_BULK_TASK_COUNT = 200000
+
+    # Stop adding Tasks to bulk when current size is larger than this 50 MB
+    MAX_BULK_SIZE = 50 * (2 ** 20)
 
     import_snoop_tasks()
 
     def all_deps_finished(task):
         for dep in task.prev_set.all():
             if dep.prev.status not in [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN]:
-                logger.warning('Task %s skipped because dep %s status is %s',
-                               task, dep.prev, dep.prev.status)
+                logger.debug('Task %s skipped because dep %s status is %s',
+                             task, dep.prev, dep.prev.status)
                 return False
             if dep.prev.version != task_map[dep.prev.func].version:
-                logger.warning('Task %s skipped because dep %s version = %s, expected = %s',
-                               task, dep.prev, dep.prev.version, task_map[dep.prev.func].version)
+                logger.debug('Task %s skipped because dep %s version = %s, expected = %s',
+                             task, dep.prev, dep.prev.version, task_map[dep.prev.func].version)
                 return False
         return True
 
@@ -990,16 +992,20 @@ def get_bulk_tasks_to_run():
             .filter(func=func)
             # don't do anything to successful, up to date tasks
             .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
-            .order_by('date_modified')
         )
+
+        if reverse:
+            task_query = task_query.order_by('-date_modified')
+        else:
+            task_query = task_query.order_by('date_modified')
 
         for task in task_query[:MAX_BULK_TASK_COUNT]:
             # filter out any taks with non-completed dependencies
             # we could have done this in the DB query above, but it times out on weak machines
             if all_deps_finished(task):
-                logger.warning('%s: Selected task %s', func, task)
+                logger.debug('%s: Selected task %s', func, task)
                 task_list[func].append(task)
-                task_size = task.size()
+                task_size = task.size() + TASK_SIZE_OVERHEAD
                 current_size += task_size
                 task_sizes[func][task.pk] = task_size
                 if current_size > MAX_BULK_SIZE:
@@ -1009,8 +1015,8 @@ def get_bulk_tasks_to_run():
     return task_list, task_sizes
 
 
-def have_bulk_tasks_to_run():
-    task_list, _ = get_bulk_tasks_to_run()
+def have_bulk_tasks_to_run(reverse=False):
+    task_list, _ = get_bulk_tasks_to_run(reverse=False)
     if not task_list:
         return False
     for lst in task_list.values():
@@ -1019,7 +1025,7 @@ def have_bulk_tasks_to_run():
     return False
 
 
-def run_single_batch_for_bulk_task():
+def run_single_batch_for_bulk_task(reverse=False):
     """Directly runs a single batch for each bulk task type.
 
     Requires a collection to be selected. Does not dispatch tasks registered with `bulk = False`.
@@ -1029,7 +1035,7 @@ def run_single_batch_for_bulk_task():
     """
 
     total_completed = 0
-    all_task_list, all_task_sizes = get_bulk_tasks_to_run()
+    all_task_list, all_task_sizes = get_bulk_tasks_to_run(reverse)
     for func in all_task_list:
         task_list = all_task_list[func]
         task_sizes = all_task_sizes[func]
@@ -1109,18 +1115,22 @@ def _run_bulk_tasks_for_collection():
     """Helper method that runs a number of bulk task batches in the current collection."""
 
     # Stop processing each collection after this many batches or seconds
-    BATCHES_IN_A_ROW = 200
+    BATCHES_IN_A_ROW = 100
     MAX_FAILED_BATCHES = 10
-    SECONDS_IN_A_ROW = 900
+    SECONDS_IN_A_ROW = 300
 
     import_snoop_tasks()
 
     t0 = timezone.now()
     failed_count = 0
-    for _ in range(BATCHES_IN_A_ROW):
+    for i in range(int(BATCHES_IN_A_ROW / 2)):
         try:
             with transaction.atomic():
-                count = run_single_batch_for_bulk_task()
+                count = run_single_batch_for_bulk_task(reverse=False)
+
+            with transaction.atomic():
+                count += run_single_batch_for_bulk_task(reverse=True)
+
         except Exception as e:
             failed_count += 1
             if failed_count > MAX_FAILED_BATCHES:
@@ -1133,7 +1143,10 @@ def _run_bulk_tasks_for_collection():
         if not count:
             break
         if (timezone.now() - t0).total_seconds() > SECONDS_IN_A_ROW:
-            logger.warning("Stopping batches because of timeout")
+            logger.warning("Stopping after %s batches because of timeout: %s/%s seconds",
+                           i + 1,
+                           int((timezone.now() - t0).total_seconds()),
+                           SECONDS_IN_A_ROW)
             break
 
 
@@ -1146,10 +1159,12 @@ def run_bulk_tasks():
         logger.warning('run_bulk_tasks function already running, exiting')
         return
 
-    for collection in collections.ALL.values():
+    all_collections = list(collections.ALL.values())
+    random.shuffle(all_collections)
+    for collection in all_collections:
         # if no tasks to do, continue
         with collection.set_current():
-            if not have_bulk_tasks_to_run():
+            if not have_bulk_tasks_to_run(reverse=False) and not have_bulk_tasks_to_run(reverse=True):
                 logger.info('Skipping collection %s, no bulk tasks to run', collection.name)
                 continue
 
