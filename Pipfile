@@ -76,6 +76,7 @@ pillow = "*"
 django-ranged-response = "*"
 pytest-timeout = "*"
 graphene-django = "*"
+s3fs = "*"
 
 [requires]
 python_version = "3.9"
