@@ -55,7 +55,11 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         """Adds flag to switch between running collection workers and system workers."""
         parser.add_argument('--system-queues', action='store_true',
-                            help="Run system queues, not data queues (only one instance should exist)")
+                            help="Run system queues, not normal queues (only one instance should exist)")
+        parser.add_argument('--http-queues', action='store_true',
+                            help="Run HTTP queues, not normal queues")
+        parser.add_argument('--disk-queues', action='store_true',
+                            help="Run disk queues, not normal queues")
 
     def handle(self, *args, **options):
         """Runs workers for either collection processing or system tasks."""
@@ -66,6 +70,12 @@ class Command(BaseCommand):
 
             if options['system_queues']:
                 all_queues = settings.SYSTEM_QUEUES
+            elif options['http_queues']:
+                # all_queues = settings.HTTP_QUEUES
+                pass
+            elif options['disk_queues']:
+                # all_queues = settings.DISK_QUEUES
+                pass
             else:
                 all_queues = [c.queue_name for c in ALL.values()]
 

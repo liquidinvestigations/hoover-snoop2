@@ -318,7 +318,9 @@ def create_roots():
 
     for col in ALL.values():
         with transaction.atomic(using=col.db_alias), col.set_current():
-            # TODO create minio bucket if it doesn't exist
+            settings.BLOBS_S3FS.mkdirs(col.name, exist_ok=True)
+            settings.BLOBS_S3FS.mkdirs(col.name + '/tmp', exist_ok=True)
+            settings.BLOBS_S3FS.touch(col.name + '/tmp/dummy')
 
             root = Directory.root()
             if not root:

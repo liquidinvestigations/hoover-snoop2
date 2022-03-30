@@ -196,13 +196,13 @@ SNOOP_TEMP_STORAGE = str(base_dir / 'tmp')
 """
 
 
-SNOOP_BLOBS_MINIO_ADDRESS = os.environ.get('SNOOP_BLOBS_MINIO_ADDRESS', 'http://minio-blobs:29000')
+SNOOP_BLOBS_MINIO_ADDRESS = os.environ.get('SNOOP_BLOBS_MINIO_ADDRESS', 'http://minio-blobs:9000')
 SNOOP_BLOBS_MINIO_ACCESS_KEY = os.environ.get('SNOOP_BLOBS_MINIO_ACCESS_KEY', 'minioadmin')
 SNOOP_BLOBS_MINIO_SECRET_KEY = os.environ.get('SNOOP_BLOBS_MINIO_SECRET_KEY', 'minioadmin')
-s3_blobs = s3fs.S3FileSystem(
+BLOBS_S3FS = s3fs.S3FileSystem(
     key=SNOOP_BLOBS_MINIO_ACCESS_KEY,
     secret=SNOOP_BLOBS_MINIO_ACCESS_KEY,
-    kwargs={"endpoint_url": SNOOP_BLOBS_MINIO_ADDRESS}
+    client_kwargs={"endpoint_url": SNOOP_BLOBS_MINIO_ADDRESS},
 )
 
 

@@ -132,6 +132,14 @@ concurrency:
   limit: 1
 
 services:
+- name: minio-blobs
+  image: minio/minio:RELEASE.2022-03-26T06-49-28Z
+  volumes:
+  - name: minio-v
+    path: /data
+  commands:
+  - server /data
+
 - name: snoop-rabbitmq
   image: rabbitmq:3.7.3
   volumes:
@@ -222,7 +230,7 @@ steps:
   - name: test-collections-v
     path: /opt/hoover/collections/testdata
   environment:
-    WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998, snoop-thumbnail:9990, snoop-pdf-preview:3000, snoop-image-classification:5001, snoop-nlp-service:5000
+    WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998, snoop-thumbnail:9990, snoop-pdf-preview:3000, snoop-image-classification:5001, snoop-nlp-service:5000, minio-blobs:9000
     WAIT_HOSTS_TIMEOUT: 60
     SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
     SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
@@ -253,6 +261,8 @@ trigger:
   - cron
 
 volumes:
+- name: minio-v
+  temp: {}
 - name: test-collections-v
   temp: {}
 - name: es-v

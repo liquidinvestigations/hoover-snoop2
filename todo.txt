@@ -1,5 +1,9 @@
-- snoop/data/collections.py -- implement create_roots() using s3fs
-- snoop/data/blob.py -- rewrite using s3fs
-- snoop/management/command/purge.py -- add/remove minio buckets
-- testsuite/test_lifecycle.py -- delete all minio buckets; maybe also do in other tests?
-- CI -- add to drone
+- [x] snoop/data/collections.py -- implement create_roots() using s3fs
+- [x] snoop/management/command/purge.py -- add/remove minio buckets
+- [x] testsuite/test_lifecycle.py -- delete all minio buckets; maybe also do in other tests?
+- [x] CI -- add to drone
+- [ ] snoop/data/blob.py -- rewrite using s3fs
+- [ ] split worker command lines into 3:
+  - disk workers (require orig data, tmp drive)
+  - http workers (scaled differently, remove need for tmp drive, use normal temp)
+  - normal workers (no temp, no disk)
