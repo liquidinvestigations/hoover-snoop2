@@ -10,8 +10,6 @@ from pathlib import Path
 import json
 from multiprocessing import cpu_count
 
-import s3fs
-
 from snoop.data import celery
 
 # WARNING: Docstrings are placed after the assignment.
@@ -199,14 +197,14 @@ SNOOP_TEMP_STORAGE = str(base_dir / 'tmp')
 SNOOP_BLOBS_MINIO_ADDRESS = os.environ.get('SNOOP_BLOBS_MINIO_ADDRESS', 'http://minio-blobs:9000')
 SNOOP_BLOBS_MINIO_ACCESS_KEY = os.environ.get('SNOOP_BLOBS_MINIO_ACCESS_KEY', 'minioadmin')
 SNOOP_BLOBS_MINIO_SECRET_KEY = os.environ.get('SNOOP_BLOBS_MINIO_SECRET_KEY', 'minioadmin')
-BLOBS_S3FS = s3fs.S3FileSystem(
-    key=SNOOP_BLOBS_MINIO_ACCESS_KEY,
-    secret=SNOOP_BLOBS_MINIO_ACCESS_KEY,
-    client_kwargs={"endpoint_url": SNOOP_BLOBS_MINIO_ADDRESS},
-    config_kwargs={'signature_version': 's3v4'},
-    use_ssl=False,
-    anon=False,
-)
+# BLOBS_S3FS = s3fs.S3FileSystem(
+#     key=SNOOP_BLOBS_MINIO_ACCESS_KEY,
+#     secret=SNOOP_BLOBS_MINIO_ACCESS_KEY,
+#     client_kwargs={"endpoint_url": SNOOP_BLOBS_MINIO_ADDRESS},
+#     config_kwargs={'signature_version': 's3v4'},
+#     use_ssl=False,
+#     anon=False,
+# )
 
 print('MINIO ADDRESS', SNOOP_BLOBS_MINIO_ADDRESS)
 print('MINIO KEY', SNOOP_BLOBS_MINIO_ACCESS_KEY)

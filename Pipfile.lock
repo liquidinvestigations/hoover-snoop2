@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "02b51578ccdc008d1ee339018319275101fd30469454bb257da4327b1bae64df"
+            "sha256": "596ebe3720615dc3d2f4134b8135eea3c91a70104926d261e69520ae3015870b"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -412,6 +412,14 @@
             "index": "pypi",
             "version": "==1.1.1"
         },
+        "minio": {
+            "hashes": [
+                "sha256:524b1305cc4d9df2fab727f7e8d9d5dae7ddf85b5565a574cb94944d1f7c6cae",
+                "sha256:f33bb3d2a1b790d6ffc7b981c3f38c4f404d61c46de3cbd087fbf9d36a5f05ea"
+            ],
+            "index": "pypi",
+            "version": "==7.1.5"
+        },
         "more-itertools": {
             "hashes": [
                 "sha256:8e1a2a43b2f2727425f2b5839587ae37093f19153dc26c0927d1048ff6557330",
@@ -693,6 +701,7 @@
         },
         "pyicu": {
             "hashes": [
+                "sha256:a120b68c53f769f37bfb70b7e84ca12c3f4ab1e4df43e87a02dff05ae472cdbc",
                 "sha256:a9a5bf6833360f8f69e9375b91c1a7dd6e0c9157a42aee5bb7d6891804d96371"
             ],
             "index": "pypi",

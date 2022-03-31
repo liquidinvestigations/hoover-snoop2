@@ -318,9 +318,10 @@ def create_roots():
 
     for col in ALL.values():
         with transaction.atomic(using=col.db_alias), col.set_current():
-            settings.BLOBS_S3FS.mkdirs(col.name, exist_ok=True)
-            settings.BLOBS_S3FS.mkdirs(col.name + '/tmp', exist_ok=True)
-            settings.BLOBS_S3FS.touch(col.name + '/tmp/dummy')
+            # settings.BLOBS_S3FS.mkdirs(col.name, exist_ok=True)
+            # settings.BLOBS_S3FS.mkdirs(col.name + '/tmp', exist_ok=True)
+            # settings.BLOBS_S3FS.touch(col.name + '/tmp/dummy')
+            # TODO
 
             root = Directory.root()
             if not root:
