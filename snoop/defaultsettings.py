@@ -203,7 +203,14 @@ BLOBS_S3FS = s3fs.S3FileSystem(
     key=SNOOP_BLOBS_MINIO_ACCESS_KEY,
     secret=SNOOP_BLOBS_MINIO_ACCESS_KEY,
     client_kwargs={"endpoint_url": SNOOP_BLOBS_MINIO_ADDRESS},
+    config_kwargs={'signature_version': 's3v4'},
+    use_ssl=False,
+    anon=False,
 )
+
+print('MINIO ADDRESS', SNOOP_BLOBS_MINIO_ADDRESS)
+print('MINIO KEY', SNOOP_BLOBS_MINIO_ACCESS_KEY)
+print('MINIO SECRET', SNOOP_BLOBS_MINIO_SECRET_KEY)
 
 
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
