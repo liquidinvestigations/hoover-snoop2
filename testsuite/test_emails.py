@@ -165,7 +165,7 @@ def test_broken_header():
     eml = DATA / 'eml-10-broken-header/broken-subject.eml'
     blob = models.Blob.create_from_file(eml)
     result = email.parse(blob)
-    with result.open(encoding='utf8') as f:
+    with result.open() as f:
         data = json.load(f)
     assert data['headers']['Subject'] == [(
         "A\ufffd\ufffda crap\ufffd\ufffd "

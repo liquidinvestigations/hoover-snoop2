@@ -10,6 +10,9 @@ from pathlib import Path
 import json
 from multiprocessing import cpu_count
 
+from minio import Minio
+import boto3
+
 from snoop.data import celery
 
 # WARNING: Docstrings are placed after the assignment.
@@ -193,23 +196,23 @@ SNOOP_TEMP_STORAGE = str(base_dir / 'tmp')
 """Full disk path pointing to temp storage.
 """
 
-
-SNOOP_BLOBS_MINIO_ADDRESS = os.environ.get('SNOOP_BLOBS_MINIO_ADDRESS', 'http://minio-blobs:9000')
+SNOOP_BLOBS_MINIO_ADDRESS = os.environ.get('SNOOP_BLOBS_MINIO_ADDRESS', 'minio-blobs:9000')
 SNOOP_BLOBS_MINIO_ACCESS_KEY = os.environ.get('SNOOP_BLOBS_MINIO_ACCESS_KEY', 'minioadmin')
 SNOOP_BLOBS_MINIO_SECRET_KEY = os.environ.get('SNOOP_BLOBS_MINIO_SECRET_KEY', 'minioadmin')
-# BLOBS_S3FS = s3fs.S3FileSystem(
-#     key=SNOOP_BLOBS_MINIO_ACCESS_KEY,
-#     secret=SNOOP_BLOBS_MINIO_ACCESS_KEY,
-#     client_kwargs={"endpoint_url": SNOOP_BLOBS_MINIO_ADDRESS},
-#     config_kwargs={'signature_version': 's3v4'},
-#     use_ssl=False,
-#     anon=False,
-# )
-
-print('MINIO ADDRESS', SNOOP_BLOBS_MINIO_ADDRESS)
-print('MINIO KEY', SNOOP_BLOBS_MINIO_ACCESS_KEY)
-print('MINIO SECRET', SNOOP_BLOBS_MINIO_SECRET_KEY)
-
+SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS = {
+    'client': boto3.Session().client(
+        's3',
+        endpoint_url='http://' + SNOOP_BLOBS_MINIO_ADDRESS,
+        aws_access_key_id=SNOOP_BLOBS_MINIO_ACCESS_KEY,
+        aws_secret_access_key=SNOOP_BLOBS_MINIO_SECRET_KEY,
+    ),
+}
+BLOBS_S3 = Minio(
+    SNOOP_BLOBS_MINIO_ADDRESS,
+    access_key=SNOOP_BLOBS_MINIO_ACCESS_KEY,
+    secret_key=SNOOP_BLOBS_MINIO_SECRET_KEY,
+    secure=False,
+)
 
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 """URL pointing to Apache Tika server."""

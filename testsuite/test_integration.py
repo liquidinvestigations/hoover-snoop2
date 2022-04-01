@@ -47,7 +47,9 @@ def check_api_page(api, item_id, parent_id):
 def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, settings_no_object_detection, settings_no_entities):
     # delete blobs from minio
     # TODO
-    # settings.BLOBS_S3FS.rm('/', recursive=True)
+    for b in settings.BLOBS_S3.list_buckets():
+        print('del bucket', b.name)
+        settings.BLOBS_S3.remove_bucket(b.name)
 
     models.Directory.objects.create()
     indexing.delete_index()

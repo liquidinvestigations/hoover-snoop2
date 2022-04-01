@@ -1,0 +1,7 @@
+chmod 600 /local/minio-blobs.pass && \
+        s3fs \
+        -o allow_other -o use_cache=/tmp -o passwd_file=/local/minio-blobs.pass  \
+        -o dbglevel=info -o curldbg \
+        -o use_path_request_style \
+        -o url=http://10.49.0.2:9991 \
+        testdata:/69/04 ./mount

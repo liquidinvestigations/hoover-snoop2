@@ -119,7 +119,7 @@ def read_text(blob):
     This function returns a single string, truncated to the `indexing.MAX_TEXT_FIELD_SIZE` constant.
 
     If provided a file of type "application/octet-stream" (mime type unknown), we attempt to guess encoding
-    using "chardet" and abort if we don't see 95% confidence.
+    using "chardet" and abort if we don't see 80% confidence.
     """
 
     if blob.mime_type == 'application/octet-stream' or blob.mime_encoding == 'binary':
@@ -135,8 +135,8 @@ def read_text(blob):
     else:
         encoding = blob.mime_encoding
 
-    with blob.open(encoding=encoding, errors='replace') as f:
-        return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE, text_mode=True)
+    with blob.open() as f:
+        return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE).decode(encoding, errors='replace')
 
 
 def _delete_empty_keys(d):
@@ -200,17 +200,18 @@ def gather(blob, **depends_on):
                 ocr_results[f'tesseract_{lang}'] = ""
                 continue
             if ocr_blob.mime_type == 'application/pdf':
-                ocr_results[f'tesseract_{lang}'] = subprocess.check_output(
-                    f'pdftotext -q -enc UTF-8 "{ocr_blob.path()}" - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',  # noqa: E501
-                    shell=True,
-                ).decode('utf8')
+                with ocr_blob.open() as f:
+                    ocr_results[f'tesseract_{lang}'] = subprocess.check_output(
+                        f'pdftotext -q -enc UTF-8 /dev/stdin - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',  # noqa: E501
+                        shell=True,
+                        stdin=f,
+                    ).decode('utf8')
             else:
-                with ocr_blob.open(encoding='utf-8') as f:
+                with ocr_blob.open() as f:
                     ocr_results[f'tesseract_{lang}'] = read_exactly(
                         f,
                         indexing.MAX_TEXT_FIELD_SIZE,
-                        text_mode=True,
-                    ).strip()
+                    ).decode('utf-8', errors='replace').strip()
     if ocr_results:
         rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
         if rv['ocr']:

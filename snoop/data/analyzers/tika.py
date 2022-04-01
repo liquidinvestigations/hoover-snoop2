@@ -136,7 +136,7 @@ def call_tika_server(endpoint, data, content_type, data_size):
 def rmeta(blob):
     """Task to run Tika on a given Blob."""
 
-    with blob.open() as f, tracing.span('tika.rmeta'):
+    with blob.open(need_fileno=True) as f, tracing.span('tika.rmeta'):
         resp = call_tika_server('rmeta/text', f, blob.content_type, blob.size)
 
     return resp.json()

@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "596ebe3720615dc3d2f4134b8135eea3c91a70104926d261e69520ae3015870b"
+            "sha256": "060dec855d5085b74d9958bec4c154f62c4456dc5999923f1fd64ac202d88eaf"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -77,6 +77,21 @@
             ],
             "index": "pypi",
             "version": "==3.2.1"
+        },
+        "boto3": {
+            "hashes": [
+                "sha256:ef210f8e85cdb6d26a38ebad1cfe9cefdef2ab269207e5987653555375a7ef6b",
+                "sha256:f0af8f4ef5fe6353c794cd3cce627d469a618b58ace7ca75a63cfd719df615ce"
+            ],
+            "version": "==1.21.30"
+        },
+        "botocore": {
+            "hashes": [
+                "sha256:af4bdc51eeecbe9fdcdadbed9ad58c5c91380ef30f3560022bbc2ee1d78f0ad6",
+                "sha256:c622751093e3d0bf61343e66d6d06190ef30bf42b1557d5070ca84e9efa06d4b"
+            ],
+            "markers": "python_version >= '3.6'",
+            "version": "==1.24.30"
         },
         "cachetools": {
             "hashes": [
@@ -341,6 +356,14 @@
             ],
             "index": "pypi",
             "version": "==2.11.2"
+        },
+        "jmespath": {
+            "hashes": [
+                "sha256:a490e280edd1f57d6de88636992d05b71e97d69a26a19f058ecf7d304474bf5e",
+                "sha256:e8dcd576ed616f14ec02eed0005c85973b5890083313860136657e24784e4c04"
+            ],
+            "markers": "python_version >= '3.7'",
+            "version": "==1.0.0"
         },
         "jsonschema": {
             "hashes": [
@@ -855,6 +878,14 @@
             ],
             "version": "==1.6.1"
         },
+        "s3transfer": {
+            "hashes": [
+                "sha256:7a6f4c4d1fdb9a2b640244008e142cbc2cd3ae34b386584ef044dd0f27101971",
+                "sha256:95c58c194ce657a5f4fb0b9e60a84968c808888aed628cd98ab8771fe1db98ed"
+            ],
+            "markers": "python_version >= '3.6'",
+            "version": "==0.5.2"
+        },
         "setuptools": {
             "hashes": [
                 "sha256:22c7348c6d2976a52632c67f7ab0cdf40147db7789f9aed18734643fe9cf3373",
@@ -878,6 +909,17 @@
             ],
             "index": "pypi",
             "version": "==1.15.0"
+        },
+        "smart-open": {
+            "extras": [
+                "s3"
+            ],
+            "hashes": [
+                "sha256:71d14489da58b60ce12fc3ecb823facc59a8b23cd1b58edb97175640350d3a62",
+                "sha256:75abf758717a92a8f53aa96953f0c245c8cedf8e1e4184903db3659b419d4c17"
+            ],
+            "index": "pypi",
+            "version": "==5.2.1"
         },
         "sqlparse": {
             "hashes": [

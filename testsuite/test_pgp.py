@@ -23,7 +23,7 @@ def gpg_blob():
 def test_decrypted_data(gpg_blob):
     parsed_blob = email.parse(gpg_blob)
 
-    with parsed_blob.open(encoding='utf8') as f:
+    with parsed_blob.open() as f:
         data = json.load(f)
 
     assert data['headers']['Subject'][0] == "Fwd: test email"

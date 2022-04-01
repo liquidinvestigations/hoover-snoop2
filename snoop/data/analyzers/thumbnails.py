@@ -6,7 +6,9 @@ Three Thumnbails in different sizes are created. The service used can be found h
 
 import logging
 
+import os
 import requests
+import tempfile
 from django.conf import settings
 
 from .. import models
@@ -422,9 +424,15 @@ def create_resized(size, thumbnail_large_blob, original_blob, source):
         source: either pdf_preview or blob
 
     """
-    with thumbnail_large_blob.open() as f:
+    with tempfile.NamedTemporaryFile(delete=False) as orig:
+        with thumbnail_large_blob.open() as f:
+            orig.write(f.read())
+        orig.flush()
+        orig.close()
+
         thumbnail_bytes = subprocess.check_output(
-            ['convert', '-', '-resize', f'{size}x{size}', 'jpg:-'], stdin=f)
+            ['convert', f'jpg:{orig.name}', '-resize', f'{size}x{size}', 'jpg:-'])
+    os.remove(orig.name)
     thumbnail_blob = models.Blob.create_from_bytes(thumbnail_bytes)
 
     _, _ = models.Thumbnail.objects.update_or_create(

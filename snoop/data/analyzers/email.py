@@ -153,7 +153,7 @@ def dump_part(message, depends_on):
             lambda: tika.rmeta.laterz(writer.blob),
         )
 
-        with rmeta_blob.open(encoding='utf8') as f:
+        with rmeta_blob.open() as f:
             rmeta_data = json.load(f)
         rv['text'] = rmeta_data[0].get('X-TIKA:content', "")
 
@@ -273,15 +273,17 @@ def msg_to_eml(blob):
 
     with tempfile.TemporaryDirectory() as temp_dir:
         msg_path = Path(temp_dir) / 'email.msg'
-        msg_path.symlink_to(blob.path())
+        msg_path.symlink_to('/dev/stdin')
         eml_path = msg_path.with_suffix('.eml')
 
         try:
-            subprocess.check_output(
-                ['msgconvert', 'email.msg'],
-                cwd=temp_dir,
-                stderr=subprocess.STDOUT
-            )
+            with blob.open(need_fileno=True, need_seek=True) as f:
+                subprocess.check_call(
+                    ['msgconvert', '--outfile', eml_path, msg_path],
+                    cwd=temp_dir,
+                    stderr=subprocess.STDOUT,
+                    stdin=f,
+                )
         except subprocess.CalledProcessError as e:
             # This may as well be a non-permanent error, but we have no way to tell
             if e.output:

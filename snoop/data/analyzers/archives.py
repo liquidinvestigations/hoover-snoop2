@@ -177,14 +177,15 @@ def unarchive(blob):
     base = collections.current().tmp_dir / str(blob)
     base.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=base) as temp_dir:
-        if blob.mime_type in SEVENZIP_MIME_TYPES:
-            call_7z(blob.path(), temp_dir)
-        elif blob.mime_type in READPST_MIME_TYPES:
-            call_readpst(blob.path(), temp_dir)
-        elif blob.mime_type in MBOX_MIME_TYPES:
-            unpack_mbox(blob.path(), temp_dir)
-        elif blob.mime_type in PDF_MIME_TYPES:
-            unpack_pdf(blob.path(), temp_dir)
+        with blob.mount_path() as blob_path:
+            if blob.mime_type in SEVENZIP_MIME_TYPES:
+                call_7z(blob_path, temp_dir)
+            elif blob.mime_type in READPST_MIME_TYPES:
+                call_readpst(blob_path, temp_dir)
+            elif blob.mime_type in MBOX_MIME_TYPES:
+                unpack_mbox(blob_path, temp_dir)
+            elif blob.mime_type in PDF_MIME_TYPES:
+                unpack_pdf(blob_path, temp_dir)
 
         listing = list(archive_walk(Path(temp_dir)))
         create_blobs(listing)
@@ -213,7 +214,7 @@ def archive_walk(path):
 
 
 def create_blobs(dirlisting):
-    """Create blobs for files in archive listing created by [snoop.data.analyzers.archive_walk."""
+    """Create blobs for files in archive listing created by [snoop.data.analyzers.archive_walk][]."""
 
     for entry in dirlisting:
         if entry['type'] == 'file':

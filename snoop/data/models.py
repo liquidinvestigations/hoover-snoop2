@@ -4,29 +4,38 @@ Also see [snoop.data.collections][] for details on how models are bound to the d
 databases.
 """
 
+import subprocess
+import os
 import string
 import json
 from contextlib import contextmanager
 from pathlib import Path
 import tempfile
 import hashlib
+import logging
+
 from django.db import models
 from django.conf import settings
 from django.template.defaultfilters import truncatechars
 from django.db.models import JSONField
 from django.core.exceptions import ObjectDoesNotExist
+from smart_open import open as smart_open
+
 from .magic import Magic
 
 from . import collections
 
 
+logger = logging.getLogger(__name__)
+
+
 def blob_repo_path(sha3_256):
-    """Returns a Path pointing to the blob file for given hash.
+    """Returns a string pointing to the blob object for given hash.
 
     Args:
-        sha3_256: hash used to compute the file path
+        sha3_256: hash used to compute the object path
     """
-    return collections.current().blob_root / sha3_256[:2] / sha3_256[2:4] / sha3_256[4:]
+    return sha3_256[:2] + '/' + sha3_256[2:4] + '/' + sha3_256[4:]
 
 
 def chunks(file, blocksize=65536):
@@ -148,11 +157,6 @@ class Blob(models.Model):
 
         return self.mime_type
 
-    def path(self):
-        """Returns a Path pointing to the disk location for this Blob.
-        """
-        return blob_repo_path(self.pk)
-
     @classmethod
     @contextmanager
     def create(cls, fs_path=None):
@@ -184,55 +188,27 @@ class Blob(models.Model):
         fields.update(writer.finish())
         pk = fields.pop('sha3_256')
 
-        blob_path = blob_repo_path(pk)
-        blob_path.parent.mkdir(exist_ok=True, parents=True)
         temp_blob_path = Path(f.name)
         temp_blob_path.chmod(0o444)
-        temp_blob_path.rename(blob_path)
 
         if not fs_path:
-            m = Magic(blob_path)
+            m = Magic(temp_blob_path)
             fields.update(m.fields)
+
+        settings.BLOBS_S3.fput_object(
+            collections.current().name,
+            blob_repo_path(pk),
+            temp_blob_path,
+        )
 
         (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
         writer.blob = blob
 
-    def _do_update_magic(self, path):
-        """Update this object's magic fields by running libmagic on given path.
+        os.remove(temp_blob_path)
 
-        Args:
-            path: filesystem path used to recompute magic fields
-        """
-        f = Magic(path).fields
-        self.mime_type = f['mime_type']
-        self.mime_encoding = f['mime_encoding']
-        self.magic = f['magic']
-        self.save()
-
-    def update_magic(self, path=None, filename=None):
-        """Update magic fields for this object.
-
-        Args:
-            path: Optional filesystem Path. If exists, this is the best option.
-            filename: Filename to be emulated when running libmagic. This
-                option is needed when a filesystem location doesn't exist (for
-                example, in an email).
-        """
-        if filename:
-            # create temp dir;
-            # create symlink to default path, with filename extension
-            # run magic on symlink
-            with tempfile.TemporaryDirectory() as d:
-                filename = "File." + filename.split(b'.')[-1][:100].decode('utf-8', errors='surrogateescape')
-                link_path = Path(d) / filename
-                link_path.symlink_to(blob_repo_path(self.pk))
-                self._do_update_magic(link_path)
-                link_path.unlink()
-                return
-
-        if not path:
-            path = blob_repo_path(self.pk)
-        self._do_update_magic(path)
+    @property
+    def repo_path(self):
+        return blob_repo_path(self.pk)
 
     @classmethod
     def create_from_bytes(cls, data):
@@ -290,23 +266,113 @@ class Blob(models.Model):
 
             return writer.blob
 
-    def open(self, encoding=None, **kwargs):
-        """Open this Blob's data storage for reading.
+    @classmethod
+    @contextmanager
+    def mount_blobs_root(cls):
+        """Mount the whole blob root directory under a temporary path, using s3-fuse.
+
+        Another temporary directory is created to store the cache."""
+
+        subprocess.check_call("chmod 600 /local/minio-blobs.pass", shell=True)
+
+        with tempfile.TemporaryDirectory(prefix='blob-tmp-cache-') as tmp_cache:
+            target = tempfile.mkdtemp(prefix='blob-mount-target-')
+
+            subprocess.check_call(f"""
+                s3fs \\
+                -o allow_other -o use_cache={tmp_cache} -o passwd_file=/local/minio-blobs.pass  \\
+                -o dbglevel=info -o curldbg \\
+                -o use_path_request_style \\
+                -o url=http://{settings.SNOOP_BLOBS_MINIO_ADDRESS} \\
+                {collections.current().name} {target} && ls {target}/tmp || ( sleep 0.05 && ls {target}/tmp )
+                """, shell=True)
+            try:
+                yield target
+            finally:
+                while os.listdir(target):
+                    subprocess.check_call(f"""
+                        umount {target} || true;
+                        umount -l {target} || true;
+                        sleep 0.05;
+                    """, shell=True)
+                os.rmdir(target)
+
+    @contextmanager
+    def mount_path(self):
+        """Mount this blob under some temporary directory using s3fs-fuse and return its path."""
+
+        with self.mount_blobs_root() as blobs_root:
+            key = blob_repo_path(self.pk)
+            yield os.path.join(blobs_root, key)
+
+    @contextmanager
+    def open(self, need_seek=False, need_fileno=False):
+        """Open this Blob's data storage for reading. Mode is always 'rb'.
 
         Args:
-            encoding: if set, file is opened in text mode, and argument is used
-                for string encoding. If not set, file is opened as binary.
-        """
-        if encoding is None:
-            mode = 'rb'
-        else:
-            mode = 'r'
-        return self.path().open(mode, encoding=encoding, **kwargs)
+            - need_seek: if the returned file object requires `f.seek()`, for example with Python libraries.
+                If this is the only flag set, this is achieved by using the `smart_open` library.
+            - need_fileno: if the returned file object requires `f.fileno()`, for example with `subprocess`
+                calls where this is given as standard input. If this is the only flag set, this is achieved
+                by making a local FIFO pipe (`os.mkfifo` and pushing data into that, from a forked process).
 
-    def read_json(self, encoding='utf-8'):
+        If both arguments are set to `true`, then we use `mount_path()` to get a FUSE filesystem containing
+        the files, and return the file object by opening that path.
+
+        Some programs don't even accept any kind of input from stdin, such as `7z` with most formats, or
+        `pdf2pdfocr.py`, which just exits (probably knowing it'll do multiple seek and multiple opens).
+
+        In that case, just use the `mount_path` contextmanager to get a POSIX filesystem path.
+        """
+        bucket = collections.current().name
+        key = blob_repo_path(self.pk)
+
+        if need_seek and need_fileno:
+            with self.mount_path() as blob_path:
+                yield open(blob_path, mode='rb')
+                return
+
+        elif need_seek:
+            url = f's3u://{bucket}/{key}'
+            yield smart_open(
+                url,
+                transport_params=settings.SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS,
+                mode='rb',
+            )
+            return
+
+        elif need_fileno:
+            # Supply opened unix pipe. Pipe is written to by fork.
+            with tempfile.TemporaryDirectory() as d:
+                fifo = os.path.join(d, 'fifo')
+                os.mkfifo(fifo, 0o600)
+                if os.fork() > 0:
+                    logger.info('parent process: call open on fifo')
+                    yield open(fifo, mode='rb')
+                else:
+                    logger.info('child process: write into fifo')
+                    try:
+                        r = settings.BLOBS_S3.get_object(bucket, key)
+                        with open(fifo, mode='wb') as fwrite:
+                            while (b := r.read(2 ** 20)):
+                                fwrite.write(b)
+                    finally:
+                        r.close()
+                        r.release_conn()
+                        logger.info('child process: exit')
+                        os._exit(0)
+        else:
+            try:
+                r = settings.BLOBS_S3.get_object(bucket, key)
+                yield r
+            finally:
+                r.close()
+                r.release_conn()
+
+    def read_json(self):
         """Load a JSON encoded binary into a python dict in memory.
         """
-        with self.open(encoding=encoding) as f:
+        with self.open() as f:
             return json.load(f)
 
 

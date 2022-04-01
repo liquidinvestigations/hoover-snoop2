@@ -170,7 +170,6 @@ def handle_file(file_pk, **depends_on):
 
     old_mime = file.original.mime_type
     old_blob_mime = file.blob.mime_type
-    file.original.update_magic(filename=bytes(file.name_bytes))
     old_blob = file.blob
     file.blob = file.original
 
@@ -200,9 +199,6 @@ def handle_file(file_pk, **depends_on):
         )
     else:
         remove_dependency('emlx_reconstruct', depends_on)
-
-    if file.blob.pk != file.original.pk:
-        file.blob.update_magic()
 
     if file.blob.mime_type in RFC822_EMAIL_MIME_TYPES:
         email_parse_task = email.parse.laterz(file.blob)
@@ -274,7 +270,7 @@ def create_archive_files(file_pk, archive_listing):
         create_directory_children(directory, children)
 
     def create_file(parent_directory, name, original):
-        size = original.path().stat().st_size
+        size = original.size
 
         file, _ = parent_directory.child_file_set.get_or_create(
             name_bytes=name.encode('utf8', errors='surrogateescape'),
@@ -337,7 +333,7 @@ def create_attachment_files(file_pk, email_parse):
         )
         for attachment in attachments:
             original = models.Blob.objects.get(pk=attachment['blob_pk'])
-            size = original.path().stat().st_size
+            size = original.size
 
             name_bytes = (
                 attachment['name']

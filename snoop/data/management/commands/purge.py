@@ -4,7 +4,7 @@ This command is the only supported way of removing data from Snoop, one collecti
 """
 
 from django.core.management.base import BaseCommand
-# from django.conf import settings
+from django.conf import settings
 from ...logs import logging_for_management_command
 
 from ... import indexing
@@ -37,8 +37,11 @@ class Command(BaseCommand):
             if not items:
                 print(f'{name} to delete: none')
             else:
-                print(f'{name} to delete ({len(items)}): {", ".join(items)}')
-            print()
+                print()
+                print(f'{name} to delete {len(items)} items:')
+                for item in items:
+                    print('  - ', item)
+                print()
 
         print(len(collections.ALL),
               'collections in "liquid.ini": ',
@@ -54,13 +57,12 @@ class Command(BaseCommand):
         db_to_delete = dbs - active_dbs
         print_items('Databases', db_to_delete)
 
-        # TODO
-        # blob_buckets = settings.BLOBS_S3FS.ls('/')
-        # active_buckets = set(c.name for c in collections.ALL.values())
-        # buckets_to_delete = blob_buckets - active_buckets
-        # print_items('Minio/S3 Buckets', buckets_to_delete)
+        blob_buckets = set([b.name for b in settings.BLOBS_S3.list_buckets()])
+        active_buckets = set(c.name for c in collections.ALL.values())
+        buckets_to_delete = blob_buckets - active_buckets
+        print_items('Minio/S3 Buckets (blob storage)', buckets_to_delete)
 
-        if not es_to_delete and not db_to_delete:  # and not blobs_to_delete:
+        if not es_to_delete and not db_to_delete and not buckets_to_delete:
             print('Nothing to delete.')
             return
 
@@ -73,10 +75,9 @@ class Command(BaseCommand):
                 print(f'\nDeleting database "{db}"...')
                 collections.drop_db(db)
 
-            # TODO
-            # for bucket in buckets_to_delete:
-            #     print(f'\nDeleting S3 bucket "{bucket}"...')
-            #     settings.BLOBS_S3FS.rm(f'/{bucket}', recursive=True)
+            for bucket in buckets_to_delete:
+                print(f'\nDeleting S3 bucket "{bucket}"...')
+                settings.BLOBS_S3.remove_bucket(bucket)
 
         else:
             print('Exiting without any changes.\n')

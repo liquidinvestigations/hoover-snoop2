@@ -399,7 +399,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
             except ConnectionError as e:
                 tracing.add_annotation(repr(e))
-                logger.exception(repr(e))
+                logger.exception(e)
                 task.update(
                     status=models.Task.STATUS_PENDING,
                     error=repr(e),
@@ -413,6 +413,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     error = "{} ({})".format(e.args[0], e.details)
                 else:
                     error = repr(e)
+                logger.exception(e)
                 task.update(
                     status=models.Task.STATUS_ERROR,
                     error=error,

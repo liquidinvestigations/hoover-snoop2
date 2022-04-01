@@ -66,7 +66,7 @@ def extract(blob):
     # details=False removes thumbnails and MakerNote (manufacturer specific
     # information). See https://pypi.python.org/pypi/ExifRead#tag-descriptions
 
-    with blob.open() as f:
+    with blob.open(need_seek=True) as f:
         try:
             tags = exifread.process_file(f, details=False)
         except (AttributeError, IndexError) as e:

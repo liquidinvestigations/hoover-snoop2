@@ -633,11 +633,11 @@ class BlobAdmin(MultiDBModelAdmin):
         """
         if blob.mime_type == 'text/plain':
             encoding = 'latin1' if blob.mime_encoding == 'binary' else blob.mime_encoding
-            with blob.open(encoding=encoding) as f:
-                return f.read()
+            with blob.open() as f:
+                return f.read().decode(encoding)
 
         elif blob.mime_type == 'application/json':
-            with blob.open(encoding='utf8') as f:
+            with blob.open() as f:
                 return json.dumps(json.load(f), indent=2, sort_keys=True)
 
         else:

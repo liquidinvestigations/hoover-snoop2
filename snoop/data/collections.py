@@ -27,7 +27,7 @@ This module creates Collection instances from the setting and stores them in a g
 collection requested by the user.
 """
 
-
+import io
 import logging
 import subprocess
 import threading
@@ -318,15 +318,17 @@ def create_roots():
 
     for col in ALL.values():
         with transaction.atomic(using=col.db_alias), col.set_current():
-            # settings.BLOBS_S3FS.mkdirs(col.name, exist_ok=True)
-            # settings.BLOBS_S3FS.mkdirs(col.name + '/tmp', exist_ok=True)
-            # settings.BLOBS_S3FS.touch(col.name + '/tmp/dummy')
-            # TODO
+            if settings.BLOBS_S3.bucket_exists(col.name):
+                logger.info('found bucket %s', col.name)
+            else:
+                logger.info('creating bucket %s', col.name)
+                settings.BLOBS_S3.make_bucket(col.name)
+                settings.BLOBS_S3.put_object(col.name, 'tmp/dummy', io.BytesIO(b"hello"), length=5)
 
             root = Directory.root()
             if not root:
                 root = Directory.objects.create()
-                logger.debug(f'Creating root document {root} for collection {col.name}')
+                logger.info(f'Creating root document {root} for collection {col.name}')
 
 
 class CollectionsRouter:

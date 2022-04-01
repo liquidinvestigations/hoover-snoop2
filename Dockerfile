@@ -6,7 +6,7 @@ ARG GID=666
 RUN groupadd -g $GID -o $USER_NAME
 RUN useradd -m -u $UID -g $GID -o -s /bin/bash $USER_NAME
 
-RUN apt-get update && apt-get install -y gosu
+RUN apt-get update && apt-get install -y gosu s3fs
 
 # install snoop
 RUN mkdir -p /opt/hoover/snoop/static
