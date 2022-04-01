@@ -214,6 +214,24 @@ BLOBS_S3 = Minio(
     secure=False,
 )
 
+SNOOP_COLLECTIONS_MINIO_ADDRESS = os.environ.get('SNOOP_COLLECTIONS_MINIO_ADDRESS', 'minio-collections:9000')
+SNOOP_COLLECTIONS_MINIO_ACCESS_KEY = os.environ.get('SNOOP_COLLECTIONS_MINIO_ACCESS_KEY', 'minioadmin')
+SNOOP_COLLECTIONS_MINIO_SECRET_KEY = os.environ.get('SNOOP_COLLECTIONS_MINIO_SECRET_KEY', 'minioadmin')
+SNOOP_COLLECTIONS_SMART_OPEN_TRANSPORT_PARAMS = {
+    'client': boto3.Session().client(
+        's3',
+        endpoint_url='http://' + SNOOP_COLLECTIONS_MINIO_ADDRESS,
+        aws_access_key_id=SNOOP_COLLECTIONS_MINIO_ACCESS_KEY,
+        aws_secret_access_key=SNOOP_COLLECTIONS_MINIO_SECRET_KEY,
+    ),
+}
+COLLECTIONS_S3 = Minio(
+    SNOOP_COLLECTIONS_MINIO_ADDRESS,
+    access_key=SNOOP_COLLECTIONS_MINIO_ACCESS_KEY,
+    secret_key=SNOOP_COLLECTIONS_MINIO_SECRET_KEY,
+    secure=False,
+)
+
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 """URL pointing to Apache Tika server."""
 
