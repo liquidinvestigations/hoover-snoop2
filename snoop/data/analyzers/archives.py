@@ -7,7 +7,6 @@ from hashlib import sha1
 import re
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
-from .. import collections
 import os
 import tempfile
 
@@ -174,24 +173,24 @@ def unarchive(blob):
     documents that embed images).
     """
 
-    base = collections.current().tmp_dir / str(blob)
-    base.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=base) as temp_dir:
-        with blob.mount_path() as blob_path:
-            if blob.mime_type in SEVENZIP_MIME_TYPES:
-                call_7z(blob_path, temp_dir)
-            elif blob.mime_type in READPST_MIME_TYPES:
-                call_readpst(blob_path, temp_dir)
-            elif blob.mime_type in MBOX_MIME_TYPES:
-                unpack_mbox(blob_path, temp_dir)
-            elif blob.mime_type in PDF_MIME_TYPES:
-                unpack_pdf(blob_path, temp_dir)
+    with blob.mount_path() as blob_path:
+        with blob.mount_blobs_root(readonly=False) as blobs_root:
+            base = Path(blobs_root) / 'tmp' / 'archives'
+            base.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix=blob.pk, dir=base) as temp_dir:
+                if blob.mime_type in SEVENZIP_MIME_TYPES:
+                    call_7z(blob_path, temp_dir)
+                elif blob.mime_type in READPST_MIME_TYPES:
+                    call_readpst(blob_path, temp_dir)
+                elif blob.mime_type in MBOX_MIME_TYPES:
+                    unpack_mbox(blob_path, temp_dir)
+                elif blob.mime_type in PDF_MIME_TYPES:
+                    unpack_pdf(blob_path, temp_dir)
 
-        listing = list(archive_walk(Path(temp_dir)))
-        create_blobs(listing)
+                listing = list(archive_walk(Path(temp_dir)))
+                create_blobs(listing)
 
     check_recursion(listing, blob.pk)
-
     return listing
 
 
@@ -220,6 +219,7 @@ def create_blobs(dirlisting):
         if entry['type'] == 'file':
             path = Path(entry['path'])
             entry['blob_pk'] = models.Blob.create_from_file(path).pk
+            os.unlink(path)
             del entry['path']
         else:
             create_blobs(entry['children'])

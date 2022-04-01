@@ -222,11 +222,6 @@ class Collection:
         """
         return self.name
 
-    @property
-    def tmp_dir(self):
-        """Returns a Path to the blobs temporary directory."""
-        return Path(settings.SNOOP_TEMP_STORAGE) / self.name
-
     def migrate(self):
         """Run `django migrate` on this collection's database."""
 

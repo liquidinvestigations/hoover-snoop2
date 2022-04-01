@@ -174,14 +174,12 @@ class Blob(models.Model):
             finished. The final result can be found at `.blob` on the same object, after exiting this
             contextmanager's context.
         """
-        blob_tmp = collections.current().tmp_dir
-        blob_tmp.mkdir(exist_ok=True, parents=True)
 
         fields = {}
         if fs_path:
             m = Magic(fs_path)
             fields = m.fields
-        with tempfile.NamedTemporaryFile(dir=blob_tmp, delete=False) as f:
+        with tempfile.NamedTemporaryFile(prefix='new-blob-', delete=False) as f:
             writer = BlobWriter(f)
             yield writer
 
@@ -268,22 +266,26 @@ class Blob(models.Model):
 
     @classmethod
     @contextmanager
-    def mount_blobs_root(cls):
+    def mount_blobs_root(cls, readonly=True):
         """Mount the whole blob root directory under a temporary path, using s3-fuse.
 
         Another temporary directory is created to store the cache."""
 
+        address = settings.SNOOP_BLOBS_MINIO_ADDRESS
         subprocess.check_call("chmod 600 /local/minio-blobs.pass", shell=True)
 
         with tempfile.TemporaryDirectory(prefix='blob-tmp-cache-') as tmp_cache:
             target = tempfile.mkdtemp(prefix='blob-mount-target-')
 
+            mount_mode = 'ro' if readonly else 'rw'
+
             subprocess.check_call(f"""
                 s3fs \\
-                -o allow_other -o use_cache={tmp_cache} -o passwd_file=/local/minio-blobs.pass  \\
+                -o {mount_mode} -o allow_other \\
+                -o use_cache={tmp_cache} -o passwd_file=/local/minio-blobs.pass  \\
                 -o dbglevel=info -o curldbg \\
                 -o use_path_request_style \\
-                -o url=http://{settings.SNOOP_BLOBS_MINIO_ADDRESS} \\
+                -o url=http://{address} \\
                 {collections.current().name} {target} && ls {target}/tmp || ( sleep 0.05 && ls {target}/tmp )
                 """, shell=True)
             try:
@@ -326,6 +328,8 @@ class Blob(models.Model):
         """
         bucket = collections.current().name
         key = blob_repo_path(self.pk)
+        smart_transport_params = settings.SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS
+        minio_client = settings.BLOBS_S3
 
         if need_seek and need_fileno:
             with self.mount_path() as blob_path:
@@ -336,7 +340,7 @@ class Blob(models.Model):
             url = f's3u://{bucket}/{key}'
             yield smart_open(
                 url,
-                transport_params=settings.SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS,
+                transport_params=smart_transport_params,
                 mode='rb',
             )
             return
@@ -352,7 +356,7 @@ class Blob(models.Model):
                 else:
                     logger.info('child process: write into fifo')
                     try:
-                        r = settings.BLOBS_S3.get_object(bucket, key)
+                        r = minio_client.get_object(bucket, key)
                         with open(fifo, mode='wb') as fwrite:
                             while (b := r.read(2 ** 20)):
                                 fwrite.write(b)
@@ -363,7 +367,7 @@ class Blob(models.Model):
                         os._exit(0)
         else:
             try:
-                r = settings.BLOBS_S3.get_object(bucket, key)
+                r = minio_client.get_object(bucket, key)
                 yield r
             finally:
                 r.close()
