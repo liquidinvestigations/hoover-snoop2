@@ -12,6 +12,8 @@ walking these is treated differently under [snoop.data.analyzers.archives][], [s
 and others.
 """
 
+import pathlib
+import os
 import json
 import logging
 from django.conf import settings
@@ -34,7 +36,7 @@ RFC822_EMAIL_MIME_TYPES = {'message/rfc822', }
 EMLX_EMAIL_MIME_TYPES = {'message/x-emlx', }
 
 
-def directory_absolute_path(directory):
+def directory_absolute_path(root_data_path, directory):
     """Returns absolute Path for a dataset [snoop.data.models.Directory][].
 
     Directory supplied must be present on the filesystem.
@@ -49,8 +51,7 @@ def directory_absolute_path(directory):
 
     path_elements = []
     node = directory
-    col = collections.current()
-    path = col.data_path
+    path = pathlib.Path(root_data_path)
 
     while node.parent_directory:
         path_elements.append(node.name)
@@ -101,47 +102,50 @@ def walk(directory_pk):
     the `transaction.on_commit` call from `queue_task()` when queueing `walk()` from this function.
     """
     directory = models.Directory.objects.get(pk=directory_pk)
-    path = directory_absolute_path(directory)
+    with collections.current().mount_collections_root() as root_collection_path:
+        root_data_path = os.path.join(root_collection_path, 'data')
 
-    for i, thing in enumerate(path.iterdir()):
-        queue_limit = i >= settings.CHILD_QUEUE_LIMIT
+        path = directory_absolute_path(root_data_path, directory)
 
-        if thing.is_dir():
-            (child_directory, created) = directory.child_directory_set.get_or_create(
-                name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
-            )
-            # since the periodic task retries all talk tasks in rotation,
-            # we're not going to dispatch a walk task we didn't create
-            walk.laterz(child_directory.pk, queue_now=created and not queue_limit)
+        for i, thing in enumerate(path.iterdir()):
+            queue_limit = i >= settings.CHILD_QUEUE_LIMIT
 
-        else:
-            directory = models.Directory.objects.get(pk=directory_pk)
-            path = directory_absolute_path(directory) / thing.name
-            stat = path.stat()
+            if thing.is_dir():
+                (child_directory, created) = directory.child_directory_set.get_or_create(
+                    name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
+                )
+                # since the periodic task retries all talk tasks in rotation,
+                # we're not going to dispatch a walk task we didn't create
+                walk.laterz(child_directory.pk, queue_now=created and not queue_limit)
 
-            original = models.Blob.create_from_file(path)
-            file, created = directory.child_file_set.get_or_create(
-                name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
-                defaults=dict(
-                    ctime=time_from_unix(stat.st_ctime),
-                    mtime=time_from_unix(stat.st_mtime),
-                    size=stat.st_size,
-                    original=original,
-                    blob=original,
-                ),
-            )
-            # if file is already loaded, and size+mtime are the same,
-            # don't retry handle task
-            if created \
-                    or file.mtime != time_from_unix(stat.st_mtime) \
-                    or file.size != stat.st_size:
-                file.mtime = time_from_unix(stat.st_mtime)
-                file.size = stat.st_size
-                file.original = original
-                file.save()
-                handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
             else:
-                handle_file.laterz(file.pk, queue_now=False)
+                directory = models.Directory.objects.get(pk=directory_pk)
+                path = directory_absolute_path(root_data_path, directory) / thing.name
+                stat = path.stat()
+
+                original = models.Blob.create_from_file(path)
+                file, created = directory.child_file_set.get_or_create(
+                    name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
+                    defaults=dict(
+                        ctime=time_from_unix(stat.st_ctime),
+                        mtime=time_from_unix(stat.st_mtime),
+                        size=stat.st_size,
+                        original=original,
+                        blob=original,
+                    ),
+                )
+                # if file is already loaded, and size+mtime are the same,
+                # don't retry handle task
+                if created \
+                        or file.mtime != time_from_unix(stat.st_mtime) \
+                        or file.size != stat.st_size:
+                    file.mtime = time_from_unix(stat.st_mtime)
+                    file.size = stat.st_size
+                    file.original = original
+                    file.save()
+                    handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
+                else:
+                    handle_file.laterz(file.pk, queue_now=False)
 
 
 @snoop_task('filesystem.handle_file', priority=1)

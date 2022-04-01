@@ -140,6 +140,14 @@ services:
   commands:
   - server /data
 
+- name: minio-collections
+  image: minio/minio:RELEASE.2022-03-26T06-49-28Z
+  volumes:
+  - name: minio-v
+    path: /data
+  commands:
+  - server /data
+
 - name: snoop-rabbitmq
   image: rabbitmq:3.7.3
   volumes:
@@ -211,10 +219,10 @@ steps:
   image: alpine/git:1.0.7
   volumes:
   - name: test-collections-v
-    path: /testdata
+    path: /data
   commands:
-  - cd /testdata
-  - git clone https://github.com/hoover/testdata .
+  - cd /data
+  - git clone https://github.com/hoover/testdata
 
 - name: wait for nlp service
   image: alpine/git:1.0.7
@@ -226,9 +234,6 @@ steps:
 - name: run tests
   image: liquidinvestigations/hoover-snoop2:${DRONE_COMMIT_BRANCH}
   pull: always
-  volumes:
-  - name: test-collections-v
-    path: /opt/hoover/collections/testdata
   environment:
     WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998, snoop-thumbnail:9990, snoop-pdf-preview:3000, snoop-image-classification:5001, snoop-nlp-service:5000, minio-blobs:9000
     WAIT_HOSTS_TIMEOUT: 60
@@ -244,8 +249,6 @@ steps:
     SNOOP_NLP_URL: "http://snoop-nlp-service:5000"
     SNOOP_EXTRACT_ENTITIES:  True
     SNOOP_DETECT_LANGUAGE: True
-    SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
-    SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
     USER_MODE: "TEST"
   commands:
   - whoami

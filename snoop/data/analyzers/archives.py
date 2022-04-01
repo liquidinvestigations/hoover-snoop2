@@ -7,6 +7,7 @@ from hashlib import sha1
 import re
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
+from .. import collections
 import os
 import tempfile
 
@@ -174,7 +175,7 @@ def unarchive(blob):
     """
 
     with blob.mount_path() as blob_path:
-        with blob.mount_blobs_root(readonly=False) as blobs_root:
+        with collections.current().mount_blobs_root(readonly=False) as blobs_root:
             base = Path(blobs_root) / 'tmp' / 'archives'
             base.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(prefix=blob.pk, dir=base) as temp_dir:

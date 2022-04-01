@@ -94,17 +94,18 @@ def walk_source(ocr_source_pk, dir_path=''):
     """
 
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    for item in (ocr_source.root / dir_path).iterdir():
-        if not all(ch in string.printable for ch in item.name):
-            log.warn("Skipping non-printable filename %r in %s:%s",
-                     item.name, ocr_source_pk, dir_path)
-            continue
+    with ocr_source.mount_root() as ocr_source_root:
+        for item in (ocr_source_root / dir_path).iterdir():
+            if not all(ch in string.printable for ch in item.name):
+                log.warn("Skipping non-printable filename %r in %s:%s",
+                         item.name, ocr_source_pk, dir_path)
+                continue
 
-        if item.is_dir():
-            walk_source.laterz(ocr_source.pk, f'{dir_path}{item.name}/')
+            if item.is_dir():
+                walk_source.laterz(ocr_source.pk, f'{dir_path}{item.name}/')
 
-        else:
-            walk_file.laterz(ocr_source.pk, f'{dir_path}{item.name}')
+            else:
+                walk_file.laterz(ocr_source.pk, f'{dir_path}{item.name}')
 
 
 @snoop_task('ocr.walk_file')
@@ -117,12 +118,13 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
     """
 
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    path = ocr_source.root / file_path
+    with ocr_source.mount_path() as ocr_source_root:
+        path = ocr_source_root / file_path
 
-    original_hash = path.name[:32].lower()
-    assert re.match(r'^[0-9a-f]{32}$', original_hash)
+        original_hash = path.name[:32].lower()
+        assert re.match(r'^[0-9a-f]{32}$', original_hash)
 
-    ocr_blob = models.Blob.create_from_file(path)
+        ocr_blob = models.Blob.create_from_file(path)
 
     if path.suffix == '.txt':
         text_blob = ocr_blob

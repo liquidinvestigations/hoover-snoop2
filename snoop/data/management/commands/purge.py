@@ -76,8 +76,16 @@ class Command(BaseCommand):
                 collections.drop_db(db)
 
             for bucket in buckets_to_delete:
-                print(f'\nDeleting S3 bucket "{bucket}"...')
+                print(f'\nDeleting S3 bucket "{bucket}"...', end='')
+                i = 0
+                for obj in settings.BLOBS_S3.list_objects(bucket, prefix='/', recursive=True):
+                    settings.BLOBS_S3.remove_object(bucket, obj.object_name)
+                    if i % 50000 == 0:
+                        print('.', end='')
+                    i += 1
                 settings.BLOBS_S3.remove_bucket(bucket)
+                print()
+                print(f'Deleted S3 bucket "{bucket}".')
 
         else:
             print('Exiting without any changes.\n')

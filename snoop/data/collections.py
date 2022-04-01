@@ -27,12 +27,14 @@ This module creates Collection instances from the setting and stores them in a g
 collection requested by the user.
 """
 
+import time
+import tempfile
+import os
 import io
 import logging
 import subprocess
 import threading
 from contextlib import contextmanager
-from pathlib import Path
 
 from django.conf import settings
 from django.db import connection
@@ -187,36 +189,6 @@ class Collection:
         return f"collection_{self.name}"
 
     @property
-    def base_path(self):
-        """Path pointing to input dataset file structure.
-
-        Must contain a directory called `data` where all the original files are read from.
-
-        May also contain a directory called `ocr` where External OCR is loaded from; see
-        [snoop.data.models.OcrSource][] for more details.
-
-        Statically loaded from [the settings][snoop.defaultsettings.SNOOP_COLLECTION_ROOT].
-        """
-
-        if settings.SNOOP_COLLECTION_ROOT is None:
-            raise RuntimeError("settings.SNOOP_COLLECTION_ROOT not configured")
-        return Path(settings.SNOOP_COLLECTION_ROOT) / self.name
-
-    @property
-    def data_path(self):
-        """Path pointing to input data files.
-        """
-
-        return self.base_path / self.DATA_DIR
-
-    @property
-    def gpghome_path(self):
-        """Path pointing to input gpghome directory.
-        """
-
-        return self.base_path / self.GPGHOME_DIR
-
-    @property
     def es_index(self):
         """Name of elasticsearch index for this collection.
         """
@@ -249,6 +221,51 @@ class Collection:
             # this causes some tests with rollbacks to fail
             # if old is None:
             #     close_old_connections()
+
+    @contextmanager
+    def mount_blobs_root(self, readonly=True):
+        """Mount the whole blob root directory under a temporary path, using s3-fuse.
+
+        Another temporary directory is created to store the cache."""
+
+        address = settings.SNOOP_BLOBS_MINIO_ADDRESS
+        subprocess.check_call("chmod 600 /local/minio-blobs.pass", shell=True)
+        mount_mode = 'ro' if readonly else 'rw'
+        password_file = "/local/minio-blobs.pass"
+
+        with tempfile.TemporaryDirectory(prefix='blob-tmp-cache-') as cache:
+            target = tempfile.mkdtemp(prefix='blob-mount-target-')
+            mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
+            try:
+                yield target
+            finally:
+                umount_s3fs(target)
+                os.rmdir(target)
+
+    @contextmanager
+    def mount_collections_root(self, readonly=True):
+        """Mount the whole collections root directory under a temporary path, using s3-fuse.
+
+        Another temporary directory is created to store the cache."""
+
+        address = settings.SNOOP_COLLECTIONS_MINIO_ADDRESS
+        subprocess.check_call("chmod 600 /local/minio-collections.pass", shell=True)
+        mount_mode = 'ro' if readonly else 'rw'
+        password_file = "/local/minio-collections.pass"
+
+        with tempfile.TemporaryDirectory(prefix='collection-tmp-cache-') as cache:
+            target = tempfile.mkdtemp(prefix='collection-mount-target-')
+            mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
+            try:
+                yield target
+            finally:
+                umount_s3fs(target)
+                os.rmdir(target)
+
+    @contextmanager
+    def mount_gpghome(self):
+        with self.mount_collections_root(readonly=False) as root:
+            yield os.path.join(root, self.GPGHOME_DIR)
 
 
 def all_collection_dbs():
@@ -373,6 +390,27 @@ def current():
     col = getattr(threadlocal, 'collection', None)
     assert col is not None, "There is no current collection set"
     return col
+
+
+def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
+    subprocess.check_call(f"""
+        s3fs \\
+        -o {mount_mode} -o allow_other \\
+        -o use_cache={cache} -o passwd_file={password_file}  \\
+        -o dbglevel=info -o curldbg \\
+        -o use_path_request_style \\
+        -o url=http://{address} \\
+        {bucket} {target}
+        """, shell=True)
+
+
+def umount_s3fs(target):
+    while os.listdir(target):
+        subprocess.check_call(f"""
+            umount {target} || umount -l {target} || true;
+        """, shell=True)
+
+        time.sleep(0.05)
 
 
 for item in settings.SNOOP_COLLECTIONS:

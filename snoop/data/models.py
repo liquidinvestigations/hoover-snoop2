@@ -4,7 +4,6 @@ Also see [snoop.data.collections][] for details on how models are bound to the d
 databases.
 """
 
-import subprocess
 import os
 import string
 import json
@@ -264,46 +263,11 @@ class Blob(models.Model):
 
             return writer.blob
 
-    @classmethod
-    @contextmanager
-    def mount_blobs_root(cls, readonly=True):
-        """Mount the whole blob root directory under a temporary path, using s3-fuse.
-
-        Another temporary directory is created to store the cache."""
-
-        address = settings.SNOOP_BLOBS_MINIO_ADDRESS
-        subprocess.check_call("chmod 600 /local/minio-blobs.pass", shell=True)
-
-        with tempfile.TemporaryDirectory(prefix='blob-tmp-cache-') as tmp_cache:
-            target = tempfile.mkdtemp(prefix='blob-mount-target-')
-
-            mount_mode = 'ro' if readonly else 'rw'
-
-            subprocess.check_call(f"""
-                s3fs \\
-                -o {mount_mode} -o allow_other \\
-                -o use_cache={tmp_cache} -o passwd_file=/local/minio-blobs.pass  \\
-                -o dbglevel=info -o curldbg \\
-                -o use_path_request_style \\
-                -o url=http://{address} \\
-                {collections.current().name} {target} && ls {target}/tmp || ( sleep 0.05 && ls {target}/tmp )
-                """, shell=True)
-            try:
-                yield target
-            finally:
-                while os.listdir(target):
-                    subprocess.check_call(f"""
-                        umount {target} || true;
-                        umount -l {target} || true;
-                        sleep 0.05;
-                    """, shell=True)
-                os.rmdir(target)
-
     @contextmanager
     def mount_path(self):
         """Mount this blob under some temporary directory using s3fs-fuse and return its path."""
 
-        with self.mount_blobs_root() as blobs_root:
+        with collections.current().mount_blobs_root() as blobs_root:
             key = blob_repo_path(self.pk)
             yield os.path.join(blobs_root, key)
 
@@ -1034,15 +998,16 @@ class OcrSource(models.Model):
     A directory called the same way must be present under the "ocr" directory in the collection location.
     """
 
-    @property
-    def root(self):
+    @contextmanager
+    def mount_root(self):
         """Returns the absolute path for the External OCR source.
         """
 
         col = collections.current()
-        path = Path(settings.SNOOP_COLLECTION_ROOT) / col.name / 'ocr' / self.name
-        assert path.is_dir()
-        return path
+        with col.mount_collection_root() as collection_root:
+            path = Path(collection_root) / 'ocr' / self.name
+            assert path.is_dir()
+            yield path
 
     def __str__(self):
         return f"{self.pk}: {self.name}"

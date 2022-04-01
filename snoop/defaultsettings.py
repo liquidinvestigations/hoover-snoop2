@@ -248,12 +248,6 @@ TODO:
     remove this value, as the API is not used anymore.
 """
 
-SNOOP_COLLECTION_ROOT = os.environ.get('SNOOP_COLLECTION_ROOT')
-"""Path on disk pointing to collection source directory.
-
-All collections in the system must have a directory here called the same as the collection name, containing
-a directory called `data` where the actual collection data is fetched from.
-"""
 
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 """Prefix to add to all snoop task queues.
