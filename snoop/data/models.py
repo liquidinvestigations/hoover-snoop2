@@ -55,11 +55,11 @@ class BlobWriter:
     """Compute binary blob size and hashes while also writing it in a file.
     """
 
-    def __init__(self, file):
+    def __init__(self, file=None):
         """Constructor.
 
         Args:
-            file: opened file, to write to
+            file: opened file, to write to, optional.
         """
         self.file = file
         self.hashes = {
@@ -78,7 +78,8 @@ class BlobWriter:
         """
         for h in self.hashes.values():
             h.update(chunk)
-        self.file.write(chunk)
+        if self.file:
+            self.file.write(chunk)
         self.size += len(chunk)
 
     def finish(self):
@@ -251,7 +252,7 @@ class Blob(models.Model):
         return cls.create_from_bytes(json.dumps(data, indent=1).encode('utf-8'))
 
     @classmethod
-    def create_from_file(cls, path):
+    def create_from_file(cls, path, collection_source_key=None):
         """Create a Blob from a file on disk.
 
         Since we know it has a stable path on disk, we take the luxury of
@@ -263,16 +264,36 @@ class Blob(models.Model):
             path: string or Path to read from
         """
         path = Path(path).resolve().absolute()
-        file_sha3_256 = hashlib.sha3_256()
+        writer = BlobWriter()
         with open(path, 'rb') as f:
             for block in chunks(f):
-                file_sha3_256.update(block)
+                writer.write(block)
+        fields = writer.finish()
+        pk = fields.pop('sha3_256')
 
         try:
-            b = Blob.objects.get(pk=file_sha3_256.hexdigest())
+            b = Blob.objects.get(pk=pk)
+            if collection_source_key and not b.collection_source_key:
+                # delete this from minio and override/save new key
+                try:
+                    settings.BLOBS_S3.remove_object(collections.current().name, blob_repo_path(b.pk))
+                    logger.info('successfully deleted object from s3.')
+                except Exception as e:
+                    logger.exception(e)
+                    logger.error('failed to delete object from s3.')
+
+                b.collection_source_key = collection_source_key
+                b.save()
             return b
 
         except ObjectDoesNotExist:
+            if collection_source_key:
+                m = Magic(path)
+                fields.update(m.fields)
+                fields['collection_source_key'] = collection_source_key
+                (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
+                return blob
+
             with cls.create(path) as writer:
                 with open(path, 'rb') as f:
                     for block in chunks(f):
@@ -284,9 +305,14 @@ class Blob(models.Model):
     def mount_path(self):
         """Mount this blob under some temporary directory using s3fs-fuse and return its path."""
 
-        with collections.current().mount_blobs_root() as blobs_root:
-            key = blob_repo_path(self.pk)
-            yield os.path.join(blobs_root, key)
+        if self.collection_source_key:
+            with collections.current().mount_collections_root() as collection_root:
+                key = self.collection_source_key
+                yield os.path.join(collection_root, key)
+        else:
+            with collections.current().mount_blobs_root() as blobs_root:
+                key = blob_repo_path(self.pk)
+                yield os.path.join(blobs_root, key)
 
     @contextmanager
     def open(self, need_seek=False, need_fileno=False):
@@ -307,10 +333,16 @@ class Blob(models.Model):
 
         In that case, just use the `mount_path` contextmanager to get a POSIX filesystem path.
         """
-        bucket = collections.current().name
-        key = blob_repo_path(self.pk)
-        smart_transport_params = settings.SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS
-        minio_client = settings.BLOBS_S3
+        if self.collection_source_key:
+            bucket = collections.current().name
+            key = self.collection_source_key
+            smart_transport_params = settings.SNOOP_COLLECTIONS_SMART_OPEN_TRANSPORT_PARAMS
+            minio_client = settings.COLLECTIONS_S3
+        else:
+            bucket = collections.current().name
+            key = blob_repo_path(self.pk)
+            smart_transport_params = settings.SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS
+            minio_client = settings.BLOBS_S3
 
         if need_seek and need_fileno:
             with self.mount_path() as blob_path:
@@ -336,23 +368,27 @@ class Blob(models.Model):
                     yield open(fifo, mode='rb')
                 else:
                     logger.info('child process: write into fifo')
+                    r = None
                     try:
                         r = minio_client.get_object(bucket, key)
                         with open(fifo, mode='wb') as fwrite:
                             while (b := r.read(2 ** 20)):
                                 fwrite.write(b)
                     finally:
-                        r.close()
-                        r.release_conn()
+                        if r:
+                            r.close()
+                            r.release_conn()
                         logger.info('child process: exit')
                         os._exit(0)
         else:
+            r = None
             try:
                 r = minio_client.get_object(bucket, key)
                 yield r
             finally:
-                r.close()
-                r.release_conn()
+                if r:
+                    r.close()
+                    r.release_conn()
 
     def read_json(self):
         """Load a JSON encoded binary into a python dict in memory.
@@ -1021,7 +1057,7 @@ class OcrSource(models.Model):
         """
 
         col = collections.current()
-        with col.mount_collection_root() as collection_root:
+        with col.mount_collections_root() as collection_root:
             path = Path(collection_root) / 'ocr' / self.name
             assert path.is_dir()
             yield path

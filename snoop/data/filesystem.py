@@ -62,7 +62,7 @@ def directory_absolute_path(root_data_path, directory):
     return path
 
 
-@snoop_task('filesystem.walk', priority=9)
+@snoop_task('filesystem.walk', priority=9, version=2)
 @profile()
 def walk(directory_pk):
     """Scans one level of a directory and recursively ingests all files and directories found.
@@ -122,8 +122,9 @@ def walk(directory_pk):
                 directory = models.Directory.objects.get(pk=directory_pk)
                 path = directory_absolute_path(root_data_path, directory) / thing.name
                 stat = path.stat()
+                relative_path = os.path.relpath(path, start=root_collection_path)
 
-                original = models.Blob.create_from_file(path)
+                original = models.Blob.create_from_file(path, collection_source_key=relative_path)
                 file, created = directory.child_file_set.get_or_create(
                     name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
                     defaults=dict(

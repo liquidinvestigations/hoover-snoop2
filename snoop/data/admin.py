@@ -315,6 +315,25 @@ def _get_stats(old_values):
         error_str = ', %0.2f%% errors' % error_percent if count_error > 0 else ''
         return '%0.1f%% processed%s%s' % (finished_percent, error_str, eta_str)
 
+    stored_blobs = (
+        blobs
+        .filter(collection_source_key__exact='',
+                archive_source_key__exact='')
+    )
+
+    collection_source = (
+        blobs
+        .exclude(collection_source_key__exact='')
+    )
+
+    archive_source = (
+        blobs
+        .exclude(archive_source_key__exact='')
+    )
+
+    def __get_size(q):
+        return q.aggregate(Sum('size'))['size__sum']
+
     return {
         'task_matrix_header': task_matrix_header,
         'task_matrix': sorted(task2),
@@ -323,7 +342,12 @@ def _get_stats(old_values):
             'files': models.File.objects.count(),
             'directories': models.Directory.objects.count(),
             'blob_count': blobs.count(),
-            'blob_total_size': blobs.aggregate(Sum('size'))['size__sum'],
+            'blob_total_size': __get_size(stored_blobs),
+            'blob_total_count': stored_blobs.count(),
+            'collection_source_size': __get_size(collection_source),
+            'collection_source_count': collection_source.count(),
+            'archive_source_size': __get_size(archive_source),
+            'archive_source_count': archive_source.count(),
         },
         'db_size': db_size,
         'error_counts': list(get_error_counts()),
@@ -592,9 +616,12 @@ class BlobAdmin(MultiDBModelAdmin):
     list_display = ['__str__', 'mime_type', 'mime_encoding', 'created']
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
-                     'magic', 'mime_type', 'mime_encoding']
+                     'magic', 'mime_type', 'mime_encoding',
+                     'collection_source_key', 'archive_source_key',
+                     'archive_source_blob__pk', 'archive_source_blob__md5']
     readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5', 'created',
-                       'size', 'magic', 'mime_type', 'mime_encoding']
+                       'size', 'magic', 'mime_type', 'mime_encoding',
+                       'collection_source_key', 'archive_source_key', 'archive_source_blob']
 
     change_form_template = 'snoop/admin_blob_change_form.html'
 
