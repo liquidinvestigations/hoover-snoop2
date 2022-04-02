@@ -134,6 +134,23 @@ class Blob(models.Model):
     mime_encoding = models.CharField(max_length=1024)
     """mime encoding given by libmagic, for text files."""
 
+    collection_source_key = models.CharField(max_length=4096, blank=True)
+    """If this is set, we store and retrieve the file using this key from the collections S3 instead of the
+    default blobs S3."""
+
+    archive_source_key = models.CharField(max_length=4096, blank=True)
+    """If this is set, we store and retrieve the file using this path inside an archive, instead of the
+    default blobs S3. How to access the archive is specified by the `archive_source_blob` field."""
+
+    archive_source_blob = models.ForeignKey(
+        'Blob',
+        null=True,
+        on_delete=models.RESTRICT,
+        related_name='archive_children_blobs',
+    )
+    """If this is set, get the archive from this parent Blob. The file is under path
+    `archive_source_key`."""
+
     date_created = models.DateTimeField(auto_now_add=True)
     """Auto-managed timestamp."""
 
