@@ -7,7 +7,7 @@ steps:
   commands:
   - flake8
 - name: pylint
-  image: cytopia/pylint:latest-0.5
+  image: cytopia/pylint:latest-0.6
   commands:
   - pylint snoop
 
@@ -138,15 +138,15 @@ services:
   - name: minio-v
     path: /data
   commands:
-  - server /data
+  - minio server /data
 
 - name: minio-collections
   image: minio/minio:RELEASE.2022-03-26T06-49-28Z
   volumes:
-  - name: minio-v
+  - name: test-collections-v
     path: /data
   commands:
-  - server /data
+  - minio server /data
 
 - name: snoop-rabbitmq
   image: rabbitmq:3.7.3
@@ -220,9 +220,12 @@ steps:
   volumes:
   - name: test-collections-v
     path: /data
+  - name: test-collections-v-2
+    path: /data-2
   commands:
   - cd /data
   - git clone https://github.com/hoover/testdata
+  - cp -a testdata /data-2
 
 - name: wait for nlp service
   image: alpine/git:1.0.7
@@ -233,7 +236,19 @@ steps:
 
 - name: run tests
   image: liquidinvestigations/hoover-snoop2:${DRONE_COMMIT_BRANCH}
+  # privileged because needs:
+  # cap_add = ["mknod", "sys_admin"]
+  # devices = [{host_path = "/dev/fuse", container_path = "/dev/fuse"}]
+  # security_opt = ["apparmor=unconfined"]
+  privileged: true
   pull: always
+  volumes:
+  - name: dev-fuse
+    path: /dev/fuse
+
+  - name: test-collections-v-2
+    path: /opt/hoover/collections
+
   environment:
     WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998, snoop-thumbnail:9990, snoop-pdf-preview:3000, snoop-image-classification:5001, snoop-nlp-service:5000, minio-blobs:9000
     WAIT_HOSTS_TIMEOUT: 60
@@ -264,9 +279,14 @@ trigger:
   - cron
 
 volumes:
+- name: dev-fuse
+  host:
+    path: /dev/fuse
 - name: minio-v
   temp: {}
 - name: test-collections-v
+  temp: {}
+- name: test-collections-v-2
   temp: {}
 - name: es-v
   temp: {}

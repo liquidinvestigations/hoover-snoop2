@@ -145,6 +145,13 @@ class FakeData:
     def init(self):
         indexing.delete_index()
         indexing.create_index()
+
+        bucket = collections.current().name
+        if settings.BLOBS_S3.bucket_exists(bucket):
+            for obj in settings.BLOBS_S3.list_objects(bucket, prefix='/', recursive=True):
+                settings.BLOBS_S3.remove_object(bucket, obj.object_name)
+            settings.BLOBS_S3.remove_bucket(bucket)
+        settings.BLOBS_S3.make_bucket(bucket)
         return models.Directory.objects.create()
 
     def blob(self, data):

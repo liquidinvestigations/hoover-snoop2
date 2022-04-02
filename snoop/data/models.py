@@ -252,7 +252,10 @@ class Blob(models.Model):
         return cls.create_from_bytes(json.dumps(data, indent=1).encode('utf-8'))
 
     @classmethod
-    def create_from_file(cls, path, collection_source_key=None):
+    def create_from_file(cls, path,
+                         collection_source_key=None,
+                         archive_source_key=None,
+                         archive_source_blob=None):
         """Create a Blob from a file on disk.
 
         Since we know it has a stable path on disk, we take the luxury of
@@ -261,7 +264,10 @@ class Blob(models.Model):
         the data.
 
         Args:
-            path: string or Path to read from
+            path: string or Path to read from.
+            collection_source_key: if set, will use the collection source bucket as storage.
+            archive_source_key: if set, will use this path inside the archive to find the file.
+            archive_source_blob: if set, will use the archive marked by this argument as storage.
         """
         path = Path(path).resolve().absolute()
         writer = BlobWriter()
@@ -284,6 +290,19 @@ class Blob(models.Model):
 
                 b.collection_source_key = collection_source_key
                 b.save()
+
+            if archive_source_key and not b.archive_source_key:
+                # delete this from minio and override/save new key
+                try:
+                    settings.BLOBS_S3.remove_object(collections.current().name, blob_repo_path(b.pk))
+                    logger.info('successfully deleted object from s3.')
+                except Exception as e:
+                    logger.exception(e)
+                    logger.error('failed to delete object from s3.')
+
+                b.archive_source_key = archive_source_key
+                b.archive_source_blob = archive_source_blob
+                b.save()
             return b
 
         except ObjectDoesNotExist:
@@ -291,6 +310,14 @@ class Blob(models.Model):
                 m = Magic(path)
                 fields.update(m.fields)
                 fields['collection_source_key'] = collection_source_key
+                (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
+                return blob
+
+            if archive_source_key:
+                m = Magic(path)
+                fields.update(m.fields)
+                fields['archive_source_key'] = archive_source_key
+                fields['archive_source_blob'] = archive_source_blob
                 (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
                 return blob
 
@@ -303,12 +330,20 @@ class Blob(models.Model):
 
     @contextmanager
     def mount_path(self):
-        """Mount this blob under some temporary directory using s3fs-fuse and return its path."""
+        """Mount this blob under some temporary directory using s3fs-fuse / fuse-7z-ng and return its
+        path."""
 
-        if self.collection_source_key:
+        if self.archive_source_key:
+            from snoop.data.analyzers.archives import mount_7z_archive  # noqa
+            with self.archive_source_blob.mount_path() as archive_path:
+                with mount_7z_archive(self.archive_source_blob,
+                                      archive_path) as archive_root:
+                    yield os.path.join(archive_root, self.archive_source_key)
+
+        elif self.collection_source_key:
             with collections.current().mount_collections_root() as collection_root:
-                key = self.collection_source_key
-                yield os.path.join(collection_root, key)
+                yield os.path.join(collection_root, self.collection_source_key)
+
         else:
             with collections.current().mount_blobs_root() as blobs_root:
                 key = blob_repo_path(self.pk)
@@ -333,6 +368,12 @@ class Blob(models.Model):
 
         In that case, just use the `mount_path` contextmanager to get a POSIX filesystem path.
         """
+        # if (need_seek and need_fileno) or self.archive_source_key:
+        if (need_fileno) or self.archive_source_key:
+            with self.mount_path() as blob_path:
+                yield open(blob_path, mode='rb')
+                return
+
         if self.collection_source_key:
             bucket = collections.current().name
             key = self.collection_source_key
@@ -344,12 +385,7 @@ class Blob(models.Model):
             smart_transport_params = settings.SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS
             minio_client = settings.BLOBS_S3
 
-        if need_seek and need_fileno:
-            with self.mount_path() as blob_path:
-                yield open(blob_path, mode='rb')
-                return
-
-        elif need_seek:
+        if need_seek:
             url = f's3u://{bucket}/{key}'
             yield smart_open(
                 url,
@@ -358,28 +394,28 @@ class Blob(models.Model):
             )
             return
 
-        elif need_fileno:
-            # Supply opened unix pipe. Pipe is written to by fork.
-            with tempfile.TemporaryDirectory() as d:
-                fifo = os.path.join(d, 'fifo')
-                os.mkfifo(fifo, 0o600)
-                if os.fork() > 0:
-                    logger.info('parent process: call open on fifo')
-                    yield open(fifo, mode='rb')
-                else:
-                    logger.info('child process: write into fifo')
-                    r = None
-                    try:
-                        r = minio_client.get_object(bucket, key)
-                        with open(fifo, mode='wb') as fwrite:
-                            while (b := r.read(2 ** 20)):
-                                fwrite.write(b)
-                    finally:
-                        if r:
-                            r.close()
-                            r.release_conn()
-                        logger.info('child process: exit')
-                        os._exit(0)
+        # elif need_fileno:
+        #     # Supply opened unix pipe. Pipe is written to by fork.
+        #     with tempfile.TemporaryDirectory(prefix=f'blob-fifo-{self.pk}-') as d:
+        #         fifo = os.path.join(d, 'fifo')
+        #         os.mkfifo(fifo, 0o600)
+        #         if os.fork() > 0:
+        #             logger.info('parent process: call open on fifo')
+        #             yield open(fifo, mode='rb')
+        #         else:
+        #             logger.info('child process: write into fifo')
+        #             r = None
+        #             try:
+        #                 r = minio_client.get_object(bucket, key)
+        #                 with open(fifo, mode='wb') as fwrite:
+        #                     while (b := r.read(2 ** 20)):
+        #                         fwrite.write(b)
+        #             finally:
+        #                 if r:
+        #                     r.close()
+        #                     r.release_conn()
+        #                 logger.info('child process: exit')
+        #                 os._exit(0)
         else:
             r = None
             try:
@@ -1056,8 +1092,7 @@ class OcrSource(models.Model):
         """Returns the absolute path for the External OCR source.
         """
 
-        col = collections.current()
-        with col.mount_collections_root() as collection_root:
+        with collections.current().mount_collections_root() as collection_root:
             path = Path(collection_root) / 'ocr' / self.name
             assert path.is_dir()
             yield path

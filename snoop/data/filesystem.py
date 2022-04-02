@@ -149,7 +149,7 @@ def walk(directory_pk):
                     handle_file.laterz(file.pk, queue_now=False)
 
 
-@snoop_task('filesystem.handle_file', priority=1)
+@snoop_task('filesystem.handle_file', priority=1, version=2)
 @profile()
 def handle_file(file_pk, **depends_on):
     """Parse, update and possibly convert file found on in dataset.
@@ -179,7 +179,7 @@ def handle_file(file_pk, **depends_on):
     file.blob = file.original
 
     # start choosing a conversion blob for this file
-    if archives.is_archive(file.original.mime_type):
+    if archives.is_archive(file.blob):
         unarchive_task = archives.unarchive.laterz(file.blob)
         create_archive_files.laterz(
             file.pk,

@@ -3,10 +3,55 @@
 - [x] CI -- add to drone
 - [x] testsuite/test_lifecycle.py -- delete all minio buckets; maybe also do in other tests?
 - [x] snoop/data/blob.py -- rewrite using minio
-- [ ] snoop/data/blob.py -- fetch original blobs from source minio, instead of duplicating blob
-- [ ] delete old, unneeded blobs (when originals also exist)
+- [x] snoop/data/blob.py -- fetch original blobs from source minio, instead of duplicating blob
+- [x] delete old, unneeded blobs (when originals also exist)
+
+- [x] split archives: 7zip
+- [x] split archives: zip
+      'volname.zip', 'volname.z01', 'volname.z02'
+    - we can *probably* mount the same split archives with concat-fuse
+- [x] split archives: rar
+      these can be:
+        Filename.part1.rar   <-- first
+        Filename.part2.rar
+        Filename.part3.rar
+
+      or:
+        Filename.part01.rar   <-- first
+        Filename.part02.rar
+        Filename.part03.rar
+
+      or:
+        Filename.part001.rar   <-- first
+        Filename.part002.rar
+        Filename.part003.rar
+
+      or:
+        Filename.000.rar   <-- first
+        Filename.001.rar
+        Filename.002.rar
+
+      or:
+        Filename.rar   <-- first
+        Filename.r00
+        Filename.r01
+
+      Also, we might not be able to mount these (since each file has a separate header and structure), so the p7zip hack might not work. In that case, simply unarchive the splits as usual.
+
 
 - [ ] split worker command lines into 3:
   - disk workers (require orig data, tmp drive)
   - http workers (scaled differently, remove need for tmp drive, use normal temp)
   - normal workers (no temp, no disk)
+
+- [ ] extract split archives from places that aren't *mounted* archives or original data filesystems
+    - if the source archives for the split are only found in Blob storage (e.g. from email),
+      then we give `7z` the path to some `/ab/cd/912348...` file that doesn't
+      have an extension, and that isn't next to its split files.
+    - identify when we encounter a split archive, and identify  its other split parts
+    - symlink all the parts in a folder and run 7z on the first item (see filename format list above)
+- [ ] mount split archives instead of unpacking
+    - we can mount split archives if they're combined with concat-fuse (or rather its script cfconcat)
+    - this should work for 7z and zip
+    - we need to figure out the file list ourselves, and give them all to cfconcat
+    - if this does not work, fallback to usual unpacking

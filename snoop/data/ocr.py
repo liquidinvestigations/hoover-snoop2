@@ -79,7 +79,7 @@ def ocr_texts_for_blob(original):
 
     for ocr_document in ocr_documents_for_blob(original):
         with ocr_document.text.open() as f:
-            text = f.read()
+            text = f.read().decode('utf-8')
         yield (ocr_document.source.name, text)
 
 
@@ -118,7 +118,7 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
     """
 
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    with ocr_source.mount_path() as ocr_source_root:
+    with ocr_source.mount_root() as ocr_source_root:
         path = ocr_source_root / file_path
 
         original_hash = path.name[:32].lower()

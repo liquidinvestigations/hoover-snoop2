@@ -16,3 +16,4 @@ celerybeat*
 /.test-args
 /.drone.yml.bak
 site/
+/core

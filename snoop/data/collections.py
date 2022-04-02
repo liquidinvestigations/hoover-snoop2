@@ -229,18 +229,25 @@ class Collection:
         Another temporary directory is created to store the cache."""
 
         address = settings.SNOOP_BLOBS_MINIO_ADDRESS
-        subprocess.check_call("chmod 600 /local/minio-blobs.pass", shell=True)
         mount_mode = 'ro' if readonly else 'rw'
-        password_file = "/local/minio-blobs.pass"
+        with tempfile.NamedTemporaryFile(prefix='pass-minio-blobs-', delete=False) as pass_temp:
+            password_file = pass_temp.name
+            subprocess.check_call(f"chmod 600 {password_file}", shell=True)
+            pass_str = (settings.SNOOP_BLOBS_MINIO_ACCESS_KEY
+                        + ':'
+                        + settings.SNOOP_BLOBS_MINIO_SECRET_KEY).encode('latin-1')
+            pass_temp.write(pass_str)
+            pass_temp.close()
 
-        with tempfile.TemporaryDirectory(prefix='blob-tmp-cache-') as cache:
-            target = tempfile.mkdtemp(prefix='blob-mount-target-')
-            mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
-            try:
-                yield target
-            finally:
-                umount_s3fs(target)
-                os.rmdir(target)
+            with tempfile.TemporaryDirectory(prefix='blob-tmp-cache-') as cache:
+                target = tempfile.mkdtemp(prefix='blob-mount-target-')
+                mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
+                try:
+                    yield target
+                finally:
+                    umount_s3fs(target)
+                    os.rmdir(target)
+                    os.unlink(password_file)
 
     @contextmanager
     def mount_collections_root(self, readonly=True):
@@ -249,23 +256,33 @@ class Collection:
         Another temporary directory is created to store the cache."""
 
         address = settings.SNOOP_COLLECTIONS_MINIO_ADDRESS
-        subprocess.check_call("chmod 600 /local/minio-collections.pass", shell=True)
         mount_mode = 'ro' if readonly else 'rw'
-        password_file = "/local/minio-collections.pass"
 
-        with tempfile.TemporaryDirectory(prefix='collection-tmp-cache-') as cache:
-            target = tempfile.mkdtemp(prefix='collection-mount-target-')
-            mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
-            try:
-                yield target
-            finally:
-                umount_s3fs(target)
-                os.rmdir(target)
+        with tempfile.NamedTemporaryFile(prefix='pass-minio-collections-', delete=False) as pass_temp:
+            password_file = pass_temp.name
+            subprocess.check_call(f"chmod 600 {password_file}", shell=True)
+            pass_str = (settings.SNOOP_COLLECTIONS_MINIO_ACCESS_KEY
+                        + ':'
+                        + settings.SNOOP_COLLECTIONS_MINIO_SECRET_KEY).encode('latin-1')
+            pass_temp.write(pass_str)
+            pass_temp.close()
+
+            with tempfile.TemporaryDirectory(prefix='collection-tmp-cache-') as cache:
+                target = tempfile.mkdtemp(prefix='collection-mount-target-')
+                mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
+                try:
+                    assert os.path.isdir(os.path.join(target, 'data')), 'no data found in bucket'
+                    yield target
+                finally:
+                    umount_s3fs(target)
+                    os.rmdir(target)
+                    os.unlink(password_file)
 
     @contextmanager
     def mount_gpghome(self):
-        with self.mount_collections_root(readonly=False) as root:
-            yield os.path.join(root, self.GPGHOME_DIR)
+        with self.mount_collections_root(readonly=False) as collection_root:
+            gpg_root = os.path.join(collection_root, self.GPGHOME_DIR)
+            yield gpg_root
 
 
 def all_collection_dbs():
@@ -393,6 +410,7 @@ def current():
 
 
 def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
+    """Run subprocess to mount s3fs disk to target. Will wait until completed."""
     subprocess.check_call(f"""
         s3fs \\
         -o {mount_mode} -o allow_other \\
@@ -405,11 +423,17 @@ def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
 
 
 def umount_s3fs(target):
+    """Run subprocess to umount s3fs disk from target. Will wait until completed."""
+    subprocess.run(f"umount {target}", shell=True, check=False)
+    attempt = 0
     while os.listdir(target):
         subprocess.check_call(f"""
             umount {target} || umount -l {target} || true;
         """, shell=True)
 
+        attempt += 1
+        if attempt > 100:
+            raise RuntimeError('cannot umount the s3fs!')
         time.sleep(0.05)
 
 
