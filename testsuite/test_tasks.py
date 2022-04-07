@@ -31,7 +31,7 @@ def test_blob_arg(taskmanager):
     @snoop_task('test_with_blob')
     def with_blob(blob, a):
         with blob.open() as src:
-            data = src.read()
+            data = src.read().decode('utf8')
 
         with models.Blob.create() as output:
             output.write(f"{data} {a}".encode('utf8'))

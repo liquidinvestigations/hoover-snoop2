@@ -103,7 +103,7 @@ def walk(directory_pk):
     """
     directory = models.Directory.objects.get(pk=directory_pk)
     with collections.current().mount_collections_root() as root_collection_path:
-        root_data_path = os.path.join(root_collection_path, 'data')
+        root_data_path = os.path.join(root_collection_path, collections.Collection.DATA_DIR)
 
         path = directory_absolute_path(root_data_path, directory)
 

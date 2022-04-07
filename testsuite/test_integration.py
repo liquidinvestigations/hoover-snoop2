@@ -48,8 +48,12 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
     # delete blobs from minio
     # TODO
     for b in settings.BLOBS_S3.list_buckets():
-        print('del bucket', b.name)
-        settings.BLOBS_S3.remove_bucket(b.name)
+        bucket = b.name
+        print('del bucket', bucket)
+        for obj in settings.BLOBS_S3.list_objects(bucket, prefix='/', recursive=True):
+            settings.BLOBS_S3.remove_object(bucket, obj.object_name)
+        settings.BLOBS_S3.remove_bucket(bucket)
+    settings.BLOBS_S3.make_bucket('testdata')
 
     models.Directory.objects.create()
     indexing.delete_index()

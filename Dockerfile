@@ -31,7 +31,6 @@ RUN set -e \
 RUN chown -R $UID:$GID /runserver
 RUN chown -R $UID:$GID /opt/libpst
 
-ENV DATA_DIR "/opt/hoover/snoop"
 ENV USER_NAME $USER_NAME
 ENV UID $UID
 ENV GID $GID
