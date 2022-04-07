@@ -165,13 +165,13 @@ PDF_PREVIEW_EXTENSIONS = {
 Based on [[https://gotenberg.dev/docs/modules/libreoffice]].
 """
 
-PDF_PREVIEW_TIMEOUT_BASE = 60
+PDF_PREVIEW_TIMEOUT_BASE = 120
 """Minimum number of seconds to wait for this service."""
 
 PDF_PREVIEW_TIMEOUT_MAX = 2 * 3600
 """Maximum number of seconds to wait for this service. For PDF preview we allow 2h."""
 
-PDF_PREVIEW_MIN_SPEED_BPS = 35 * 1024  # 35 KB/s
+PDF_PREVIEW_MIN_SPEED_BPS = 15 * 1024  # 15 KB/s
 """Minimum reference speed for this task. Saved as 10% of the Average Success
 Speed in the Admin UI. The timeout is calculated using this value, the request
 file size, and the previous `TIMEOUT_BASE` constant."""
