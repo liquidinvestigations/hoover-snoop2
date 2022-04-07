@@ -272,6 +272,7 @@ def all_collection_dbs():
 def drop_db(db_name):
     """Run the SQL `DROP DATABASE SQL` command.
     """
+    logger.warning('DROPPPING SQL DATABASE %s', db_name)
     with connection.cursor() as conn:
         conn.execute(f'DROP DATABASE "{db_name}"')
 
@@ -291,7 +292,13 @@ def migrate_databases():
     """Run database migrations for everything in [snoop.data.collections.ALL][]"""
 
     for col in ALL.values():
-        col.migrate()
+        try:
+            logger.info(f'Migrating database {col.db_name}')
+            col.migrate()
+        except Exception as e:
+            logger.exception(e)
+            logger.error("Failed to migrate database {col.db_name}")
+            raise
 
 
 def create_es_indexes():
