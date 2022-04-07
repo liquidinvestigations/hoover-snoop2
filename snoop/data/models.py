@@ -135,11 +135,11 @@ class Blob(models.Model):
     mime_encoding = models.CharField(max_length=1024)
     """mime encoding given by libmagic, for text files."""
 
-    collection_source_key = models.CharField(max_length=4096, blank=True)
+    collection_source_key = models.BinaryField(max_length=4096, blank=True)
     """If this is set, we store and retrieve the file using this key from the collections S3 instead of the
     default blobs S3."""
 
-    archive_source_key = models.CharField(max_length=4096, blank=True)
+    archive_source_key = models.BinaryField(max_length=4096, blank=True)
     """If this is set, we store and retrieve the file using this path inside an archive, instead of the
     default blobs S3. How to access the archive is specified by the `archive_source_blob` field."""
 
@@ -335,14 +335,18 @@ class Blob(models.Model):
 
         if self.archive_source_key:
             from snoop.data.analyzers.archives import mount_7z_archive  # noqa
+            key_str = self.archive_source_key.tobytes().decode('utf-8', errors='surrogateescape')
             with self.archive_source_blob.mount_path() as archive_path:
                 with mount_7z_archive(self.archive_source_blob,
                                       archive_path) as archive_root:
-                    yield os.path.join(archive_root, self.archive_source_key)
+                    yield os.path.join(archive_root,
+                                       key_str)
 
         elif self.collection_source_key:
             with collections.current().mount_collections_root() as collection_root:
-                yield os.path.join(collection_root, self.collection_source_key)
+                key_str = self.collection_source_key.tobytes().decode('utf-8', errors='surrogateescape')
+                yield os.path.join(collection_root,
+                                   key_str)
 
         else:
             with collections.current().mount_blobs_root() as blobs_root:
@@ -376,7 +380,7 @@ class Blob(models.Model):
 
         if self.collection_source_key:
             bucket = collections.current().name
-            key = self.collection_source_key
+            key = self.collection_source_key.tobytes().decode('utf-8', errors='surrogateescape')
             smart_transport_params = settings.SNOOP_COLLECTIONS_SMART_OPEN_TRANSPORT_PARAMS
             minio_client = settings.COLLECTIONS_S3
         else:
@@ -394,6 +398,8 @@ class Blob(models.Model):
             )
             return
 
+        # This works on subprocess calls, **but** if the process fails, they hang forever.
+        # TODO We need to find an alternative to this, that works good when the process fails.
         # elif need_fileno:
         #     # Supply opened unix pipe. Pipe is written to by fork.
         #     with tempfile.TemporaryDirectory(prefix=f'blob-fifo-{self.pk}-') as d:

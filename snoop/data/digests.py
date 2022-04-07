@@ -205,7 +205,7 @@ def gather(blob, **depends_on):
                         f'pdftotext -q -enc UTF-8 /dev/stdin - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',  # noqa: E501
                         shell=True,
                         stdin=f,
-                    ).decode('utf8')
+                    ).decode('utf8', errors='replace').strip()
             else:
                 with ocr_blob.open() as f:
                     ocr_results[f'tesseract_{lang}'] = read_exactly(

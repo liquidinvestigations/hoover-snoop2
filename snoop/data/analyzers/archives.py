@@ -374,7 +374,10 @@ def create_blobs(dirlisting, unlink=True, archive_source_blob=None, archive_sour
                 entry['blob_pk'] = models.Blob.create_from_file(
                     path,
                     archive_source_blob=archive_source_blob,
-                    archive_source_key=os.path.relpath(path, start=archive_source_root),
+                    archive_source_key=os.path.relpath(
+                        path,
+                        start=archive_source_root,
+                    ).encode('utf-8', errors='surrogateescape'),
                 ).pk
             else:
                 entry['blob_pk'] = models.Blob.create_from_file(path).pk

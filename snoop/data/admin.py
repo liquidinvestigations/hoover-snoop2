@@ -169,12 +169,14 @@ def get_task_matrix(task_queryset, prev_matrix={}):
         .values('func')
         .annotate(size=Avg('blob_arg__size'))
         .annotate(avg_duration=Avg(F('date_finished') - F('date_started')))
+        .annotate(total_duration=Sum(F('date_finished') - F('date_started')))
     )
     for bucket in task_success_speed:
         row = task_matrix[bucket['func']]
         row['success_avg_size'] = (bucket['size'] or 0) + SIZE_OVERHEAD
         row['success_avg_duration'] = bucket['avg_duration'].total_seconds() + TIME_OVERHEAD
         row['success_avg_bytes_sec'] = (row['success_avg_size']) / (row['success_avg_duration'])
+        row['success_total_duration'] = int(bucket['total_duration'].total_seconds() + TIME_OVERHEAD)
     for func in prev_matrix:
         old = prev_matrix.get(func, {}).get('success_avg_bytes_sec', 0)
         # sometimes garbage appears in the JSON (say, if you edit it manually while working on it)
@@ -317,18 +319,18 @@ def _get_stats(old_values):
 
     stored_blobs = (
         blobs
-        .filter(collection_source_key__exact='',
-                archive_source_key__exact='')
+        .filter(collection_source_key__exact=b'',
+                archive_source_key__exact=b'')
     )
 
     collection_source = (
         blobs
-        .exclude(collection_source_key__exact='')
+        .exclude(collection_source_key__exact=b'')
     )
 
     archive_source = (
         blobs
-        .exclude(archive_source_key__exact='')
+        .exclude(archive_source_key__exact=b'')
     )
 
     def __get_size(q):
@@ -613,7 +615,9 @@ class FileAdmin(MultiDBModelAdmin):
 class BlobAdmin(MultiDBModelAdmin):
     """List and detail views for the blobs."""
 
-    list_display = ['__str__', 'mime_type', 'mime_encoding', 'created']
+    list_display = ['__str__', 'mime_type', 'mime_encoding', 'created',
+                    'storage', 'size',
+                    ]
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
                      'magic', 'mime_type', 'mime_encoding',
@@ -621,9 +625,20 @@ class BlobAdmin(MultiDBModelAdmin):
                      'archive_source_blob__pk', 'archive_source_blob__md5']
     readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5', 'created',
                        'size', 'magic', 'mime_type', 'mime_encoding',
-                       'collection_source_key', 'archive_source_key', 'archive_source_blob']
+                       '_collection_source_key', '_archive_source_key', 'archive_source_blob']
 
     change_form_template = 'snoop/admin_blob_change_form.html'
+
+    def _collection_source_key(self, obj):
+        return obj.collection_source_key.tobytes().decode('utf8', errors='surrogateescape')
+
+    def _archive_source_key(self, obj):
+        return obj.collection_source_key.tobytes().decode('utf8', errors='surrogateescape')
+
+    def storage(self, obj):
+        return ('collection' if bool(obj.collection_source_key) else (
+            'archive' if bool(obj.archive_source_key) else 'blobs'
+        ))
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         """Optionally fetch and display the actual blob data in the defail view.
@@ -650,6 +665,11 @@ class BlobAdmin(MultiDBModelAdmin):
     def created(self, obj):
         """Returns user-friendly string with date created (like "3 months ago")."""
         return naturaltime(obj.date_created)
+    created.admin_order_field = 'date_created'
+
+    def size(self, obj):
+        return obj.size
+    size.admin_order_field = 'size'
 
     def get_preview_content(self, blob):
         """Returns string with text for Blobs that are JSON or text.

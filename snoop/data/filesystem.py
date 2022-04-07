@@ -107,6 +107,7 @@ def walk(directory_pk):
 
         path = directory_absolute_path(root_data_path, directory)
 
+        fail_count = 0
         for i, thing in enumerate(path.iterdir()):
             queue_limit = i >= settings.CHILD_QUEUE_LIMIT
 
@@ -121,10 +122,18 @@ def walk(directory_pk):
             else:
                 directory = models.Directory.objects.get(pk=directory_pk)
                 path = directory_absolute_path(root_data_path, directory) / thing.name
-                stat = path.stat()
+                try:
+                    stat = path.stat()
+                except FileNotFoundError as e:
+                    log.exception(e)
+                    fail_count += 1
+                    continue
                 relative_path = os.path.relpath(path, start=root_collection_path)
 
-                original = models.Blob.create_from_file(path, collection_source_key=relative_path)
+                original = models.Blob.create_from_file(
+                    path,
+                    collection_source_key=relative_path.encode('utf-8', errors='surrogateescape'),
+                )
                 file, created = directory.child_file_set.get_or_create(
                     name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
                     defaults=dict(
@@ -147,6 +156,9 @@ def walk(directory_pk):
                     handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
                 else:
                     handle_file.laterz(file.pk, queue_now=False)
+    if fail_count > 0:
+        raise SnoopTaskBroken(f"This folder has S3 mount errors. Fail count = {fail_count} items.",
+                              "s3_mount_file_not_found")
 
 
 @snoop_task('filesystem.handle_file', priority=1, version=2)
