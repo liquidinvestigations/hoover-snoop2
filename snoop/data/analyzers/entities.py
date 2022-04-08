@@ -22,9 +22,6 @@ MAX_ENTITY_TEXT_LENGTH = 200
 MAX_ENTITY_COUNT_PER_DOC = 10000
 """Stop looking at entitites in a document after this many distinct results."""
 
-MAX_ENTITY_DOC_READ = 3 * (2 ** 20)  # 3 MB, for reference, 5 MB = about one King James Bible
-"""Stop looking at the document text after this many characters."""
-
 ENTITIES_TIMEOUT_BASE = 120
 """Minimum number of seconds to wait for this service."""
 
@@ -41,16 +38,6 @@ file size, and the previous `TIMEOUT_BASE` constant."""
 
 MAX_LANGDETECT_DOC_READ = 1 * (2 ** 20)  # 1 MB
 """Max text length to read when running language detection."""
-
-MAX_TRANSLATE_DOC_READ = 400
-"""Stop translating the document text after this many characters.
-
-For comparison, 2 KB is about 300 english words or 1 min reading time.
-Processing 2 languages for 2 KB takes around 40-150s on CPU,
-depending on text.
-
-Because of that long CPU runtime, we set a very small default here.
-"""
 
 
 TRANSLATION_MIN_SPEED_BPS = 60
@@ -184,12 +171,12 @@ def get_entity_results(blob, language=None, lang_result_pk=None):
     text_sources = {}
 
     if digest_data.get('text'):
-        text_sources['text'] = digest_data.get('text', '')[:MAX_ENTITY_DOC_READ]
+        text_sources['text'] = digest_data.get('text', '')[:settings.NLP_TEXT_LENGTH_LIMIT]
 
     if digest_data.get('ocrtext'):
         for k, v in digest_data.get('ocrtext').items():
             if v:
-                text_sources[k] = v[:MAX_ENTITY_DOC_READ]
+                text_sources[k] = v[:settings.NLP_TEXT_LENGTH_LIMIT]
 
     if lang_result_pk:
         log.info('loaded language data')
@@ -197,7 +184,7 @@ def get_entity_results(blob, language=None, lang_result_pk=None):
         if lang_result_json.get('translated-text'):
             for k, v in lang_result_json.get('translated-text').items():
                 if v:
-                    text_sources[k] = v[:MAX_ENTITY_DOC_READ]
+                    text_sources[k] = v[:settings.NLP_TEXT_LENGTH_LIMIT]
 
     collected_responses = []
     for source, text in text_sources.items():
