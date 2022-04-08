@@ -19,7 +19,7 @@ from ...logs import logging_for_management_command
 log = logging.getLogger(__name__)
 
 
-def celery_argv(queues):
+def celery_argv(queues, count, mem_limit_mb):
     """Builds the command line to run a `celery worker` process."""
 
     celery_binary = (
@@ -38,12 +38,12 @@ def celery_argv(queues):
         f'--loglevel={loglevel}',
         '-Ofair',
         '--max-tasks-per-child', str(settings.WORKER_TASK_LIMIT),
-        '--max-memory-per-child', str(settings.WORKER_MEMORY_LIMIT * 1024),
+        '--max-memory-per-child', str(mem_limit_mb * 1024),
         '--prefetch-multiplier', str(14),
         '--soft-time-limit', '190000',  # 52h
         '--time-limit', '200000',  # 55h
         '-Q', ','.join(queues),
-        '-c', str(settings.WORKER_COUNT),
+        '-c', str(count),
     ]
 
     return argv
@@ -54,12 +54,13 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         """Adds flag to switch between running collection workers and system workers."""
-        parser.add_argument('--system-queues', action='store_true',
-                            help="Run system queues, not normal queues (only one instance should exist)")
-        parser.add_argument('--http-queues', action='store_true',
-                            help="Run HTTP queues, not normal queues")
-        parser.add_argument('--disk-queues', action='store_true',
-                            help="Run disk queues, not normal queues")
+        parser.add_argument('--queue', default='default',
+                            help="Run specific queue.")
+        parser.add_argument('--count', type=int, default=1,
+                            help="Worker processes to run (default 1).")
+        parser.add_argument('--mem', type=int, default=500,
+                            help=("If task exceeds this memory usage (in MB), "
+                                  "after finishing, it will restart."))
 
     def handle(self, *args, **options):
         """Runs workers for either collection processing or system tasks."""
@@ -68,17 +69,13 @@ class Command(BaseCommand):
         with Profiler():
             tasks.import_snoop_tasks()
 
-            if options['system_queues']:
+            if options['queue'] == 'system':
                 all_queues = settings.SYSTEM_QUEUES
-            elif options['http_queues']:
-                # all_queues = settings.HTTP_QUEUES
-                pass
-            elif options['disk_queues']:
-                # all_queues = settings.DISK_QUEUES
-                pass
+            elif options['queue']:
+                all_queues = [c.queue_name + '.' + options['queue'] for c in ALL.values()]
             else:
-                all_queues = [c.queue_name for c in ALL.values()]
+                raise RuntimeError('no queue given')
 
-            argv = celery_argv(queues=all_queues)
+            argv = celery_argv(queues=all_queues, count=options['count'], mem_limit_mb=options['mem'])
             log.info('+' + ' '.join(argv))
             os.execv(argv[0], argv)

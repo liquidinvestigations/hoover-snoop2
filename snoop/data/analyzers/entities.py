@@ -16,6 +16,13 @@ from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 
 log = logging.getLogger(__name__)
 
+ENTITIES_SUPPORTED_LANGUAGE_CODES = [
+    "ar", "bg", "ca", "cs", "da", "de", "el", "en", "es", "et", "fa", "fi", "fr", "he", "hi", "hr", "hu",
+    "id", "it", "ja", "ko", "lt", "lv", "ms", "nb", "nl", "no", "pl", "pt", "ro", "ru", "sk", "sl", "sr",
+    "sv", "th", "tl", "tr", "uk", "vi", "zh",
+]
+"""Supported 2 letter language codes for entity extraction."""
+
 MAX_ENTITY_TEXT_LENGTH = 200
 """Truncate entities after this length."""
 
@@ -48,6 +55,50 @@ TRANSLATION_TIMEOUT_BASE = 300
 
 TRANSLATION_TIMEOUT_MAX = 1200
 """Maximum number of seconds to wait for translation service."""
+
+TRANSLATION_SUPPORTED_LANGUAGES = [
+    {"code": "en", "name": "English"},
+    {"code": "ar", "name": "Arabic"},
+    {"code": "az", "name": "Azerbaijani"},
+    {"code": "zh", "name": "Chinese"},
+    {"code": "cs", "name": "Czech"},
+    {"code": "nl", "name": "Dutch"},
+    {"code": "fi", "name": "Finnish"},
+    {"code": "fr", "name": "French"},
+    {"code": "de", "name": "German"},
+    {"code": "hi", "name": "Hindi"},
+    {"code": "hu", "name": "Hungarian"},
+    {"code": "id", "name": "Indonesian"},
+    {"code": "ga", "name": "Irish"},
+    {"code": "it", "name": "Italian"},
+    {"code": "ja", "name": "Japanese"},
+    {"code": "ko", "name": "Korean"},
+    {"code": "pl", "name": "Polish"},
+    {"code": "pt", "name": "Portuguese"},
+    {"code": "ru", "name": "Russian"},
+    {"code": "es", "name": "Spanish"},
+    {"code": "sv", "name": "Swedish"},
+    {"code": "tr", "name": "Turkish"},
+    {"code": "uk", "name": "Ukranian"},
+    {"code": "vi", "name": "Vietnamese"},
+]
+"""Languages that can be translated to one another, including code and name. Taken copy/paste from the
+LibreTranslate API /languages route."""
+
+TRANSLATION_SUPPORTED_LANGUAGE_CODES = [
+    a['code']
+    for a in TRANSLATION_SUPPORTED_LANGUAGES
+]
+
+
+def can_translate(lang):
+    """Checks if we can translate this language."""
+    return lang in TRANSLATION_SUPPORTED_LANGUAGES
+
+
+def can_extract_entities(lang):
+    """Checks if we can extract entities from this language."""
+    return lang in ENTITIES_SUPPORTED_LANGUAGE_CODES
 
 
 def call_nlp_server(endpoint, data_dict, timeout=ENTITIES_TIMEOUT_MAX):
@@ -90,14 +141,13 @@ def call_translate_server(endpoint, data_dict, timeout=TRANSLATION_TIMEOUT_MAX):
     return resp.json()
 
 
-@snoop_task('entities.detect_language_and_translate', version=2)
+@snoop_task('entities.detect_language', version=1, queue='entities')
 @returns_json_blob
-def detect_language_and_translate(blob):
-    """Task that runs language detection and machine translation.
+def detect_language(blob):
+    """Task that runs language detection"""
 
-    Receives text from one document, concatenated from all sources (text and OCR).
-
-    Returns a JSON Blob with detected language, as well as any translations done."""
+    if not collections.current().nlp_language_detection_enabled:
+        raise SnoopTaskBroken('not enabled', 'nlp_lang_detection_not_enabled')
 
     digest = models.Digest.objects.get(blob=blob)
     digest_data = digest.result.read_json()
@@ -108,44 +158,59 @@ def detect_language_and_translate(blob):
     timeout = min(TRANSLATION_TIMEOUT_MAX,
                   int(TRANSLATION_TIMEOUT_BASE + len(texts) / TRANSLATION_MIN_SPEED_BPS))
 
-    if collections.current().nlp_language_detection_enabled:
-        lang = call_nlp_server('language_detection', {'text': texts}, timeout)['language']
-        rv = {'lang': lang}
-        log.info('language detected as %s', lang)
-    else:
-        log.warning('language detection disabled in settings.')
-        lang = None
-        rv = {}
+    lang = call_nlp_server('language_detection', {'text': texts}, timeout)['language']
+    return {'lang': lang}
 
-    if collections.current().translation_enabled:
-        texts = texts[:collections.current().translation_text_length_limit]
-        rv['translated-text'] = {}
-        rv['translated-from'] = []
-        rv['translated-to'] = []
-        for target in settings.TRANSLATION_TARGET_LANGUAGES:
-            if target == lang:
-                log.warning("skipping translation from %s into %s", lang, target)
-                continue
-            tr_source = lang or 'auto'
-            log.info('translating length=%s from %s to %s', len(texts), tr_source, target)
-            tr_args = {'q': texts, 'source': tr_source, 'target': target}
-            tr_text = call_translate_server('translate', tr_args, timeout)
-            tr_text = tr_text.get('translatedText', '').strip()
-            if tr_text and len(tr_text) > 1:
-                rv['translated-text'][f'translated_{tr_source}_to_{target}'] = tr_text
-                rv['translated-from'].append(tr_source)
-                rv['translated-to'].append(target)
-            else:
-                log.warning("failed translation from %s into %s", lang, target)
-    else:
-        log.warning('translation disabled in settings.')
+
+@snoop_task('entities.translate', version=1, queue='translate')
+@returns_json_blob
+def translate(blob, lang):
+    """Task that runs language detection and machine translation.
+
+    Receives text from one document, concatenated from all sources (text and OCR).
+
+    Returns a JSON Blob with detected language, as well as any translations done."""
+    if not collections.current().translation_enabled:
+        raise SnoopTaskBroken('not enabled', 'nlp_translate_not_enabled')
+
+    _txt_limit = collections.current().translation_text_length_limit
+    digest = models.Digest.objects.get(blob=blob)
+    digest_data = digest.result.read_json()
+    texts = [digest_data.get('text', "")] + list(digest_data.get('ocrtext', {}).values())
+    texts = [t[:_txt_limit].strip() for t in texts if len(t.strip()) > 1]
+    texts = "\n\n".join(texts).strip()[:MAX_LANGDETECT_DOC_READ]
+
+    timeout = min(TRANSLATION_TIMEOUT_MAX,
+                  int(TRANSLATION_TIMEOUT_BASE + len(texts) / TRANSLATION_MIN_SPEED_BPS))
+
+    rv = {'lang': lang}
+
+    texts = texts[:_txt_limit]
+    rv['translated-text'] = {}
+    rv['translated-from'] = []
+    rv['translated-to'] = []
+    for target in settings.TRANSLATION_TARGET_LANGUAGES:
+        if target == lang:
+            log.warning("skipping translation from %s into %s", lang, target)
+            continue
+        tr_source = lang or 'auto'
+        log.info('translating length=%s from %s to %s', len(texts), tr_source, target)
+        tr_args = {'q': texts, 'source': tr_source, 'target': target}
+        tr_text = call_translate_server('translate', tr_args, timeout)
+        tr_text = tr_text.get('translatedText', '').strip()
+        if tr_text and len(tr_text) > 1:
+            rv['translated-text'][f'translated_{tr_source}_to_{target}'] = tr_text
+            rv['translated-from'].append(tr_source)
+            rv['translated-to'].append(target)
+        else:
+            log.warning("failed translation from %s into %s", lang, target)
 
     return rv
 
 
-@snoop_task('entities.get_entity_results', version=2)
+@snoop_task('entities.get_entity_results', version=3, queue='entities')
 @returns_json_blob
-def get_entity_results(blob, language=None, lang_result_pk=None):
+def get_entity_results(blob, language=None, translation_result_pk=None):
     """ Gets all entities and the language for all text sources in a digest.
 
     Creates a dict from a string and requests entity extraction from the nlp service
@@ -154,10 +219,11 @@ def get_entity_results(blob, language=None, lang_result_pk=None):
 
     Args:
         digest_id: digest ID for the document to process. The different types of text sources will be
-        extracted from the digest and send to the nlp service to perform entity recognition.
+            extracted from the digest and send to the nlp service to perform entity recognition.
         language: an optional language code, telling the service which language
-        to use in order to process the text, instead of figuring that out by
-        itself.
+            to use in order to process the text, instead of figuring that out by
+            itself.
+        translation_result_pk: blob containing JSON with extra text sources to process.
 
     Returns:
         The responses from the calls to the NLP Server for all text sources.
@@ -178,9 +244,9 @@ def get_entity_results(blob, language=None, lang_result_pk=None):
             if v:
                 text_sources[k] = v[:settings.NLP_TEXT_LENGTH_LIMIT]
 
-    if lang_result_pk:
+    if translation_result_pk:
         log.info('loaded language data')
-        lang_result_json = models.Blob.objects.get(pk=lang_result_pk).read_json()
+        lang_result_json = models.Blob.objects.get(pk=translation_result_pk).read_json()
         if lang_result_json.get('translated-text'):
             for k, v in lang_result_json.get('translated-text').items():
                 if v:

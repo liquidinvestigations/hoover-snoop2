@@ -42,7 +42,7 @@ log = logging.getLogger(__name__)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
-@snoop_task('digests.launch', priority=4, version=9)
+@snoop_task('digests.launch', priority=4, version=9, queue='digests')
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -152,7 +152,7 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', priority=7, version=7)
+@snoop_task('digests.gather', priority=7, version=7, queue='digests')
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
@@ -286,7 +286,7 @@ def gather(blob, **depends_on):
     return result_blob
 
 
-@snoop_task('digests.index', priority=8, version=14)
+@snoop_task('digests.index', priority=8, version=14, queue='digests')
 def index(blob, **depends_on):
     """Task used to call the entity extraction for a document.
 
@@ -315,28 +315,49 @@ def index(blob, **depends_on):
 
     result = {}
 
-    # Text and ocrtext are now final; let's write a blob with the concatenated text,
-    # then run language detection and possibly translation on them.
+    # detect language
     lang_result = None
     if current_collection().nlp_language_detection_enabled \
             or current_collection().translation_enabled:
-        log.info('running language detect / translation...')
+        log.info('running language detect...')
         lang_result = require_dependency(
-            'detect_language_and_translate',
+            'detect_language',
             depends_on,
-            lambda: entities.detect_language_and_translate.laterz(blob),
+            lambda: entities.detect_language.laterz(blob),
             return_error=True,
         )
         if not lang_result or isinstance(lang_result, SnoopTaskBroken):
             log.warning('detect_language failed!')
             lang_result = None
         else:
-            log.info('running language detect / translation -- OK')
+            log.info('running language detect -- OK')
             result.update(lang_result.read_json())
 
-    if current_collection().nlp_entity_extraction_enabled:
-        if lang_result:
-            depends_on['lang_result'] = lang_result
+    # translate
+    translation_result = None
+    if current_collection().translation_enabled \
+            and entities.can_translate(result.get('lang')):
+        log.info('running translation...')
+        translation_result = require_dependency(
+            'translate',
+            depends_on,
+            lambda: entities.translate.laterz(blob, result.get('lang')),
+            return_error=True,
+        )
+
+        if not translation_result or isinstance(translation_result, SnoopTaskBroken):
+            log.warning('translation failed!')
+            translation_result = None
+        else:
+            log.info('running translation -- OK')
+            result.update(translation_result.read_json())
+
+    # extract entities
+    entity_service_results = None
+    if current_collection().nlp_entity_extraction_enabled \
+            and entities.can_extract_entities(result.get('lang')):
+        if translation_result:
+            depends_on['translation_result_pk'] = translation_result
         log.info('running entity extraction...')
         entity_service_results = require_dependency(
             'get_entity_results',
@@ -344,7 +365,7 @@ def index(blob, **depends_on):
             lambda: entities.get_entity_results.laterz(
                 blob,
                 result.get('lang'),
-                lang_result.pk if lang_result else None,
+                translation_result.pk if translation_result else None,
             ),
             return_error=True,
         )
@@ -425,7 +446,7 @@ def _set_tags_timestamps(digest_id, body):
             q.update(date_indexed=now)
 
 
-@snoop_task('digests.bulk_index', priority=9, bulk=True, version=11)
+@snoop_task('digests.bulk_index', priority=9, bulk=True, version=11, queue='digests')
 def bulk_index(batch):
     """Task used to send many documents to Elasticsearch.
 

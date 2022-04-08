@@ -64,7 +64,7 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
         tasks.run_dispatcher()
 
     print('Running taskmanager')
-    taskmanager.run(limit=50000)
+    taskmanager.run(limit=90000)
 
     time.sleep(60)
 

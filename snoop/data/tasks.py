@@ -123,7 +123,7 @@ def queue_task(task):
             logger.info(f'queueing task {task.func}(pk {task.pk})')
             laterz_snoop_task.apply_async(
                 (col.name, task.pk,),
-                queue=col.queue_name,
+                queue=col.queue_name + '.' + task_map[task.func].queue,
                 priority=shuffle_priority(task_map[task.func].priority),
                 retry=False,
             )
@@ -447,7 +447,7 @@ def run_task(task, log_handler, raise_exceptions=False):
         queue_next_tasks(task, reset=True)
 
 
-def snoop_task(name, priority=5, version=0, bulk=False):
+def snoop_task(name, priority=5, version=0, bulk=False, queue='default'):
     """Decorator marking a snoop Task function.
 
     Args:
@@ -543,13 +543,14 @@ def snoop_task(name, priority=5, version=0, bulk=False):
         func.priority = priority
         func.version = version
         func.bulk = bulk
+        func.queue = queue
         task_map[name] = func
         return func
 
     return decorator
 
 
-def dispatch_tasks(status=None, outdated=None):
+def dispatch_tasks(queue, status=None, outdated=None):
     """Dispatches (queues) a limited number of Task instances of each type.
 
     Requires a collection to be selected. Does not dispatch tasks registered with `bulk = True`.
@@ -571,7 +572,7 @@ def dispatch_tasks(status=None, outdated=None):
     all_functions = [
         x['func']
         for x in models.Task.objects.values('func').distinct()
-        if not task_map[x['func']].bulk
+        if (not task_map[x['func']].bulk and task_map[x['func']].queue == queue)
     ]
     if status:
         # sort by priority descending, so the queue doesn't have to re-sort elements
@@ -699,7 +700,7 @@ def remove_dependency(name, depends_on):
     raise ExtraDependency(name)
 
 
-@snoop_task('do_nothing')
+@snoop_task('do_nothing', queue=None)
 def do_nothing(name):
     """No-op task, here for demonstration purposes.
 
@@ -760,7 +761,8 @@ def get_rabbitmq_queue_length(q):
     cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL,
                 settings.SNOOP_RABBITMQ_HTTP_USERNAME,
                 settings.SNOOP_RABBITMQ_HTTP_PASSWORD)
-    return cl.get_queue_depth('/', q)
+    q_depth = cl.get_queue_depth('/', q)
+    return q_depth
 
 
 def single_task_running(key):
@@ -790,6 +792,7 @@ def single_task_running(key):
 
         return count
 
+    logger.info('querying rabbitmq for key %s', key)
     if get_rabbitmq_queue_length(key) > 0:
         return False
 
@@ -810,11 +813,10 @@ def save_stats():
     for collection in collections.ALL.values():
         with collection.set_current():
             try:
-                if collection.process or \
-                        not models.Statistics.objects.filter(key='stats').exists():
-                    save_collection_stats()
+                save_collection_stats()
             except Exception as e:
                 logger.exception(e)
+                continue
 
     # Kill a little bit of time, in case there are a lot of older
     # messages queued up, they have time to fail in the above
@@ -837,10 +839,15 @@ def run_dispatcher():
         return
 
     collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
+    queue_list = list(set(f.queue for f in task_map.values() if f.queue))
+    random.shuffle(collection_list)
+    random.shuffle(queue_list)
     for collection in collection_list:
         logger.info(f'{"=" * 10} collection "{collection.name}" {"=" * 10}')
         try:
-            dispatch_for(collection)
+            for q in queue_list:
+                if q:
+                    dispatch_for(collection, q)
         except Exception as e:
             logger.exception(e)
 
@@ -870,7 +877,7 @@ def update_all_tags():
             digests.update_all_tags()
 
 
-def dispatch_for(collection):
+def dispatch_for(collection, queue):
     """Queue the next batches of Tasks for a given collection.
 
     This is used to periodically look for new Tasks that must be executed. This queues: "pending" and
@@ -887,37 +894,40 @@ def dispatch_for(collection):
         logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')
         return
 
-    queue_len = get_rabbitmq_queue_length(collection.queue_name)
+    queue_len = get_rabbitmq_queue_length(collection.queue_name + '.' + queue)
     if queue_len > 0:
-        logger.info(f'dispatch: skipping "{collection}", already has {queue_len} queued tasks')
+        logger.info(f'dispatch: skipping {collection}, already has {queue_len} queued tasks on q = {queue}')
         return
 
-    logger.info('Dispatching for %r', collection)
+    funcs_in_queue = [func for func in task_map.keys() if task_map[func].queue == queue]
+
+    logger.info('Dispatching for %r, queue = %s', collection, queue)
     from .ocr import dispatch_ocr_tasks
 
     with collection.set_current():
-        if dispatch_tasks(status=models.Task.STATUS_PENDING):
+        if dispatch_tasks(queue, status=models.Task.STATUS_PENDING):
             logger.info('%r found PENDING tasks, exiting...', collection)
             return True
 
-        if dispatch_tasks(status=models.Task.STATUS_DEFERRED):
+        if dispatch_tasks(queue, status=models.Task.STATUS_DEFERRED):
             logger.info('%r found DEFERRED tasks, exiting...', collection)
             return True
 
-        count_before = models.Task.objects.count()
-        dispatch_walk_tasks()
-        dispatch_ocr_tasks()
-        count_after = models.Task.objects.count()
-        if count_before != count_after:
-            logger.info('%r initial dispatch added new tasks, exiting...', collection)
-            return True
+        if queue == 'filesystem':
+            count_before = models.Task.objects.count()
+            dispatch_walk_tasks()
+            dispatch_ocr_tasks()
+            count_after = models.Task.objects.count()
+            if count_before != count_after:
+                logger.info('%r initial dispatch added new tasks, exiting...', collection)
+                return True
 
         # retry outdated tasks
-        if dispatch_tasks(outdated=True):
+        if dispatch_tasks(queue, outdated=True):
             logger.info('%r found outdated tasks, exiting...', collection)
             return True
 
-        if collection.sync:
+        if collection.sync and queue == 'filesystem':
             logger.info("sync: retrying all walk tasks")
             # retry up oldest non-pending walk tasks that are older than 1 min
             retry_tasks(
@@ -932,6 +942,7 @@ def dispatch_for(collection):
         error_date = timezone.now() - timedelta(minutes=settings.TASK_RETRY_AFTER_MINUTES)
         old_error_qs = (
             models.Task.objects
+            .filter(func__in=funcs_in_queue)
             .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
             .filter(fail_count__lt=settings.TASK_RETRY_FAIL_LIMIT)
             .filter(date_modified__lt=error_date)

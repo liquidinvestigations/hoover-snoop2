@@ -39,10 +39,21 @@
       Also, we might not be able to mount these (since each file has a separate header and structure), so the p7zip hack might not work. In that case, simply unarchive the splits as usual.
 
 
-- [ ] split worker command lines into 3:
-  - disk workers (require orig data, tmp drive)
-  - http workers (scaled differently, remove need for tmp drive, use normal temp)
-  - normal workers (no temp, no disk)
+- [x] split worker command lines into many workers:
+  - filesystem
+  - archives
+  - all the HTTP services (tika, nlp, translate, etc)
+
+- [ ] implement HTTP service that fetches files by non-utf8 filename.
+  - use simple flask service and docker container
+  - run on read-only mount of collection data
+  - use when we get a broken filename error from S3 (file not found when trying to stat, but present on ls)
+
+- [ ] Postgresql connection pooling
+
+--------------------
+LATER
+------------------
 
 - [ ] extract split archives from places that aren't *mounted* archives or original data filesystems
     - if the source archives for the split are only found in Blob storage (e.g. from email),

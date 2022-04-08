@@ -374,7 +374,7 @@ def call_thumbnails_service(blob, size):
     return resp.content
 
 
-@snoop_task('thumbnails.get_thumbnail', version=5)
+@snoop_task('thumbnails.get_thumbnail', version=5, queue='thumbnails')
 # the @returns_json_blob decorator is only needed to check if this function ran in digests.gather
 @returns_json_blob
 def get_thumbnail(blob, pdf_preview=None):

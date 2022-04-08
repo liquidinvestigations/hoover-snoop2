@@ -131,7 +131,7 @@ def call_tika_server(endpoint, data, content_type, data_size):
     return resp
 
 
-@snoop_task('tika.rmeta')
+@snoop_task('tika.rmeta', queue='tika')
 @returns_json_blob
 def rmeta(blob):
     """Task to run Tika on a given Blob."""

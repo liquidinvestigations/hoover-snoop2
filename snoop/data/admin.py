@@ -11,6 +11,7 @@ All the different admin sites are kept in the global dict `sites`. The default a
 this dict, under the key "_default". The sites are mapped to URLs in `snoop.data.urls` using this global.
 """
 
+import logging
 import math
 import json
 import time
@@ -30,6 +31,12 @@ from . import models
 from . import tasks
 from . import collections
 from .templatetags import pretty_size
+
+
+log = logging.getLogger(__name__)
+
+
+tasks.import_snoop_tasks()
 
 
 def blob_link(blob_pk):
@@ -105,6 +112,10 @@ def get_task_matrix(task_queryset, prev_matrix={}):
     """
 
     task_matrix = defaultdict(dict)
+
+    for key, func in tasks.task_map.items():
+        if func.queue:
+            task_matrix[key]['queue'] = func.queue
 
     task_buckets_query = (
         task_queryset
@@ -246,6 +257,8 @@ def _get_stats(old_values):
     Data is returned in a JSON-serializable python dict.
     """
 
+    __t0 = time.time()
+
     def tr(key, value):
         """Render to string in user-friendly format depending on the key"""
 
@@ -354,6 +367,7 @@ def _get_stats(old_values):
         'db_size': db_size,
         'error_counts': list(get_error_counts()),
         '_last_updated': time.time(),
+        'stats_collection_time': int(time.time() - __t0) + 1,
         '_old_task_matrix': {k: tr(k, v) for k, v in task_matrix.items()},
     }
 
@@ -361,11 +375,30 @@ def _get_stats(old_values):
 def get_stats():
     """This function runs (and caches) expensive collection statistics."""
 
-    REFRESH_AFTER_SEC = 10
+    col_name_hash = int(hash(collections.current().name))
+    if collections.current().process:
+        # default stats refresh rate once per 2 min
+        REFRESH_AFTER_SEC = 100
+        # add pseudorandom 0-40s
+        REFRESH_AFTER_SEC += col_name_hash % 40
+    else:
+        # non-processed collection stats are only pulled once / week
+        REFRESH_AFTER_SEC = 604800
+        # add a pseudorandom 0-60min based on collection name
+        REFRESH_AFTER_SEC += col_name_hash % 3600
+
     s, _ = models.Statistics.objects.get_or_create(key='stats')
     old_value = s.value
+    duration = old_value.get('stats_collection_time', 1) if old_value else 1
+
+    # ensure we don't fill up the worker with a single collection
+    REFRESH_AFTER_SEC += duration * 2
     if not old_value or time.time() - old_value.get('_last_updated', 0) > REFRESH_AFTER_SEC:
         s.value = _get_stats(old_value)
+    else:
+        log.info('skipping stats for collection %s, need to pass %s sec since last one',
+                 collections.current().name,
+                 REFRESH_AFTER_SEC)
     s.save()
     return s.value
 

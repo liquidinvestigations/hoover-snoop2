@@ -204,7 +204,7 @@ def call_pdf_generator(data, filename, size):
     return resp.content
 
 
-@snoop_task('pdf_preview.get_pdf', version=3)
+@snoop_task('pdf_preview.get_pdf', version=3, queue='pdf-preview')
 def get_pdf(blob):
     """Calls the pdf generator for a given blob.
 

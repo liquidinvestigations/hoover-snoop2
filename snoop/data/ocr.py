@@ -83,7 +83,7 @@ def ocr_texts_for_blob(original):
         yield (ocr_document.source.name, text)
 
 
-@snoop_task('ocr.walk_source')
+@snoop_task('ocr.walk_source', queue='filesystem')
 def walk_source(ocr_source_pk, dir_path=''):
     """Task that explores OcrSource root directory.
 
@@ -108,7 +108,7 @@ def walk_source(ocr_source_pk, dir_path=''):
                 walk_file.laterz(ocr_source.pk, f'{dir_path}{item.name}')
 
 
-@snoop_task('ocr.walk_file')
+@snoop_task('ocr.walk_file', queue='filesystem')
 def walk_file(ocr_source_pk, file_path, **depends_on):
     """Task to ingest one single file found in the OcrSource directory by [snoop.data.ocr.walk_source][].
 
@@ -224,7 +224,7 @@ def run_tesseract_on_pdf(pdf_blob, lang):
             os.remove(tmp)
 
 
-@snoop_task('ocr.run_tesseract')
+@snoop_task('ocr.run_tesseract', queue='ocr')
 def run_tesseract(blob, lang):
     """Task to run Tesseract OCR on a given document.
 

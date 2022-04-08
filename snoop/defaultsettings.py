@@ -8,7 +8,6 @@ import re
 from datetime import timedelta
 from pathlib import Path
 import json
-from multiprocessing import cpu_count
 
 from minio import Minio
 import boto3
@@ -260,22 +259,6 @@ TODO:
 """
 
 
-SNOOP_MIN_WORKERS = int(os.environ.get('SNOOP_MIN_WORKERS', '2'))
-"""Input min worker count."""
-
-
-SNOOP_MAX_WORKERS = int(os.environ.get('SNOOP_MAX_WORKERS', '8'))
-"""Input max worker count."""
-
-SNOOP_CPU_MULTIPLIER = float(os.environ.get('SNOOP_CPU_MULTIPLIER', '0.66'))
-"""Input CPU multiplier."""
-
-
-WORKER_COUNT = min(SNOOP_MAX_WORKERS,
-                   max(SNOOP_MIN_WORKERS,
-                       int(SNOOP_CPU_MULTIPLIER * cpu_count())))
-"""Computed worker count for this node."""
-
 TASK_RETRY_AFTER_MINUTES = 3
 """Errored tasks are retried at most every this number of minutes."""
 
@@ -288,16 +271,7 @@ WORKER_TASK_LIMIT = 50000
 Used to avoid memory leaks.
 """
 
-WORKER_MEMORY_LIMIT = 500
-"""Memory limit for each worker (in mb),
-
-Not enforced during job -- worker gets restarted after it uses more than this value. Used to avoid memory
-leaks.
-"""
-
-_scale_coef = int((1 + SNOOP_MIN_WORKERS + SNOOP_MAX_WORKERS + WORKER_COUNT) / 3)
-""" average worker count to scale the queue limits by
-"""
+_scale_coef = 5
 
 CHILD_QUEUE_LIMIT = 50 * _scale_coef
 """ Limit for queueing large counts of children tasks.

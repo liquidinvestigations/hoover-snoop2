@@ -62,7 +62,7 @@ def directory_absolute_path(root_data_path, directory):
     return path
 
 
-@snoop_task('filesystem.walk', priority=9, version=2)
+@snoop_task('filesystem.walk', priority=9, version=2, queue='filesystem')
 @profile()
 def walk(directory_pk):
     """Scans one level of a directory and recursively ingests all files and directories found.
@@ -161,7 +161,7 @@ def walk(directory_pk):
                               "s3_mount_file_not_found")
 
 
-@snoop_task('filesystem.handle_file', priority=1, version=2)
+@snoop_task('filesystem.handle_file', priority=1, version=2, queue='filesystem')
 @profile()
 def handle_file(file_pk, **depends_on):
     """Parse, update and possibly convert file found on in dataset.
