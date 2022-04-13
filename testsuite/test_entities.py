@@ -23,7 +23,7 @@ def test_extract_entities(fakedata, taskmanager, client):
     with test_doc.open('rb') as f:
         blob = fakedata.blob(f.read())
 
-    fakedata.file(root, 'file.doc', blob)
+    fakedata.file(root, 'file.odt', blob)
 
     taskmanager.run()
 

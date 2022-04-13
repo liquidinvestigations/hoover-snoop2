@@ -93,7 +93,7 @@ TRANSLATION_SUPPORTED_LANGUAGE_CODES = [
 
 def can_translate(lang):
     """Checks if we can translate this language."""
-    return lang in TRANSLATION_SUPPORTED_LANGUAGES
+    return lang in TRANSLATION_SUPPORTED_LANGUAGE_CODES
 
 
 def can_extract_entities(lang):
@@ -231,18 +231,19 @@ def get_entity_results(blob, language=None, translation_result_pk=None):
     digest = models.Digest.objects.get(blob=blob)
     timeout = min(ENTITIES_TIMEOUT_MAX,
                   int(ENTITIES_TIMEOUT_BASE + blob.size / ENTITIES_MIN_SPEED_BPS))
+    text_limit = collections.current().nlp_text_length_limit
 
     digest_data = digest.result.read_json()
 
     text_sources = {}
 
     if digest_data.get('text'):
-        text_sources['text'] = digest_data.get('text', '')[:settings.NLP_TEXT_LENGTH_LIMIT]
+        text_sources['text'] = digest_data.get('text', '')[:text_limit]
 
     if digest_data.get('ocrtext'):
         for k, v in digest_data.get('ocrtext').items():
             if v:
-                text_sources[k] = v[:settings.NLP_TEXT_LENGTH_LIMIT]
+                text_sources[k] = v[:text_limit]
 
     if translation_result_pk:
         log.info('loaded language data')
@@ -250,7 +251,7 @@ def get_entity_results(blob, language=None, translation_result_pk=None):
         if lang_result_json.get('translated-text'):
             for k, v in lang_result_json.get('translated-text').items():
                 if v:
-                    text_sources[k] = v[:settings.NLP_TEXT_LENGTH_LIMIT]
+                    text_sources[k] = v[:text_limit]
 
     collected_responses = []
     for source, text in text_sources.items():

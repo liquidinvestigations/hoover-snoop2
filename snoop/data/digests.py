@@ -330,8 +330,8 @@ def index(blob, **depends_on):
             log.warning('detect_language failed!')
             lang_result = None
         else:
-            log.info('running language detect -- OK')
             result.update(lang_result.read_json())
+            log.info('running language detect -- OK, lang = %s', result.get('lang'))
 
     # translate
     translation_result = None

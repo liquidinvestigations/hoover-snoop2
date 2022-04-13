@@ -271,9 +271,9 @@ WORKER_TASK_LIMIT = 50000
 Used to avoid memory leaks.
 """
 
-_scale_coef = 5
+_scale_coef = 4
 
-CHILD_QUEUE_LIMIT = 50 * _scale_coef
+CHILD_QUEUE_LIMIT = min(150, 50 * _scale_coef)
 """ Limit for queueing large counts of children tasks.
 """
 
@@ -294,12 +294,19 @@ RETRY_LIMIT_TASKS = 8000 * _scale_coef
 
 See `TASK_RETRY_FAIL_LIMIT`."""
 
-PDF2PDFOCR_MAX_STRLEN = 2 * (2 ** 20)
+OCR_ENABLED = True
+"""Flag to enable/disable OCR processing."""
+
+PDF2PDFOCR_MAX_STRLEN = 2 * (2 ** 20)  # 2 MB
 """ Only run pdf2pdfocr if pdf text length less than this value.
 
 This should defend us from over-1000-page documents that hang up the processing for days. The english bible
 has about 4 MB of text, so we use 50% of that as a simple value of when to stop.
 """
+
+PDF2PDFOCR_MAX_FILE_LEN = 1 * (2 ** 30)  # 1 GB
+""" Only run pdf2pdfocr if pdf file size is less than this value."""
+
 
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')
 """Configuration to set the URL prefix for all service routes. For example: "snoop/".

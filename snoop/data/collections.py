@@ -136,6 +136,13 @@ class Collection:
             and settings.EXTRACT_ENTITIES
 
     @property
+    def nlp_text_length_limit(self):
+        return self.opt.get(
+            'nlp_text_length_limit',
+            settings.NLP_TEXT_LENGTH_LIMIT,
+        )
+
+    @property
     def translation_enabled(self):
         return self.opt.get(
             'translation_enabled',

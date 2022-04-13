@@ -69,6 +69,22 @@ def settings_no_entities():
     settings.DETECT_LANGUAGE = detect_language
 
 
+@pytest.fixture
+def settings_no_translation():
+    url = settings.TRANSLATION_URL
+    settings.TRANSLATION_URL = False
+    yield
+    settings.TRANSLATION_URL = url
+
+
+@pytest.fixture
+def settings_no_ocr():
+    old = settings.OCR_ENABLED
+    settings.OCR_ENABLED = False
+    yield
+    settings.OCR_ENABLED = old
+
+
 @contextmanager
 def mask_out_current_collection():
     try:

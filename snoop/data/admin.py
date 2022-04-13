@@ -132,7 +132,7 @@ def get_task_matrix(task_queryset, prev_matrix={}):
     # Task table row takes about 5K in PG, and blob/data storage fetching does at least 8K of I/O
     SIZE_OVERHEAD = 13 * 2 ** 10
     # Overhead measured for NO-OP tasks; used here to make sure we never divide by 0
-    TIME_OVERHEAD = 0.02
+    TIME_OVERHEAD = 0.005
     RECENT_SPEED_KEY = str(mins) + 'm_avg_bytes_sec'
     AVG_WORKERS_KEY = str(mins) + 'm_avg_workers'
 
@@ -150,14 +150,14 @@ def get_task_matrix(task_queryset, prev_matrix={}):
     for bucket in task_5m_query:
         row = task_matrix[bucket['func']]
         count = bucket['count']
-        real_time = (bucket['end'] - bucket['start']).total_seconds() + TIME_OVERHEAD
-        total_time = bucket['time'].total_seconds() + TIME_OVERHEAD
-        fill_a = total_time / real_time
+        real_time = (bucket['end'] - bucket['start']).total_seconds()
+        total_time = bucket['time'].total_seconds()
+        fill_a = total_time / (real_time + TIME_OVERHEAD)
         fill_b = total_time / (mins * 60)
-        fill = round((fill_a + fill_b) / 2, 2)
+        fill = round((fill_a + fill_b) / 2, 3)
         # get total system bytes/sec in this period
         size = (bucket['size'] or 0) + SIZE_OVERHEAD * count
-        bytes_sec = size / total_time
+        bytes_sec = size / (total_time + TIME_OVERHEAD)
         row[str(mins) + 'm_count'] = count
         row[AVG_WORKERS_KEY] = fill
         row[str(mins) + 'm_avg_duration'] = total_time / count
@@ -221,12 +221,14 @@ def get_task_matrix(task_queryset, prev_matrix={}):
         if speed:
             remaining_time = row['remaining_size'] / speed
             eta = remaining_time + row.get('pending', 0) * TIME_OVERHEAD
+            # average with simple ETA (count * duration)
+            eta_simple = bucket['count'] * row['success_avg_duration']
+            eta = (eta + eta_simple) / 2
 
-            # Set a small 0.5=5/10 default worker count instead of 0,
-            # estimating off of 5 CPU / collection, with 10 main tasks per document.
-            # in batches much larger than the 5min window.
-            avg_worker_count = row.get(AVG_WORKERS_KEY, 0) + 0.5
-            # Divide by avg workers count for this task, to obtain ETA.
+            # Set a small 0.01 default worker count instead of 0,
+            avg_worker_count = row.get(AVG_WORKERS_KEY, 0) + 0.01
+
+            # Divide by avg workers count for this task, to obtain multi-worker ETA.
             eta = eta / avg_worker_count
 
             # double the estimation, since 3X is too much

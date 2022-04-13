@@ -264,7 +264,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
         with tracing.span('check task'):
             if is_completed(task):
-                logger.info("%r already completed", task)
+                logger.debug("%r already completed", task)
                 tracing.add_annotation('already completed')
                 queue_next_tasks(task)
                 return
@@ -429,7 +429,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 if raise_exceptions:
                     raise
             else:
-                logger.info("Succeeded: %r [%.03f s]", task, time() - t0)
+                logger.debug("Succeeded: %r [%.03f s]", task, time() - t0)
                 task.update(
                     status=models.Task.STATUS_SUCCESS,
                     error='',
@@ -899,7 +899,7 @@ def dispatch_for(collection, queue):
         logger.info(f'dispatch: skipping {collection}, already has {queue_len} queued tasks on q = {queue}')
         return
 
-    funcs_in_queue = [func for func in task_map.keys() if task_map[func].queue == queue]
+    funcs_in_queue = [func for func in task_map if task_map[func].queue == queue]
 
     logger.info('Dispatching for %r, queue = %s', collection, queue)
     from .ocr import dispatch_ocr_tasks

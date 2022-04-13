@@ -226,10 +226,10 @@ def mount_7z_archive(blob, blob_path):
         with tempfile.TemporaryDirectory(prefix='mount-7z-symlink-') as symlink_dir:
             guess_ext = (mimetypes.guess_extension(blob.mime_type) or '')[:20]
             actual_extension = os.path.splitext(blob_path)[-1][:20]
-            log.info('going to mount %s', str(blob_path))
+            log.debug('going to mount %s', str(blob_path))
 
-            log.info('considering original extension: "%s", guessed extension: "%s"',
-                     actual_extension, guess_ext)
+            log.debug('considering original extension: "%s", guessed extension: "%s"',
+                      actual_extension, guess_ext)
             if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
                 path = blob_path
                 log.info('choosing supported extension in path "%s"', path)
@@ -300,7 +300,7 @@ def unarchive_7z(blob):
                 return unarchive_7z_with_mount(blob)
             except Exception as e:
                 log.exception(e)
-                log.error('using old method (unpacking everything)...')
+                log.warning('using old method (unpacking everything)...')
             return unarchive_7z_fallback(blob)
         finally:
             os.chdir(x)
