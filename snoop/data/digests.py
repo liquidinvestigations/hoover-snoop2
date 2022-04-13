@@ -250,8 +250,6 @@ def gather(blob, **depends_on):
         log.warning('get_pdf_preview task is broken; skipping')
     elif isinstance(pdf_preview, models.Blob):
         rv['has-pdf-preview'] = True
-    else:
-        log.warning('unsupported return value for pdf preview.')
 
     rv['detected-objects'] = []
     detections = depends_on.get('detect_objects')

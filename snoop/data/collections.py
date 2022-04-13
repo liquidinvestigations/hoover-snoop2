@@ -426,7 +426,7 @@ def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
         -o use_path_request_style \\
         -o url=http://{address} \\
         {bucket} {target}
-        """, shell=True)
+        """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
 
 
 def umount_s3fs(target):
@@ -436,7 +436,7 @@ def umount_s3fs(target):
     while os.listdir(target):
         subprocess.check_call(f"""
             umount {target} || umount -l {target} || true;
-        """, shell=True)
+        """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
 
         attempt += 1
         if attempt > 100:

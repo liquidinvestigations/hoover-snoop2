@@ -232,12 +232,12 @@ def mount_7z_archive(blob, blob_path):
                       actual_extension, guess_ext)
             if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
                 path = blob_path
-                log.info('choosing supported extension in path "%s"', path)
+                log.debug('choosing supported extension in path "%s"', path)
             elif guess_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
                 symlink = Path(symlink_dir) / ('link' + guess_ext)
                 symlink.symlink_to(blob_path)
                 path = symlink
-                log.info('choosing symlink with guessed extension, generated path: %s', path)
+                log.debug('choosing symlink with guessed extension, generated path: %s', path)
             else:
                 log.info('no valid file extension in path; looking in File table...')
                 path = None
@@ -248,23 +248,42 @@ def mount_7z_archive(blob, blob_path):
                         symlink = Path(symlink_dir) / ('link' + guess_ext)
                         symlink.symlink_to(blob_path)
                         path = symlink
-                        log.info('choosing symlink with extension taken from File: %s', path)
+                        log.debug('choosing symlink with extension taken from File: %s', path)
                         break
 
                 if path is None:
                     path = blob_path
-                    log.info('found no Files; choosing BY DEFAULT original path: %s', path)
+                    log.debug('found no Files; choosing BY DEFAULT original path: %s', path)
 
-            subprocess.check_call(['fuse_7z_ng', '-o', 'ro', path, temp_dir])
+            subprocess.check_call(
+                ['fuse_7z_ng', '-o', 'ro', path, temp_dir],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             try:
                 yield temp_dir
             finally:
                 attempt = 0
-                subprocess.run(['umount', temp_dir], check=False)
+                subprocess.run(
+                    ['umount', temp_dir],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
                 while os.listdir(temp_dir):
                     time.sleep(0.05)
-                    subprocess.run(['umount', temp_dir], check=False)
-                    subprocess.run(['umount', '-l', temp_dir], check=False)
+                    subprocess.run(
+                        ['umount', temp_dir],
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    subprocess.run(
+                        ['umount', '-l', temp_dir],
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
                     attempt += 1
                     if attempt > 100:
                         raise RuntimeError("Can't unmount 7z archive!!!")
