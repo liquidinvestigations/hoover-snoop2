@@ -214,8 +214,8 @@ def snoop_task_log_handler(level=logging.DEBUG):
     handler.setFormatter(formatter)
 
     root_logger = logging.getLogger()
-    old_root_level = root_logger.level
-    root_logger.setLevel(level)
+    # old_root_level = root_logger.level
+    # root_logger.setLevel(level)
     root_logger.addHandler(handler)
 
     try:
@@ -223,7 +223,7 @@ def snoop_task_log_handler(level=logging.DEBUG):
     finally:
         handler.flush()
         root_logger.removeHandler(handler)
-        root_logger.setLevel(old_root_level)
+        # root_logger.setLevel(old_root_level)
 
 
 @celery.app.task
