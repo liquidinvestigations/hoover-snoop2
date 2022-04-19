@@ -207,16 +207,23 @@ def snoop_task_log_handler(level=logging.DEBUG):
     Args:
         level: log level, by default logging.DEBUG
     """
+    formatter = logging.Formatter('%(asctime)s %(name)s [%(levelname)s]: %(message)s')
     stream = StringIO()
     handler = logging.StreamHandler(stream)
     handler.setLevel(level)
+    handler.setFormatter(formatter)
+
     root_logger = logging.getLogger()
+    old_root_level = root_logger.level
+    root_logger.setLevel(level)
     root_logger.addHandler(handler)
+
     try:
         yield handler
     finally:
         handler.flush()
         root_logger.removeHandler(handler)
+        root_logger.setLevel(old_root_level)
 
 
 @celery.app.task

@@ -132,6 +132,15 @@ concurrency:
   limit: 1
 
 services:
+- name: translate-batch
+  image: liquidinvestigations/libre-translate:v1.2.7-liquid-ci
+  environment:
+    LT_CHAR_LIMIT: "157286400"
+    LT_DISABLE_WEB_UI: "false"
+    OMP_NUM_THREADS: "1"
+    OMP_THREAD_LIMIT: "1"
+    GUNICORN_NUM_WORKERS: "2"
+
 - name: minio-blobs
   image: minio/minio:RELEASE.2022-03-26T06-49-28Z
   volumes:
@@ -263,7 +272,8 @@ steps:
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_NLP_URL: "http://snoop-nlp-service:5000"
     SNOOP_EXTRACT_ENTITIES:  True
-    SNOOP_DETECT_LANGUAGE: True
+    SNOOP_DETECT_LANGUAGES: True
+    SNOOP_TRANSLATION_URL: "http://translate-batch:5000"
     USER_MODE: "TEST"
   commands:
   - whoami

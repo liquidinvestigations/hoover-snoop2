@@ -86,7 +86,7 @@ class Collection:
         self.sync = sync and process
         self.ocr_languages = opt.get('ocr_languages', [])
         self.max_result_window = opt.get('max_result_window', 10000)
-        self.refresh_interval = opt.get('refresh_interval', "5s")
+        self.refresh_interval = opt.get('refresh_interval', "1s")
         self.opt = opt
 
         for lang_grp in self.ocr_languages:
@@ -125,15 +125,15 @@ class Collection:
     def nlp_language_detection_enabled(self):
         return self.opt.get(
             'nlp_language_detection_enabled',
-            settings.DETECT_LANGUAGE) \
-            and settings.DETECT_LANGUAGE
+            bool(settings.DETECT_LANGUAGE)) \
+            and bool(settings.DETECT_LANGUAGE)
 
     @property
     def nlp_entity_extraction_enabled(self):
         return self.opt.get(
             'nlp_entity_extraction_enabled',
-            settings.EXTRACT_ENTITIES) \
-            and settings.EXTRACT_ENTITIES
+            bool(settings.EXTRACT_ENTITIES)) \
+            and bool(settings.EXTRACT_ENTITIES)
 
     @property
     def nlp_text_length_limit(self):

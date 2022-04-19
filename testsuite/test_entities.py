@@ -17,7 +17,32 @@ def test_nlp_service(settings_with_entities):
     assert entity['text'] == 'Barack Obama' and entity['type'] == 'PER'
 
 
-def test_extract_entities(fakedata, taskmanager, client, settings_with_entities):
+def test_extract_entities_no_translation(fakedata, taskmanager, client, settings_with_entities):
+    root = fakedata.init()
+    test_doc = TESTDATA / './disk-files/pdf-doc-txt/easychair.odt'
+    with test_doc.open('rb') as f:
+        blob = fakedata.blob(f.read())
+
+    fakedata.file(root, 'file.odt', blob)
+
+    taskmanager.run()
+
+    api = CollectionApiClient(client)
+    digest = api.get_digest(blob.pk)['content']
+
+    print(collections.current())
+    print(models.Task.objects.all())
+    print(models.Entity.objects.all())
+    print(api.get_digest(blob.pk))
+
+    assert models.Entity.objects.filter(entity='Andrei Voronkov').exists()
+
+    assert 'Microsoft' in digest['entity-type.organization']
+    assert 'Microsoft' in digest['entity']
+    assert 'Manchester' in digest['entity-type.location']
+
+
+def test_extract_entities_with_translation(fakedata, taskmanager, client, settings_with_entities, settings_with_translation):
     root = fakedata.init()
     test_doc = TESTDATA / './disk-files/pdf-doc-txt/easychair.odt'
     with test_doc.open('rb') as f:

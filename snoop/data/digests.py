@@ -298,7 +298,7 @@ def index(blob, **depends_on):
     if not current_collection().nlp_entity_extraction_enabled \
             and not current_collection().nlp_language_detection_enabled \
             and not current_collection().translation_enabled:
-        log.warning('Settings disabled. Exiting')
+        log.warning('digests.index: All settings disabled. Exiting')
         return None
 
     if isinstance(depends_on.get('digests_gather'), SnoopTaskBroken):
@@ -314,10 +314,11 @@ def index(blob, **depends_on):
 
     result = {}
 
-    # detect language
+    # detect language if any other settings are on
     lang_result = None
     if current_collection().nlp_language_detection_enabled \
-            or current_collection().translation_enabled:
+            or current_collection().translation_enabled \
+            or current_collection().nlp_entity_extraction_enabled:
         log.warning('blob %s.. type %s: running language detect...',
                     str(blob.pk)[:6], blob.content_type)
         lang_result = require_dependency(
