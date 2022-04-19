@@ -14,31 +14,31 @@ EXPECTED_CLASS = 'unicycle'
 SIZE = 10000
 
 
-def test_classification_service_endpoint():
+def test_classification_service_endpoint(settings_with_object_detection):
     with TEST_IMAGE.open('rb') as f:
         image_classification.call_image_classification_service(f, 'bikes.jpg', SIZE)
 
 
-def test_detection_service_endpoint():
+def test_detection_service_endpoint(settings_with_object_detection):
     with TEST_IMAGE.open('rb') as f:
         image_classification.call_object_detection_service(f, 'bikes.jpg', SIZE)
 
 
-def test_classification_service():
+def test_classification_service(settings_with_object_detection):
     with TEST_IMAGE.open('rb') as f:
         predictions = image_classification.call_image_classification_service(f, 'bikes.jpg', SIZE)
     classes = [hit[0] for hit in predictions]
     assert EXPECTED_CLASS in classes
 
 
-def test_detection_service():
+def test_detection_service(settings_with_object_detection):
     with TEST_IMAGE.open('rb') as f:
         predictions = image_classification.call_object_detection_service(f, 'bikes.jpg', SIZE)
     objects = [hit['name'] for hit in predictions]
     assert all(hit in objects for hit in EXPECTED_OBJECTS)
 
 
-def test_detection_task(fakedata):
+def test_detection_task(fakedata, settings_with_object_detection):
     root = fakedata.init()
     with TEST_IMAGE.open('rb') as f:
         IMAGE_BLOB = fakedata.blob(f.read())
@@ -49,7 +49,7 @@ def test_detection_task(fakedata):
     assert all(hit in objects for hit in EXPECTED_OBJECTS)
 
 
-def test_classification_task(fakedata):
+def test_classification_task(fakedata, settings_with_object_detection):
     root = fakedata.init()
     with TEST_IMAGE.open('rb') as f:
         IMAGE_BLOB = fakedata.blob(f.read())
@@ -60,7 +60,7 @@ def test_classification_task(fakedata):
     assert EXPECTED_CLASS in classes
 
 
-def test_scores_digested(fakedata, taskmanager, client):
+def test_scores_digested(fakedata, taskmanager, client, settings_with_object_detection):
     root = fakedata.init()
     with TEST_IMAGE.open('rb') as f:
         blob = fakedata.blob(f.read())

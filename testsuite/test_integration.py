@@ -44,14 +44,7 @@ def check_api_page(api, item_id, parent_id):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_complete_lifecycle(client, taskmanager,
-                            settings_no_thumbnails,
-                            settings_no_object_detection,
-                            settings_no_entities,
-                            settings_no_translation,
-                            settings_no_ocr):
-    # delete blobs from minio
-    # TODO
+def test_complete_lifecycle(client, taskmanager):
     for b in settings.BLOBS_S3.list_buckets():
         bucket = b.name
         print('del bucket', bucket)

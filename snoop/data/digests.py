@@ -308,7 +308,8 @@ def index(blob, **depends_on):
     digest = models.Digest.objects.get(blob=blob)
     digest_data = digest.result.read_json()
     if not digest_data.get('text') and not digest_data.get('ocrtext'):
-        log.warning('No text data. Exiting')
+        log.warning('blob %s.. type %s: No text data. Exiting',
+                    str(blob.pk)[:6], blob.content_type)
         return None
 
     result = {}
@@ -317,7 +318,8 @@ def index(blob, **depends_on):
     lang_result = None
     if current_collection().nlp_language_detection_enabled \
             or current_collection().translation_enabled:
-        log.info('running language detect...')
+        log.warning('blob %s.. type %s: running language detect...',
+                    str(blob.pk)[:6], blob.content_type)
         lang_result = require_dependency(
             'detect_language',
             depends_on,
@@ -335,7 +337,8 @@ def index(blob, **depends_on):
     translation_result = None
     if current_collection().translation_enabled \
             and entities.can_translate(result.get('lang')):
-        log.info('running translation...')
+        log.warning('blob %s.. type %s: running translation...',
+                    str(blob.pk)[:6], blob.content_type)
         translation_result = require_dependency(
             'translate',
             depends_on,

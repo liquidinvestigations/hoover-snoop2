@@ -11,13 +11,13 @@ pytestmark = [pytest.mark.django_db]
 TEST_TEXT = 'Hello, I am Barack Obama and I live in Washington DC'
 
 
-def test_nlp_service():
+def test_nlp_service(settings_with_entities):
     resp = entities.call_nlp_server('entity_extraction', {'text': TEST_TEXT})
     entity = resp['entities'][0]
     assert entity['text'] == 'Barack Obama' and entity['type'] == 'PER'
 
 
-def test_extract_entities(fakedata, taskmanager, client):
+def test_extract_entities(fakedata, taskmanager, client, settings_with_entities):
     root = fakedata.init()
     test_doc = TESTDATA / './disk-files/pdf-doc-txt/easychair.odt'
     with test_doc.open('rb') as f:

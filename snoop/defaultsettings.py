@@ -176,7 +176,7 @@ DETECT_LANGUAGE = os.getenv('SNOOP_DETECT_LANGUAGES', 'False').lower() == 'true'
 EXTRACT_ENTITIES = os.getenv('SNOOP_EXTRACT_ENTITIES', 'False').lower() == 'true'
 SNOOP_NLP_URL = os.environ.get('SNOOP_NLP_URL', 'http://127.0.0.1:5000/')
 """ URL pointing to NLP server"""
-NLP_TEXT_LENGTH_LIMIT = int(os.getenv('NLP_TEXT_LENGTH_LIMIT', '3500000'))
+NLP_TEXT_LENGTH_LIMIT = int(os.getenv('NLP_TEXT_LENGTH_LIMIT', '2000000'))
 """Truncate text sent to NLP service after this many characters."""
 
 

@@ -43,46 +43,40 @@ def testdata_current():
 
 
 @pytest.fixture
-def settings_no_thumbnails():
-    url = settings.SNOOP_THUMBNAIL_URL
+def settings_with_thumbnails():
+    settings.SNOOP_THUMBNAIL_URL = settings.ORIG_SNOOP_THUMBNAIL_URL
+    yield
     settings.SNOOP_THUMBNAIL_URL = None
-    yield
-    settings.SNOOP_THUMBNAIL_URL = url
 
 
 @pytest.fixture
-def settings_no_object_detection():
-    url = settings.SNOOP_OBJECT_DETECTION_URL
+def settings_with_object_detection():
+    settings.SNOOP_OBJECT_DETECTION_URL = settings.ORIG_SNOOP_OBJECT_DETECTION_URL
+    yield
     settings.SNOOP_OBJECT_DETECTION_URL = None
-    yield
-    settings.SNOOP_OBJECT_DETECTION_URL = url
 
 
 @pytest.fixture
-def settings_no_entities():
-    extract_entities = settings.EXTRACT_ENTITIES
-    detect_language = settings.DETECT_LANGUAGE
+def settings_with_entities():
+    settings.EXTRACT_ENTITIES = settings.ORIG_EXTRACT_ENTITIES
+    settings.DETECT_LANGUAGE = settings.ORIG_DETECT_LANGUAGE
+    yield
     settings.EXTRACT_ENTITIES = False
     settings.DETECT_LANGUAGE = False
-    yield
-    settings.EXTRACT_ENTITIES = extract_entities
-    settings.DETECT_LANGUAGE = detect_language
 
 
 @pytest.fixture
-def settings_no_translation():
-    url = settings.TRANSLATION_URL
-    settings.TRANSLATION_URL = False
+def settings_with_translation():
+    settings.TRANSLATION_URL = settings.ORIG_TRANSLATION_URL
     yield
-    settings.TRANSLATION_URL = url
+    settings.TRANSLATION_URL = None
 
 
 @pytest.fixture
-def settings_no_ocr():
-    old = settings.OCR_ENABLED
+def settings_with_ocr():
+    settings.OCR_ENABLED = settings.ORIG_OCR_ENABLED
+    yield
     settings.OCR_ENABLED = False
-    yield
-    settings.OCR_ENABLED = old
 
 
 @contextmanager
