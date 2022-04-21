@@ -305,7 +305,14 @@ def drop_db(db_name):
     """
     logger.warning('DROPPPING SQL DATABASE %s', db_name)
     with connection.cursor() as conn:
-        conn.execute(f'DROP DATABASE "{db_name}"')
+        # https://dba.stackexchange.com/questions/11893/force-drop-db-while-others-may-be-connected/11895#11895
+        # stop new connections to db
+        conn.execute(f"ALTER DATABASE {db_name} CONNECTION LIMIT 0;")
+        conn.execute(f"UPDATE pg_database SET datallowconn = 'false' WHERE datname = '{db_name}';")
+        # delete existing connections to db
+        conn.execute(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}';")
+        # drop database
+        conn.execute(f'DROP DATABASE "{db_name}";')
 
 
 def create_databases():
