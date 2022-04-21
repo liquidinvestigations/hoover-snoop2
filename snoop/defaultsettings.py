@@ -233,6 +233,7 @@ COLLECTIONS_S3 = Minio(
     secret_key=SNOOP_COLLECTIONS_MINIO_SECRET_KEY,
     secure=False,
 )
+SNOOP_BROKEN_FILENAME_SERVICE = os.environ.get('SNOOP_BROKEN_FILENAME_SERVICE')
 
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 """URL pointing to Apache Tika server."""

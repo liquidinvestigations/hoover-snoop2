@@ -148,6 +148,13 @@ services:
   commands:
   - minio server /data
 
+- name: broken-filename-service
+  image: liquidinvestigations/broken-filename-service:0.0.6
+  volumes:
+  - name: test-collections-v
+    path: /data
+  commands:
+
 - name: snoop-rabbitmq
   image: rabbitmq:3.7.3
   volumes:
@@ -275,6 +282,7 @@ steps:
     SNOOP_EXTRACT_ENTITIES:  True
     SNOOP_DETECT_LANGUAGES: True
     SNOOP_TRANSLATION_URL: "http://translate-batch:5000"
+    SNOOP_BROKEN_FILENAME_SERVICE: "http://broken-filename-service:5000"
     USER_MODE: "TEST"
   commands:
   - whoami

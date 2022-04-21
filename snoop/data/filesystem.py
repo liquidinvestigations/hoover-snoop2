@@ -12,11 +12,15 @@ walking these is treated differently under [snoop.data.analyzers.archives][], [s
 and others.
 """
 
+import tempfile
+import base64
 import pathlib
 import os
 import json
 import logging
+
 from django.conf import settings
+import requests
 
 from snoop.profiler import profile
 
@@ -62,6 +66,11 @@ def directory_absolute_path(root_data_path, directory):
     return path
 
 
+def _is_valid_utf8(some_str):
+    return some_str.encode('utf-8', errors='surrogateescape') \
+        == some_str.encode('utf-8', errors='backslashreplace')
+
+
 @snoop_task('filesystem.walk', priority=9, version=2, queue='filesystem')
 @profile()
 def walk(directory_pk):
@@ -102,63 +111,96 @@ def walk(directory_pk):
     the `transaction.on_commit` call from `queue_task()` when queueing `walk()` from this function.
     """
     directory = models.Directory.objects.get(pk=directory_pk)
+    url_stat = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-stat'
+    url_list = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-list'
+    url_obj = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-object'
+
     with collections.current().mount_collections_root() as root_collection_path:
         root_data_path = os.path.join(root_collection_path, collections.Collection.DATA_DIR)
 
-        path = directory_absolute_path(root_data_path, directory)
+        dir_path = directory_absolute_path(root_data_path, directory)
+        relative_path = os.path.relpath(dir_path, start=root_collection_path)
+        service_path_bytes = os.path.join(
+            collections.current().name,
+            relative_path,
+        ).encode('utf-8', errors='surrogateescape')
+        arg = {'path_base64': base64.b64encode(service_path_bytes).decode()}
 
-        fail_count = 0
-        for i, thing in enumerate(path.iterdir()):
+        for i, thing in enumerate(requests.post(url_list, json=arg).json()['list']):
             queue_limit = i >= settings.CHILD_QUEUE_LIMIT
+            thing['name_bytes'] = base64.b64decode(thing['name_bytes'])
+            thing['name'] = thing['name_bytes'].decode('utf8', errors='surrogateescape')
 
-            if thing.is_dir():
+            if thing['is_dir']:
                 (child_directory, created) = directory.child_directory_set.get_or_create(
-                    name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
+                    name_bytes=thing['name_bytes'],
                 )
                 # since the periodic task retries all talk tasks in rotation,
                 # we're not going to dispatch a walk task we didn't create
                 walk.laterz(child_directory.pk, queue_now=created and not queue_limit)
+                continue
 
-            else:
-                directory = models.Directory.objects.get(pk=directory_pk)
-                path = directory_absolute_path(root_data_path, directory) / thing.name
-                try:
-                    stat = path.stat()
-                except FileNotFoundError as e:
-                    log.exception(e)
-                    fail_count += 1
-                    continue
-                relative_path = os.path.relpath(path, start=root_collection_path)
-
+            f_path = directory_absolute_path(root_data_path, directory) / thing['name']
+            if _is_valid_utf8(str(f_path)):
+                stat = f_path.stat()
+                stat_size = stat.st_size
+                stat_ctime = stat.st_ctime
+                stat_mtime = stat.st_mtime
                 original = models.Blob.create_from_file(
-                    path,
+                    f_path,
                     collection_source_key=relative_path.encode('utf-8', errors='surrogateescape'),
                 )
-                file, created = directory.child_file_set.get_or_create(
-                    name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
-                    defaults=dict(
-                        ctime=time_from_unix(stat.st_ctime),
-                        mtime=time_from_unix(stat.st_mtime),
-                        size=stat.st_size,
-                        original=original,
-                        blob=original,
-                    ),
-                )
-                # if file is already loaded, and size+mtime are the same,
-                # don't retry handle task
-                if created \
-                        or file.mtime != time_from_unix(stat.st_mtime) \
-                        or file.size != stat.st_size:
-                    file.mtime = time_from_unix(stat.st_mtime)
-                    file.size = stat.st_size
-                    file.original = original
-                    file.save()
-                    handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
-                else:
-                    handle_file.laterz(file.pk, queue_now=False)
-    if fail_count > 0:
-        raise SnoopTaskBroken(f"This folder has S3 mount errors. Fail count = {fail_count} items.",
-                              "s3_mount_file_not_found")
+            else:
+                # use the broken filename service
+                f_relative_path = os.path.relpath(f_path, start=root_collection_path)
+                f_service_path_bytes = os.path.join(
+                    collections.current().name,
+                    f_relative_path,
+                ).encode('utf-8', errors='surrogateescape')
+                f_arg = {'path_base64': base64.b64encode(f_service_path_bytes).decode()}
+                stat = requests.post(url_stat, json=f_arg).json()
+                stat_size = stat['size']
+                stat_ctime = stat['ctime']
+                stat_mtime = stat['mtime']
+                # save file to local disk and create blob from it
+                with collections.current().mount_blobs_root(readonly=False) as w_blobs_root:
+                    tmp_base = pathlib.Path(w_blobs_root) / 'tmp' / 'blobs-broken-filenames'
+                    tmp_base.mkdir(parents=True, exist_ok=True)
+                    temp = tempfile.NamedTemporaryFile(dir=tmp_base, prefix='blob-', delete=False)
+                    temp_name = temp.name
+                    try:
+                        with requests.post(url_obj, json=f_arg, stream=True) as r:
+                            r.raise_for_status()
+                            for chunk in r.iter_content(chunk_size=512 * 1024):
+                                temp.write(chunk)
+                        temp.flush()
+                        temp.close()
+                        original = models.Blob.create_from_file(temp_name)
+                    finally:
+                        os.unlink(temp_name)
+
+            file, created = directory.child_file_set.get_or_create(
+                name_bytes=thing['name_bytes'],
+                defaults=dict(
+                    ctime=time_from_unix(stat_ctime),
+                    mtime=time_from_unix(stat_mtime),
+                    size=stat_size,
+                    original=original,
+                    blob=original,
+                ),
+            )
+            # if file is already loaded, and size+mtime are the same,
+            # don't retry handle task
+            if created \
+                    or file.mtime != time_from_unix(stat_mtime) \
+                    or file.size != stat_size:
+                file.mtime = time_from_unix(stat_mtime)
+                file.size = stat_size
+                file.original = original
+                file.save()
+                handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
+            else:
+                handle_file.laterz(file.pk, queue_now=False)
 
 
 @snoop_task('filesystem.handle_file', priority=1, version=2, queue='filesystem')

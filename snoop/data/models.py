@@ -279,7 +279,7 @@ class Blob(models.Model):
 
         try:
             b = Blob.objects.get(pk=pk)
-            if collection_source_key and not b.collection_source_key:
+            if collection_source_key and not b.collection_source_key and not b.archive_source_key:
                 # delete this from minio and override/save new key
                 try:
                     settings.BLOBS_S3.remove_object(collections.current().name, blob_repo_path(b.pk))
@@ -291,7 +291,7 @@ class Blob(models.Model):
                 b.collection_source_key = collection_source_key
                 b.save()
 
-            if archive_source_key and not b.archive_source_key:
+            if archive_source_key and not b.archive_source_key and not b.collection_source_key:
                 # delete this from minio and override/save new key
                 try:
                     settings.BLOBS_S3.remove_object(collections.current().name, blob_repo_path(b.pk))
@@ -523,7 +523,9 @@ class Directory(models.Model):
     def __str__(self):
         """String representation for this Directory is its full path.
         """
-        return ''.join(reversed([f'{item.name}/' for item in self.ancestry()]))
+        orig_str = ''.join(reversed([f'{item.name}/' for item in self.ancestry()]))
+        name_bytes = orig_str.encode('utf8', errors='surrogateescape')
+        return truncatechars(name_bytes.decode('utf8', errors='backslashreplace'), 120)
 
     __repr__ = __str__
 
@@ -591,9 +593,13 @@ class File(models.Model):
         return name_bytes.decode('utf8', errors='surrogateescape')
 
     def __str__(self):
-        """String representation for a File is its filename, truncated.
+        """String representation for a File is its filename,
+        with non-UTF8 code points escaped with backslashes, truncated.
         """
-        return truncatechars(self.name, 80)
+        name_bytes = self.name_bytes
+        if isinstance(name_bytes, memoryview):
+            name_bytes = name_bytes.tobytes()
+        return truncatechars(name_bytes.decode('utf8', errors='backslashreplace'), 80)
 
     __repr__ = __str__
 
