@@ -166,6 +166,9 @@ def walk(directory_pk):
                 with collections.current().mount_blobs_root(readonly=False) as w_blobs_root:
                     tmp_base = pathlib.Path(w_blobs_root) / 'tmp' / 'blobs-broken-filenames'
                     tmp_base.mkdir(parents=True, exist_ok=True)
+
+                    # not using "with" because we give arg delete=False
+                    # pylint: disable=consider-using-with
                     temp = tempfile.NamedTemporaryFile(dir=tmp_base, prefix='blob-', delete=False)
                     temp_name = temp.name
                     try:
