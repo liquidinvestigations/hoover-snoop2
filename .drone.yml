@@ -7,7 +7,7 @@ steps:
   commands:
   - flake8
 - name: pylint
-  image: cytopia/pylint:latest-0.5
+  image: cytopia/pylint:latest-0.6
   commands:
   - pylint snoop
 
@@ -132,6 +132,29 @@ concurrency:
   limit: 1
 
 services:
+- name: minio-blobs
+  image: minio/minio:RELEASE.2022-03-26T06-49-28Z
+  volumes:
+  - name: minio-v
+    path: /data
+  commands:
+  - minio server /data
+
+- name: minio-collections
+  image: minio/minio:RELEASE.2022-03-26T06-49-28Z
+  volumes:
+  - name: test-collections-v
+    path: /data
+  commands:
+  - minio server /data
+
+- name: broken-filename-service
+  image: liquidinvestigations/broken-filename-service:0.0.6
+  volumes:
+  - name: test-collections-v
+    path: /data
+  commands:
+
 - name: snoop-rabbitmq
   image: rabbitmq:3.7.3
   volumes:
@@ -198,31 +221,53 @@ services:
   - name: pg-v
     path: /var/lib/postgresql/data
 
+- name: translate-batch
+  image: liquidinvestigations/libre-translate:v1.2.7-liquid-ci
+  environment:
+    LT_CHAR_LIMIT: "157286400"
+    LT_DISABLE_WEB_UI: "false"
+    OMP_NUM_THREADS: "1"
+    OMP_THREAD_LIMIT: "1"
+    GUNICORN_NUM_WORKERS: "2"
+
 steps:
 - name: download testdata
   image: alpine/git:1.0.7
   volumes:
   - name: test-collections-v
-    path: /testdata
+    path: /data
+  - name: test-collections-v-2
+    path: /data-2
   commands:
-  - cd /testdata
-  - git clone https://github.com/hoover/testdata .
+  - cd /data
+  - git clone https://github.com/hoover/testdata
+  - cp -a testdata /data-2
 
-- name: wait for nlp service
+- name: wait for nlp service, translation
   image: alpine/git:1.0.7
   commands:
   - apk add curl
   - apk add curl-dev
   - while ! curl "http://snoop-nlp-service:5000/config"; do sleep 30; done
+  - while ! curl "http://translate-batch:5000/languages"; do sleep 30; done
 
 - name: run tests
   image: liquidinvestigations/hoover-snoop2:${DRONE_COMMIT_BRANCH}
+  # privileged because needs:
+  # cap_add = ["mknod", "sys_admin"]
+  # devices = [{host_path = "/dev/fuse", container_path = "/dev/fuse"}]
+  # security_opt = ["apparmor=unconfined"]
+  privileged: true
   pull: always
   volumes:
-  - name: test-collections-v
-    path: /opt/hoover/collections/testdata
+  - name: dev-fuse
+    path: /dev/fuse
+
+  - name: test-collections-v-2
+    path: /opt/hoover/collections
+
   environment:
-    WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998, snoop-thumbnail:9990, snoop-pdf-preview:3000, snoop-image-classification:5001, snoop-nlp-service:5000
+    WAIT_HOSTS: search-es:9200, snoop-pg:5432, snoop-tika:9998, snoop-thumbnail:9990, snoop-pdf-preview:3000, snoop-image-classification:5001, snoop-nlp-service:5000, minio-blobs:9000, translate-batch:5000, minio-collections:9000
     WAIT_HOSTS_TIMEOUT: 60
     SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
     SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
@@ -235,9 +280,9 @@ steps:
     SNOOP_ES_URL: "http://search-es:9200"
     SNOOP_NLP_URL: "http://snoop-nlp-service:5000"
     SNOOP_EXTRACT_ENTITIES:  True
-    SNOOP_DETECT_LANGUAGE: True
-    SNOOP_COLLECTION_ROOT: "/opt/hoover/collections"
-    SNOOP_BLOB_STORAGE: "/opt/hoover/snoop/blobs"
+    SNOOP_DETECT_LANGUAGES: True
+    SNOOP_TRANSLATION_URL: "http://translate-batch:5000"
+    SNOOP_BROKEN_FILENAME_SERVICE: "http://broken-filename-service:5000"
     USER_MODE: "TEST"
   commands:
   - whoami
@@ -253,7 +298,14 @@ trigger:
   - cron
 
 volumes:
+- name: dev-fuse
+  host:
+    path: /dev/fuse
+- name: minio-v
+  temp: {}
 - name: test-collections-v
+  temp: {}
+- name: test-collections-v-2
   temp: {}
 - name: es-v
   temp: {}

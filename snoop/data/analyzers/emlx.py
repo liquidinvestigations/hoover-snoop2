@@ -40,7 +40,7 @@ def reconstruct(file_pk, **depends_on):
             parent = file.parent_directory
             part_file = (
                 parent.child_file_set
-                .filter(name_bytes=part_name.encode('utf8'))
+                .filter(name_bytes=part_name.encode('utf8', errors='surrogateescape'))
                 .first()
             )
 

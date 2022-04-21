@@ -12,9 +12,15 @@ walking these is treated differently under [snoop.data.analyzers.archives][], [s
 and others.
 """
 
+import tempfile
+import base64
+import pathlib
+import os
 import json
 import logging
+
 from django.conf import settings
+import requests
 
 from snoop.profiler import profile
 
@@ -27,6 +33,7 @@ from .analyzers import emlx
 from .tasks import snoop_task, require_dependency, remove_dependency, SnoopTaskBroken
 from .utils import time_from_unix
 from .indexing import delete_doc
+from ._file_types import allow_processing_for_mime_type
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +41,7 @@ RFC822_EMAIL_MIME_TYPES = {'message/rfc822', }
 EMLX_EMAIL_MIME_TYPES = {'message/x-emlx', }
 
 
-def directory_absolute_path(directory):
+def directory_absolute_path(root_data_path, directory):
     """Returns absolute Path for a dataset [snoop.data.models.Directory][].
 
     Directory supplied must be present on the filesystem.
@@ -49,8 +56,7 @@ def directory_absolute_path(directory):
 
     path_elements = []
     node = directory
-    col = collections.current()
-    path = col.data_path
+    path = pathlib.Path(root_data_path)
 
     while node.parent_directory:
         path_elements.append(node.name)
@@ -61,7 +67,12 @@ def directory_absolute_path(directory):
     return path
 
 
-@snoop_task('filesystem.walk', priority=9)
+def _is_valid_utf8(some_str):
+    return some_str.encode('utf-8', errors='surrogateescape') \
+        == some_str.encode('utf-8', errors='backslashreplace')
+
+
+@snoop_task('filesystem.walk', priority=9, version=2, queue='filesystem')
 @profile()
 def walk(directory_pk):
     """Scans one level of a directory and recursively ingests all files and directories found.
@@ -101,31 +112,83 @@ def walk(directory_pk):
     the `transaction.on_commit` call from `queue_task()` when queueing `walk()` from this function.
     """
     directory = models.Directory.objects.get(pk=directory_pk)
-    path = directory_absolute_path(directory)
+    url_stat = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-stat'
+    url_list = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-list'
+    url_obj = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-object'
 
-    for i, thing in enumerate(path.iterdir()):
-        queue_limit = i >= settings.CHILD_QUEUE_LIMIT
+    with collections.current().mount_collections_root() as root_collection_path:
+        root_data_path = os.path.join(root_collection_path, collections.Collection.DATA_DIR)
 
-        if thing.is_dir():
-            (child_directory, created) = directory.child_directory_set.get_or_create(
-                name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
-            )
-            # since the periodic task retries all talk tasks in rotation,
-            # we're not going to dispatch a walk task we didn't create
-            walk.laterz(child_directory.pk, queue_now=created and not queue_limit)
+        dir_path = directory_absolute_path(root_data_path, directory)
+        relative_path = os.path.relpath(dir_path, start=root_collection_path)
+        service_path_bytes = os.path.join(
+            collections.current().name,
+            relative_path,
+        ).encode('utf-8', errors='surrogateescape')
+        arg = {'path_base64': base64.b64encode(service_path_bytes).decode()}
 
-        else:
-            directory = models.Directory.objects.get(pk=directory_pk)
-            path = directory_absolute_path(directory) / thing.name
-            stat = path.stat()
+        for i, thing in enumerate(requests.post(url_list, json=arg).json()['list']):
+            queue_limit = i >= settings.CHILD_QUEUE_LIMIT
+            thing['name_bytes'] = base64.b64decode(thing['name_bytes'])
+            thing['name'] = thing['name_bytes'].decode('utf8', errors='surrogateescape')
 
-            original = models.Blob.create_from_file(path)
+            if thing['is_dir']:
+                (child_directory, created) = directory.child_directory_set.get_or_create(
+                    name_bytes=thing['name_bytes'],
+                )
+                # since the periodic task retries all talk tasks in rotation,
+                # we're not going to dispatch a walk task we didn't create
+                walk.laterz(child_directory.pk, queue_now=created and not queue_limit)
+                continue
+
+            f_path = directory_absolute_path(root_data_path, directory) / thing['name']
+            f_relative_path = os.path.relpath(f_path, start=root_collection_path)
+            if _is_valid_utf8(str(f_path)):
+                stat = f_path.stat()
+                stat_size = stat.st_size
+                stat_ctime = stat.st_ctime
+                stat_mtime = stat.st_mtime
+                original = models.Blob.create_from_file(
+                    f_path,
+                    collection_source_key=f_relative_path.encode('utf-8', errors='surrogateescape'),
+                )
+            else:
+                # use the broken filename service
+                f_service_path_bytes = os.path.join(
+                    collections.current().name,
+                    f_relative_path,
+                ).encode('utf-8', errors='surrogateescape')
+                f_arg = {'path_base64': base64.b64encode(f_service_path_bytes).decode()}
+                stat = requests.post(url_stat, json=f_arg).json()
+                stat_size = stat['size']
+                stat_ctime = stat['ctime']
+                stat_mtime = stat['mtime']
+                # save file to local disk and create blob from it
+                with collections.current().mount_blobs_root(readonly=False) as w_blobs_root:
+                    tmp_base = pathlib.Path(w_blobs_root) / 'tmp' / 'blobs-broken-filenames'
+                    tmp_base.mkdir(parents=True, exist_ok=True)
+
+                    # not using "with" because we give arg delete=False
+                    # pylint: disable=consider-using-with
+                    temp = tempfile.NamedTemporaryFile(dir=tmp_base, prefix='blob-', delete=False)
+                    temp_name = temp.name
+                    try:
+                        with requests.post(url_obj, json=f_arg, stream=True) as r:
+                            r.raise_for_status()
+                            for chunk in r.iter_content(chunk_size=512 * 1024):
+                                temp.write(chunk)
+                        temp.flush()
+                        temp.close()
+                        original = models.Blob.create_from_file(temp_name)
+                    finally:
+                        os.unlink(temp_name)
+
             file, created = directory.child_file_set.get_or_create(
-                name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
+                name_bytes=thing['name_bytes'],
                 defaults=dict(
-                    ctime=time_from_unix(stat.st_ctime),
-                    mtime=time_from_unix(stat.st_mtime),
-                    size=stat.st_size,
+                    ctime=time_from_unix(stat_ctime),
+                    mtime=time_from_unix(stat_mtime),
+                    size=stat_size,
                     original=original,
                     blob=original,
                 ),
@@ -133,10 +196,10 @@ def walk(directory_pk):
             # if file is already loaded, and size+mtime are the same,
             # don't retry handle task
             if created \
-                    or file.mtime != time_from_unix(stat.st_mtime) \
-                    or file.size != stat.st_size:
-                file.mtime = time_from_unix(stat.st_mtime)
-                file.size = stat.st_size
+                    or file.mtime != time_from_unix(stat_mtime) \
+                    or file.size != stat_size:
+                file.mtime = time_from_unix(stat_mtime)
+                file.size = stat_size
                 file.original = original
                 file.save()
                 handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
@@ -144,7 +207,7 @@ def walk(directory_pk):
                 handle_file.laterz(file.pk, queue_now=False)
 
 
-@snoop_task('filesystem.handle_file', priority=1)
+@snoop_task('filesystem.handle_file', priority=1, version=2, queue='filesystem')
 @profile()
 def handle_file(file_pk, **depends_on):
     """Parse, update and possibly convert file found on in dataset.
@@ -170,46 +233,42 @@ def handle_file(file_pk, **depends_on):
 
     old_mime = file.original.mime_type
     old_blob_mime = file.blob.mime_type
-    file.original.update_magic(filename=bytes(file.name_bytes))
     old_blob = file.blob
     file.blob = file.original
 
-    # start choosing a conversion blob for this file
-    if archives.is_archive(file.original.mime_type):
-        unarchive_task = archives.unarchive.laterz(file.blob)
-        create_archive_files.laterz(
-            file.pk,
-            depends_on={'archive_listing': unarchive_task},
-        )
-
-    if file.original.mime_type in email.OUTLOOK_POSSIBLE_MIME_TYPES:
-        try:
-            file.blob = require_dependency(
-                'msg_to_eml', depends_on,
-                lambda: email.msg_to_eml.laterz(file.original),
+    if allow_processing_for_mime_type(file.original.mime_type):
+        if archives.is_archive(file.blob):
+            unarchive_task = archives.unarchive.laterz(file.blob)
+            create_archive_files.laterz(
+                file.pk,
+                depends_on={'archive_listing': unarchive_task},
             )
-        except SnoopTaskBroken:
-            pass
-    else:
-        remove_dependency('msg_to_eml', depends_on)
 
-    if file.original.mime_type in EMLX_EMAIL_MIME_TYPES:
-        file.blob = require_dependency(
-            'emlx_reconstruct', depends_on,
-            lambda: emlx.reconstruct.laterz(file.pk),
-        )
-    else:
-        remove_dependency('emlx_reconstruct', depends_on)
+        if file.original.mime_type in email.OUTLOOK_POSSIBLE_MIME_TYPES:
+            try:
+                file.blob = require_dependency(
+                    'msg_to_eml', depends_on,
+                    lambda: email.msg_to_eml.laterz(file.original),
+                )
+            except SnoopTaskBroken:
+                pass
+        else:
+            remove_dependency('msg_to_eml', depends_on)
 
-    if file.blob.pk != file.original.pk:
-        file.blob.update_magic()
+        if file.original.mime_type in EMLX_EMAIL_MIME_TYPES:
+            file.blob = require_dependency(
+                'emlx_reconstruct', depends_on,
+                lambda: emlx.reconstruct.laterz(file.pk),
+            )
+        else:
+            remove_dependency('emlx_reconstruct', depends_on)
 
-    if file.blob.mime_type in RFC822_EMAIL_MIME_TYPES:
-        email_parse_task = email.parse.laterz(file.blob)
-        create_attachment_files.laterz(
-            file.pk,
-            depends_on={'email_parse': email_parse_task},
-        )
+        if file.blob.mime_type in RFC822_EMAIL_MIME_TYPES:
+            email_parse_task = email.parse.laterz(file.blob)
+            create_attachment_files.laterz(
+                file.pk,
+                depends_on={'email_parse': email_parse_task},
+            )
 
     file.save()
 
@@ -274,7 +333,7 @@ def create_archive_files(file_pk, archive_listing):
         create_directory_children(directory, children)
 
     def create_file(parent_directory, name, original):
-        size = original.path().stat().st_size
+        size = original.size
 
         file, _ = parent_directory.child_file_set.get_or_create(
             name_bytes=name.encode('utf8', errors='surrogateescape'),
@@ -337,7 +396,7 @@ def create_attachment_files(file_pk, email_parse):
         )
         for attachment in attachments:
             original = models.Blob.objects.get(pk=attachment['blob_pk'])
-            size = original.path().stat().st_size
+            size = original.size
 
             name_bytes = (
                 attachment['name']

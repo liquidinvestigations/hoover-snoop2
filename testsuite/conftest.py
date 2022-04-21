@@ -43,30 +43,40 @@ def testdata_current():
 
 
 @pytest.fixture
-def settings_no_thumbnails():
-    url = settings.SNOOP_THUMBNAIL_URL
+def settings_with_thumbnails():
+    settings.SNOOP_THUMBNAIL_URL = settings.ORIG_SNOOP_THUMBNAIL_URL
+    yield
     settings.SNOOP_THUMBNAIL_URL = None
-    yield
-    settings.SNOOP_THUMBNAIL_URL = url
 
 
 @pytest.fixture
-def settings_no_object_detection():
-    url = settings.SNOOP_OBJECT_DETECTION_URL
+def settings_with_object_detection():
+    settings.SNOOP_OBJECT_DETECTION_URL = settings.ORIG_SNOOP_OBJECT_DETECTION_URL
+    yield
     settings.SNOOP_OBJECT_DETECTION_URL = None
-    yield
-    settings.SNOOP_OBJECT_DETECTION_URL = url
 
 
 @pytest.fixture
-def settings_no_entities():
-    extract_entities = settings.EXTRACT_ENTITIES
-    detect_language = settings.DETECT_LANGUAGE
+def settings_with_entities():
+    settings.EXTRACT_ENTITIES = settings.ORIG_EXTRACT_ENTITIES
+    settings.DETECT_LANGUAGE = settings.ORIG_DETECT_LANGUAGE
+    yield
     settings.EXTRACT_ENTITIES = False
     settings.DETECT_LANGUAGE = False
+
+
+@pytest.fixture
+def settings_with_translation():
+    settings.TRANSLATION_URL = settings.ORIG_TRANSLATION_URL
     yield
-    settings.EXTRACT_ENTITIES = extract_entities
-    settings.DETECT_LANGUAGE = detect_language
+    settings.TRANSLATION_URL = None
+
+
+@pytest.fixture
+def settings_with_ocr():
+    settings.OCR_ENABLED = settings.ORIG_OCR_ENABLED
+    yield
+    settings.OCR_ENABLED = False
 
 
 @contextmanager
@@ -145,6 +155,15 @@ class FakeData:
     def init(self):
         indexing.delete_index()
         indexing.create_index()
+
+        bucket = collections.current().name
+        # if settings.BLOBS_S3.bucket_exists(bucket):
+        #     for obj in settings.BLOBS_S3.list_objects(bucket, prefix='/', recursive=True):
+        #         settings.BLOBS_S3.remove_object(bucket, obj.object_name)
+        #     settings.BLOBS_S3.remove_bucket(bucket)
+        if not settings.BLOBS_S3.bucket_exists(bucket):
+            settings.BLOBS_S3.make_bucket(bucket)
+
         return models.Directory.objects.create()
 
     def blob(self, data):

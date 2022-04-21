@@ -35,14 +35,14 @@ from .analyzers import image_classification
 from .analyzers import entities
 from . import ocr
 from . import indexing
-from ._file_types import FILE_TYPES
+from ._file_types import FILE_TYPES, allow_processing_for_mime_type
 from .collections import current as current_collection
 
 log = logging.getLogger(__name__)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
-@snoop_task('digests.launch', priority=4, version=9)
+@snoop_task('digests.launch', priority=4, version=10, queue='digests')
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -54,39 +54,40 @@ def launch(blob):
 
     depends_on = {}
 
-    if blob.mime_type == 'message/rfc822':
-        depends_on['email_parse'] = email.parse.laterz(blob)
+    if allow_processing_for_mime_type(blob.mime_type):
+        if blob.mime_type == 'message/rfc822':
+            depends_on['email_parse'] = email.parse.laterz(blob)
 
-    if tika.can_process(blob):
-        depends_on['tika_rmeta'] = tika.rmeta.laterz(blob)
+        if tika.can_process(blob):
+            depends_on['tika_rmeta'] = tika.rmeta.laterz(blob)
 
-    if exif.can_extract(blob):
-        depends_on['exif_data'] = exif.extract.laterz(blob)
+        if exif.can_extract(blob):
+            depends_on['exif_data'] = exif.extract.laterz(blob)
 
-    if ocr.can_process(blob):
-        for lang in current_collection().ocr_languages:
-            depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
+        if ocr.can_process(blob):
+            for lang in current_collection().ocr_languages:
+                depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
-    if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
-        depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
+        if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
+            depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
 
-    if current_collection().thumbnail_generator_enabled and thumbnails.can_create(blob):
-        if depends_on.get('get_pdf_preview'):
-            # if we just launched a pdf preview, add it to the deps
-            depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(
-                blob,
-                depends_on={'pdf_preview': depends_on.get('get_pdf_preview')},
-            )
-        elif thumbnails.can_create(blob):
-            depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
+        if current_collection().thumbnail_generator_enabled and thumbnails.can_create(blob):
+            if depends_on.get('get_pdf_preview'):
+                # if we just launched a pdf preview, add it to the deps
+                depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(
+                    blob,
+                    depends_on={'pdf_preview': depends_on.get('get_pdf_preview')},
+                )
+            elif thumbnails.can_create(blob):
+                depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
 
-    if current_collection().image_classification_object_detection_enabled \
-            and image_classification.can_detect(blob):
-        depends_on['detect_objects'] = (image_classification.detect_objects.laterz(blob))
+        if current_collection().image_classification_object_detection_enabled \
+                and image_classification.can_detect(blob):
+            depends_on['detect_objects'] = (image_classification.detect_objects.laterz(blob))
 
-    if current_collection().image_classification_classify_images_enabled \
-            and image_classification.can_detect(blob):
-        depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
+        if current_collection().image_classification_classify_images_enabled \
+                and image_classification.can_detect(blob):
+            depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
 
@@ -119,7 +120,7 @@ def read_text(blob):
     This function returns a single string, truncated to the `indexing.MAX_TEXT_FIELD_SIZE` constant.
 
     If provided a file of type "application/octet-stream" (mime type unknown), we attempt to guess encoding
-    using "chardet" and abort if we don't see 95% confidence.
+    using "chardet" and abort if we don't see 80% confidence.
     """
 
     if blob.mime_type == 'application/octet-stream' or blob.mime_encoding == 'binary':
@@ -135,8 +136,8 @@ def read_text(blob):
     else:
         encoding = blob.mime_encoding
 
-    with blob.open(encoding=encoding, errors='replace') as f:
-        return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE, text_mode=True)
+    with blob.open() as f:
+        return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE).decode(encoding, errors='replace')
 
 
 def _delete_empty_keys(d):
@@ -152,7 +153,7 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', priority=7, version=7)
+@snoop_task('digests.gather', priority=7, version=7, queue='digests')
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
@@ -168,10 +169,13 @@ def gather(blob, **depends_on):
             log.warning("tika_rmeta task is broken; skipping")
         else:
             tika_rmeta = tika_rmeta_blob.read_json()
-            rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
-            rv['date'] = tika.get_date_modified(tika_rmeta)
-            rv['date-created'] = tika.get_date_created(tika_rmeta)
-            rv.update(tika.convert_for_indexing(tika_rmeta))
+            if tika_rmeta:
+                rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
+                rv['date'] = tika.get_date_modified(tika_rmeta)
+                rv['date-created'] = tika.get_date_created(tika_rmeta)
+                rv.update(tika.convert_for_indexing(tika_rmeta))
+            else:
+                log.warning("tika task returned empty result!")
 
     # parse email for text and headers
     email_parse_blob = depends_on.get('email_parse')
@@ -200,17 +204,18 @@ def gather(blob, **depends_on):
                 ocr_results[f'tesseract_{lang}'] = ""
                 continue
             if ocr_blob.mime_type == 'application/pdf':
-                ocr_results[f'tesseract_{lang}'] = subprocess.check_output(
-                    f'pdftotext -q -enc UTF-8 "{ocr_blob.path()}" - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',  # noqa: E501
-                    shell=True,
-                ).decode('utf8')
+                with ocr_blob.open() as f:
+                    ocr_results[f'tesseract_{lang}'] = subprocess.check_output(
+                        f'pdftotext -q -enc UTF-8 /dev/stdin - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',  # noqa: E501
+                        shell=True,
+                        stdin=f,
+                    ).decode('utf8', errors='replace').strip()
             else:
-                with ocr_blob.open(encoding='utf-8') as f:
+                with ocr_blob.open() as f:
                     ocr_results[f'tesseract_{lang}'] = read_exactly(
                         f,
                         indexing.MAX_TEXT_FIELD_SIZE,
-                        text_mode=True,
-                    ).strip()
+                    ).decode('utf-8', errors='replace').strip()
     if ocr_results:
         rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
         if rv['ocr']:
@@ -249,8 +254,6 @@ def gather(blob, **depends_on):
         log.warning('get_pdf_preview task is broken; skipping')
     elif isinstance(pdf_preview, models.Blob):
         rv['has-pdf-preview'] = True
-    else:
-        log.warning('unsupported return value for pdf preview.')
 
     rv['detected-objects'] = []
     detections = depends_on.get('detect_objects')
@@ -285,7 +288,7 @@ def gather(blob, **depends_on):
     return result_blob
 
 
-@snoop_task('digests.index', priority=8, version=14)
+@snoop_task('digests.index', priority=8, version=14, queue='digests')
 def index(blob, **depends_on):
     """Task used to call the entity extraction for a document.
 
@@ -299,7 +302,7 @@ def index(blob, **depends_on):
     if not current_collection().nlp_entity_extraction_enabled \
             and not current_collection().nlp_language_detection_enabled \
             and not current_collection().translation_enabled:
-        log.warning('Settings disabled. Exiting')
+        log.warning('digests.index: All settings disabled. Exiting')
         return None
 
     if isinstance(depends_on.get('digests_gather'), SnoopTaskBroken):
@@ -309,33 +312,58 @@ def index(blob, **depends_on):
     digest = models.Digest.objects.get(blob=blob)
     digest_data = digest.result.read_json()
     if not digest_data.get('text') and not digest_data.get('ocrtext'):
-        log.warning('No text data. Exiting')
+        log.warning('blob %s.. type %s: No text data. Exiting',
+                    str(blob.pk)[:6], blob.content_type)
         return None
 
     result = {}
 
-    # Text and ocrtext are now final; let's write a blob with the concatenated text,
-    # then run language detection and possibly translation on them.
+    # detect language if any other settings are on
     lang_result = None
     if current_collection().nlp_language_detection_enabled \
-            or current_collection().translation_enabled:
-        log.info('running language detect / translation...')
+            or current_collection().translation_enabled \
+            or current_collection().nlp_entity_extraction_enabled:
+        log.warning('blob %s.. type %s: running language detect...',
+                    str(blob.pk)[:6], blob.content_type)
         lang_result = require_dependency(
-            'detect_language_and_translate',
+            'detect_language',
             depends_on,
-            lambda: entities.detect_language_and_translate.laterz(blob),
+            lambda: entities.detect_language.laterz(blob),
             return_error=True,
         )
         if not lang_result or isinstance(lang_result, SnoopTaskBroken):
             log.warning('detect_language failed!')
             lang_result = None
         else:
-            log.info('running language detect / translation -- OK')
             result.update(lang_result.read_json())
+            log.info('running language detect -- OK, lang = %s', result.get('lang'))
 
-    if current_collection().nlp_entity_extraction_enabled:
-        if lang_result:
-            depends_on['lang_result'] = lang_result
+    # translate
+    translation_result = None
+    if current_collection().translation_enabled \
+            and entities.can_translate(result.get('lang')):
+        log.warning('blob %s.. type %s: running translation...',
+                    str(blob.pk)[:6], blob.content_type)
+        translation_result = require_dependency(
+            'translate',
+            depends_on,
+            lambda: entities.translate.laterz(blob, result.get('lang')),
+            return_error=True,
+        )
+
+        if not translation_result or isinstance(translation_result, SnoopTaskBroken):
+            log.warning('translation failed!')
+            translation_result = None
+        else:
+            log.info('running translation -- OK')
+            result.update(translation_result.read_json())
+
+    # extract entities
+    entity_service_results = None
+    if current_collection().nlp_entity_extraction_enabled \
+            and entities.can_extract_entities(result.get('lang')):
+        if translation_result:
+            depends_on['translation_result_pk'] = translation_result
         log.info('running entity extraction...')
         entity_service_results = require_dependency(
             'get_entity_results',
@@ -343,7 +371,7 @@ def index(blob, **depends_on):
             lambda: entities.get_entity_results.laterz(
                 blob,
                 result.get('lang'),
-                lang_result.pk if lang_result else None,
+                translation_result.pk if translation_result else None,
             ),
             return_error=True,
         )
@@ -424,7 +452,7 @@ def _set_tags_timestamps(digest_id, body):
             q.update(date_indexed=now)
 
 
-@snoop_task('digests.bulk_index', priority=9, bulk=True, version=11)
+@snoop_task('digests.bulk_index', priority=9, bulk=True, version=11, queue='digests')
 def bulk_index(batch):
     """Task used to send many documents to Elasticsearch.
 

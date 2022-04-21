@@ -124,7 +124,7 @@ def call_image_classification_service(imagedata, filename, data_size):
     return resp.json()
 
 
-@snoop_task('image_classification.detect_objects')
+@snoop_task('image_classification.detect_objects', queue='img-cls')
 @returns_json_blob
 def detect_objects(blob):
     """Calls the object detection service for an image blob.
@@ -149,7 +149,7 @@ def detect_objects(blob):
     return filtered_detections
 
 
-@snoop_task('image_classification.classify_image')
+@snoop_task('image_classification.classify_image', queue='img-cls')
 @returns_json_blob
 def classify_image(blob):
     """Calls the image classification service for an image blob.

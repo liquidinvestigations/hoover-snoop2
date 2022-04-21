@@ -27,12 +27,14 @@ This module creates Collection instances from the setting and stores them in a g
 collection requested by the user.
 """
 
-
+import time
+import tempfile
+import os
+import io
 import logging
 import subprocess
 import threading
 from contextlib import contextmanager
-from pathlib import Path
 
 from django.conf import settings
 from django.db import connection
@@ -84,7 +86,7 @@ class Collection:
         self.sync = sync and process
         self.ocr_languages = opt.get('ocr_languages', [])
         self.max_result_window = opt.get('max_result_window', 10000)
-        self.refresh_interval = opt.get('refresh_interval', "5s")
+        self.refresh_interval = opt.get('refresh_interval', "1s")
         self.opt = opt
 
         for lang_grp in self.ocr_languages:
@@ -123,15 +125,22 @@ class Collection:
     def nlp_language_detection_enabled(self):
         return self.opt.get(
             'nlp_language_detection_enabled',
-            settings.DETECT_LANGUAGE) \
-            and settings.DETECT_LANGUAGE
+            bool(settings.DETECT_LANGUAGE)) \
+            and bool(settings.DETECT_LANGUAGE)
 
     @property
     def nlp_entity_extraction_enabled(self):
         return self.opt.get(
             'nlp_entity_extraction_enabled',
-            settings.EXTRACT_ENTITIES) \
-            and settings.EXTRACT_ENTITIES
+            bool(settings.EXTRACT_ENTITIES)) \
+            and bool(settings.EXTRACT_ENTITIES)
+
+    @property
+    def nlp_text_length_limit(self):
+        return self.opt.get(
+            'nlp_text_length_limit',
+            settings.NLP_TEXT_LENGTH_LIMIT,
+        )
 
     @property
     def translation_enabled(self):
@@ -187,50 +196,10 @@ class Collection:
         return f"collection_{self.name}"
 
     @property
-    def base_path(self):
-        """Path pointing to input dataset file structure.
-
-        Must contain a directory called `data` where all the original files are read from.
-
-        May also contain a directory called `ocr` where External OCR is loaded from; see
-        [snoop.data.models.OcrSource][] for more details.
-
-        Statically loaded from [the settings][snoop.defaultsettings.SNOOP_COLLECTION_ROOT].
-        """
-
-        if settings.SNOOP_COLLECTION_ROOT is None:
-            raise RuntimeError("settings.SNOOP_COLLECTION_ROOT not configured")
-        return Path(settings.SNOOP_COLLECTION_ROOT) / self.name
-
-    @property
-    def data_path(self):
-        """Path pointing to input data files.
-        """
-
-        return self.base_path / self.DATA_DIR
-
-    @property
-    def gpghome_path(self):
-        """Path pointing to input gpghome directory.
-        """
-
-        return self.base_path / self.GPGHOME_DIR
-
-    @property
     def es_index(self):
         """Name of elasticsearch index for this collection.
         """
         return self.name
-
-    @property
-    def blob_root(self):
-        """Returns a Path with the current collection blob dir."""
-        return Path(settings.SNOOP_BLOB_STORAGE) / self.name
-
-    @property
-    def tmp_dir(self):
-        """Returns a Path to the blobs temporary directory."""
-        return self.blob_root / 'tmp'
 
     def migrate(self):
         """Run `django migrate` on this collection's database."""
@@ -259,6 +228,68 @@ class Collection:
             # this causes some tests with rollbacks to fail
             # if old is None:
             #     close_old_connections()
+
+    @contextmanager
+    def mount_blobs_root(self, readonly=True):
+        """Mount the whole blob root directory under a temporary path, using s3-fuse.
+
+        Another temporary directory is created to store the cache."""
+
+        address = settings.SNOOP_BLOBS_MINIO_ADDRESS
+        mount_mode = 'ro' if readonly else 'rw'
+        with tempfile.NamedTemporaryFile(prefix='pass-minio-blobs-', delete=False) as pass_temp:
+            password_file = pass_temp.name
+            subprocess.check_call(f"chmod 600 {password_file}", shell=True)
+            pass_str = (settings.SNOOP_BLOBS_MINIO_ACCESS_KEY
+                        + ':'
+                        + settings.SNOOP_BLOBS_MINIO_SECRET_KEY).encode('latin-1')
+            pass_temp.write(pass_str)
+            pass_temp.close()
+
+            with tempfile.TemporaryDirectory(prefix='blob-tmp-cache-') as cache:
+                target = tempfile.mkdtemp(prefix='blob-mount-target-')
+                mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
+                try:
+                    yield target
+                finally:
+                    umount_s3fs(target)
+                    os.rmdir(target)
+                    os.unlink(password_file)
+
+    @contextmanager
+    def mount_collections_root(self, readonly=True):
+        """Mount the whole collections root directory under a temporary path, using s3-fuse.
+
+        Another temporary directory is created to store the cache."""
+
+        address = settings.SNOOP_COLLECTIONS_MINIO_ADDRESS
+        mount_mode = 'ro' if readonly else 'rw'
+
+        with tempfile.NamedTemporaryFile(prefix='pass-minio-collections-', delete=False) as pass_temp:
+            password_file = pass_temp.name
+            subprocess.check_call(f"chmod 600 {password_file}", shell=True)
+            pass_str = (settings.SNOOP_COLLECTIONS_MINIO_ACCESS_KEY
+                        + ':'
+                        + settings.SNOOP_COLLECTIONS_MINIO_SECRET_KEY).encode('latin-1')
+            pass_temp.write(pass_str)
+            pass_temp.close()
+
+            with tempfile.TemporaryDirectory(prefix='collection-tmp-cache-') as cache:
+                target = tempfile.mkdtemp(prefix='collection-mount-target-')
+                mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
+                try:
+                    assert os.path.isdir(os.path.join(target, 'data')), 'no data found in bucket'
+                    yield target
+                finally:
+                    umount_s3fs(target)
+                    os.rmdir(target)
+                    os.unlink(password_file)
+
+    @contextmanager
+    def mount_gpghome(self):
+        with self.mount_collections_root(readonly=False) as collection_root:
+            gpg_root = os.path.join(collection_root, self.GPGHOME_DIR)
+            yield gpg_root
 
 
 def all_collection_dbs():
@@ -323,16 +354,17 @@ def create_roots():
 
     for col in ALL.values():
         with transaction.atomic(using=col.db_alias), col.set_current():
-            root_path = current().blob_root
-            # Avoid to run mkdir over a symlink.
-            # This will still error out if there's a file at that location.
-            if not root_path.is_symlink():
-                root_path.mkdir(exist_ok=True, parents=True)
+            if settings.BLOBS_S3.bucket_exists(col.name):
+                logger.info('found bucket %s', col.name)
+            else:
+                logger.info('creating bucket %s', col.name)
+                settings.BLOBS_S3.make_bucket(col.name)
+                settings.BLOBS_S3.put_object(col.name, 'tmp/dummy', io.BytesIO(b"hello"), length=5)
 
             root = Directory.root()
             if not root:
                 root = Directory.objects.create()
-                logger.debug(f'Creating root document {root} for collection {col.name}')
+                logger.info(f'Creating root document {root} for collection {col.name}')
 
 
 class CollectionsRouter:
@@ -382,6 +414,34 @@ def current():
     col = getattr(threadlocal, 'collection', None)
     assert col is not None, "There is no current collection set"
     return col
+
+
+def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
+    """Run subprocess to mount s3fs disk to target. Will wait until completed."""
+    subprocess.check_call(f"""
+        s3fs \\
+        -o {mount_mode} -o allow_other \\
+        -o use_cache={cache} -o passwd_file={password_file}  \\
+        -o dbglevel=info -o curldbg \\
+        -o use_path_request_style \\
+        -o url=http://{address} \\
+        {bucket} {target}
+        """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
+
+
+def umount_s3fs(target):
+    """Run subprocess to umount s3fs disk from target. Will wait until completed."""
+    subprocess.run(f"umount {target}", shell=True, check=False)
+    attempt = 0
+    while os.listdir(target):
+        subprocess.check_call(f"""
+            umount {target} || umount -l {target} || true;
+        """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
+
+        attempt += 1
+        if attempt > 100:
+            raise RuntimeError('cannot umount the s3fs!')
+        time.sleep(0.05)
 
 
 for item in settings.SNOOP_COLLECTIONS:

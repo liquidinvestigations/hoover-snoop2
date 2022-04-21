@@ -11,6 +11,7 @@ All the different admin sites are kept in the global dict `sites`. The default a
 this dict, under the key "_default". The sites are mapped to URLs in `snoop.data.urls` using this global.
 """
 
+import logging
 import math
 import json
 import time
@@ -30,6 +31,12 @@ from . import models
 from . import tasks
 from . import collections
 from .templatetags import pretty_size
+
+
+log = logging.getLogger(__name__)
+
+
+tasks.import_snoop_tasks()
 
 
 def blob_link(blob_pk):
@@ -106,6 +113,10 @@ def get_task_matrix(task_queryset, prev_matrix={}):
 
     task_matrix = defaultdict(dict)
 
+    for key, func in tasks.task_map.items():
+        if func.queue:
+            task_matrix[key]['queue'] = func.queue
+
     task_buckets_query = (
         task_queryset
         .values('func', 'status')
@@ -121,7 +132,7 @@ def get_task_matrix(task_queryset, prev_matrix={}):
     # Task table row takes about 5K in PG, and blob/data storage fetching does at least 8K of I/O
     SIZE_OVERHEAD = 13 * 2 ** 10
     # Overhead measured for NO-OP tasks; used here to make sure we never divide by 0
-    TIME_OVERHEAD = 0.02
+    TIME_OVERHEAD = 0.005
     RECENT_SPEED_KEY = str(mins) + 'm_avg_bytes_sec'
     AVG_WORKERS_KEY = str(mins) + 'm_avg_workers'
 
@@ -139,14 +150,14 @@ def get_task_matrix(task_queryset, prev_matrix={}):
     for bucket in task_5m_query:
         row = task_matrix[bucket['func']]
         count = bucket['count']
-        real_time = (bucket['end'] - bucket['start']).total_seconds() + TIME_OVERHEAD
-        total_time = bucket['time'].total_seconds() + TIME_OVERHEAD
-        fill_a = total_time / real_time
+        real_time = (bucket['end'] - bucket['start']).total_seconds()
+        total_time = bucket['time'].total_seconds()
+        fill_a = total_time / (real_time + TIME_OVERHEAD)
         fill_b = total_time / (mins * 60)
-        fill = round((fill_a + fill_b) / 2, 2)
+        fill = round((fill_a + fill_b) / 2, 3)
         # get total system bytes/sec in this period
         size = (bucket['size'] or 0) + SIZE_OVERHEAD * count
-        bytes_sec = size / total_time
+        bytes_sec = size / (total_time + TIME_OVERHEAD)
         row[str(mins) + 'm_count'] = count
         row[AVG_WORKERS_KEY] = fill
         row[str(mins) + 'm_avg_duration'] = total_time / count
@@ -169,12 +180,14 @@ def get_task_matrix(task_queryset, prev_matrix={}):
         .values('func')
         .annotate(size=Avg('blob_arg__size'))
         .annotate(avg_duration=Avg(F('date_finished') - F('date_started')))
+        .annotate(total_duration=Sum(F('date_finished') - F('date_started')))
     )
     for bucket in task_success_speed:
         row = task_matrix[bucket['func']]
         row['success_avg_size'] = (bucket['size'] or 0) + SIZE_OVERHEAD
         row['success_avg_duration'] = bucket['avg_duration'].total_seconds() + TIME_OVERHEAD
         row['success_avg_bytes_sec'] = (row['success_avg_size']) / (row['success_avg_duration'])
+        row['success_total_duration'] = int(bucket['total_duration'].total_seconds() + TIME_OVERHEAD)
     for func in prev_matrix:
         old = prev_matrix.get(func, {}).get('success_avg_bytes_sec', 0)
         # sometimes garbage appears in the JSON (say, if you edit it manually while working on it)
@@ -208,12 +221,14 @@ def get_task_matrix(task_queryset, prev_matrix={}):
         if speed:
             remaining_time = row['remaining_size'] / speed
             eta = remaining_time + row.get('pending', 0) * TIME_OVERHEAD
+            # average with simple ETA (count * duration)
+            eta_simple = bucket['count'] * row['success_avg_duration']
+            eta = (eta + eta_simple) / 2
 
-            # Set a small 0.5=5/10 default worker count instead of 0,
-            # estimating off of 5 CPU / collection, with 10 main tasks per document.
-            # in batches much larger than the 5min window.
-            avg_worker_count = row.get(AVG_WORKERS_KEY, 0) + 0.5
-            # Divide by avg workers count for this task, to obtain ETA.
+            # Set a small 0.01 default worker count instead of 0,
+            avg_worker_count = row.get(AVG_WORKERS_KEY, 0) + 0.01
+
+            # Divide by avg workers count for this task, to obtain multi-worker ETA.
             eta = eta / avg_worker_count
 
             # double the estimation, since 3X is too much
@@ -243,6 +258,8 @@ def _get_stats(old_values):
 
     Data is returned in a JSON-serializable python dict.
     """
+
+    __t0 = time.time()
 
     def tr(key, value):
         """Render to string in user-friendly format depending on the key"""
@@ -315,6 +332,25 @@ def _get_stats(old_values):
         error_str = ', %0.2f%% errors' % error_percent if count_error > 0 else ''
         return '%0.1f%% processed%s%s' % (finished_percent, error_str, eta_str)
 
+    stored_blobs = (
+        blobs
+        .filter(collection_source_key__exact=b'',
+                archive_source_key__exact=b'')
+    )
+
+    collection_source = (
+        blobs
+        .exclude(collection_source_key__exact=b'')
+    )
+
+    archive_source = (
+        blobs
+        .exclude(archive_source_key__exact=b'')
+    )
+
+    def __get_size(q):
+        return q.aggregate(Sum('size'))['size__sum']
+
     return {
         'task_matrix_header': task_matrix_header,
         'task_matrix': sorted(task2),
@@ -323,11 +359,17 @@ def _get_stats(old_values):
             'files': models.File.objects.count(),
             'directories': models.Directory.objects.count(),
             'blob_count': blobs.count(),
-            'blob_total_size': blobs.aggregate(Sum('size'))['size__sum'],
+            'blob_total_size': __get_size(stored_blobs),
+            'blob_total_count': stored_blobs.count(),
+            'collection_source_size': __get_size(collection_source),
+            'collection_source_count': collection_source.count(),
+            'archive_source_size': __get_size(archive_source),
+            'archive_source_count': archive_source.count(),
         },
         'db_size': db_size,
         'error_counts': list(get_error_counts()),
         '_last_updated': time.time(),
+        'stats_collection_time': int(time.time() - __t0) + 1,
         '_old_task_matrix': {k: tr(k, v) for k, v in task_matrix.items()},
     }
 
@@ -335,11 +377,30 @@ def _get_stats(old_values):
 def get_stats():
     """This function runs (and caches) expensive collection statistics."""
 
-    REFRESH_AFTER_SEC = 10
+    col_name_hash = int(hash(collections.current().name))
+    if collections.current().process:
+        # default stats refresh rate once per 2 min
+        REFRESH_AFTER_SEC = 100
+        # add pseudorandom 0-40s
+        REFRESH_AFTER_SEC += col_name_hash % 40
+    else:
+        # non-processed collection stats are only pulled once / week
+        REFRESH_AFTER_SEC = 604800
+        # add a pseudorandom 0-60min based on collection name
+        REFRESH_AFTER_SEC += col_name_hash % 3600
+
     s, _ = models.Statistics.objects.get_or_create(key='stats')
     old_value = s.value
+    duration = old_value.get('stats_collection_time', 1) if old_value else 1
+
+    # ensure we don't fill up the worker with a single collection
+    REFRESH_AFTER_SEC += duration * 2
     if not old_value or time.time() - old_value.get('_last_updated', 0) > REFRESH_AFTER_SEC:
         s.value = _get_stats(old_value)
+    else:
+        log.info('skipping stats for collection %s, need to pass %s sec since last one',
+                 collections.current().name,
+                 REFRESH_AFTER_SEC)
     s.save()
     return s.value
 
@@ -589,14 +650,30 @@ class FileAdmin(MultiDBModelAdmin):
 class BlobAdmin(MultiDBModelAdmin):
     """List and detail views for the blobs."""
 
-    list_display = ['__str__', 'mime_type', 'mime_encoding', 'created']
+    list_display = ['__str__', 'mime_type', 'mime_encoding', 'created',
+                    'storage', 'size',
+                    ]
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
-                     'magic', 'mime_type', 'mime_encoding']
+                     'magic', 'mime_type', 'mime_encoding',
+                     'collection_source_key', 'archive_source_key',
+                     'archive_source_blob__pk', 'archive_source_blob__md5']
     readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5', 'created',
-                       'size', 'magic', 'mime_type', 'mime_encoding']
+                       'size', 'magic', 'mime_type', 'mime_encoding',
+                       '_collection_source_key', '_archive_source_key', 'archive_source_blob']
 
     change_form_template = 'snoop/admin_blob_change_form.html'
+
+    def _collection_source_key(self, obj):
+        return obj.collection_source_key.tobytes().decode('utf8', errors='surrogateescape')
+
+    def _archive_source_key(self, obj):
+        return obj.collection_source_key.tobytes().decode('utf8', errors='surrogateescape')
+
+    def storage(self, obj):
+        return ('collection' if bool(obj.collection_source_key) else (
+            'archive' if bool(obj.archive_source_key) else 'blobs'
+        ))
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         """Optionally fetch and display the actual blob data in the defail view.
@@ -623,6 +700,11 @@ class BlobAdmin(MultiDBModelAdmin):
     def created(self, obj):
         """Returns user-friendly string with date created (like "3 months ago")."""
         return naturaltime(obj.date_created)
+    created.admin_order_field = 'date_created'
+
+    def size(self, obj):
+        return obj.size
+    size.admin_order_field = 'size'
 
     def get_preview_content(self, blob):
         """Returns string with text for Blobs that are JSON or text.
@@ -633,11 +715,11 @@ class BlobAdmin(MultiDBModelAdmin):
         """
         if blob.mime_type == 'text/plain':
             encoding = 'latin1' if blob.mime_encoding == 'binary' else blob.mime_encoding
-            with blob.open(encoding=encoding) as f:
-                return f.read()
+            with blob.open() as f:
+                return f.read().decode(encoding)
 
         elif blob.mime_type == 'application/json':
-            with blob.open(encoding='utf8') as f:
+            with blob.open() as f:
                 return json.dumps(json.load(f), indent=2, sort_keys=True)
 
         else:

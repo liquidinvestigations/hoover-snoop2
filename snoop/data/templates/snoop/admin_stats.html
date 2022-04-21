@@ -10,9 +10,16 @@
 <h2>Counts</h2>
 <strong>{{ counts.files }}</strong> files<br>
 <strong>{{ counts.directories }}</strong> directories<br>
-<strong>{{ counts.blob_count }}</strong> blobs<br>
-<strong>{{ counts.blob_total_size|pretty_size }}</strong> in blob storage<br>
+<strong>{{ counts.blob_count }}</strong> blobs (total)<br>
+<strong>{{ counts.blob_total_count }}</strong> objects in blob storage <br>
+<strong>{{ counts.blob_total_size|pretty_size }}</strong> in blob storage, object count = {{ counts.blob_total_count }}<br>
+<strong>{{ counts.collection_source_size|pretty_size }}</strong> found in collection source storage, object count = {{ counts.collection_source_count }}<br>
+<strong>{{ counts.archive_source_size|pretty_size }}</strong> found in collection archives, object count = {{ counts.archive_source_count }}<br>
+
+
 <strong>{{ db_size|pretty_size }}</strong> in database<br>
+
+stats collection time: <strong>{{ stats_collection_time }}s</strong><br>
 
 <h2>Task errors</h2>
 <table>

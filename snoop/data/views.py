@@ -192,11 +192,12 @@ def document_download(request, hash, filename):
     real_filename = first_file.name_bytes.tobytes().decode('utf-8', errors='replace')
     real_filename = real_filename.replace("\r", "").replace("\n", "")
 
-    response = RangedFileResponse(request, blob.open(), content_type=blob.content_type)
-    response['Content-Disposition'] = f'attachment; filename="{real_filename}"'
-    response['Accept-Ranges'] = 'bytes'
+    with blob.open(need_seek=True) as f:
+        response = RangedFileResponse(request, f, content_type=blob.content_type)
+        response['Content-Disposition'] = f'attachment; filename="{real_filename}"'
+        response['Accept-Ranges'] = 'bytes'
 
-    return response
+        return response
 
 
 @collection_view
@@ -228,11 +229,12 @@ def document_ocr(request, hash, ocrname):
         tesseract_task = digest_task.prev_set.get(name=ocrname).prev
         blob = tesseract_task.result
 
-    response = RangedFileResponse(request, blob.open(),
-                                  content_type=blob.content_type)
-    response['Content-Disposition'] = f'attachment; filename="{hash}_{ocrname}"'
-    response['Accept-Ranges'] = 'bytes'
-    return response
+    with blob.open(need_seek=True) as f:
+        response = RangedFileResponse(request, f,
+                                      content_type=blob.content_type)
+        response['Content-Disposition'] = f'attachment; filename="{hash}_{ocrname}"'
+        response['Accept-Ranges'] = 'bytes'
+        return response
 
 
 @collection_view
@@ -338,14 +340,16 @@ class TagViewSet(viewsets.ModelViewSet):
 @collection_view
 def thumbnail(request, hash, size):
     thumbnail_entry = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash)
-    return FileResponse(thumbnail_entry.thumbnail.open(), content_type='image/jpeg')
+    with thumbnail_entry.thumbnail.open() as f:
+        return FileResponse(f, content_type='image/jpeg')
 
 
 @collection_view
 def pdf_preview(request, hash):
     pdf_preview_entry = get_object_or_404(models.PdfPreview.objects, blob__pk=hash)
-    response = RangedFileResponse(request, pdf_preview_entry.pdf_preview.open(),
-                                  content_type='application/pdf')
-    response['Accept-Ranges'] = 'bytes'
-    response['Content-Disposition'] = f'attachment; filename="{hash}_preview.pdf"'
-    return response
+    with pdf_preview_entry.pdf_preview.open(need_seek=True) as f:
+        response = RangedFileResponse(request, f,
+                                      content_type='application/pdf')
+        response['Accept-Ranges'] = 'bytes'
+        response['Content-Disposition'] = f'attachment; filename="{hash}_preview.pdf"'
+        return response

@@ -45,7 +45,8 @@ log = logging.getLogger(__name__)
 
 def can_process(blob):
     """Checks if the blob can be processed by the tesseract OCR"""
-    return blob.mime_type in TESSERACT_OCR_IMAGE_MIME_TYPES.union({'application/pdf'})
+    return settings.OCR_ENABLED and \
+        (blob.mime_type in TESSERACT_OCR_IMAGE_MIME_TYPES.union({'application/pdf'}))
 
 
 def create_ocr_source(name):
@@ -78,12 +79,12 @@ def ocr_texts_for_blob(original):
     """Yields a (source name, text) tuple for each OcrDocument matching argument."""
 
     for ocr_document in ocr_documents_for_blob(original):
-        with ocr_document.text.open(encoding='utf8') as f:
-            text = f.read()
+        with ocr_document.text.open() as f:
+            text = f.read().decode('utf-8')
         yield (ocr_document.source.name, text)
 
 
-@snoop_task('ocr.walk_source')
+@snoop_task('ocr.walk_source', queue='filesystem')
 def walk_source(ocr_source_pk, dir_path=''):
     """Task that explores OcrSource root directory.
 
@@ -94,20 +95,21 @@ def walk_source(ocr_source_pk, dir_path=''):
     """
 
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    for item in (ocr_source.root / dir_path).iterdir():
-        if not all(ch in string.printable for ch in item.name):
-            log.warn("Skipping non-printable filename %r in %s:%s",
-                     item.name, ocr_source_pk, dir_path)
-            continue
+    with ocr_source.mount_root() as ocr_source_root:
+        for item in (ocr_source_root / dir_path).iterdir():
+            if not all(ch in string.printable for ch in item.name):
+                log.warn("Skipping non-printable filename %r in %s:%s",
+                         item.name, ocr_source_pk, dir_path)
+                continue
 
-        if item.is_dir():
-            walk_source.laterz(ocr_source.pk, f'{dir_path}{item.name}/')
+            if item.is_dir():
+                walk_source.laterz(ocr_source.pk, f'{dir_path}{item.name}/')
 
-        else:
-            walk_file.laterz(ocr_source.pk, f'{dir_path}{item.name}')
+            else:
+                walk_file.laterz(ocr_source.pk, f'{dir_path}{item.name}')
 
 
-@snoop_task('ocr.walk_file')
+@snoop_task('ocr.walk_file', queue='filesystem')
 def walk_file(ocr_source_pk, file_path, **depends_on):
     """Task to ingest one single file found in the OcrSource directory by [snoop.data.ocr.walk_source][].
 
@@ -117,12 +119,13 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
     """
 
     ocr_source = models.OcrSource.objects.get(pk=ocr_source_pk)
-    path = ocr_source.root / file_path
+    with ocr_source.mount_root() as ocr_source_root:
+        path = ocr_source_root / file_path
 
-    original_hash = path.name[:32].lower()
-    assert re.match(r'^[0-9a-f]{32}$', original_hash)
+        original_hash = path.name[:32].lower()
+        assert re.match(r'^[0-9a-f]{32}$', original_hash)
 
-    ocr_blob = models.Blob.create_from_file(path)
+        ocr_blob = models.Blob.create_from_file(path)
 
     if path.suffix == '.txt':
         text_blob = ocr_blob
@@ -132,7 +135,7 @@ def walk_file(ocr_source_pk, file_path, **depends_on):
             'tika', depends_on,
             lambda: tika.rmeta.laterz(ocr_blob),
         )
-        with rmeta_blob.open(encoding='utf8') as f:
+        with rmeta_blob.open() as f:
             rmeta_data = json.load(f)
         text = rmeta_data[0].get('X-TIKA:content', "")
         text_blob = models.Blob.create_from_bytes(text.encode('utf8'))
@@ -160,11 +163,12 @@ def run_tesseract_on_image(image_blob, lang):
         '--oem', '1',
         '--psm', '1',
         '-l', lang,
-        str(image_blob.path()),
+        "-",
         'stdout'
     ]
     try:
-        data = subprocess.check_output(args)
+        with image_blob.open(need_fileno=True) as f:
+            data = subprocess.check_output(args, stdin=f)
     except subprocess.CalledProcessError as e:
         if e.output:
             output = e.output.decode('latin-1')
@@ -181,44 +185,53 @@ def run_tesseract_on_image(image_blob, lang):
 def run_tesseract_on_pdf(pdf_blob, lang):
     """Run a `pdf2pdfocr.py` process on PDF document and return resulting PDF as blob."""
 
-    pdfstrlen = len(
-        subprocess.check_output(f'pdftotext -q -enc UTF-8 "{pdf_blob.path()}" - | wc -w',
-                                shell=True)
-    )
+    if pdf_blob.size > settings.PDF2PDFOCR_MAX_FILE_LEN:
+        raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with size'
+                              f'{pdf_blob.size} bytes (max = {settings.PDF2PDFOCR_MAX_FILE_LEN})',
+                              'pdf_ocr_file_too_big')
+
+    with pdf_blob.open(need_fileno=True) as f:
+        pdfstrlen = len(
+            subprocess.check_output('pdftotext -q -enc UTF-8 - - | wc -w',
+                                    shell=True, stdin=f)
+        )
     if pdfstrlen > settings.PDF2PDFOCR_MAX_STRLEN:
-        raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes of text',
+        raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes'
+                              f'of text (max = {settings.PDF2PDFOCR_MAX_STRLEN})',
                               'pdf_ocr_text_too_long')
 
-    with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmp_f:
-        tmp = tmp_f.name
-    try:
-        args = [
-            'pdf2pdfocr.py',
-            '-i', str(pdf_blob.path()),
-            '-o', tmp,
-            '-l', lang,
-            '-v', '-a',
-            '-x', '--oem 1 --psm 1',
-            '-j', "%0.4f" % (1.0 / max(1, multiprocessing.cpu_count())),
-        ]
-        subprocess.check_call(args)
-        return models.Blob.create_from_file(tmp)
-    except subprocess.CalledProcessError as e:
-        # This may as well be a non-permanent error, but we have no way to tell
-        if e.output:
-            output = e.output.decode('latin-1')
-        else:
-            output = "(no output)"
-        raise SnoopTaskBroken('running pdf2pdfocr.py failed: ' + output,
-                              'pdf_ocr_pdf2pdfocr_failed')
-    except Exception as e:
-        log.exception(e)
-        raise e
-    finally:
-        os.remove(tmp)
+    with tempfile.TemporaryDirectory(prefix='tesseract-pdf2pdfocr-') as tmp_root:
+        with tempfile.NamedTemporaryFile(dir=tmp_root, suffix='.pdf', delete=False) as tmp_f:
+            tmp = tmp_f.name
+        try:
+            with pdf_blob.mount_path() as blob_path:
+                args = [
+                    'pdf2pdfocr.py',
+                    '-i', blob_path,
+                    '-o', tmp,
+                    '-l', lang,
+                    '-v', '-a',
+                    '-x', '--oem 1 --psm 1',
+                    '-j', "%0.4f" % (1.0 / max(1, multiprocessing.cpu_count())),
+                ]
+                subprocess.check_call(args)
+            return models.Blob.create_from_file(tmp)
+        except subprocess.CalledProcessError as e:
+            # This may as well be a non-permanent error, but we have no way to tell
+            if e.output:
+                output = e.output.decode('latin-1')
+            else:
+                output = "(no output)"
+            raise SnoopTaskBroken('running pdf2pdfocr.py failed: ' + output,
+                                  'pdf_ocr_pdf2pdfocr_failed')
+        except Exception as e:
+            log.exception(e)
+            raise e
+        finally:
+            os.remove(tmp)
 
 
-@snoop_task('ocr.run_tesseract')
+@snoop_task('ocr.run_tesseract', queue='ocr')
 def run_tesseract(blob, lang):
     """Task to run Tesseract OCR on a given document.
 

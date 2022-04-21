@@ -8,7 +8,9 @@ import re
 from datetime import timedelta
 from pathlib import Path
 import json
-from multiprocessing import cpu_count
+
+from minio import Minio
+import boto3
 
 from snoop.data import celery
 
@@ -174,6 +176,9 @@ DETECT_LANGUAGE = os.getenv('SNOOP_DETECT_LANGUAGES', 'False').lower() == 'true'
 EXTRACT_ENTITIES = os.getenv('SNOOP_EXTRACT_ENTITIES', 'False').lower() == 'true'
 SNOOP_NLP_URL = os.environ.get('SNOOP_NLP_URL', 'http://127.0.0.1:5000/')
 """ URL pointing to NLP server"""
+NLP_TEXT_LENGTH_LIMIT = int(os.getenv('NLP_TEXT_LENGTH_LIMIT', '2000000'))
+"""Truncate text sent to NLP service after this many characters."""
+
 
 TRANSLATION_URL = os.getenv('SNOOP_TRANSLATION_URL')
 TRANSLATION_TEXT_LENGTH_LIMIT = int(os.getenv('SNOOP_TRANSLATION_TEXT_LENGTH_LIMIT', '400'))
@@ -189,11 +194,54 @@ USE_TZ = True
 SNOOP_COLLECTIONS_ELASTICSEARCH_URL = os.environ.get('SNOOP_ES_URL', 'http://localhost:9200')
 """URL pointing to Elasticsearch server."""
 
-SNOOP_BLOB_STORAGE = str(base_dir / 'blobs')
-"""Full disk path pointing to Blobs storage.
-
-A new directory will be created under this path for every collection processed.
+SNOOP_TEMP_STORAGE = str(base_dir / 'tmp')
+"""Full disk path pointing to temp storage.
 """
+
+SNOOP_BLOBS_MINIO_ADDRESS = os.environ.get('SNOOP_BLOBS_MINIO_ADDRESS', 'minio-blobs:9000')
+SNOOP_BLOBS_MINIO_ACCESS_KEY = os.environ.get('SNOOP_BLOBS_MINIO_ACCESS_KEY', 'minioadmin')
+SNOOP_BLOBS_MINIO_SECRET_KEY = os.environ.get('SNOOP_BLOBS_MINIO_SECRET_KEY', 'minioadmin')
+SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS = {
+    'client': boto3.Session().client(
+        's3',
+        endpoint_url='http://' + SNOOP_BLOBS_MINIO_ADDRESS,
+        aws_access_key_id=SNOOP_BLOBS_MINIO_ACCESS_KEY,
+        aws_secret_access_key=SNOOP_BLOBS_MINIO_SECRET_KEY,
+    ),
+}
+BLOBS_S3 = Minio(
+    SNOOP_BLOBS_MINIO_ADDRESS,
+    access_key=SNOOP_BLOBS_MINIO_ACCESS_KEY,
+    secret_key=SNOOP_BLOBS_MINIO_SECRET_KEY,
+    secure=False,
+)
+
+SNOOP_COLLECTIONS_MINIO_ADDRESS = os.environ.get('SNOOP_COLLECTIONS_MINIO_ADDRESS', 'minio-collections:9000')
+SNOOP_COLLECTIONS_MINIO_ACCESS_KEY = os.environ.get('SNOOP_COLLECTIONS_MINIO_ACCESS_KEY', 'minioadmin')
+SNOOP_COLLECTIONS_MINIO_SECRET_KEY = os.environ.get('SNOOP_COLLECTIONS_MINIO_SECRET_KEY', 'minioadmin')
+SNOOP_COLLECTIONS_SMART_OPEN_TRANSPORT_PARAMS = {
+    'client': boto3.Session().client(
+        's3',
+        endpoint_url='http://' + SNOOP_COLLECTIONS_MINIO_ADDRESS,
+        aws_access_key_id=SNOOP_COLLECTIONS_MINIO_ACCESS_KEY,
+        aws_secret_access_key=SNOOP_COLLECTIONS_MINIO_SECRET_KEY,
+    ),
+}
+COLLECTIONS_S3 = Minio(
+    SNOOP_COLLECTIONS_MINIO_ADDRESS,
+    access_key=SNOOP_COLLECTIONS_MINIO_ACCESS_KEY,
+    secret_key=SNOOP_COLLECTIONS_MINIO_SECRET_KEY,
+    secure=False,
+)
+SNOOP_BROKEN_FILENAME_SERVICE = os.environ.get('SNOOP_BROKEN_FILENAME_SERVICE')
+SNOOP_SKIP_PROCESSING_MIME_TYPES = os.environ.get(
+    'SNOOP_BROKEN_FILENAME_SERVICE',
+    'application/octet-stream,inode/x-empty',
+).split(',')
+SNOOP_SKIP_PROCESSING_EXTENSIONS = os.environ.get(
+    'SNOOP_SKIP_PROCESSING_EXTENSIONS',
+    ".exe,.dat",
+).split(',')
 
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 """URL pointing to Apache Tika server."""
@@ -211,12 +259,6 @@ TODO:
     remove this value, as the API is not used anymore.
 """
 
-SNOOP_COLLECTION_ROOT = os.environ.get('SNOOP_COLLECTION_ROOT')
-"""Path on disk pointing to collection source directory.
-
-All collections in the system must have a directory here called the same as the collection name, containing
-a directory called `data` where the actual collection data is fetched from.
-"""
 
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 """Prefix to add to all snoop task queues.
@@ -225,22 +267,6 @@ TODO:
     Remove this value, as it's not used anymore.
 """
 
-
-SNOOP_MIN_WORKERS = int(os.environ.get('SNOOP_MIN_WORKERS', '2'))
-"""Input min worker count."""
-
-
-SNOOP_MAX_WORKERS = int(os.environ.get('SNOOP_MAX_WORKERS', '8'))
-"""Input max worker count."""
-
-SNOOP_CPU_MULTIPLIER = float(os.environ.get('SNOOP_CPU_MULTIPLIER', '0.66'))
-"""Input CPU multiplier."""
-
-
-WORKER_COUNT = min(SNOOP_MAX_WORKERS,
-                   max(SNOOP_MIN_WORKERS,
-                       int(SNOOP_CPU_MULTIPLIER * cpu_count())))
-"""Computed worker count for this node."""
 
 TASK_RETRY_AFTER_MINUTES = 3
 """Errored tasks are retried at most every this number of minutes."""
@@ -254,18 +280,9 @@ WORKER_TASK_LIMIT = 50000
 Used to avoid memory leaks.
 """
 
-WORKER_MEMORY_LIMIT = 500
-"""Memory limit for each worker (in mb),
+_scale_coef = 4
 
-Not enforced during job -- worker gets restarted after it uses more than this value. Used to avoid memory
-leaks.
-"""
-
-_scale_coef = int((1 + SNOOP_MIN_WORKERS + SNOOP_MAX_WORKERS + WORKER_COUNT) / 3)
-""" average worker count to scale the queue limits by
-"""
-
-CHILD_QUEUE_LIMIT = 50 * _scale_coef
+CHILD_QUEUE_LIMIT = min(150, 50 * _scale_coef)
 """ Limit for queueing large counts of children tasks.
 """
 
@@ -286,12 +303,19 @@ RETRY_LIMIT_TASKS = 8000 * _scale_coef
 
 See `TASK_RETRY_FAIL_LIMIT`."""
 
-PDF2PDFOCR_MAX_STRLEN = 2 * (2 ** 20)
+OCR_ENABLED = True
+"""Flag to enable/disable OCR processing."""
+
+PDF2PDFOCR_MAX_STRLEN = 2 * (2 ** 20)  # 2 MB
 """ Only run pdf2pdfocr if pdf text length less than this value.
 
 This should defend us from over-1000-page documents that hang up the processing for days. The english bible
 has about 4 MB of text, so we use 50% of that as a simple value of when to stop.
 """
+
+PDF2PDFOCR_MAX_FILE_LEN = 1 * (2 ** 30)  # 1 GB
+""" Only run pdf2pdfocr if pdf file size is less than this value."""
+
 
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')
 """Configuration to set the URL prefix for all service routes. For example: "snoop/".

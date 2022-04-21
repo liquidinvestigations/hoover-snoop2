@@ -6,7 +6,12 @@ ARG GID=666
 RUN groupadd -g $GID -o $USER_NAME
 RUN useradd -m -u $UID -g $GID -o -s /bin/bash $USER_NAME
 
-RUN apt-get update && apt-get install -y gosu
+# deps, install s3fs, fuse-7z-ng and concat-fuse
+RUN apt-get update && apt-get install -y gosu s3fs cmake libfuse-dev build-essential libfuse-dev libmhash-dev libminizip-dev     build-essential pkg-config cmake g++ clang libfuse-dev libmhash-dev libminizip-dev zlib1g-dev libssl-dev libgtest-dev
+RUN mkdir /opt/fuse-7z \
+ && git clone https://github.com/liquidinvestigations/fuse-7z-ng /opt/fuse-7z \
+ && /opt/fuse-7z/build.sh \
+ && rm -rf /opt/fuse-7z
 
 # install snoop
 RUN mkdir -p /opt/hoover/snoop/static
@@ -26,7 +31,6 @@ RUN set -e \
 RUN chown -R $UID:$GID /runserver
 RUN chown -R $UID:$GID /opt/libpst
 
-ENV DATA_DIR "/opt/hoover/snoop"
 ENV USER_NAME $USER_NAME
 ENV UID $UID
 ENV GID $GID

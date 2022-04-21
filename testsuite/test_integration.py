@@ -1,6 +1,5 @@
 import time
 from urllib.parse import urljoin
-import subprocess
 
 import requests
 import pytest
@@ -45,9 +44,14 @@ def check_api_page(api, item_id, parent_id):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, settings_no_object_detection, settings_no_entities):
-    blobs_path = settings.SNOOP_BLOB_STORAGE
-    subprocess.check_call('rm -rf *', shell=True, cwd=blobs_path)
+def test_complete_lifecycle(client, taskmanager):
+    for b in settings.BLOBS_S3.list_buckets():
+        bucket = b.name
+        print('del bucket', bucket)
+        for obj in settings.BLOBS_S3.list_objects(bucket, prefix='/', recursive=True):
+            settings.BLOBS_S3.remove_object(bucket, obj.object_name)
+        settings.BLOBS_S3.remove_bucket(bucket)
+    settings.BLOBS_S3.make_bucket('testdata')
 
     models.Directory.objects.create()
     indexing.delete_index()
@@ -58,7 +62,7 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
         tasks.run_dispatcher()
 
     print('Running taskmanager')
-    taskmanager.run(limit=20000)
+    taskmanager.run(limit=90000)
 
     time.sleep(60)
 
@@ -135,12 +139,12 @@ def test_complete_lifecycle(client, taskmanager, settings_no_thumbnails, setting
             continue
         check_api_page(api, digests.directory_id(d), digests.parent_id(d))
 
-    mime_dict_supported = get_top_mime_types(['testdata'], 100, True)
+    mime_dict_supported = get_top_mime_types(['testdata'], 300, True)
     assert 'application/pdf' in mime_dict_supported.keys()
-    mime_dict_unsupported = get_top_mime_types(['testdata'], 100, False)
+    mime_dict_unsupported = get_top_mime_types(['testdata'], 300, False)
     assert 'application/pdf' not in mime_dict_unsupported.keys()
 
-    ext_dict1 = get_top_extensions(['testdata'], 100, True)
+    ext_dict1 = get_top_extensions(['testdata'], 300, True)
     assert '.docx' in ext_dict1.keys()
-    ext_dict2 = get_top_extensions(['testdata'], 100, False)
+    ext_dict2 = get_top_extensions(['testdata'], 300, False)
     assert '.docx' not in ext_dict2.keys()
