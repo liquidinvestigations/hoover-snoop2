@@ -141,6 +141,7 @@ def walk(directory_pk):
                 continue
 
             f_path = directory_absolute_path(root_data_path, directory) / thing['name']
+            f_relative_path = os.path.relpath(f_path, start=root_collection_path)
             if _is_valid_utf8(str(f_path)):
                 stat = f_path.stat()
                 stat_size = stat.st_size
@@ -148,11 +149,10 @@ def walk(directory_pk):
                 stat_mtime = stat.st_mtime
                 original = models.Blob.create_from_file(
                     f_path,
-                    collection_source_key=relative_path.encode('utf-8', errors='surrogateescape'),
+                    collection_source_key=f_relative_path.encode('utf-8', errors='surrogateescape'),
                 )
             else:
                 # use the broken filename service
-                f_relative_path = os.path.relpath(f_path, start=root_collection_path)
                 f_service_path_bytes = os.path.join(
                     collections.current().name,
                     f_relative_path,
