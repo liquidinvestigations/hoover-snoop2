@@ -9,6 +9,13 @@ types: "folder", "email", "archive".
 Not all mime types have a file type bound to them.
 """
 
+import mimetypes
+import logging
+
+from django.conf import settings
+
+log = logging.getLogger(__name__)
+
 FILE_TYPES = {
     'application/x-directory': 'folder',
     'application/pdf': 'pdf',
@@ -68,3 +75,20 @@ FILE_TYPES = {
 
 Used by [snoop.data.digests.get_filetype][].
 """
+
+
+def allow_processing_for_mime_type(mime_type):
+    """Check if we want to skip processing the document, based on mime type.
+
+    We check if the given `mime_type` is listed in `settings.SNOOP_SKIP_PROCESSING_MIME_TYPES`.
+
+    We also check if the file extension guessed by the `mimetypes` module is listed in
+    `settings.SNOOP_SKIP_PROCESSING_EXTENSIONS`. """
+    if mime_type in settings.SNOOP_SKIP_PROCESSING_MIME_TYPES:
+        log.warning('skipping document with mime type = "%s"', mime_type)
+        return False
+    ext = mimetypes.guess_extension(mime_type)
+    if ext in settings.SNOOP_SKIP_PROCESSING_EXTENSIONS:
+        log.warning('skipping document with guessed extension = "%s"', ext)
+        return False
+    return True

@@ -35,14 +35,14 @@ from .analyzers import image_classification
 from .analyzers import entities
 from . import ocr
 from . import indexing
-from ._file_types import FILE_TYPES
+from ._file_types import FILE_TYPES, allow_processing_for_mime_type
 from .collections import current as current_collection
 
 log = logging.getLogger(__name__)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
-@snoop_task('digests.launch', priority=4, version=9, queue='digests')
+@snoop_task('digests.launch', priority=4, version=10, queue='digests')
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -54,39 +54,40 @@ def launch(blob):
 
     depends_on = {}
 
-    if blob.mime_type == 'message/rfc822':
-        depends_on['email_parse'] = email.parse.laterz(blob)
+    if allow_processing_for_mime_type(blob.mime_type):
+        if blob.mime_type == 'message/rfc822':
+            depends_on['email_parse'] = email.parse.laterz(blob)
 
-    if tika.can_process(blob):
-        depends_on['tika_rmeta'] = tika.rmeta.laterz(blob)
+        if tika.can_process(blob):
+            depends_on['tika_rmeta'] = tika.rmeta.laterz(blob)
 
-    if exif.can_extract(blob):
-        depends_on['exif_data'] = exif.extract.laterz(blob)
+        if exif.can_extract(blob):
+            depends_on['exif_data'] = exif.extract.laterz(blob)
 
-    if ocr.can_process(blob):
-        for lang in current_collection().ocr_languages:
-            depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
+        if ocr.can_process(blob):
+            for lang in current_collection().ocr_languages:
+                depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
 
-    if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
-        depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
+        if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
+            depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
 
-    if current_collection().thumbnail_generator_enabled and thumbnails.can_create(blob):
-        if depends_on.get('get_pdf_preview'):
-            # if we just launched a pdf preview, add it to the deps
-            depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(
-                blob,
-                depends_on={'pdf_preview': depends_on.get('get_pdf_preview')},
-            )
-        elif thumbnails.can_create(blob):
-            depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
+        if current_collection().thumbnail_generator_enabled and thumbnails.can_create(blob):
+            if depends_on.get('get_pdf_preview'):
+                # if we just launched a pdf preview, add it to the deps
+                depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(
+                    blob,
+                    depends_on={'pdf_preview': depends_on.get('get_pdf_preview')},
+                )
+            elif thumbnails.can_create(blob):
+                depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
 
-    if current_collection().image_classification_object_detection_enabled \
-            and image_classification.can_detect(blob):
-        depends_on['detect_objects'] = (image_classification.detect_objects.laterz(blob))
+        if current_collection().image_classification_object_detection_enabled \
+                and image_classification.can_detect(blob):
+            depends_on['detect_objects'] = (image_classification.detect_objects.laterz(blob))
 
-    if current_collection().image_classification_classify_images_enabled \
-            and image_classification.can_detect(blob):
-        depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
+        if current_collection().image_classification_classify_images_enabled \
+                and image_classification.can_detect(blob):
+            depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
 
@@ -168,10 +169,13 @@ def gather(blob, **depends_on):
             log.warning("tika_rmeta task is broken; skipping")
         else:
             tika_rmeta = tika_rmeta_blob.read_json()
-            rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
-            rv['date'] = tika.get_date_modified(tika_rmeta)
-            rv['date-created'] = tika.get_date_created(tika_rmeta)
-            rv.update(tika.convert_for_indexing(tika_rmeta))
+            if tika_rmeta:
+                rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
+                rv['date'] = tika.get_date_modified(tika_rmeta)
+                rv['date-created'] = tika.get_date_created(tika_rmeta)
+                rv.update(tika.convert_for_indexing(tika_rmeta))
+            else:
+                log.warning("tika task returned empty result!")
 
     # parse email for text and headers
     email_parse_blob = depends_on.get('email_parse')

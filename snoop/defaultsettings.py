@@ -234,6 +234,14 @@ COLLECTIONS_S3 = Minio(
     secure=False,
 )
 SNOOP_BROKEN_FILENAME_SERVICE = os.environ.get('SNOOP_BROKEN_FILENAME_SERVICE')
+SNOOP_SKIP_PROCESSING_MIME_TYPES = os.environ.get(
+    'SNOOP_BROKEN_FILENAME_SERVICE',
+    'application/octet-stream,inode/x-empty',
+).split(',')
+SNOOP_SKIP_PROCESSING_EXTENSIONS = os.environ.get(
+    'SNOOP_SKIP_PROCESSING_EXTENSIONS',
+    ".exe,.dat",
+).split(',')
 
 SNOOP_TIKA_URL = os.environ.get('SNOOP_TIKA_URL', 'http://localhost:9998')
 """URL pointing to Apache Tika server."""

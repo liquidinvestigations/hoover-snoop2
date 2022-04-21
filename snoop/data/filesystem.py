@@ -33,6 +33,7 @@ from .analyzers import emlx
 from .tasks import snoop_task, require_dependency, remove_dependency, SnoopTaskBroken
 from .utils import time_from_unix
 from .indexing import delete_doc
+from ._file_types import allow_processing_for_mime_type
 
 log = logging.getLogger(__name__)
 
@@ -235,39 +236,39 @@ def handle_file(file_pk, **depends_on):
     old_blob = file.blob
     file.blob = file.original
 
-    # start choosing a conversion blob for this file
-    if archives.is_archive(file.blob):
-        unarchive_task = archives.unarchive.laterz(file.blob)
-        create_archive_files.laterz(
-            file.pk,
-            depends_on={'archive_listing': unarchive_task},
-        )
-
-    if file.original.mime_type in email.OUTLOOK_POSSIBLE_MIME_TYPES:
-        try:
-            file.blob = require_dependency(
-                'msg_to_eml', depends_on,
-                lambda: email.msg_to_eml.laterz(file.original),
+    if allow_processing_for_mime_type(file.original.mime_type):
+        if archives.is_archive(file.blob):
+            unarchive_task = archives.unarchive.laterz(file.blob)
+            create_archive_files.laterz(
+                file.pk,
+                depends_on={'archive_listing': unarchive_task},
             )
-        except SnoopTaskBroken:
-            pass
-    else:
-        remove_dependency('msg_to_eml', depends_on)
 
-    if file.original.mime_type in EMLX_EMAIL_MIME_TYPES:
-        file.blob = require_dependency(
-            'emlx_reconstruct', depends_on,
-            lambda: emlx.reconstruct.laterz(file.pk),
-        )
-    else:
-        remove_dependency('emlx_reconstruct', depends_on)
+        if file.original.mime_type in email.OUTLOOK_POSSIBLE_MIME_TYPES:
+            try:
+                file.blob = require_dependency(
+                    'msg_to_eml', depends_on,
+                    lambda: email.msg_to_eml.laterz(file.original),
+                )
+            except SnoopTaskBroken:
+                pass
+        else:
+            remove_dependency('msg_to_eml', depends_on)
 
-    if file.blob.mime_type in RFC822_EMAIL_MIME_TYPES:
-        email_parse_task = email.parse.laterz(file.blob)
-        create_attachment_files.laterz(
-            file.pk,
-            depends_on={'email_parse': email_parse_task},
-        )
+        if file.original.mime_type in EMLX_EMAIL_MIME_TYPES:
+            file.blob = require_dependency(
+                'emlx_reconstruct', depends_on,
+                lambda: emlx.reconstruct.laterz(file.pk),
+            )
+        else:
+            remove_dependency('emlx_reconstruct', depends_on)
+
+        if file.blob.mime_type in RFC822_EMAIL_MIME_TYPES:
+            email_parse_task = email.parse.laterz(file.blob)
+            create_attachment_files.laterz(
+                file.pk,
+                depends_on={'email_parse': email_parse_task},
+            )
 
     file.save()
 
