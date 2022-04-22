@@ -313,6 +313,7 @@ def drop_db(db_name):
         conn.execute(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}';")
         # drop database
         conn.execute(f'DROP DATABASE "{db_name}";')
+    logger.info('SQL DATABASE %s DROPPED', db_name)
 
 
 def create_databases():
