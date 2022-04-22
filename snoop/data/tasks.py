@@ -579,7 +579,9 @@ def dispatch_tasks(queue, status=None, outdated=None):
     all_functions = [
         x['func']
         for x in models.Task.objects.values('func').distinct()
-        if (not task_map[x['func']].bulk and task_map[x['func']].queue == queue)
+        if x['func'] in task_map
+        and (not task_map[x['func']].bulk
+             and task_map[x['func']].queue == queue)
     ]
     if status:
         # sort by priority descending, so the queue doesn't have to re-sort elements
@@ -997,7 +999,7 @@ def get_bulk_tasks_to_run(reverse=False):
     all_functions = [
         x['func']
         for x in models.Task.objects.values('func').distinct()
-        if task_map[x['func']].bulk
+        if x['func'] in task_map and task_map[x['func']].bulk
     ]
     task_list = {}
     task_sizes = {}
@@ -1183,6 +1185,10 @@ def run_bulk_tasks():
     for collection in all_collections:
         # if no tasks to do, continue
         with collection.set_current():
+            if not collection.process:
+                logger.info(f'bulk tasks: skipping "{collection}", configured with "process = False"')
+                continue
+
             if not have_bulk_tasks_to_run(reverse=False) and not have_bulk_tasks_to_run(reverse=True):
                 logger.info('Skipping collection %s, no bulk tasks to run', collection.name)
                 continue
