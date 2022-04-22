@@ -274,31 +274,30 @@ TASK_RETRY_AFTER_MINUTES = 3
 TASK_RETRY_FAIL_LIMIT = 3
 """Errored tasks are retried at most this number of times."""
 
-WORKER_TASK_LIMIT = 50000
+WORKER_TASK_LIMIT = 10000
 """Max tasks count to be finished by 1 worker process before restarting it.
 
 Used to avoid memory leaks.
 """
 
-_scale_coef = 4
 
-CHILD_QUEUE_LIMIT = min(150, 50 * _scale_coef)
+CHILD_QUEUE_LIMIT = 50
 """ Limit for queueing large counts of children tasks.
 """
 
-DISPATCH_QUEUE_LIMIT = 14400 * _scale_coef
+DISPATCH_QUEUE_LIMIT = 12000
 """ Count of pending tasks to trigger per collection when finding an empty queue.
 
 A single worker core running zero-length tasks gets at most around 40
-tasks/s, so to keep them all occupied for 6min: 14400
+tasks/s, so to keep them all occupied for 5min: 12000
 """
 
-SYNC_RETRY_LIMIT_DIRS = 60 * _scale_coef
+SYNC_RETRY_LIMIT_DIRS = 100
 """ If there are no pending tasks, this is how many directories
 will be retried by sync every minute.
 """
 
-RETRY_LIMIT_TASKS = 8000 * _scale_coef
+RETRY_LIMIT_TASKS = 8000
 """Number BROKEN/ERROR tasks to retry every minute, while their fail count has not reached the limit.
 
 See `TASK_RETRY_FAIL_LIMIT`."""
