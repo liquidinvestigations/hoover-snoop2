@@ -33,11 +33,6 @@ class Command(BaseCommand):
 
         logging_for_management_command(options['verbosity'])
 
-        dbs = set(collections.all_collection_dbs())
-        if db_name not in dbs:
-            log.warning('no datbase to drop!')
-            return
-
         PROMPT = f'POSTGRES DATABASE {db_name} WILL BE DROPPED (type "yes" to confirm):'
         if options.get('force') or confirm(PROMPT):
             collections.drop_db(db_name)
