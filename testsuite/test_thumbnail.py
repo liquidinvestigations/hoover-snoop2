@@ -7,13 +7,15 @@ from django.conf import settings
 pytestmark = [pytest.mark.django_db]
 
 
-def test_thumbnail_service(settings_with_thumbnails):
+def test_thumbnail_service(settings_with_thumbnails, fakedata):
+    fakedata.init()
     TEST_DOC = settings.SNOOP_TESTDATA + "/data/no-extension/file_doc"
     doc_blob = models.Blob.create_from_file(TEST_DOC)
     thumbnails.call_thumbnails_service(doc_blob, 100)
 
 
-def test_thumbnail_task(settings_with_thumbnails):
+def test_thumbnail_task(settings_with_thumbnails, fakedata):
+    fakedata.init()
     IMAGE = settings.SNOOP_TESTDATA + "/data/disk-files/images/bikes.jpg"
     image_blob = models.Blob.create_from_file(IMAGE)
     thumbnails.get_thumbnail(image_blob)
@@ -54,5 +56,6 @@ def test_thumbnail_api(fakedata, taskmanager, client, settings_with_thumbnails):
             thumbnail_original_blob = models.Thumbnail.objects.get(size=size, blob=blob).thumbnail
             thumbnail_response = api.get_thumbnail(blob.pk, size)
             thumbnail_bytes = b''.join(thumbnail_response.streaming_content)
+            assert len(thumbnail_bytes) == thumbnail_original_blob.size
             with thumbnail_original_blob.open(need_seek=True) as f:
-                assert thumbnail_bytes == f
+                assert thumbnail_bytes == f.read()
