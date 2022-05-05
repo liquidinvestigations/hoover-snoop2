@@ -51,4 +51,5 @@ def test_thumbnail_api(fakedata, taskmanager, client, settings_with_thumbnails):
         api = CollectionApiClient(client)
 
         for size in models.Thumbnail.SizeChoices.values:
-            api.get_thumbnail(blob.pk, size)
+            thumbnail = api.get_thumbnail(blob.pk, size)
+            print(type(thumbnail))
