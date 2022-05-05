@@ -581,23 +581,35 @@ def _get_task_funcs_for_queue(queue):
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=100, ttl=20))
-def _count_remaining_db_tasks_for_queue(queue):
-    """Helper function to count all the tasks in the database for a queue.
+def _count_remaining_db_tasks_for_queue_and_status(queue, status):
+    """Helper function to count all the tasks in the database for a queue, status combo.
 
     Function excludes bulk tasks from listing.
 
     Value is cached 20s to avoid database load."""
     all_funcs = _get_task_funcs_for_queue(queue)
+    task_query = models.Task.objects.filter(func__in=all_funcs)
+    task_query = task_query.filter(status=status)
+    return task_query.count()
+
+
+def _count_remaining_db_tasks_for_queue(queue):
+    """Helper function to count all the tasks in the database for a queue, status combo.
+
+    Function excludes bulk tasks from listing.
+
+    Value is cached 20s to avoid database load."""
     status_list = [
         models.Task.STATUS_PENDING,
         models.Task.STATUS_DEFERRED,
     ]
-    task_query = models.Task.objects.filter(func__in=all_funcs)
-    task_query = task_query.filter(status__in=status_list)
-    return task_query.count()
+    count = 0
+    for s in status_list:
+        count += _count_remaining_db_tasks_for_queue_and_status(queue, s)
+    return count
 
 
-def dispatch_tasks(queue, status=None, outdated=None):
+def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
     """Dispatches (queues) a limited number of Task instances of each type.
 
     Requires a collection to be selected. Does not dispatch tasks registered with `bulk = True`.
@@ -641,7 +653,12 @@ def dispatch_tasks(queue, status=None, outdated=None):
         if outdated:
             task_query = task_query.exclude(version=task_map[func].version)
             item_str = 'OUTDATED (exclude version {task_map[func].version})'
-        task_query = task_query.order_by('-date_modified')  # newest pending tasks first
+
+        if newest_first:
+            task_query = task_query.order_by('-date_modified')
+        else:
+            task_query = task_query.order_by('date_modified')
+
         task_query = task_query[:settings.DISPATCH_QUEUE_LIMIT]
 
         task_count = task_query.count()
@@ -942,14 +959,14 @@ def dispatch_for(collection, queue):
 
     # count tasks in Rabbit and on DB and check if we want to queue more
     queue_len = get_rabbitmq_queue_length(collection.queue_name + '.' + queue)
+    db_tasks_remaining = _count_remaining_db_tasks_for_queue(queue)
     if queue_len > 0:
         skip = False
         if queue_len >= settings.DISPATCH_MIN_QUEUE_SIZE:
             skip = True
         if 0 < queue_len <= settings.DISPATCH_MIN_QUEUE_SIZE:
-            tasks_remaining = _count_remaining_db_tasks_for_queue(queue)
             # skip if we don't have many tasks left --> we would double queue the ones we have
-            if tasks_remaining <= settings.DISPATCH_QUEUE_LIMIT:
+            if db_tasks_remaining <= settings.DISPATCH_QUEUE_LIMIT:
                 skip = True
         if skip:
             logger.info(f'dispatch: skipping {collection}, has {queue_len} queued tasks on q = {queue}')
@@ -962,10 +979,17 @@ def dispatch_for(collection, queue):
 
     with collection.set_current():
         if dispatch_tasks(queue, status=models.Task.STATUS_PENDING):
+            # if we have enough tasks to not double queue,
+            # queue the other end of the database too
+            count_pending = _count_remaining_db_tasks_for_queue_and_status(queue, models.Task.STATUS_PENDING)
+            if count_pending > 3 * settings.DISPATCH_QUEUE_LIMIT:
+                dispatch_tasks(queue, status=models.Task.STATUS_PENDING, newest_first=False)
             logger.info('%r found PENDING tasks, exiting...', collection)
             return True
 
-        if dispatch_tasks(queue, status=models.Task.STATUS_DEFERRED):
+        # Re-try deferred tasks if we don't have anything in pending. This is to avoid a deadlock.
+        # Try the oldest tasks first, since they are the most probable to have complete deps.
+        if dispatch_tasks(queue, status=models.Task.STATUS_DEFERRED, newest_first=False):
             logger.info('%r found DEFERRED tasks, exiting...', collection)
             return True
 
