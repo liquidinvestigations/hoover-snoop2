@@ -292,6 +292,16 @@ A single worker core running zero-length tasks gets at most around 40
 tasks/s, so to keep them all occupied for 5min: 12000
 """
 
+DISPATCH_MIN_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT / 10)
+"""If the task count on the queue is less than this value (10%),
+and if we would queue at least another DISPATCH_QUEUE_LIMIT, then
+dispatch more tasks. This is used to reduce waiting between batches.
+"""
+
+
+DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 4)
+"""Don't queue anything on a queue if its length is greater than this value."""
+
 SYNC_RETRY_LIMIT_DIRS = 100
 """ If there are no pending tasks, this is how many directories
 will be retried by sync every minute.

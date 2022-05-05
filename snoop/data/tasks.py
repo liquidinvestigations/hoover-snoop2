@@ -18,6 +18,7 @@ de-duplication), and other K8s-oriented container-native solutions were not inve
 thumb, if it can't run 1000-5000 idle (no-op) Tasks per minute per CPU, it's too slow for our use.
 """
 
+import cachetools
 import random
 from contextlib import contextmanager
 from io import StringIO
@@ -133,6 +134,11 @@ def queue_task(task):
     import_snoop_tasks()
     if task_map[task.func].bulk:
         return
+
+    queue_length = get_rabbitmq_queue_length(task_map[task.func].queue)
+    if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE:
+        return
+
     transaction.on_commit(send_to_celery)
 
 
@@ -557,6 +563,40 @@ def snoop_task(name, priority=5, version=0, bulk=False, queue='default'):
     return decorator
 
 
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=100, ttl=20))
+def _get_task_funcs_for_queue(queue):
+    """Helper function to get all functions for a specific queue.
+
+    Function excludes bulk tasks from listing.
+
+    Value is cached 20s to avoid database load."""
+
+    return [
+        x['func']
+        for x in models.Task.objects.values('func').distinct()
+        if x['func'] in task_map
+        and (not task_map[x['func']].bulk
+             and task_map[x['func']].queue == queue)
+    ]
+
+
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=100, ttl=20))
+def _count_remaining_db_tasks_for_queue(queue):
+    """Helper function to count all the tasks in the database for a queue.
+
+    Function excludes bulk tasks from listing.
+
+    Value is cached 20s to avoid database load."""
+    all_funcs = _get_task_funcs_for_queue(queue)
+    status_list = [
+        models.Task.STATUS_PENDING,
+        models.Task.STATUS_DEFERRED,
+    ]
+    task_query = models.Task.objects.filter(func__in=all_funcs)
+    task_query = task_query.filter(status__in=status_list)
+    return task_query.count()
+
+
 def dispatch_tasks(queue, status=None, outdated=None):
     """Dispatches (queues) a limited number of Task instances of each type.
 
@@ -576,13 +616,7 @@ def dispatch_tasks(queue, status=None, outdated=None):
         collection.
     """
 
-    all_functions = [
-        x['func']
-        for x in models.Task.objects.values('func').distinct()
-        if x['func'] in task_map
-        and (not task_map[x['func']].bulk
-             and task_map[x['func']].queue == queue)
-    ]
+    all_functions = _get_task_funcs_for_queue(queue)
     if status:
         # sort by priority descending, so the queue doesn't have to re-sort elements
         all_functions = sorted(
@@ -605,8 +639,8 @@ def dispatch_tasks(queue, status=None, outdated=None):
             task_query = task_query.filter(status=status)
             item_str = status
         if outdated:
-            task_query = task_query.filter(version__lt=task_map[func].version)
-            item_str = 'OUTDATED (version {task_map[func].version})'
+            task_query = task_query.exclude(version=task_map[func].version)
+            item_str = 'OUTDATED (exclude version {task_map[func].version})'
         task_query = task_query.order_by('-date_modified')  # newest pending tasks first
         task_query = task_query[:settings.DISPATCH_QUEUE_LIMIT]
 
@@ -757,8 +791,11 @@ def save_collection_stats():
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=100, ttl=20))
 def get_rabbitmq_queue_length(q):
     """Fetch queue length from RabbitMQ for a given queue.
+
+    Value is cached; may be at most 20s old.
 
     Used periodically to decide if we want to queue more functions or not.
 
@@ -903,10 +940,20 @@ def dispatch_for(collection, queue):
         logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')
         return
 
+    # count tasks in Rabbit and on DB and check if we want to queue more
     queue_len = get_rabbitmq_queue_length(collection.queue_name + '.' + queue)
     if queue_len > 0:
-        logger.info(f'dispatch: skipping {collection}, already has {queue_len} queued tasks on q = {queue}')
-        return
+        skip = False
+        if queue_len >= settings.DISPATCH_MIN_QUEUE_SIZE:
+            skip = True
+        if 0 < queue_len <= settings.DISPATCH_MIN_QUEUE_SIZE:
+            tasks_remaining = _count_remaining_db_tasks_for_queue(queue)
+            # skip if we don't have many tasks left --> we would double queue the ones we have
+            if tasks_remaining <= settings.DISPATCH_QUEUE_LIMIT:
+                skip = True
+        if skip:
+            logger.info(f'dispatch: skipping {collection}, has {queue_len} queued tasks on q = {queue}')
+            return
 
     funcs_in_queue = [func for func in task_map if task_map[func].queue == queue]
 
