@@ -311,9 +311,12 @@ def _get_stats(old_values):
     def get_progress_str():
         task_states = defaultdict(int)
         eta_list = [row.get('eta') for row in task_matrix.values() if row.get('eta')]
-        eta_max = max(eta_list, start=0)
-        # account for fluctuating values by averaging over max and the average eta
-        eta = (eta_max + (sum(eta_list) / len(eta_list))) / 2
+        if eta_list:
+            eta_max = max(eta_list)
+            # account for fluctuating values by averaging over max and the average eta
+            eta = (eta_max + (sum(eta_list) / len(eta_list))) / 2
+        else:
+            eta = 1
         # if set, round up to exact minutes
         if eta > 1:
             eta = int(math.ceil(eta / 60) * 60)
