@@ -226,7 +226,7 @@ def get_task_matrix(task_queryset, prev_matrix={}):
             eta = (eta + eta_simple) / 2
 
             # Set a small 0.01 default worker count instead of 0,
-            avg_worker_count = row.get(AVG_WORKERS_KEY, 0) + 0.01
+            avg_worker_count = row.get(AVG_WORKERS_KEY, 0) + 0.2
 
             # Divide by avg workers count for this task, to obtain multi-worker ETA.
             eta = eta / avg_worker_count
@@ -310,7 +310,10 @@ def _get_stats(old_values):
 
     def get_progress_str():
         task_states = defaultdict(int)
-        eta = sum((row.get('eta', 0) for row in task_matrix.values()), start=0)
+        eta_list = [row.get('eta') for row in task_matrix.values() if row.get('eta')]
+        eta_max = max(eta_list, start=0)
+        # account for fluctuating values by averaging over max and the average eta
+        eta = (eta_max + (sum(eta_list) / len(eta_list))) / 2
         # if set, round up to exact minutes
         if eta > 1:
             eta = int(math.ceil(eta / 60) * 60)
