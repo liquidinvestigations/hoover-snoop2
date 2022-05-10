@@ -230,6 +230,7 @@ class CollectionApiClient:
         with mask_out_current_collection():
             resp = self.client.get(url)
         assert resp.status_code == 200
+        return resp
 
     def get_pdf_preview(self, blob_hash, range=False):
         headers = {}

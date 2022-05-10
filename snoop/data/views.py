@@ -340,7 +340,7 @@ class TagViewSet(viewsets.ModelViewSet):
 @collection_view
 def thumbnail(request, hash, size):
     thumbnail_entry = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash)
-    with thumbnail_entry.thumbnail.open() as f:
+    with thumbnail_entry.thumbnail.open(need_seek=True) as f:
         return FileResponse(f, content_type='image/jpeg')
 
 
