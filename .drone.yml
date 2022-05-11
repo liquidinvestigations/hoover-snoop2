@@ -157,7 +157,7 @@ services:
   commands:
 
 - name: snoop-rabbitmq
-  image: rabbitmq:3.7.3
+  image: rabbitmq:3.8.5-management-alpine
   volumes:
   - name: rabbit-v
     path: /var/lib/rabbitmq
@@ -273,6 +273,7 @@ steps:
     SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
     SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
     SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
+    SNOOP_RABBITMQ_HTTP_URL: "snoop-rabbitmq:15672/"
     SNOOP_TIKA_URL: "http://snoop-tika:9998"
     SNOOP_THUMBNAIL_URL: "http://snoop-thumbnail:8000/"
     SNOOP_PDF_PREVIEW_URL: "http://snoop-pdf-preview:3000/"
