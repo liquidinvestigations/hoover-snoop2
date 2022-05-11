@@ -821,11 +821,16 @@ def get_rabbitmq_queue_length(q):
 
     from pyrabbit.api import Client
 
-    cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL,
-                settings.SNOOP_RABBITMQ_HTTP_USERNAME,
-                settings.SNOOP_RABBITMQ_HTTP_PASSWORD)
-    q_depth = cl.get_queue_depth('/', q)
-    return q_depth
+    try:
+        cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL,
+                    settings.SNOOP_RABBITMQ_HTTP_USERNAME,
+                    settings.SNOOP_RABBITMQ_HTTP_PASSWORD)
+        q_depth = cl.get_queue_depth('/', q)
+        return q_depth
+    except Exception as e:
+        logger.warning('cannot get rabbit queue length for queue %s: %s', q, str(e))
+        logger.warning('returning length 0 for unknown queue %s', q)
+        return 0
 
 
 def single_task_running(key):
