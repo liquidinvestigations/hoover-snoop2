@@ -957,22 +957,23 @@ def dispatch_for(collection, queue):
         logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')
         return
 
-    # count tasks in Rabbit and on DB and check if we want to queue more
-    queue_len = get_rabbitmq_queue_length(collection.queue_name + '.' + queue)
-    db_tasks_remaining = _count_remaining_db_tasks_for_queue(queue)
-    if queue_len > 0:
-        skip = False
-        if queue_len >= settings.DISPATCH_MIN_QUEUE_SIZE:
-            skip = True
-        if 0 < queue_len <= settings.DISPATCH_MIN_QUEUE_SIZE:
-            # skip if we don't have many tasks left --> we would double queue the ones we have
-            if db_tasks_remaining <= settings.DISPATCH_QUEUE_LIMIT:
+    with collection.set_current():
+        # count tasks in Rabbit and on DB and check if we want to queue more
+        queue_len = get_rabbitmq_queue_length(collection.queue_name + '.' + queue)
+        db_tasks_remaining = _count_remaining_db_tasks_for_queue(queue)
+        if queue_len > 0:
+            skip = False
+            if queue_len >= settings.DISPATCH_MIN_QUEUE_SIZE:
                 skip = True
-        if skip:
-            logger.info(f'dispatch: skipping {collection}, has {queue_len} queued tasks on q = {queue}')
-            return
+            if 0 < queue_len <= settings.DISPATCH_MIN_QUEUE_SIZE:
+                # skip if we don't have many tasks left --> we would double queue the ones we have
+                if db_tasks_remaining <= settings.DISPATCH_QUEUE_LIMIT:
+                    skip = True
+            if skip:
+                logger.info(f'dispatch: skipping {collection}, has {queue_len} queued tasks on q = {queue}')
+                return
 
-    funcs_in_queue = [func for func in task_map if task_map[func].queue == queue]
+        funcs_in_queue = [func for func in task_map if task_map[func].queue == queue]
 
     logger.info('Dispatching for %r, queue = %s', collection, queue)
     from .ocr import dispatch_ocr_tasks
