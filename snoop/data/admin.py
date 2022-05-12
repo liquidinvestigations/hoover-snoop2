@@ -312,11 +312,16 @@ def _get_stats(old_values):
         task_states = defaultdict(int)
         eta_list = [row.get('eta') for row in task_matrix.values() if row.get('eta')]
         if eta_list:
-            eta_max = max(eta_list)
-            # account for fluctuating values by averaging over max and the average eta
-            eta = (eta_max + (sum(eta_list) / len(eta_list))) / 2
+            eta_col_max = max(eta_list)
+            eta_col_avg = sum(eta_list) / len(eta_list)
+            # Account for fluctuating values by averaging over max and the average eta.
+            # The average eta is multiplied by this constant, which is computed empirically
+            # from the integration tests runtime:
+            # https://jenkins.liquiddemo.org/liquidinvestigations/node/3494/2/3
+            AVG_MULTIPLIER = 2
+            eta = (eta_col_max + eta_col_avg * AVG_MULTIPLIER) / 2
         else:
-            eta = 1
+            eta = 0
         # if set, round up to exact minutes
         if eta > 1:
             eta = int(math.ceil(eta / 60) * 60)
