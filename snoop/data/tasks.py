@@ -826,7 +826,7 @@ def get_rabbitmq_queue_length(q):
                 settings.SNOOP_RABBITMQ_HTTP_PASSWORD)
     assert cl.is_alive()
     all_queues = list(cl.get_queues())
-    queue_depths = {k['name']: k['messages'] for k in all_queues}
+    queue_depths = {k['name']: k.get('messages', 0) for k in all_queues}
     if q not in queue_depths:
         logger.warning('queue "%s" does not exist. returning queue length 0.', q)
         logger.warning('available queues: %s', ", ".join(queue_depths.keys())[:100])
