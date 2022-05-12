@@ -563,7 +563,7 @@ def snoop_task(name, priority=5, version=0, bulk=False, queue='default'):
     return decorator
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=100, ttl=20))
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
 def _get_task_funcs_for_queue(queue):
     """Helper function to get all functions for a specific queue.
 
@@ -580,7 +580,7 @@ def _get_task_funcs_for_queue(queue):
     ]
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=100, ttl=20))
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
 def _count_remaining_db_tasks_for_queue_and_status(queue, status):
     """Helper function to count all the tasks in the database for a queue, status combo.
 
@@ -808,7 +808,7 @@ def save_collection_stats():
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=100, ttl=20))
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
 def get_rabbitmq_queue_length(q):
     """Fetch queue length from RabbitMQ for a given queue.
 
@@ -821,16 +821,17 @@ def get_rabbitmq_queue_length(q):
 
     from pyrabbit.api import Client
 
-    try:
-        cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL,
-                    settings.SNOOP_RABBITMQ_HTTP_USERNAME,
-                    settings.SNOOP_RABBITMQ_HTTP_PASSWORD)
-        q_depth = cl.get_queue_depth('/', q)
-        return q_depth
-    except Exception as e:
-        logger.warning('cannot get rabbit queue length for queue %s: %s', q, str(e))
-        logger.warning('returning length 0 for unknown queue %s', q)
+    cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL,
+                settings.SNOOP_RABBITMQ_HTTP_USERNAME,
+                settings.SNOOP_RABBITMQ_HTTP_PASSWORD)
+    assert cl.is_alive()
+    all_queues = list(cl.get_queues())
+    queue_depths = {k['name']: k['messages'] for k in all_queues}
+    if q not in queue_depths:
+        logger.warning('queue "%s" does not exist. returning queue length 0.', q)
+        logger.warning('available queues: %s', ", ".join(queue_depths.keys())[:100])
         return 0
+    return queue_depths[q]
 
 
 def single_task_running(key):
