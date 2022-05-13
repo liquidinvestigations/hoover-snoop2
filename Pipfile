@@ -78,6 +78,7 @@ pytest-timeout = "*"
 graphene-django = "*"
 minio = "*"
 smart-open = {extras = ["s3"], version = "*"}
+pyexcel = "*"
 
 [requires]
 python_version = "3.9"

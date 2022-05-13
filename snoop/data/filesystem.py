@@ -207,7 +207,7 @@ def walk(directory_pk):
                 handle_file.laterz(file.pk, queue_now=False)
 
 
-@snoop_task('filesystem.handle_file', priority=1, version=2, queue='filesystem')
+@snoop_task('filesystem.handle_file', priority=1, version=3, queue='filesystem')
 @profile()
 def handle_file(file_pk, **depends_on):
     """Parse, update and possibly convert file found on in dataset.

@@ -1,6 +1,9 @@
 """Tasks that unpack archives and return their structure and contents.
+
+Tables are also implemented as archives, with each row being unpacked into a text file.
 """
 
+import csv
 import time
 from contextlib import contextmanager
 import logging
@@ -12,6 +15,7 @@ import tempfile
 import re
 
 import mimetypes
+import pyexcel
 
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
@@ -55,11 +59,30 @@ PDF_MIME_TYPES = {
     'application/pdf',
 }
 
+# see https://github.com/pyexcel/pyexcel/blob/275c4dabc491b9fd401139b83aaa79538b12bcfc/pyexcel/plugins/sources/http.py#L17  # noqa
+TABLE_MIME_TYPE_OPERATOR_TABLE = {
+    "application/vnd.ms-excel": "xls",
+    "application/vnd.ms-excel.addin.macroEnabled.12": "xls",
+    "application/vnd.ms-excel.sheet.binary.macroEnabled.12": "xls",
+    "application/vnd.ms-excel.sheet.macroenabled.12": "xlsm",
+    "application/vnd.ms-excel.template.macroEnabled.12": "xlsm",
+    "application/vnd.oasis.opendocument.spreadsheet": "ods",
+    "application/vnd.oasis.opendocument.spreadsheet-template": "ods",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.template": "xlsx",
+    "text/csv": "csv",
+    "text/html": "html",
+    "text/tab-separated-values": "tsv",
+}
+
+TABLE_MIME_TYPES = set(TABLE_MIME_TYPE_OPERATOR_TABLE.keys())
+
 ARCHIVES_MIME_TYPES = (
     SEVENZIP_MIME_TYPES
     .union(READPST_MIME_TYPES)
     .union(MBOX_MIME_TYPES)
     .union(PDF_MIME_TYPES)
+    .union(TABLE_MIME_TYPES)
 )
 
 
@@ -70,13 +93,39 @@ def can_unpack_with_7z(blob):
         or ext in SEVENZIP_ACCEPTED_EXTENSIONS
 
 
+def guess_csv_separator(text):
+    """Returns a (separator, has_delimiter) tuple if text is part of CSV, or None if it isn't."""
+
+    DELIMITER_LIST = [':', ',', '|', '\t', ';']
+    try:
+        return csv.Sniffer().sniff(text, DELIMITER_LIST).delimiter
+    except csv.Error:
+        return False
+
+
 def is_archive(blob):
-    """Checks if mime type is a known archive."""
+    """Checks if mime type is a known archive.
+
+    For the special case of text/plain, read some bytes and check if it is CSV
+    or TSV. In case it is, update the mime type and mime into the specific one.
+    """
+
+    if blob.mime_type == 'text/plain':
+        with blob.open() as f:
+            first_bytes = f.read(4000).decode(blob.mime_encoding or 'ascii', errors='replace')
+            csv_delim = guess_csv_separator(first_bytes)
+            if not csv_delim:
+                return False
+            if csv_delim == '\t':
+                blob.mime_type = 'text/tab-separated-values'
+            else:
+                blob.mime_type = 'text/csv'
+            blob.save()
 
     return blob.mime_type in ARCHIVES_MIME_TYPES or can_unpack_with_7z(blob)
 
 
-def call_readpst(pst_path, output_dir):
+def call_readpst(pst_path, output_dir, **kw):
     """Helper function that calls a `readpst` process."""
     try:
         subprocess.check_output([
@@ -111,7 +160,51 @@ def unpack_7z(archive_path, output_dir):
         raise SnoopTaskBroken("7z extraction failed", '7z_error')
 
 
-def unpack_mbox(mbox_path, output_dir):
+def _do_unpack_table(row_id, row, output_path, sheet_name=None):
+    row = list(row)
+    if sheet_name:
+        output_path = output_path / sheet_name
+    os.makedirs(str(output_path), exist_ok=True)
+    out_filepath = output_path / (str(row_id) + '.txt')
+    with open(out_filepath, 'w') as f:
+        for v in row:
+            f.write(f'{v}: {v}\n')
+
+
+def unpack_table(table_path, output_path, mime_type=None, **kw):
+    """Unpack table (csv, excel, etc.) into text files, one for each row."""
+
+    assert mime_type is not None
+    pyexcel_filetype = TABLE_MIME_TYPE_OPERATOR_TABLE[mime_type]
+    sheet_name = None
+    with open(table_path, 'rb') as f1, \
+            open(table_path, 'rb') as f2:
+        try:
+            books = pyexcel.iget_book(
+                file_stream=f1,
+                file_type=pyexcel_filetype,
+                auto_detect_float=False,
+                auto_detect_int=False,
+                auto_detect_datetime=False,
+                skip_hidden_sheets=False,
+            )
+            for sheet_name in books:
+                rows = pyexcel.iget_array(
+                    file_stream=f2,
+                    file_type=pyexcel_filetype,
+                    sheet_name=sheet_name,
+                    auto_detect_float=False,
+                    auto_detect_int=False,
+                    auto_detect_datetime=False,
+                    skip_hidden_sheets=False,
+                )
+                for i, row in enumerate(rows):
+                    _do_unpack_table(i, row, output_path, sheet_name=sheet_name)
+        finally:
+            pyexcel.free_resources()
+
+
+def unpack_mbox(mbox_path, output_dir, **kw):
     """Split a MBOX into emails."""
 
     def slice(stream):
@@ -140,7 +233,7 @@ def unpack_mbox(mbox_path, output_dir):
                 f.write(message)
 
 
-def unpack_pdf(pdf_path, output_dir):
+def unpack_pdf(pdf_path, output_dir, **kw):
     """Extract images from pdf by calling `pdfimages`."""
 
     try:
@@ -343,6 +436,8 @@ def unarchive(blob):
         unpack_func = unpack_mbox
     elif blob.mime_type in PDF_MIME_TYPES:
         unpack_func = unpack_pdf
+    elif blob.mime_type in TABLE_MIME_TYPES:
+        unpack_func = unpack_table
     else:
         raise RuntimeError('unarchive: unknown mime type')
 
@@ -351,7 +446,7 @@ def unarchive(blob):
             base = Path(blobs_root) / 'tmp' / 'archives'
             base.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(prefix=blob.pk, dir=base) as temp_dir:
-                unpack_func(blob_path, temp_dir)
+                unpack_func(blob_path, temp_dir, mime_type=blob.mime_type)
                 listing = list(archive_walk(Path(temp_dir)))
                 create_blobs(listing)
 
