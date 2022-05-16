@@ -213,6 +213,7 @@ def run_tesseract_on_pdf(pdf_blob, lang):
                     '-v', '-a',
                     '-x', '--oem 1 --psm 1',
                     '-j', "%0.4f" % (1.0 / max(1, multiprocessing.cpu_count())),
+                    '--ignore-existing-text',
                 ]
                 subprocess.check_call(args)
             return models.Blob.create_from_file(tmp)
