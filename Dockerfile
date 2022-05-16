@@ -13,6 +13,17 @@ RUN mkdir /opt/fuse-7z \
  && /opt/fuse-7z/build.sh \
  && rm -rf /opt/fuse-7z
 
+# install pdf2pdfocr (new version) -- since we don't have access to docker base rebuilds
+# RUN sudo apt-get install -y zlib1g-dev \
+#  && git clone https://github.com/liquidinvestigations/libxlsxwriter.git \
+#  && cd libxlsxwriter \
+#  && make \
+#  && sudo make install
+RUN rm -rf /opt/pdf2pdfocr \
+ && git clone https://github.com/liquidinvestigations/pdf2pdfocr --branch master2 /opt/pdf2pdfocr \
+ && cd /opt/pdf2pdfocr \
+ && ./install_command
+
 # install snoop
 RUN mkdir -p /opt/hoover/snoop/static
 WORKDIR /opt/hoover/snoop
