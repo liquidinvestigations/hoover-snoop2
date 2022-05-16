@@ -76,6 +76,13 @@ MAPPINGS = {
             "translated-from": {"type": "keyword"},
             "translated-to": {"type": "keyword"},
 
+            "is-table": {"type": "boolean"},
+            "table-columns": {"type": "keyword"},
+            "table-sheets": {"type": "keyword"},
+            "table-sheet-count": {"type": "integer"},
+            "table-row-count": {"type": "integer"},
+            "table-col-count": {"type": "integer"},
+
             # Don't be explicit, because the implicit texts have .keyword
             # while explicit texts do not.
             # "entity": {"type": "text"},

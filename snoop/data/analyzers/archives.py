@@ -108,13 +108,12 @@ def guess_csv_settings(file_stream, mime_encoding):
         return None
 
 
-def is_archive(blob):
-    """Checks if mime type is a known archive.
+def is_table(blob):
+    """Check if blob is table type.
 
-    For the special case of text/plain, read some bytes and check if it is CSV
-    or TSV. In case it is, update the mime type and mime into the specific one.
+    LibMagic can't detect CSV and TSV, so we use the python sniff module to check, and overwrite mime type
+    if we found a match.
     """
-
     if blob.mime_type == 'text/plain':
         with blob.open() as f:
             dialect = guess_csv_settings(f, blob.mime_encoding)
@@ -126,8 +125,19 @@ def is_archive(blob):
         else:
             blob.mime_type = 'text/csv'
         blob.save()
+        return True
+    return blob.mime_type in TABLE_MIME_TYPES
 
-    return blob.mime_type in ARCHIVES_MIME_TYPES or can_unpack_with_7z(blob)
+
+def is_archive(blob):
+    """Checks if mime type is a known archive or table type.
+    """
+
+    return (
+        is_table(blob)
+        or (blob.mime_type in ARCHIVES_MIME_TYPES)
+        or can_unpack_with_7z(blob)
+    )
 
 
 def call_readpst(pst_path, output_dir, **kw):
@@ -165,7 +175,7 @@ def unpack_7z(archive_path, output_dir):
         raise SnoopTaskBroken("7z extraction failed", '7z_error')
 
 
-def _do_unpack_row(row_id, row, output_path, sheet_name=None, colnames=None, mime_encoding=None):
+def _do_explode_row(row_id, row, output_path, sheet_name=None, colnames=None, mime_encoding=None):
     """Write a text file for given row.
 
     Text file format is `<column name> = <value>` because
@@ -201,6 +211,95 @@ def _get_row_count(rows):
     for _ in rows:
         count += 1
     return count
+
+
+def get_table_info(table_path, mime_type, mime_encoding):
+    """Returns a dict with table sheets, column names, row and column counts, pyexcel type, extra arguments.
+    """
+
+    pyexcel_filetype = TABLE_MIME_TYPE_OPERATOR_TABLE[mime_type]
+    TEXT_FILETYPES = ['csv', 'tsv', 'html']
+    dialect = None
+    extra_kw = dict()
+
+    rv = {
+        'sheets': [],
+        'sheet-columns': {},
+        'sheet-row-count': {},
+        'sheet-col-count': {},
+        'extra-kw': {},
+        'text-mode': False,
+        'pyexcel-filetype': pyexcel_filetype,
+    }
+
+    try:
+        if pyexcel_filetype in TEXT_FILETYPES:
+            f1 = open(table_path, 'rt', encoding=mime_encoding)
+            f2 = open(table_path, 'rt', encoding=mime_encoding)
+            rv['text-mode'] = True
+
+            if pyexcel_filetype in ['csv', 'tsv']:
+                dialect = guess_csv_settings(f2, mime_encoding)
+                f2.seek(0)
+                if dialect:
+                    extra_kw['delimiter'] = dialect.delimiter
+                    extra_kw['lineterminator'] = dialect.lineterminator
+                    extra_kw['escapechar'] = dialect.escapechar
+                    extra_kw['quotechar'] = dialect.quotechar
+                    extra_kw['quoting'] = dialect.quoting
+                    extra_kw['skipinitialspace'] = dialect.skipinitialspace
+
+                    extra_kw['encoding'] = mime_encoding
+                    rv['extra-kw'] = extra_kw
+        else:
+            f1 = open(table_path, 'rb')
+            f2 = open(table_path, 'rb')
+        sheets = list(
+            pyexcel.iget_book(
+                file_stream=f1,
+                file_type=pyexcel_filetype,
+                auto_detect_float=False,
+                auto_detect_int=False,
+                auto_detect_datetime=False,
+                skip_hidden_sheets=False,
+            )
+        )
+        for sheet in sheets:
+            # get rows and count them
+            rows = pyexcel.iget_array(
+                file_stream=f2,
+                file_type=pyexcel_filetype,
+                sheet_name=sheet.name,
+                auto_detect_float=False,
+                auto_detect_int=False,
+                auto_detect_datetime=False,
+                **extra_kw,
+            )
+            row_count = _get_row_count(rows)
+            f2.seek(0)
+
+            rows = pyexcel.iget_array(
+                file_stream=f2,
+                file_type=pyexcel_filetype,
+                sheet_name=sheet.name,
+                auto_detect_float=False,
+                auto_detect_int=False,
+                auto_detect_datetime=False,
+                **extra_kw,
+            )
+            row = list(next(rows))
+            col_count = len(row)
+            colnames = sheet.colnames or collections.current().default_table_head_by_len.get(col_count) or []
+            rv['sheets'].append(sheet.name)
+            rv['sheet-columns'][sheet.name] = colnames
+            rv['sheet-row-count'][sheet.name] = row_count
+            rv['sheet-col-count'][sheet.name] = col_count
+    finally:
+        f1.close()
+        f2.close()
+        pyexcel.free_resources()
+
+    return rv
 
 
 def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **kw):
@@ -304,7 +403,7 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                     row = list(row)
                     colnames = sheet.colnames or \
                         collections.current().default_table_head_by_len.get(len(row))
-                    _do_unpack_row(
+                    _do_explode_row(
                         i, row, sheet_output_path,
                         sheet_name=sheet.name, colnames=colnames,
                         mime_encoding=mime_encoding,
