@@ -16,6 +16,7 @@ import re
 
 import mimetypes
 import pyexcel
+from django.conf import settings
 
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
@@ -94,17 +95,17 @@ def can_unpack_with_7z(blob):
         or ext in SEVENZIP_ACCEPTED_EXTENSIONS
 
 
-def guess_csv_separator(file_stream, mime_encoding):
-    """Returns the separator character if text is part of CSV, or None if it isn't."""
+def guess_csv_settings(file_stream, mime_encoding):
+    """Returns the csv.Dialect object if file contains start of CSV, or None otherwise."""
 
     GUESS_READ_LEN = 8192
     text = file_stream.read(GUESS_READ_LEN)
     if isinstance(text, bytes):
         text = text.decode(mime_encoding or 'ascii', errors='replace')
     try:
-        return csv.Sniffer().sniff(text, CSV_DELIMITER_LIST).delimiter
+        return csv.Sniffer().sniff(text, CSV_DELIMITER_LIST)
     except csv.Error:
-        return False
+        return None
 
 
 def is_archive(blob):
@@ -116,7 +117,7 @@ def is_archive(blob):
 
     if blob.mime_type == 'text/plain':
         with blob.open() as f:
-            csv_delim = guess_csv_separator(f, blob.mime_encoding)
+            csv_delim = guess_csv_settings(f, blob.mime_encoding).delimiter
         if not csv_delim:
             return False
         if csv_delim == '\t':
@@ -178,7 +179,7 @@ def _do_unpack_row(row_id, row, output_path, sheet_name=None, colnames=None, mim
     MAX_ROW_LEN = 200
     if len(row) > MAX_ROW_LEN:
         row = row[:MAX_ROW_LEN]
-    if len(colnames) > MAX_ROW_LEN:
+    if colnames and len(colnames) > MAX_ROW_LEN:
         colnames = colnames[:MAX_ROW_LEN]
 
     if not colnames:
@@ -194,6 +195,13 @@ def _do_unpack_row(row_id, row, output_path, sheet_name=None, colnames=None, mim
         f.write("".join(out_lines))
 
 
+def _get_row_count(rows):
+    count = 0
+    for _ in rows:
+        count += 1
+    return count
+
+
 def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **kw):
     """Unpack table (csv, excel, etc.) into text files, one for each row."""
 
@@ -201,7 +209,7 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
     assert mime_type is not None
     pyexcel_filetype = TABLE_MIME_TYPE_OPERATOR_TABLE[mime_type]
     TEXT_FILETYPES = ['csv', 'tsv', 'html']
-    delimiter = None
+    dialect = None
     extra_kw = dict()
     try:
         if pyexcel_filetype in TEXT_FILETYPES:
@@ -209,11 +217,17 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
             f2 = open(table_path, 'rt', encoding=mime_encoding)
 
             if pyexcel_filetype in ['csv', 'tsv']:
-                delimiter = guess_csv_separator(f2, mime_encoding)
+                dialect = guess_csv_settings(f2, mime_encoding)
                 f2.seek(0)
-                if delimiter:
-                    assert len(delimiter) == 1, 'bad delimiter = ' + delimiter
-                    extra_kw['delimiter'] = delimiter
+                if dialect:
+                    extra_kw['delimiter'] = dialect.delimiter
+                    extra_kw['lineterminator'] = dialect.lineterminator
+                    extra_kw['escapechar'] = dialect.escapechar
+                    extra_kw['quotechar'] = dialect.quotechar
+                    extra_kw['quoting'] = dialect.quoting
+                    extra_kw['skipinitialspace'] = dialect.skipinitialspace
+
+                    extra_kw['encoding'] = mime_encoding
         else:
             f1 = open(table_path, 'rb')
             f2 = open(table_path, 'rb')
@@ -233,7 +247,45 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
             else:
                 sheet_output_path = output_path
             os.makedirs(str(sheet_output_path), exist_ok=True)
-            # rows = pyexcel.iget_records(
+
+            # get rows and count them
+            rows = pyexcel.iget_array(
+                file_stream=f2,
+                file_type=pyexcel_filetype,
+                sheet_name=sheet.name,
+                auto_detect_float=False,
+                auto_detect_int=False,
+                auto_detect_datetime=False,
+                **extra_kw,
+            )
+            row_count = _get_row_count(rows)
+            f2.seek(0)
+
+            # split large tables, so our in-memory archive crawler doesn't crash
+            if row_count > settings.TABLES_SPLIT_FILE_ROW_COUNT:
+                log.info('splitting sheet "%s" with %s rows into pieces...', sheet.name, row_count)
+                for i in range(0, row_count, settings.TABLES_SPLIT_FILE_ROW_COUNT):
+                    start_row = i
+                    row_limit = settings.TABLES_SPLIT_FILE_ROW_COUNT
+                    end_row = min(start_row + row_limit, row_count)
+                    split_file_path = str(sheet_output_path / f'split-rows-{start_row}-{end_row}.csv')
+                    log.info('writing file %s', split_file_path)
+                    pyexcel.isave_as(
+                        file_stream=f2,
+                        file_type=pyexcel_filetype,
+                        sheet_name=sheet.name,
+                        auto_detect_float=False,
+                        auto_detect_int=False,
+                        auto_detect_datetime=False,
+                        dest_file_name=split_file_path,
+                        start_row=start_row,
+                        row_limit=row_limit,
+                        **extra_kw,
+                    )
+                    f2.seek(0)
+                return
+
+            # get row iterator again, now to read rows
             rows = pyexcel.iget_array(
                 file_stream=f2,
                 file_type=pyexcel_filetype,
@@ -244,9 +296,11 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                 **extra_kw,
             )
             for i, row in enumerate(rows):
+                row = list(row)
+                colnames = sheet.colnames or collections.current().default_table_head_by_len.get(len(row))
                 _do_unpack_row(
-                    i, list(row), sheet_output_path,
-                    sheet_name=sheet.name, colnames=sheet.colnames,
+                    i, row, sheet_output_path,
+                    sheet_name=sheet.name, colnames=colnames,
                     mime_encoding=mime_encoding,
                 )
     finally:
@@ -497,13 +551,27 @@ def unarchive(blob):
             base = Path(blobs_root) / 'tmp' / 'archives'
             base.mkdir(parents=True, exist_ok=True)
             with tempfile.TemporaryDirectory(prefix=blob.pk, dir=base) as temp_dir:
+                t0 = time.time()
+                log.info('starting unpack...')
                 unpack_func(blob_path, temp_dir,
                             mime_type=blob.mime_type,
                             mime_encoding=blob.mime_encoding)
-                listing = list(archive_walk(Path(temp_dir)))
-                create_blobs(listing)
+                log.info('unpack done in: %s seconds', time.time() - t0)
 
+                t0 = time.time()
+                log.info('starting archive listing...')
+                listing = list(archive_walk(Path(temp_dir)))
+                log.info('archive listing done in: %s seconds', time.time() - t0)
+
+                t0 = time.time()
+                log.info('creating archive blobs...')
+                create_blobs(listing)
+                log.info('create archive blobs done in: %s seconds', time.time() - t0)
+
+    t0 = time.time()
+    log.info('checking recursion archive blobs...')
     check_recursion(listing, blob.pk)
+    log.info('check recursion done in: %s seconds', time.time() - t0)
     return listing
 
 

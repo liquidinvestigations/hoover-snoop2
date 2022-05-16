@@ -30,6 +30,7 @@ from functools import wraps
 from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.utils import timezone
+import pyrabbit.api
 
 from . import collections
 from . import celery
@@ -135,7 +136,8 @@ def queue_task(task):
     if task_map[task.func].bulk:
         return
 
-    queue_length = get_rabbitmq_queue_length(task_map[task.func].queue)
+    queue_name = collections.current().queue_name + '.' + task_map[task.func].queue
+    queue_length = get_rabbitmq_queue_length(queue_name)
     if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE:
         return
 
@@ -819,19 +821,19 @@ def get_rabbitmq_queue_length(q):
     Uses the Management HTTP API of RabbitMQ, since the Celery client doesn not have access to these counts.
     """
 
-    from pyrabbit.api import Client
+    def _get_queue_depth(q):
+        cl = pyrabbit.api.Client(
+            settings.SNOOP_RABBITMQ_HTTP_URL,
+            settings.SNOOP_RABBITMQ_HTTP_USERNAME,
+            settings.SNOOP_RABBITMQ_HTTP_PASSWORD,
+        )
+        return cl.get_queue('/', q).get('messages', 0)
 
-    cl = Client(settings.SNOOP_RABBITMQ_HTTP_URL,
-                settings.SNOOP_RABBITMQ_HTTP_USERNAME,
-                settings.SNOOP_RABBITMQ_HTTP_PASSWORD)
-    assert cl.is_alive()
-    all_queues = list(cl.get_queues())
-    queue_depths = {k['name']: k.get('messages', 0) for k in all_queues}
-    if q not in queue_depths:
-        logger.warning('queue "%s" does not exist. returning queue length 0.', q)
-        logger.warning('available queues: %s', ", ".join(queue_depths.keys())[:100])
+    try:
+        return _get_queue_depth(q)
+    except Exception as e:
+        logger.warning('error when fetching queue depth: %s', e)
         return 0
-    return queue_depths[q]
 
 
 def single_task_running(key):
