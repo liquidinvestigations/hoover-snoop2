@@ -71,6 +71,8 @@ TABLE_MIME_TYPE_OPERATOR_TABLE = {
     "application/vnd.oasis.opendocument.spreadsheet-template": "ods",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.template": "xlsx",
+    "application/csv": "csv",
+    "application/tab-separated-values": "tsv",
     "text/csv": "csv",
     "text/html": "html",
     "text/tab-separated-values": "tsv",
@@ -379,9 +381,11 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                         auto_detect_float=False,
                         auto_detect_int=False,
                         auto_detect_datetime=False,
-                        dest_file_name=split_file_path,
                         start_row=start_row,
                         row_limit=row_limit,
+                        dest_file_name=split_file_path,
+                        dest_delimiter=':',
+                        dest_encoding=mime_encoding or 'utf-8',
                         **extra_kw,
                     )
                     f2.seek(0)

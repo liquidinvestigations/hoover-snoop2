@@ -50,6 +50,8 @@ FILE_TYPES = {
     "application/vnd.openxmlformats-officedocument.spreadsheetml.template": "xls",
     "text/csv": "xls",
     "text/tab-separated-values": "xls",
+    "application/csv": "xls",
+    "application/tab-separated-values": "xls",
 
     'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'ppt',
     'application/vnd.openxmlformats-officedocument.presentationml.template': 'ppt',
