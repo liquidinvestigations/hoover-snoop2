@@ -274,10 +274,11 @@ TASK_RETRY_AFTER_MINUTES = 3
 TASK_RETRY_FAIL_LIMIT = 3
 """Errored tasks are retried at most this number of times."""
 
-WORKER_TASK_LIMIT = 10000
+WORKER_TASK_LIMIT = 600
 """Max tasks count to be finished by 1 worker process before restarting it.
 
-Used to avoid memory leaks.
+Used to avoid memory leaks. Adjust to be equal to the fastest
+"5m_task_count" divided by "5m_avg_workers".
 """
 
 
