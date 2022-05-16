@@ -103,6 +103,7 @@ class Collection:
             for variant in variant_list
             if len(variant) > 1
         }
+        self.explode_table_rows = self.opt.get('explode_table_rows', False)
 
     @property
     def pdf_preview_enabled(self):

@@ -308,11 +308,15 @@ def create_archive_files(file_pk, archive_listing):
     """
 
     if isinstance(archive_listing, SnoopTaskBroken):
-        log.debug("Unarchive task is broken; returning without doing anything")
+        log.warning("Unarchive task is broken; returning without doing anything")
         return
 
     with archive_listing.open() as f:
         archive_listing_data = json.load(f)
+
+    if not archive_listing_data:
+        log.warning("Unarchive data is empty; returning...")
+        return
 
     def create_directory_children(directory, children):
         for i, item in enumerate(children):

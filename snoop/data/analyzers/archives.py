@@ -263,9 +263,9 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
             f2.seek(0)
 
             # split large tables, so our in-memory archive crawler doesn't crash.
-            # only do the split for sizes bigger than 2X the limit, so we avoid
+            # only do the split for sizes bigger than 1.5X the limit, so we avoid
             # splitting relatively small tables.
-            if row_count >= settings.TABLES_SPLIT_FILE_ROW_COUNT * 2:
+            if row_count > int(1.5 * settings.TABLES_SPLIT_FILE_ROW_COUNT):
                 log.info('splitting sheet "%s" with %s rows into pieces...', sheet.name, row_count)
                 for i in range(0, row_count, settings.TABLES_SPLIT_FILE_ROW_COUNT):
                     start_row = i
@@ -288,24 +288,27 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                     f2.seek(0)
                 return
 
-            # get row iterator again, now to read rows
-            rows = pyexcel.iget_array(
-                file_stream=f2,
-                file_type=pyexcel_filetype,
-                sheet_name=sheet.name,
-                auto_detect_float=False,
-                auto_detect_int=False,
-                auto_detect_datetime=False,
-                **extra_kw,
-            )
-            for i, row in enumerate(rows):
-                row = list(row)
-                colnames = sheet.colnames or collections.current().default_table_head_by_len.get(len(row))
-                _do_unpack_row(
-                    i, row, sheet_output_path,
-                    sheet_name=sheet.name, colnames=colnames,
-                    mime_encoding=mime_encoding,
+            # get row iterator again, now to read rows and explode them
+            if collections.current().explode_table_rows:
+                log.info('exploding rows from table...')
+                rows = pyexcel.iget_array(
+                    file_stream=f2,
+                    file_type=pyexcel_filetype,
+                    sheet_name=sheet.name,
+                    auto_detect_float=False,
+                    auto_detect_int=False,
+                    auto_detect_datetime=False,
+                    **extra_kw,
                 )
+                for i, row in enumerate(rows):
+                    row = list(row)
+                    colnames = sheet.colnames or \
+                        collections.current().default_table_head_by_len.get(len(row))
+                    _do_unpack_row(
+                        i, row, sheet_output_path,
+                        sheet_name=sheet.name, colnames=colnames,
+                        mime_encoding=mime_encoding,
+                    )
     finally:
         f1.close()
         f2.close()
@@ -560,6 +563,9 @@ def unarchive(blob):
                             mime_type=blob.mime_type,
                             mime_encoding=blob.mime_encoding)
                 log.info('unpack done in: %s seconds', time.time() - t0)
+                if not os.listdir(temp_dir):
+                    log.warning('extraction resulted in no files. exiting...')
+                    return None
 
                 t0 = time.time()
                 log.info('starting archive listing...')
