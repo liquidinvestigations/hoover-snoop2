@@ -326,11 +326,14 @@ has about 4 MB of text, so we use 50% of that as a simple value of when to stop.
 PDF2PDFOCR_MAX_FILE_LEN = 1 * (2 ** 30)  # 1 GB
 """ Only run pdf2pdfocr if pdf file size is less than this value."""
 
-TABLES_SPLIT_FILE_ROW_COUNT = 4000
+TABLES_SPLIT_FILE_ROW_COUNT = 2000
 """Number of rows inside each table splt.
+Limits the time spent by a single unarchive
+task to a few minutes, increasing parallelism.
 
-This limits the number of children (row) documents for a given table to the inode linear limit of 4000 files
-per dir.
+This limits the number of children (row) documents for
+a given table to the inode performance limit of 4000
+files per dir.
 """
 
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')

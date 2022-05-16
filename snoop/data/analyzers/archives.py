@@ -117,9 +117,10 @@ def is_archive(blob):
 
     if blob.mime_type == 'text/plain':
         with blob.open() as f:
-            csv_delim = guess_csv_settings(f, blob.mime_encoding).delimiter
-        if not csv_delim:
+            dialect = guess_csv_settings(f, blob.mime_encoding)
+        if not dialect:
             return False
+        csv_delim = dialect.delimiter
         if csv_delim == '\t':
             blob.mime_type = 'text/tab-separated-values'
         else:
@@ -187,7 +188,7 @@ def _do_unpack_row(row_id, row, output_path, sheet_name=None, colnames=None, mim
     assert len(colnames) == len(row)
     out_filepath = output_path / (str(row_id) + '.txt')
     out_lines = []
-    for k, v in zip(row, colnames):
+    for v, k in zip(row, colnames):
         if len(v) > MAX_CELL_LEN:
             v = v[:MAX_CELL_LEN]
         out_lines.append(f'{k} {OUT_SEPARATOR} {v}\n')
@@ -261,8 +262,10 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
             row_count = _get_row_count(rows)
             f2.seek(0)
 
-            # split large tables, so our in-memory archive crawler doesn't crash
-            if row_count > settings.TABLES_SPLIT_FILE_ROW_COUNT:
+            # split large tables, so our in-memory archive crawler doesn't crash.
+            # only do the split for sizes bigger than 2X the limit, so we avoid
+            # splitting relatively small tables.
+            if row_count >= settings.TABLES_SPLIT_FILE_ROW_COUNT * 2:
                 log.info('splitting sheet "%s" with %s rows into pieces...', sheet.name, row_count)
                 for i in range(0, row_count, settings.TABLES_SPLIT_FILE_ROW_COUNT):
                     start_row = i

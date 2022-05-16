@@ -96,9 +96,13 @@ class Collection:
                     f'language code "{lang}" is not available'
 
         # parse default table heads: different variante
-        table_headers = self.opt.get('default_table_head', '')
+        table_headers = self.opt.get('default_table_header', '').strip()
         variant_list = [[col.strip() for col in variant.split(':')] for variant in table_headers.split(';')]
-        self.default_table_head_by_len = {len(variant): variant for variant in variant_list}
+        self.default_table_head_by_len = {
+            len(variant): variant
+            for variant in variant_list
+            if len(variant) > 1
+        }
 
     @property
     def pdf_preview_enabled(self):
