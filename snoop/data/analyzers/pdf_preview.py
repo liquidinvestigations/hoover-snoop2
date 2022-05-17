@@ -27,7 +27,7 @@ PDF_PREVIEW_MIME_TYPES = {
     'application/vnd.oasis.opendocument.text',
     'application/vnd.oasis.opendocument.text-template',
     'chemical/x-pdb',
-    'application/pdf',
+    # 'application/pdf',  # no PDF preview for PDFs
     'application/x-pocket-word',
     'application/rtf',
     'application/vnd.stardivision.writer',
@@ -66,6 +66,7 @@ PDF_PREVIEW_MIME_TYPES = {
     'application/vnd.sun.xml.impress',
     # 'image/wmf', NO IMAGES!
     # 'text/csv',  NO TEXT!
+    # 'text/csv',  NO TEXT!
     'video/x-dv',
     'application/x-dbase',
     'application/vnd.oasis.opendocument.spreadsheet',
@@ -95,7 +96,7 @@ PDF_PREVIEW_EXTENSIONS = {
     '.odt',
     '.ott',
     '.pdb',
-    '.pdf',
+    # '.pdf',  # NO PDF PREVIEW FOR PDFs
     '.psw',
     '.rtf',
     '.sdw',
