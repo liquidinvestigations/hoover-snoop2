@@ -218,13 +218,20 @@ def run_tesseract_on_pdf(pdf_blob, lang):
 
 
 @snoop_task('ocr.run_tesseract', queue='ocr')
-def run_tesseract(blob, lang):
+def run_tesseract(blob, lang, target_pdf=None):
     """Task to run Tesseract OCR on a given document.
 
     If it's an image, we run `tesseract` directly to extract the text. If it's a PDF, we use the
     `pdf2pdfocr.py` script to build another PDF with OCR text rendered on top of it, to make the text
     selectable.
     """
+    if target_pdf:
+        if isinstance(target_pdf, models.Blob):
+            log.info('running OCR on target_pdf argument, instead of given blob')
+            return run_tesseract_on_pdf(target_pdf, lang)
+        else:
+            log.info('target_pdf object unknown type: %s, ignoring...', target_pdf)
+
     if blob.mime_type in TESSERACT_OCR_IMAGE_MIME_TYPES:
         return run_tesseract_on_image(blob, lang)
     elif blob.mime_type == 'application/pdf':

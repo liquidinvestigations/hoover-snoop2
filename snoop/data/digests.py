@@ -65,12 +65,20 @@ def launch(blob):
         if exif.can_extract(blob):
             depends_on['exif_data'] = exif.extract.laterz(blob)
 
+        if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
+            depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
+
+        # if we're an image or PDF, process OCR directly
         if ocr.can_process(blob):
             for lang in current_collection().ocr_languages:
                 depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
-
-        if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
-            depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
+        # if we have a PDF preview, send that to OCR instead
+        elif depends_on.get('get_pdf_preview'):
+            for lang in current_collection().ocr_languages:
+                depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(
+                    blob, lang,
+                    depends_on={'target_pdf': depends_on['get_pdf_preview']},
+                )
 
         if current_collection().thumbnail_generator_enabled and thumbnails.can_create(blob):
             if depends_on.get('get_pdf_preview'):
