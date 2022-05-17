@@ -185,21 +185,6 @@ def run_tesseract_on_image(image_blob, lang):
 def run_tesseract_on_pdf(pdf_blob, lang):
     """Run a `pdf2pdfocr.py` process on PDF document and return resulting PDF as blob."""
 
-    if pdf_blob.size > settings.PDF2PDFOCR_MAX_FILE_LEN:
-        raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with size'
-                              f'{pdf_blob.size} bytes (max = {settings.PDF2PDFOCR_MAX_FILE_LEN})',
-                              'pdf_ocr_file_too_big')
-
-    with pdf_blob.open(need_fileno=True) as f:
-        pdfstrlen = len(
-            subprocess.check_output('pdftotext -q -enc UTF-8 - - | wc -w',
-                                    shell=True, stdin=f)
-        )
-    if pdfstrlen > settings.PDF2PDFOCR_MAX_STRLEN:
-        raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes'
-                              f'of text (max = {settings.PDF2PDFOCR_MAX_STRLEN})',
-                              'pdf_ocr_text_too_long')
-
     with tempfile.TemporaryDirectory(prefix='tesseract-pdf2pdfocr-') as tmp_root:
         with tempfile.NamedTemporaryFile(dir=tmp_root, suffix='.pdf', delete=False) as tmp_f:
             tmp = tmp_f.name

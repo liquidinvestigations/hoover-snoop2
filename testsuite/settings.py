@@ -11,8 +11,6 @@ ALWAYS_QUEUE_NOW = True
 
 # NLP_TEXT_LENGTH_LIMIT = 15000
 TRANSLATION_TEXT_LENGTH_LIMIT = 100
-# PDF2PDFOCR_MAX_STRLEN = 300 * (2 ** 10)
-# PDF2PDFOCR_MAX_FILE_LEN = 40 * (2 ** 20)
 
 # set connection and statement timeouts for database
 CONNECT_TIMEOUT = 300  # s

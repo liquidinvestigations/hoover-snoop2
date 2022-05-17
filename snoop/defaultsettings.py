@@ -316,16 +316,6 @@ See `TASK_RETRY_FAIL_LIMIT`."""
 OCR_ENABLED = True
 """Flag to enable/disable OCR processing."""
 
-PDF2PDFOCR_MAX_STRLEN = 2 * (2 ** 20)  # 2 MB
-""" Only run pdf2pdfocr if pdf text length less than this value.
-
-This should defend us from over-1000-page documents that hang up the processing for days. The english bible
-has about 4 MB of text, so we use 50% of that as a simple value of when to stop.
-"""
-
-PDF2PDFOCR_MAX_FILE_LEN = 1 * (2 ** 30)  # 1 GB
-""" Only run pdf2pdfocr if pdf file size is less than this value."""
-
 TABLES_SPLIT_FILE_ROW_COUNT = 2000
 """Number of rows inside each table splt.
 Limits the time spent by a single unarchive
