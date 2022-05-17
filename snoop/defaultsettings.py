@@ -274,10 +274,11 @@ TASK_RETRY_AFTER_MINUTES = 3
 TASK_RETRY_FAIL_LIMIT = 3
 """Errored tasks are retried at most this number of times."""
 
-WORKER_TASK_LIMIT = 10000
+WORKER_TASK_LIMIT = 600
 """Max tasks count to be finished by 1 worker process before restarting it.
 
-Used to avoid memory leaks.
+Used to avoid memory leaks. Adjust to be equal to the fastest
+"5m_task_count" divided by "5m_avg_workers".
 """
 
 
@@ -315,16 +316,15 @@ See `TASK_RETRY_FAIL_LIMIT`."""
 OCR_ENABLED = True
 """Flag to enable/disable OCR processing."""
 
-PDF2PDFOCR_MAX_STRLEN = 2 * (2 ** 20)  # 2 MB
-""" Only run pdf2pdfocr if pdf text length less than this value.
+TABLES_SPLIT_FILE_ROW_COUNT = 2000
+"""Number of rows inside each table splt.
+Limits the time spent by a single unarchive
+task to a few minutes, increasing parallelism.
 
-This should defend us from over-1000-page documents that hang up the processing for days. The english bible
-has about 4 MB of text, so we use 50% of that as a simple value of when to stop.
+This limits the number of children (row) documents for
+a given table to the inode performance limit of 4000
+files per dir.
 """
-
-PDF2PDFOCR_MAX_FILE_LEN = 1 * (2 ** 30)  # 1 GB
-""" Only run pdf2pdfocr if pdf file size is less than this value."""
-
 
 URL_PREFIX = os.getenv('SNOOP_URL_PREFIX', '')
 """Configuration to set the URL prefix for all service routes. For example: "snoop/".

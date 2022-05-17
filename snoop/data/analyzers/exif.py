@@ -42,10 +42,10 @@ def extract_gps_location(tags):
         return None
 
     lat = convert(lat)
-    if lat_ref.values[0] != 'N':
+    if lat_ref.values and (lat_ref.values[0] != 'N'):
         lat = -lat
     lng = convert(lng)
-    if lng_ref.values[0] != 'E':
+    if lng_ref.values and (lng_ref.values[0] != 'E'):
         lng = -lng
     return "{}, {}".format(lat, lng)
 

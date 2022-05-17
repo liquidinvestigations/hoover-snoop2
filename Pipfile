@@ -78,6 +78,23 @@ pytest-timeout = "*"
 graphene-django = "*"
 minio = "*"
 smart-open = {extras = ["s3"], version = "*"}
+pyexcel = "*"
+pyexcel-io = "*"
+pyexcel-xls = '*'
+pyexcel-xlsx = '*'
+pyexcel-ods3 = '*'
+pyexcel-ods = '*'
+pyexcel-htmlr = '*'
+pyexcel-xlsxr = '*'
+pyexcel-xlsbr = '*'
+pyexcel-ezodf = '*'
+lxml = '*'
+odfpy = '*'
+openpyxl = '*'
+pyxlsb = '*'
+xlrd = '*'
+xlwt = '*'
+
 
 [requires]
 python_version = "3.9"

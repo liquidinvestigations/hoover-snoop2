@@ -33,6 +33,7 @@ from .analyzers import thumbnails
 from .analyzers import pdf_preview
 from .analyzers import image_classification
 from .analyzers import entities
+from .analyzers import archives
 from . import ocr
 from . import indexing
 from ._file_types import FILE_TYPES, allow_processing_for_mime_type
@@ -42,7 +43,7 @@ log = logging.getLogger(__name__)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
-@snoop_task('digests.launch', priority=4, version=10, queue='digests')
+@snoop_task('digests.launch', priority=4, version=11, queue='digests')
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -64,12 +65,21 @@ def launch(blob):
         if exif.can_extract(blob):
             depends_on['exif_data'] = exif.extract.laterz(blob)
 
-        if ocr.can_process(blob):
-            for lang in current_collection().ocr_languages:
-                depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
-
         if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
             depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
+
+        # either process OCR on the original, or on a PDF conversion
+        if ocr.can_process(blob):
+            for lang in current_collection().ocr_languages:
+                log.info('dispatching direct OCR in language %s', lang)
+                depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
+        elif depends_on.get('get_pdf_preview'):
+            for lang in current_collection().ocr_languages:
+                log.info('dispatching OCR for PDF preview language %s', lang)
+                depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(
+                    blob, lang,
+                    depends_on={'target_pdf': depends_on['get_pdf_preview']},
+                )
 
         if current_collection().thumbnail_generator_enabled and thumbnails.can_create(blob):
             if depends_on.get('get_pdf_preview'):
@@ -161,6 +171,20 @@ def gather(blob, **depends_on):
 
     rv = {'broken': []}
 
+    if archives.is_table(blob):
+        rv['is-table'] = True
+        with blob.mount_path() as path:
+            table_info = archives.get_table_info(
+                path, blob.mime_type, blob.mime_encoding)
+
+        rv["table-sheets"] = table_info['sheets']
+        rv["table-sheet-count"] = len(table_info['sheets'])
+        if table_info['sheets']:
+            first_sheet = table_info['sheets'][0]
+            rv["table-columns"] = table_info['sheet-columns'][first_sheet]
+            rv["table-row-count"] = table_info['sheet-row-count'][first_sheet]
+            rv["table-col-count"] = table_info['sheet-col-count'][first_sheet]
+
     # extract text and meta with apache tika
     tika_rmeta_blob = depends_on.get('tika_rmeta')
     if tika_rmeta_blob:
@@ -193,9 +217,18 @@ def gather(blob, **depends_on):
     if not rv.get('text') and can_read_text(blob):
         rv['text'] = read_text(blob) or ''
 
+    # check if pdf-preview is available
+    rv['has-pdf-preview'] = False
+    pdf_preview = depends_on.get('get_pdf_preview')
+    if isinstance(pdf_preview, SnoopTaskBroken):
+        rv['broken'].append(pdf_preview.reason)
+        log.warning('get_pdf_preview task is broken; skipping')
+    elif isinstance(pdf_preview, models.Blob):
+        rv['has-pdf-preview'] = True
+
     # combine OCR results, limiting string sizes to indexing.MAX_TEXT_FIELD_SIZE
     ocr_results = dict(ocr.ocr_texts_for_blob(blob))
-    if ocr.can_process(blob):
+    if ocr.can_process(blob) or rv['has-pdf-preview']:
         for lang in current_collection().ocr_languages:
             ocr_blob = depends_on.get(f'tesseract_{lang}')
             if not ocr_blob or isinstance(ocr_blob, SnoopTaskBroken):
@@ -203,27 +236,31 @@ def gather(blob, **depends_on):
                 rv['broken'].append('ocr_missing')
                 ocr_results[f'tesseract_{lang}'] = ""
                 continue
-            if ocr_blob.mime_type == 'application/pdf':
-                with ocr_blob.open() as f:
+            log.info('found OCR blob with mime type: %s', ocr_blob.mime_type)
+            with ocr_blob.mount_path() as ocr_path:
+                if ocr_blob.mime_type == 'application/pdf':
                     ocr_results[f'tesseract_{lang}'] = subprocess.check_output(
-                        f'pdftotext -q -enc UTF-8 /dev/stdin - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',  # noqa: E501
+                        f'pdftotext -q -enc UTF-8 {ocr_path} - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',
                         shell=True,
-                        stdin=f,
                     ).decode('utf8', errors='replace').strip()
-            else:
-                with ocr_blob.open() as f:
-                    ocr_results[f'tesseract_{lang}'] = read_exactly(
-                        f,
-                        indexing.MAX_TEXT_FIELD_SIZE,
-                    ).decode('utf-8', errors='replace').strip()
+                else:
+                    with open(ocr_path, 'rb') as f:
+                        ocr_results[f'tesseract_{lang}'] = read_exactly(
+                            f,
+                            indexing.MAX_TEXT_FIELD_SIZE,
+                        ).decode('utf-8', errors='replace').strip()
+                log.info('loaded OCR text for lang %s with length %s', lang,
+                         len(ocr_results[f'tesseract_{lang}']))
     if ocr_results:
         rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
         if rv['ocr']:
-            if blob.mime_type == 'application/pdf':
+            if blob.mime_type == 'application/pdf' or rv['has-pdf-preview']:
                 rv['ocrpdf'] = True
             else:
                 rv['ocrimage'] = True
-        rv['ocrtext'] = ocr_results
+            rv['ocrtext'] = ocr_results
+        else:
+            log.warning('all OCR results were blank.')
 
     # try and extract exif data
     exif_data_blob = depends_on.get('exif_data')
@@ -245,15 +282,6 @@ def gather(blob, **depends_on):
             log.warning('get_thumbnail task is broken; skipping')
         else:
             rv['has-thumbnails'] = True
-
-    # check if pdf-preview is available
-    rv['has-pdf-preview'] = False
-    pdf_preview = depends_on.get('get_pdf_preview')
-    if isinstance(pdf_preview, SnoopTaskBroken):
-        rv['broken'].append(pdf_preview.reason)
-        log.warning('get_pdf_preview task is broken; skipping')
-    elif isinstance(pdf_preview, models.Blob):
-        rv['has-pdf-preview'] = True
 
     rv['detected-objects'] = []
     detections = depends_on.get('detect_objects')

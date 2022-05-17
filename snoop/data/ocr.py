@@ -185,21 +185,6 @@ def run_tesseract_on_image(image_blob, lang):
 def run_tesseract_on_pdf(pdf_blob, lang):
     """Run a `pdf2pdfocr.py` process on PDF document and return resulting PDF as blob."""
 
-    if pdf_blob.size > settings.PDF2PDFOCR_MAX_FILE_LEN:
-        raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with size'
-                              f'{pdf_blob.size} bytes (max = {settings.PDF2PDFOCR_MAX_FILE_LEN})',
-                              'pdf_ocr_file_too_big')
-
-    with pdf_blob.open(need_fileno=True) as f:
-        pdfstrlen = len(
-            subprocess.check_output('pdftotext -q -enc UTF-8 - - | wc -w',
-                                    shell=True, stdin=f)
-        )
-    if pdfstrlen > settings.PDF2PDFOCR_MAX_STRLEN:
-        raise SnoopTaskBroken(f'Refusing to run PDF OCR on a PDF file with {pdfstrlen} bytes'
-                              f'of text (max = {settings.PDF2PDFOCR_MAX_STRLEN})',
-                              'pdf_ocr_text_too_long')
-
     with tempfile.TemporaryDirectory(prefix='tesseract-pdf2pdfocr-') as tmp_root:
         with tempfile.NamedTemporaryFile(dir=tmp_root, suffix='.pdf', delete=False) as tmp_f:
             tmp = tmp_f.name
@@ -213,6 +198,7 @@ def run_tesseract_on_pdf(pdf_blob, lang):
                     '-v', '-a',
                     '-x', '--oem 1 --psm 1',
                     '-j', "%0.4f" % (1.0 / max(1, multiprocessing.cpu_count())),
+                    '--ignore-existing-text',
                 ]
                 subprocess.check_call(args)
             return models.Blob.create_from_file(tmp)
@@ -232,13 +218,20 @@ def run_tesseract_on_pdf(pdf_blob, lang):
 
 
 @snoop_task('ocr.run_tesseract', queue='ocr')
-def run_tesseract(blob, lang):
+def run_tesseract(blob, lang, target_pdf=None):
     """Task to run Tesseract OCR on a given document.
 
     If it's an image, we run `tesseract` directly to extract the text. If it's a PDF, we use the
     `pdf2pdfocr.py` script to build another PDF with OCR text rendered on top of it, to make the text
     selectable.
     """
+    if target_pdf:
+        if isinstance(target_pdf, models.Blob):
+            log.info('running OCR on target_pdf argument, instead of given blob')
+            return run_tesseract_on_pdf(target_pdf, lang)
+        else:
+            log.info('target_pdf object unknown type: %s, ignoring...', target_pdf)
+
     if blob.mime_type in TESSERACT_OCR_IMAGE_MIME_TYPES:
         return run_tesseract_on_image(blob, lang)
     elif blob.mime_type == 'application/pdf':

@@ -207,7 +207,7 @@ def walk(directory_pk):
                 handle_file.laterz(file.pk, queue_now=False)
 
 
-@snoop_task('filesystem.handle_file', priority=1, version=2, queue='filesystem')
+@snoop_task('filesystem.handle_file', priority=1, version=3, queue='filesystem')
 @profile()
 def handle_file(file_pk, **depends_on):
     """Parse, update and possibly convert file found on in dataset.
@@ -308,11 +308,15 @@ def create_archive_files(file_pk, archive_listing):
     """
 
     if isinstance(archive_listing, SnoopTaskBroken):
-        log.debug("Unarchive task is broken; returning without doing anything")
+        log.warning("Unarchive task is broken; returning without doing anything")
         return
 
     with archive_listing.open() as f:
         archive_listing_data = json.load(f)
+
+    if not archive_listing_data:
+        log.warning("Unarchive data is empty; returning...")
+        return
 
     def create_directory_children(directory, children):
         for i, item in enumerate(children):

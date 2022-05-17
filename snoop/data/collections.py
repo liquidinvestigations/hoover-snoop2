@@ -95,6 +95,16 @@ class Collection:
                 assert lang in ALL_TESSERACT_LANGS, \
                     f'language code "{lang}" is not available'
 
+        # parse default table heads: different variante
+        table_headers = self.opt.get('default_table_header', '').strip()
+        variant_list = [[col.strip() for col in variant.split(':')] for variant in table_headers.split(';')]
+        self.default_table_head_by_len = {
+            len(variant): variant
+            for variant in variant_list
+            if len(variant) > 1
+        }
+        self.explode_table_rows = self.opt.get('explode_table_rows', False)
+
     @property
     def pdf_preview_enabled(self):
         return self.opt.get('pdf_preview_enabled', bool(settings.SNOOP_PDF_PREVIEW_URL)) \
@@ -307,7 +317,7 @@ def drop_db(db_name):
     with connection.cursor() as conn:
         # https://dba.stackexchange.com/questions/11893/force-drop-db-while-others-may-be-connected/11895#11895
         # stop new connections to db
-        conn.execute(f"ALTER DATABASE {db_name} CONNECTION LIMIT 0;")
+        conn.execute(f'ALTER DATABASE "{db_name}" CONNECTION LIMIT 0;')
         conn.execute(f"UPDATE pg_database SET datallowconn = 'false' WHERE datname = '{db_name}';")
         # delete existing connections to db
         conn.execute(f"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '{db_name}';")
