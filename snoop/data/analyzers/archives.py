@@ -348,8 +348,6 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                 sheet_output_path = output_path / sheet.name
             else:
                 sheet_output_path = output_path
-            os.makedirs(str(sheet_output_path), exist_ok=True)
-
             # get rows and count them
             rows = pyexcel.iget_array(
                 file_stream=f2,
@@ -368,6 +366,8 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
             # splitting relatively small tables.
             if row_count > int(1.5 * settings.TABLES_SPLIT_FILE_ROW_COUNT):
                 log.info('splitting sheet "%s" with %s rows into pieces...', sheet.name, row_count)
+                os.makedirs(str(sheet_output_path), exist_ok=True)
+
                 for i in range(0, row_count, settings.TABLES_SPLIT_FILE_ROW_COUNT):
                     start_row = i
                     row_limit = settings.TABLES_SPLIT_FILE_ROW_COUNT
@@ -394,6 +394,8 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
             # get row iterator again, now to read rows and explode them
             if collections.current().explode_table_rows:
                 log.info('exploding rows from table...')
+                os.makedirs(str(sheet_output_path), exist_ok=True)
+
                 rows = pyexcel.iget_array(
                     file_stream=f2,
                     file_type=pyexcel_filetype,
@@ -640,20 +642,20 @@ def unarchive(blob):
     Runs on archives, email archives and any other file types that can contain another file (such as
     documents that embed images).
     """
-    if can_unpack_with_7z(blob):
-        return unarchive_7z(blob)
-
     unpack_func = None
-    if blob.mime_type in READPST_MIME_TYPES:
+    if blob.mime_type in TABLE_MIME_TYPES:
+        unpack_func = unpack_table
+    elif blob.mime_type in READPST_MIME_TYPES:
         unpack_func = call_readpst
     elif blob.mime_type in MBOX_MIME_TYPES:
         unpack_func = unpack_mbox
     elif blob.mime_type in PDF_MIME_TYPES:
         unpack_func = unpack_pdf
-    elif blob.mime_type in TABLE_MIME_TYPES:
-        unpack_func = unpack_table
     else:
-        raise RuntimeError('unarchive: unknown mime type')
+        if can_unpack_with_7z(blob):
+            return unarchive_7z(blob)
+        else:
+            raise RuntimeError('unarchive: unknown mime type')
 
     with blob.mount_path() as blob_path:
         with collections.current().mount_blobs_root(readonly=False) as blobs_root:
