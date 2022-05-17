@@ -364,7 +364,9 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
             # split large tables, so our in-memory archive crawler doesn't crash.
             # only do the split for sizes bigger than 1.5X the limit, so we avoid
             # splitting relatively small tables.
-            if row_count > int(1.5 * settings.TABLES_SPLIT_FILE_ROW_COUNT):
+            # Or do it if the table type isn't CSV or TSV.
+            if row_count > int(1.5 * settings.TABLES_SPLIT_FILE_ROW_COUNT) \
+                    or pyexcel_filetype not in TEXT_FILETYPES:
                 log.info('splitting sheet "%s" with %s rows into pieces...', sheet.name, row_count)
                 os.makedirs(str(sheet_output_path), exist_ok=True)
 
@@ -374,6 +376,9 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                     end_row = min(start_row + row_limit, row_count)
                     split_file_path = str(sheet_output_path / f'split-rows-{start_row}-{end_row}.csv')
                     log.info('writing file %s', split_file_path)
+                    dest_mime_encoding = mime_encoding
+                    if not dest_mime_encoding or dest_mime_encoding == 'binary':
+                        dest_mime_encoding = 'utf-8'
                     pyexcel.isave_as(
                         file_stream=f2,
                         file_type=pyexcel_filetype,
@@ -385,7 +390,7 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                         row_limit=row_limit,
                         dest_file_name=split_file_path,
                         dest_delimiter=':',
-                        dest_encoding=mime_encoding or 'utf-8',
+                        dest_encoding=dest_mime_encoding,
                         **extra_kw,
                     )
                     f2.seek(0)

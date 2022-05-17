@@ -43,7 +43,7 @@ log = logging.getLogger(__name__)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
-@snoop_task('digests.launch', priority=4, version=10, queue='digests')
+@snoop_task('digests.launch', priority=4, version=11, queue='digests')
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
