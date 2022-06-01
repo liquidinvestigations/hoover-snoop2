@@ -236,7 +236,8 @@ def handle_file(file_pk, **depends_on):
     old_blob = file.blob
     file.blob = file.original
 
-    if allow_processing_for_mime_type(file.original.mime_type):
+    extension = pathlib.Path(file.name).suffix.lower()
+    if allow_processing_for_mime_type(file.original.mime_type, extension):
         if archives.is_archive(file.blob):
             unarchive_task = archives.unarchive.laterz(file.blob)
             create_archive_files.laterz(
