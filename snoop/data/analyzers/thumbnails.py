@@ -14,6 +14,8 @@ from django.conf import settings
 from .. import models
 from .. import utils
 from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
+from .collections import current as current_collection
+
 import subprocess
 
 
@@ -388,6 +390,9 @@ def get_thumbnail(blob, pdf_preview=None):
         source: If set, will use this data for the actual creation of the thumbnail.
                 Useful if we have PDF conversions.
     """
+
+    if not current_collection().thumbnail_generator_enabled or not can_create(blob):
+        raise SnoopTaskBroken('thumbnail generator disabled', 'thumbnails_disabled')
 
     if pdf_preview and isinstance(pdf_preview, models.Blob) and pdf_preview.size > 0:
         source = pdf_preview

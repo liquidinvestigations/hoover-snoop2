@@ -13,6 +13,7 @@ from django.db import connections
 from .. import models
 from .. import collections
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
+from ..collections import current as current_collection
 
 log = logging.getLogger(__name__)
 
@@ -171,7 +172,7 @@ def translate(blob, lang):
 
     Returns a JSON Blob with detected language, as well as any translations done."""
     if not collections.current().translation_enabled:
-        raise SnoopTaskBroken('not enabled', 'nlp_translate_not_enabled')
+        raise SnoopTaskBroken('translation not enabled', 'nlp_translate_not_enabled')
 
     _txt_limit = collections.current().translation_text_length_limit
     digest = models.Digest.objects.get(blob=blob)
@@ -228,6 +229,10 @@ def get_entity_results(blob, language=None, translation_result_pk=None):
     Returns:
         The responses from the calls to the NLP Server for all text sources.
     """
+    if not current_collection().nlp_entity_extraction_enabled \
+            or not can_extract_entities(language):
+        raise SnoopTaskBroken('entity extraction disabled', 'nlp_entity_extraction_disabled')
+
     digest = models.Digest.objects.get(blob=blob)
     timeout = min(ENTITIES_TIMEOUT_MAX,
                   int(ENTITIES_TIMEOUT_BASE + blob.size / ENTITIES_MIN_SPEED_BPS))

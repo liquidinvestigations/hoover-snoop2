@@ -11,6 +11,7 @@ import mimetypes
 
 from .. import models
 from ..tasks import snoop_task, SnoopTaskBroken
+from ..collections import current as current_collection
 
 log = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ PDF_PREVIEW_MIME_TYPES = {
     # 'application/xml',  NO TEXT!
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.oasis.opendocument.text',
-    'text/html',  # sure, what could go wrong?
+    # 'text/html',  # no html
     'application/x-latex',
     # 'text/plain',  NO TEXT!
     'application/vnd.oasis.opendocument.text',
@@ -90,7 +91,7 @@ PDF_PREVIEW_EXTENSIONS = {
     # '.xml',  # NO TEXT!
     '.docx',
     '.fodt',
-    '.html',
+    # '.html', no html
     '.ltx',
     # '.txt',  NO TEXT!
     '.odt',
@@ -128,7 +129,7 @@ PDF_PREVIEW_EXTENSIONS = {
     '.sxd',
     '.sxw',
     # '.tiff',  NO IMAGES!
-    '.xhtml',
+    # '.xhtml', no html
     '.xpm',
     '.fodp',
     '.potm',
@@ -211,6 +212,10 @@ def get_pdf(blob):
 
     Adds the pdf preview to the database
     """
+    if not current_collection().pdf_preview_enabled \
+            or not can_create(blob):
+        raise SnoopTaskBroken('pdf preview disabled', 'pdf_preview_disabled')
+
     # the service needs to receive a filename but the original filename might be broken
     DEFAULT_FILENAME = 'a'
     try:

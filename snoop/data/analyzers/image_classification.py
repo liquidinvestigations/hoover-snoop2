@@ -9,6 +9,7 @@ from PIL import Image, UnidentifiedImageError
 
 from .. import models
 from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
+from ..collections import current as current_collection
 
 
 log = logging.getLogger(__name__)
@@ -131,6 +132,9 @@ def detect_objects(blob):
 
     Filters the results by probability. The limit is given by PROBABILITY_LIMIT.
     """
+    if not current_collection().image_classification_object_detection_enabled \
+            or not can_detect(blob):
+        raise SnoopTaskBroken('image object detection disabled', 'img_obj_detection_disabled')
 
     filename = models.File.objects.filter(original=blob.pk)[0].name
     if blob.mime_type == 'image/jpeg':
@@ -156,6 +160,9 @@ def classify_image(blob):
 
     Filters the results by probability. The limit is given by PROBABILITY_LIMIT.
     """
+    if not current_collection().image_classification_classify_images_enabled \
+            or not can_detect(blob):
+        raise SnoopTaskBroken('image classification disabled', 'img_classification_disabled')
 
     filename = models.File.objects.filter(original=blob.pk)[0].name
     if blob.mime_type == 'image/jpeg':

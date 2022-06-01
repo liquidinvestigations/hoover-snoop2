@@ -21,6 +21,7 @@ from django.conf import settings
 from . import models
 from .tasks import snoop_task, require_dependency, retry_tasks, SnoopTaskBroken
 from .analyzers import tika
+from .collections import current as current_collection
 
 
 TESSERACT_OCR_IMAGE_MIME_TYPES = {
@@ -225,6 +226,12 @@ def run_tesseract(blob, lang, target_pdf=None):
     `pdf2pdfocr.py` script to build another PDF with OCR text rendered on top of it, to make the text
     selectable.
     """
+    if not can_process(blob):
+        raise SnoopTaskBroken('ocr processing disabled', 'ocr_disabled')
+
+    if lang not in current_collection().ocr_languages:
+        raise SnoopTaskBroken('ocr processing language disabled: ' + str(lang), 'ocr_lang_disabled')
+
     if target_pdf:
         if isinstance(target_pdf, models.Blob):
             log.info('running OCR on target_pdf argument, instead of given blob')
