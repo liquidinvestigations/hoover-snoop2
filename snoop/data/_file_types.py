@@ -81,10 +81,11 @@ Used by [snoop.data.digests.get_filetype][].
 """
 
 
-def allow_processing_for_mime_type(mime_type):
-    """Check if we want to skip processing the document, based on mime type.
+def allow_processing_for_mime_type(mime_type, sample_extension):
+    """Check if we want to skip processing the document, based on mime type and extension.
 
     We check if the given `mime_type` is listed in `settings.SNOOP_SKIP_PROCESSING_MIME_TYPES`.
+    We also check if the given `sample_extension` is listed in `settings.SNOOP_SKIP_PROCESSING_EXTENSIONS`.
 
     We also check if the file extension guessed by the `mimetypes` module is listed in
     `settings.SNOOP_SKIP_PROCESSING_EXTENSIONS`. """
@@ -94,5 +95,8 @@ def allow_processing_for_mime_type(mime_type):
     ext = mimetypes.guess_extension(mime_type)
     if ext in settings.SNOOP_SKIP_PROCESSING_EXTENSIONS:
         log.warning('skipping document with guessed extension = "%s"', ext)
+        return False
+    if sample_extension and sample_extension in settings.SNOOP_SKIP_PROCESSING_EXTENSIONS:
+        log.warning('skipping document with filename extension = "%s"', sample_extension)
         return False
     return True

@@ -11,6 +11,7 @@ This module also handles generating the different representations for File, Dire
 indexing data into Elasticsearch.
 """
 
+import pathlib
 import subprocess
 import chardet
 
@@ -55,7 +56,13 @@ def launch(blob):
 
     depends_on = {}
 
-    if allow_processing_for_mime_type(blob.mime_type):
+    try:
+        first_file = _get_first_file(blob)
+        first_file_extension = pathlib.Path(first_file.name).suffix.lower()
+    except Exception as e:
+        log.error('failed to get filename extension: %s', e)
+        first_file_extension = None
+    if allow_processing_for_mime_type(blob.mime_type, first_file_extension):
         if blob.mime_type == 'message/rfc822':
             depends_on['email_parse'] = email.parse.laterz(blob)
 
@@ -170,6 +177,13 @@ def gather(blob, **depends_on):
     """
 
     rv = {'broken': []}
+    try:
+        first_file = _get_first_file(blob)
+        first_file_extension = pathlib.Path(first_file.name).suffix.lower()
+    except Exception as e:
+        log.error('failed to get filename extension: %s', e)
+        first_file_extension = None
+    rv['skipped'] = not allow_processing_for_mime_type(blob.mime_type, first_file_extension)
 
     if archives.is_table(blob):
         rv['is-table'] = True

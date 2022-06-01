@@ -235,7 +235,7 @@ COLLECTIONS_S3 = Minio(
 )
 SNOOP_BROKEN_FILENAME_SERVICE = os.environ.get('SNOOP_BROKEN_FILENAME_SERVICE')
 SNOOP_SKIP_PROCESSING_MIME_TYPES = os.environ.get(
-    'SNOOP_BROKEN_FILENAME_SERVICE',
+    'SNOOP_SKIP_PROCESSING_MIME_TYPES',
     'application/octet-stream,inode/x-empty',
 ).split(',')
 SNOOP_SKIP_PROCESSING_EXTENSIONS = os.environ.get(

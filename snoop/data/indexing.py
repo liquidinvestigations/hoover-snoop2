@@ -83,6 +83,8 @@ MAPPINGS = {
             "table-row-count": {"type": "integer"},
             "table-col-count": {"type": "integer"},
 
+            "skipped": {"type": "boolean"},
+
             # Don't be explicit, because the implicit texts have .keyword
             # while explicit texts do not.
             # "entity": {"type": "text"},

@@ -14,7 +14,7 @@ from django.conf import settings
 from .. import models
 from .. import utils
 from ..tasks import SnoopTaskBroken, returns_json_blob, snoop_task
-from .collections import current as current_collection
+from ..collections import current as current_collection
 
 import subprocess
 
