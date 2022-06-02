@@ -188,8 +188,8 @@ def run_tesseract_on_pdf(pdf_blob, lang):
 
     TESS_CPU_COUNT = 4
     TESS_CPU_FACTOR = (TESS_CPU_COUNT * 1.0 / max(1, multiprocessing.cpu_count()))
-    if TESS_CPU_FACTOR > 1:
-        TESS_CPU_FACTOR = 1
+    TESS_CPU_FACTOR = min(TESS_CPU_FACTOR, 1)
+    TESS_CPU_FACTOR = max(TESS_CPU_FACTOR, 0.08)
 
     with tempfile.TemporaryDirectory(prefix='tesseract-pdf2pdfocr-') as tmp_root:
         with tempfile.NamedTemporaryFile(dir=tmp_root, suffix='.pdf', delete=False) as tmp_f:
