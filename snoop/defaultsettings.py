@@ -274,11 +274,11 @@ TASK_RETRY_AFTER_MINUTES = 3
 TASK_RETRY_FAIL_LIMIT = 3
 """Errored tasks are retried at most this number of times."""
 
-WORKER_TASK_LIMIT = 600
+WORKER_TASK_LIMIT = 10
 """Max tasks count to be finished by 1 worker process before restarting it.
 
-Used to avoid memory leaks. Adjust to be equal to the fastest
-"5m_task_count" divided by "5m_avg_workers".
+Used to avoid memory leaks. Setting 500 here will make containers use 2-5GB memory / item, so
+we want a very small count here.
 """
 
 
@@ -286,7 +286,7 @@ CHILD_QUEUE_LIMIT = 50
 """ Limit for queueing large counts of children tasks.
 """
 
-DISPATCH_QUEUE_LIMIT = 12000
+DISPATCH_QUEUE_LIMIT = 30000
 """ Count of pending tasks to trigger per collection when finding an empty queue.
 
 A single worker core running zero-length tasks gets at most around 40
