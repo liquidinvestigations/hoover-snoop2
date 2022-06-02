@@ -313,6 +313,8 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
     TEXT_FILETYPES = ['csv', 'tsv', 'html']
     dialect = None
     extra_kw = dict()
+    f1 = None
+    f2 = None
     try:
         if pyexcel_filetype in TEXT_FILETYPES:
             f1 = open(table_path, 'rt', encoding=mime_encoding)
@@ -420,8 +422,10 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                         mime_encoding=mime_encoding,
                     )
     finally:
-        f1.close()
-        f2.close()
+        if f1:
+            f1.close()
+        if f2:
+            f2.close()
         pyexcel.free_resources()
 
 
