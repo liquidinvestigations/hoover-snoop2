@@ -186,6 +186,11 @@ def run_tesseract_on_image(image_blob, lang):
 def run_tesseract_on_pdf(pdf_blob, lang):
     """Run a `pdf2pdfocr.py` process on PDF document and return resulting PDF as blob."""
 
+    TESS_CPU_COUNT = 4
+    TESS_CPU_FACTOR = (TESS_CPU_COUNT * 1.0 / max(1, multiprocessing.cpu_count()))
+    if TESS_CPU_FACTOR > 1:
+        TESS_CPU_FACTOR = 1
+
     with tempfile.TemporaryDirectory(prefix='tesseract-pdf2pdfocr-') as tmp_root:
         with tempfile.NamedTemporaryFile(dir=tmp_root, suffix='.pdf', delete=False) as tmp_f:
             tmp = tmp_f.name
@@ -198,7 +203,7 @@ def run_tesseract_on_pdf(pdf_blob, lang):
                     '-l', lang,
                     '-v', '-a',
                     '-x', '--oem 1 --psm 1',
-                    '-j', "%0.4f" % (1.0 / max(1, multiprocessing.cpu_count())),
+                    '-j', "%0.4f" % TESS_CPU_FACTOR,
                     '--ignore-existing-text',
                 ]
                 subprocess.check_call(args)
