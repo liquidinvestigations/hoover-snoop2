@@ -226,7 +226,7 @@ def run_tesseract(blob, lang, target_pdf=None):
     `pdf2pdfocr.py` script to build another PDF with OCR text rendered on top of it, to make the text
     selectable.
     """
-    if not can_process(blob):
+    if not can_process(blob) and not target_pdf:
         raise SnoopTaskBroken('ocr processing disabled', 'ocr_disabled')
 
     if lang not in current_collection().ocr_languages:
