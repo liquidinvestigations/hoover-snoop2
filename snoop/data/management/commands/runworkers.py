@@ -37,6 +37,7 @@ def celery_argv(queues, count, mem_limit_mb):
         '--pidfile=',
         f'--loglevel={loglevel}',
         '-Ofair',
+        '--without-gossip', '--without-mingle',
         '--max-tasks-per-child', str(settings.WORKER_TASK_LIMIT),
         '--max-memory-per-child', str(mem_limit_mb * 1024),
         '--prefetch-multiplier', str(1),
