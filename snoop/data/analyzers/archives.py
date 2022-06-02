@@ -74,7 +74,7 @@ TABLE_MIME_TYPE_OPERATOR_TABLE = {
     "application/csv": "csv",
     "application/tab-separated-values": "tsv",
     "text/csv": "csv",
-    "text/html": "html",
+    # "text/html": "html",
     "text/tab-separated-values": "tsv",
 }
 
@@ -103,7 +103,11 @@ def guess_csv_settings(file_stream, mime_encoding):
     GUESS_READ_LEN = 8192
     text = file_stream.read(GUESS_READ_LEN)
     if isinstance(text, bytes):
-        text = text.decode(mime_encoding or 'ascii', errors='replace')
+        mime_encoding = mime_encoding or 'ascii'
+        if mime_encoding.startswith('unknown'):
+            mime_encoding = 'ascii'
+
+        text = text.decode(mime_encoding, errors='backslashreplace')
     try:
         return csv.Sniffer().sniff(text, CSV_DELIMITER_LIST)
     except csv.Error:
@@ -263,7 +267,7 @@ def get_table_info(table_path, mime_type, mime_encoding):
                 auto_detect_float=False,
                 auto_detect_int=False,
                 auto_detect_datetime=False,
-                skip_hidden_sheets=False,
+                # skip_hidden_sheets=False,
             )
         )
         for sheet in sheets:
@@ -342,7 +346,7 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                 auto_detect_float=False,
                 auto_detect_int=False,
                 auto_detect_datetime=False,
-                skip_hidden_sheets=False,
+                # skip_hidden_sheets=False,
             )
         )
         for sheet in sheets:
