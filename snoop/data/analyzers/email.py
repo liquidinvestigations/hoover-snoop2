@@ -151,11 +151,15 @@ def dump_part(message, depends_on):
         rmeta_blob = require_dependency(
             f'tika-html-{writer.blob.pk}', depends_on,
             lambda: tika.rmeta.laterz(writer.blob),
+            return_error=True,
         )
 
-        with rmeta_blob.open() as f:
-            rmeta_data = json.load(f)
-        rv['text'] = rmeta_data[0].get('X-TIKA:content', "") if rmeta_data else ""
+        if isinstance(result, models.Blob):
+            with rmeta_blob.open() as f:
+                rmeta_data = json.load(f)
+            rv['text'] = rmeta_data[0].get('X-TIKA:content', "") if rmeta_data else ""
+        else:
+            log.warning('tika HTML for Email Text failed!')
 
     if message.get_content_disposition():
         raw_filename = message.get_filename()
