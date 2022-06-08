@@ -154,7 +154,7 @@ def dump_part(message, depends_on):
             return_error=True,
         )
 
-        if isinstance(result, models.Blob):
+        if isinstance(rmeta_blob, models.Blob):
             with rmeta_blob.open() as f:
                 rmeta_data = json.load(f)
             rv['text'] = rmeta_data[0].get('X-TIKA:content', "") if rmeta_data else ""
