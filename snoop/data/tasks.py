@@ -661,6 +661,15 @@ def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
         else:
             task_query = task_query.order_by('date_modified')
 
+        # if outdated, use retry_tasks to mark everything as pending
+        # from the start (to get actual ETA, not 99.99%)
+        if outdated:
+            found_something = task_query.exists()
+            if found_something:
+                logger.info(f'collection "{collections.current().name}": Dispatching {item_str} {func} tasks')  # noqa: E501
+                retry_tasks(task_query)
+            return found_something
+
         task_query = task_query[:settings.DISPATCH_QUEUE_LIMIT]
 
         task_count = task_query.count()
