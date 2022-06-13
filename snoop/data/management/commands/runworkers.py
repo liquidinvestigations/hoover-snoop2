@@ -19,7 +19,7 @@ from ...logs import logging_for_management_command
 log = logging.getLogger(__name__)
 
 
-def celery_argv(queues, count, mem_limit_mb):
+def celery_argv(queues, solo, count, mem_limit_mb):
     """Builds the command line to run a `celery worker` process."""
 
     celery_binary = (
@@ -44,8 +44,12 @@ def celery_argv(queues, count, mem_limit_mb):
         '--soft-time-limit', '190000',  # 52h
         '--time-limit', '200000',  # 55h
         '-Q', ','.join(queues),
-        '-c', str(count),
     ]
+
+    if solo:
+        argv += ['-P', 'solo']
+    else:
+        argv += ['-c', str(count)]
 
     return argv
 
@@ -62,6 +66,9 @@ class Command(BaseCommand):
         parser.add_argument('--mem', type=int, default=500,
                             help=("If task exceeds this memory usage (in MB), "
                                   "after finishing, it will restart."))
+        parser.add_argument('--solo', action="store_true",
+                            help=("Run a single worker with celery solo pool."
+                                  "Useful to kill container resources when task is killed."))
 
     def handle(self, *args, **options):
         """Runs workers for either collection processing or system tasks."""
@@ -77,6 +84,7 @@ class Command(BaseCommand):
             else:
                 raise RuntimeError('no queue given')
 
-            argv = celery_argv(queues=all_queues, count=options['count'], mem_limit_mb=options['mem'])
+            argv = celery_argv(queues=all_queues, solo=options.get('solo'),
+                               count=options['count'], mem_limit_mb=options['mem'])
             log.info('+' + ' '.join(argv))
             os.execv(argv[0], argv)
