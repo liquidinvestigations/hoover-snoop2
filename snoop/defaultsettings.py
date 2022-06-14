@@ -176,7 +176,7 @@ DETECT_LANGUAGE = os.getenv('SNOOP_DETECT_LANGUAGES', 'False').lower() == 'true'
 EXTRACT_ENTITIES = os.getenv('SNOOP_EXTRACT_ENTITIES', 'False').lower() == 'true'
 SNOOP_NLP_URL = os.environ.get('SNOOP_NLP_URL', 'http://127.0.0.1:5000/')
 """ URL pointing to NLP server"""
-NLP_TEXT_LENGTH_LIMIT = int(os.getenv('NLP_TEXT_LENGTH_LIMIT', '2000000'))
+NLP_TEXT_LENGTH_LIMIT = int(os.getenv('NLP_TEXT_LENGTH_LIMIT', '1000000'))
 """Truncate text sent to NLP service after this many characters."""
 
 
@@ -268,10 +268,10 @@ TODO:
 """
 
 
-TASK_RETRY_AFTER_MINUTES = 3
+TASK_RETRY_AFTER_MINUTES = 6
 """Errored tasks are retried at most every this number of minutes."""
 
-TASK_RETRY_FAIL_LIMIT = 3
+TASK_RETRY_FAIL_LIMIT = 4
 """Errored tasks are retried at most this number of times."""
 
 WORKER_TASK_LIMIT = 10
@@ -293,8 +293,8 @@ A single worker core running zero-length tasks gets at most around 40
 tasks/s, so to keep them all occupied for 5min: 12000
 """
 
-DISPATCH_MIN_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT / 10)
-"""If the task count on the queue is less than this value (10%),
+DISPATCH_MIN_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT / 5)
+"""If the task count on the queue is less than this value (20%),
 and if we would queue at least another DISPATCH_QUEUE_LIMIT, then
 dispatch more tasks. This is used to reduce waiting between batches.
 """

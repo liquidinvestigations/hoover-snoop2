@@ -268,6 +268,23 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                 run_task(task, handler, raise_exceptions)
 
 
+def is_task_running(task_pk):
+    """Check if a started task is still running, by trying to get the lock for it."""
+
+    with transaction.atomic(using=collections.current().db_alias):
+        try:
+            task = (
+                models.Task.objects
+                .select_for_update(nowait=True)
+                .get(pk=task_pk)
+            )
+            logger.warning('got lock for task %s, task is DEAD', task.pk)
+            return False
+        except DatabaseError as e:
+            logger.debug('task is RUNNING, error while fetching lock: %s', e)
+            return True
+
+
 @profile()
 def run_task(task, log_handler, raise_exceptions=False):
     """Runs the main Task switch: get dependencies, run code,
@@ -1021,6 +1038,25 @@ def dispatch_for(collection, queue):
                 .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT_DIRS]
             )
 
+        # mark dead STARTED tasks as error (hangs / memory leaks / kills)
+        old_started_qs = (
+            models.Task.objects
+            .filter(func__in=funcs_in_queue)
+            .filter(status__in=[models.Task.STATUS_STARTED])
+            .filter(date_modified__lt=timezone.now() - timedelta(minutes=settings.TASK_RETRY_AFTER_MINUTES))
+            .order_by('date_modified')[:settings.RETRY_LIMIT_TASKS]
+        )
+        if old_started_qs.exists():
+            logger.info(f'{collection} found {old_started_qs.count()} old STARTED tasks to check')
+            for started_task in old_started_qs:
+                if not is_task_running(started_task.pk):
+                    logger.info('marking task %s as Killed', started_task.pk)
+                    started_task.status = models.Task.STATUS_BROKEN
+                    started_task.error = "Task Killed"
+                    started_task.broken_reason = "task_killed"
+                    started_task.fail_count += 1
+                    started_task.save()
+
         # retry errors
         error_date = timezone.now() - timedelta(minutes=settings.TASK_RETRY_AFTER_MINUTES)
         old_error_qs = (
@@ -1034,19 +1070,6 @@ def dispatch_for(collection, queue):
         if old_error_qs.exists():
             logger.info(f'{collection} found {old_error_qs.count()} ERROR|BROKEN tasks to retry')
             retry_tasks(old_error_qs)
-            return True
-
-        # retry STARTED tasks older than 48h (hangs / memory leaks / kills)
-        old_started_qs = (
-            models.Task.objects
-            .filter(func__in=funcs_in_queue)
-            .filter(status__in=[models.Task.STATUS_STARTED])
-            .filter(date_modified__lt=timezone.now() - timedelta(hours=48))
-            .order_by('date_modified')[:settings.RETRY_LIMIT_TASKS]
-        )
-        if old_started_qs.exists():
-            logger.info(f'{collection} found {old_started_qs.count()} old STARTED tasks to retry')
-            retry_tasks(old_started_qs)
             return True
 
     logger.info(f'dispatch for collection "{collection.name}" done\n')
