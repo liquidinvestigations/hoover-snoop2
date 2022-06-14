@@ -318,6 +318,10 @@ See `TASK_RETRY_FAIL_LIMIT`."""
 OCR_ENABLED = True
 """Flag to enable/disable OCR processing."""
 
+OCR_PROCESSES_PER_DOC = int(os.getenv('SNOOP_OCR_PROCESSES_PER_DOC', '4'))
+"""Number of parallel OCR processes used by this task with pdf2pdfocr.py"""
+assert OCR_PROCESSES_PER_DOC >= 1
+
 TABLES_SPLIT_FILE_ROW_COUNT = 2000
 """Number of rows inside each table splt.
 Limits the time spent by a single unarchive

@@ -49,7 +49,7 @@ def test_thumbnail_api(fakedata, taskmanager, client, settings_with_thumbnails):
 
         fakedata.file(root, f'file.{filetype}', blob)
 
-        taskmanager.run(limit=1000)
+        taskmanager.run(limit=3000)
         api = CollectionApiClient(client)
 
         for size in models.Thumbnail.SizeChoices.values:

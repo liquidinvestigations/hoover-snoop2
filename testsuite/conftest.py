@@ -98,11 +98,14 @@ class TaskManager:
     def add(self, task):
         self.queue.append(task.pk)
 
-    def run(self, limit=300):
+    def run(self, limit=1600):
         count = 0
+        max_count = limit * 50
+        task_pks = set()
         while self.queue:
             count += 1
             task_pk = self.queue.popleft()
+            task_pks.add(task_pk)
             task = (
                 models.Task
                 .objects.using(self.collection.db_alias)
@@ -111,9 +114,11 @@ class TaskManager:
             log.debug(f"TaskManager #{count}: {task}")
             with mask_out_current_collection():
                 tasks.laterz_snoop_task(self.collection.name, task_pk)
-            if count >= limit:
-                raise RuntimeError(f"Task limit exceeded ({limit})")
-        return count
+            if len(task_pks) >= limit:
+                raise RuntimeError(f"Task count limit exceeded (max task count: {limit})")
+            if count >= max_count:
+                raise RuntimeError(f"Task limit exceeded (max exec count: {max_count})")
+        return len(task_pks)
 
 
 @pytest.fixture
