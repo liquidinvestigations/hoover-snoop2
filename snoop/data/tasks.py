@@ -250,18 +250,36 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     """
     import_snoop_tasks()
     col = collections.ALL[col_name]
-    with transaction.atomic(using=col.db_alias), col.set_current():
-        with snoop_task_log_handler() as handler:
-            try:
-                task = (
-                    models.Task.objects
-                    .select_for_update(nowait=True)
-                    .get(pk=task_pk)
-                )
-            except DatabaseError as e:
-                logger.error("task %r already running, locked in the database: %s", task_pk, e)
-                return
-            run_task(task, handler, raise_exceptions)
+
+    with snoop_task_log_handler() as handler:
+        with col.set_current():
+            # first select for update: get task, set status STARTED, save, end tx (commit)
+            with transaction.atomic(using=col.db_alias):
+                try:
+                    task = (
+                        models.Task.objects
+                        .select_for_update(nowait=True)
+                        .get(pk=task_pk)
+                    )
+                except DatabaseError as e:
+                    logger.error("task %r already running (1st check), locked in the database: %s",
+                                 task_pk, e)
+                    return
+                task.status = models.Task.STATUS_STARTED
+                task.save()
+            # second select for update: get task, run task
+            with transaction.atomic(using=col.db_alias):
+                try:
+                    task = (
+                        models.Task.objects
+                        .select_for_update(nowait=True)
+                        .get(pk=task_pk)
+                    )
+                except DatabaseError as e:
+                    logger.error("task %r already running (2nd check), locked in the database: %s",
+                                 task_pk, e)
+                    return
+                run_task(task, handler, raise_exceptions)
 
 
 @profile()
@@ -1027,11 +1045,11 @@ def dispatch_for(collection, queue):
 
         if collection.sync and queue == 'filesystem':
             logger.info("sync: retrying all walk tasks")
-            # retry up oldest non-pending walk tasks that are older than 1 min
+            # retry up oldest non-pending walk tasks that are older than 3 min
             retry_tasks(
                 models.Task.objects
                 .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
-                .filter(date_modified__lt=timezone.now() - timedelta(minutes=1))
+                .filter(date_modified__lt=timezone.now() - timedelta(minutes=3))
                 .exclude(status=models.Task.STATUS_PENDING)
                 .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT_DIRS]
             )
@@ -1049,6 +1067,20 @@ def dispatch_for(collection, queue):
         if old_error_qs.exists():
             logger.info(f'{collection} found {old_error_qs.count()} ERROR|BROKEN tasks to retry')
             retry_tasks(old_error_qs)
+            return True
+
+        # retry STARTED tasks older than 48h (hangs / memory leaks / kills)
+        old_started_qs = (
+            models.Task.objects
+            .filter(func__in=funcs_in_queue)
+            .filter(status__in=[models.Task.STATUS_STARTED])
+            .filter(date_modified__lt=timezone.now() - timedelta(hours=48))
+            .order_by('date_modified')[:settings.RETRY_LIMIT_TASKS]
+        )
+        if old_started_qs.exists():
+            logger.info(f'{collection} found {old_started_qs.count()} old STARTED tasks to retry')
+            retry_tasks(old_started_qs)
+            return True
 
     logger.info(f'dispatch for collection "{collection.name}" done\n')
 

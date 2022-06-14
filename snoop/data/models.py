@@ -634,6 +634,11 @@ class Task(models.Model):
     Might be termporary, might be permanent, we don't know.
     """
 
+    STATUS_STARTED = 'started'
+    """Has been started by the worker at some point.
+
+    Used to detect when Python process was unexpectedly Killed, e.g. from OOM."""
+
     STATUS_DEFERRED = 'deferred'
     """Waiting on some other task to finish."""
 
@@ -644,7 +649,7 @@ class Task(models.Model):
     in an ERROR state too."""
 
     ALL_STATUS_CODES = [STATUS_PENDING, STATUS_BROKEN,
-                        STATUS_DEFERRED, STATUS_ERROR, STATUS_SUCCESS]
+                        STATUS_DEFERRED, STATUS_ERROR, STATUS_SUCCESS, STATUS_STARTED]
     """List of all valid status codes.
 
     TODO:
