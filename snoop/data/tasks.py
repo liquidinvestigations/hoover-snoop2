@@ -236,10 +236,11 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     """
     import_snoop_tasks()
     col = collections.ALL[col_name]
+    logger.info('collection %s: starting task %s', col_name, task_pk)
 
     with snoop_task_log_handler() as handler:
         with col.set_current():
-            # first select for update: get task, set status STARTED, save, end tx (commit)
+            # first tx & select for update: get task, set status STARTED, save, end tx (commit)
             with transaction.atomic(using=col.db_alias):
                 try:
                     task = (
@@ -248,12 +249,12 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         .get(pk=task_pk)
                     )
                 except DatabaseError as e:
-                    logger.error("task %r already running (1st check), locked in the database: %s",
-                                 task_pk, e)
+                    logger.error("collection %s: task %r already running (1st check), locked in db: %s",
+                                 col_name, task_pk, e)
                     return
                 task.status = models.Task.STATUS_STARTED
                 task.save()
-            # second select for update: get task, run task
+            # second tx & select for update: get task, run task
             with transaction.atomic(using=col.db_alias):
                 try:
                     task = (
@@ -262,8 +263,8 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         .get(pk=task_pk)
                     )
                 except DatabaseError as e:
-                    logger.error("task %r already running (2nd check), locked in the database: %s",
-                                 task_pk, e)
+                    logger.error("collection %s: task %r already running (2nd check), locked in db: %s",
+                                 col_name, task_pk, e)
                     return
                 run_task(task, handler, raise_exceptions)
 
@@ -1058,19 +1059,23 @@ def dispatch_for(collection, queue):
                     started_task.save()
 
         # retry errors
-        error_date = timezone.now() - timedelta(minutes=settings.TASK_RETRY_AFTER_MINUTES)
-        old_error_qs = (
-            models.Task.objects
-            .filter(func__in=funcs_in_queue)
-            .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
-            .filter(fail_count__lt=settings.TASK_RETRY_FAIL_LIMIT)
-            .filter(date_modified__lt=error_date)
-            .order_by('date_modified')[:settings.RETRY_LIMIT_TASKS]
-        )
-        if old_error_qs.exists():
-            logger.info(f'{collection} found {old_error_qs.count()} ERROR|BROKEN tasks to retry')
-            retry_tasks(old_error_qs)
-            return True
+        for age_minutes, retry_limit in [
+            (settings.TASK_RETRY_AFTER_MINUTES, settings.TASK_RETRY_FAIL_LIMIT),  # ~5min
+            (settings.TASK_RETRY_AFTER_MINUTES * 30, settings.TASK_RETRY_FAIL_LIMIT * 2),  # ~1h
+            (settings.TASK_RETRY_AFTER_MINUTES * 1000, settings.TASK_RETRY_FAIL_LIMIT * 3),  # ~5day
+        ]:
+            old_error_qs = (
+                models.Task.objects
+                .filter(func__in=funcs_in_queue)
+                .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
+                .filter(fail_count__lt=retry_limit)
+                .filter(date_modified__lt=timezone.now() - timedelta(minutes=age_minutes))
+                .order_by('date_modified')[:settings.RETRY_LIMIT_TASKS]
+            )
+            if old_error_qs.exists():
+                logger.info(f'{collection} found {old_error_qs.count()} ERROR|BROKEN tasks to retry')
+                retry_tasks(old_error_qs)
+                return True
 
     logger.info(f'dispatch for collection "{collection.name}" done\n')
 

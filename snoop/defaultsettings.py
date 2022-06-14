@@ -268,11 +268,13 @@ TODO:
 """
 
 
-TASK_RETRY_AFTER_MINUTES = 6
+TASK_RETRY_AFTER_MINUTES = 5
 """Errored tasks are retried at most every this number of minutes."""
 
-TASK_RETRY_FAIL_LIMIT = 4
-"""Errored tasks are retried at most this number of times."""
+TASK_RETRY_FAIL_LIMIT = 3
+"""Errored tasks are retried at most this number of times.
+
+The actual value is higher, since we retry very old tasks more times."""
 
 WORKER_TASK_LIMIT = 10
 """Max tasks count to be finished by 1 worker process before restarting it.
