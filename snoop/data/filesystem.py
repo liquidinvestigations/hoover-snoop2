@@ -72,7 +72,7 @@ def _is_valid_utf8(some_str):
         == some_str.encode('utf-8', errors='backslashreplace')
 
 
-@snoop_task('filesystem.walk', priority=9, version=2, queue='filesystem')
+@snoop_task('filesystem.walk', version=2, queue='filesystem')
 @profile()
 def walk(directory_pk):
     """Scans one level of a directory and recursively ingests all files and directories found.
@@ -207,7 +207,7 @@ def walk(directory_pk):
                 handle_file.laterz(file.pk, queue_now=False)
 
 
-@snoop_task('filesystem.handle_file', priority=1, version=3, queue='filesystem')
+@snoop_task('filesystem.handle_file', version=3, queue='filesystem')
 @profile()
 def handle_file(file_pk, **depends_on):
     """Parse, update and possibly convert file found on in dataset.
@@ -293,7 +293,7 @@ def handle_file(file_pk, **depends_on):
     digests.launch.laterz(file.blob, retry=retry)
 
 
-@snoop_task('filesystem.create_archive_files', priority=3)
+@snoop_task('filesystem.create_archive_files')
 @profile()
 def create_archive_files(file_pk, archive_listing):
     """Creates the File and Directoty structure after unpacking files.
@@ -380,7 +380,7 @@ def get_email_attachments(parsed_email):
             yield part_attachment
 
 
-@snoop_task('filesystem.create_attachment_files', priority=2)
+@snoop_task('filesystem.create_attachment_files')
 @profile()
 def create_attachment_files(file_pk, email_parse):
     """Creates the File and Directoty structure after unpacking email attachments.

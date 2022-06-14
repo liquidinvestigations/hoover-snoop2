@@ -218,7 +218,7 @@ def get_task_matrix(task_queryset, prev_matrix={}):
             speed = (speed_success + recent_speed) / 2
         else:
             speed = speed_success
-        if speed:
+        if speed and row.get('success_avg_duration'):
             remaining_time = row['remaining_size'] / speed
             eta = remaining_time + row.get('pending', 0) * TIME_OVERHEAD
             # average with simple ETA (count * duration)

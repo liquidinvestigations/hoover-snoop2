@@ -48,19 +48,6 @@ task_map = {}
 ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
 
 
-def shuffle_priority(pri):
-    """Randomize the task priority: add a randint(-1, 1)
-    to argument and return value clamped to [1, 9].
-
-    This helps with spreading out tasks types executed by the different services.
-    """
-
-    pri = pri + random.randint(-1, 1)
-    pri = max(1, pri)
-    pri = min(9, pri)
-    return pri
-
-
 class SnoopTaskError(Exception):
     """Thrown by Task when died and should set status = "error".
 
@@ -126,7 +113,6 @@ def queue_task(task):
             laterz_snoop_task.apply_async(
                 (col.name, task.pk,),
                 queue=col.queue_name + '.' + task_map[task.func].queue,
-                priority=shuffle_priority(task_map[task.func].priority),
                 retry=False,
             )
         except laterz_snoop_task.OperationalError as e:
@@ -480,14 +466,12 @@ def run_task(task, log_handler, raise_exceptions=False):
         queue_next_tasks(task, reset=True)
 
 
-def snoop_task(name, priority=5, version=0, bulk=False, queue='default'):
+def snoop_task(name, version=0, bulk=False, queue='default'):
     """Decorator marking a snoop Task function.
 
     Args:
         name: qualified name of the function, not required to be equal
             to Python module or function name (but recommended)
-        priority: int in range [1,9] inclusive, higher is more urgent.
-            Passed to celery when queueing.
         version: int, default zero. Statically incremented by programmer when Task code/behavior changes and
             Tasks need to be retried.
         bulk: If set to True, completely deactivates queue_task on this function.
@@ -573,7 +557,6 @@ def snoop_task(name, priority=5, version=0, bulk=False, queue='default'):
 
         func.laterz = laterz
         func.delete = delete
-        func.priority = priority
         func.version = version
         func.bulk = bulk
         func.queue = queue
@@ -636,10 +619,7 @@ def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
 
     Queues one batch of `settings.DISPATCH_QUEUE_LIMIT` Tasks for every function type. The function types
     are shuffled before queuing, in an attempt to equalize the processing cycles for different collections
-    running at the same time. This is not optional since the message queue has to rearrange these in
-    priority order, with only 10 priority levels (and RabbitMQ is very optimized for this task), there isn't
-    considerable overhead here.
-
+    running at the same time.
     Args:
         status: the status used to filter Tasks to dispatch
 
@@ -648,21 +628,8 @@ def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
         collection.
     """
 
-    all_functions = _get_task_funcs_for_queue(queue)
-    if status:
-        # sort by priority descending, so the queue doesn't have to re-sort elements
-        all_functions = sorted(
-            all_functions,
-            key=lambda x: -task_map[x].priority,
-        )
-    elif outdated:
-        # sort by priority ascending, so we run the dependencies first
-        all_functions = sorted(
-            all_functions,
-            key=lambda x: task_map[x].priority,
-        )
-    else:
-        raise RuntimeError('Must provide arguments: either "status" or "outdated".')
+    all_functions = list(_get_task_funcs_for_queue(queue))
+    random.shuffle(all_functions)
 
     found_something = False
     for func in all_functions:
@@ -1085,7 +1052,7 @@ def dispatch_for(collection, queue):
     logger.info(f'dispatch for collection "{collection.name}" done\n')
 
 
-def get_bulk_tasks_to_run(reverse=False):
+def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=False):
     """Checks current collection if we have bulk tasks run.
 
     Returns: a tuple (TASKS, SIZES) where:
@@ -1135,6 +1102,10 @@ def get_bulk_tasks_to_run(reverse=False):
             # don't do anything to successful, up to date tasks
             .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
         )
+        if exclude_deferred:
+            task_query = task_query.exclude(status=models.Task.STATUS_DEFERRED)
+        if deferred_only:
+            task_query = task_query.filter(status=models.Task.STATUS_DEFERRED)
 
         if reverse:
             task_query = task_query.order_by('-date_modified')
@@ -1152,13 +1123,17 @@ def get_bulk_tasks_to_run(reverse=False):
                 task_sizes[func][task.pk] = task_size
                 if current_size > MAX_BULK_SIZE:
                     break
+            else:
+                # deps not finished ==> set this as DEFERRED
+                task.status = models.Task.STATUS_DEFERRED
+                task.save()
         logger.warning('%s: Selected %s items with total size: %s', func, len(task_list[func]), current_size)
 
     return task_list, task_sizes
 
 
 def have_bulk_tasks_to_run(reverse=False):
-    task_list, _ = get_bulk_tasks_to_run(reverse=False)
+    task_list, _ = get_bulk_tasks_to_run()
     if not task_list:
         return False
     for lst in task_list.values():
@@ -1167,7 +1142,7 @@ def have_bulk_tasks_to_run(reverse=False):
     return False
 
 
-def run_single_batch_for_bulk_task(reverse=False):
+def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferred_only=False):
     """Directly runs a single batch for each bulk task type.
 
     Requires a collection to be selected. Does not dispatch tasks registered with `bulk = False`.
@@ -1177,7 +1152,7 @@ def run_single_batch_for_bulk_task(reverse=False):
     """
 
     total_completed = 0
-    all_task_list, all_task_sizes = get_bulk_tasks_to_run(reverse)
+    all_task_list, all_task_sizes = get_bulk_tasks_to_run(reverse, exclude_deferred, deferred_only)
     for func in all_task_list:
         task_list = all_task_list[func]
         task_sizes = all_task_sizes[func]
@@ -1268,10 +1243,13 @@ def _run_bulk_tasks_for_collection():
     for i in range(int(BATCHES_IN_A_ROW / 2)):
         try:
             with transaction.atomic():
-                count = run_single_batch_for_bulk_task(reverse=False)
+                count = run_single_batch_for_bulk_task(reverse=False, exclude_deferred=True)
 
             with transaction.atomic():
-                count += run_single_batch_for_bulk_task(reverse=True)
+                count += run_single_batch_for_bulk_task(reverse=True, exclude_deferred=True)
+
+            with transaction.atomic():
+                count += run_single_batch_for_bulk_task(deferred_only=True)
 
         except Exception as e:
             failed_count += 1

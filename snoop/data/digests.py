@@ -44,7 +44,7 @@ log = logging.getLogger(__name__)
 ES_MAX_INTEGER = 2 ** 31 - 1
 
 
-@snoop_task('digests.launch', priority=4, version=11, queue='digests')
+@snoop_task('digests.launch', version=11, queue='digests')
 def launch(blob):
     """Task to build and dispatch the different processing tasks for this de-duplicated document.
 
@@ -170,7 +170,7 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', priority=7, version=7, queue='digests')
+@snoop_task('digests.gather', version=7, queue='digests')
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
@@ -330,7 +330,7 @@ def gather(blob, **depends_on):
     return result_blob
 
 
-@snoop_task('digests.index', priority=8, version=14, queue='digests')
+@snoop_task('digests.index', version=14, queue='digests')
 def index(blob, **depends_on):
     """Task used to call the entity extraction for a document.
 
@@ -494,7 +494,7 @@ def _set_tags_timestamps(digest_id, body):
             q.update(date_indexed=now)
 
 
-@snoop_task('digests.bulk_index', priority=9, bulk=True, version=11, queue='digests')
+@snoop_task('digests.bulk_index', bulk=True, version=11, queue='digests')
 def bulk_index(batch):
     """Task used to send many documents to Elasticsearch.
 

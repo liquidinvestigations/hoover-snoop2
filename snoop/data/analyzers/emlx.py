@@ -11,7 +11,7 @@ from .email import iter_parts
 log = logging.getLogger(__name__)
 
 
-@snoop_task('emlx.reconstruct', priority=2)
+@snoop_task('emlx.reconstruct')
 def reconstruct(file_pk, **depends_on):
     """Task to convert `.emlx` and `.partial.emlx` Apple email formats into RFC 822 `.eml` format.
 

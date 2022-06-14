@@ -647,7 +647,7 @@ def unarchive_7z(blob):
             os.chdir(x)
 
 
-@snoop_task('archives.unarchive', priority=2, version=2, queue='filesystem')
+@snoop_task('archives.unarchive', version=2, queue='filesystem')
 @returns_json_blob
 def unarchive(blob):
     """Task to extract from an archive (or archive-looking) file its children.

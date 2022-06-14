@@ -177,7 +177,7 @@ def dump_part(message, depends_on):
     return rv
 
 
-@snoop_task('email.parse', priority=3, version=2)
+@snoop_task('email.parse', version=2)
 @returns_json_blob
 def parse(blob, **depends_on):
     """Task function to parse emails into a dict with its structure."""
@@ -271,7 +271,7 @@ def email_meta(email_data):
     return ret
 
 
-@snoop_task('email.msg_to_eml', priority=2)
+@snoop_task('email.msg_to_eml')
 def msg_to_eml(blob):
     """Task to convert `.msg` emails into `.eml`."""
 
