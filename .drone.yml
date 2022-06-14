@@ -285,6 +285,10 @@ steps:
     SNOOP_DETECT_LANGUAGES: True
     SNOOP_TRANSLATION_URL: "http://translate-batch:5000"
     SNOOP_BROKEN_FILENAME_SERVICE: "http://broken-filename-service:5000"
+    OMP_THREAD_LIMIT: 4
+    OMP_NUM_THREADS: 4
+    SNOOP_OCR_PROCESSES_PER_DOC: 4
+
     USER_MODE: "TEST"
   commands:
   - whoami
