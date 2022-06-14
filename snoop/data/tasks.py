@@ -253,6 +253,9 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                                  col_name, task_pk, e)
                     return
                 task.status = models.Task.STATUS_STARTED
+                task.date_started = timezone.now()
+                task.date_modified = timezone.now()
+                task.date_finished = None
                 task.save()
             # second tx & select for update: get task, run task
             with transaction.atomic(using=col.db_alias):

@@ -757,11 +757,12 @@ class TaskAdmin(MultiDBModelAdmin):
     change_form_template = 'snoop/admin_task_change_form.html'
 
     LINK_STYLE = {
-        'pending': '',
+        'pending': 'color: gray',
         'success': 'color: green',
         'broken': 'color: orange',
         'error': 'color: red',
         'deferred': 'color: grey',
+        'started': 'color: yellow',
     }
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
@@ -792,7 +793,7 @@ class TaskAdmin(MultiDBModelAdmin):
         def link(dep):
             task = dep.prev
             url = reverse(f'{self.collection.name}:data_task_change', args=[task.pk])
-            style = self.LINK_STYLE[task.status]
+            style = self.LINK_STYLE.get(task.status, 'color: purple')
             return f'<a href="{url}" style="{style}">{dep.name}</a>'
 
         dep_list = [link(dep) for dep in obj.prev_set.order_by('name')]
