@@ -435,3 +435,7 @@ if not DEBUG:
 GRAPHENE = {
     'SCHEMA': 'snoop.data.schema.schema'
 }
+
+SNOOP_CLEAR_MOUNTS_EVERY_TASK = bool(os.getenv('SNOOP_CLEAR_MOUNTS_EVERY_TASK', 'true'))
+"""Run "killall" on the various mount sub-processes started by the system.
+Only useful when running one worker per task, otherwise tasks will interfere with each other."""

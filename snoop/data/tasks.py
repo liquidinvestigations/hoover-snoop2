@@ -18,6 +18,8 @@ de-duplication), and other K8s-oriented container-native solutions were not inve
 thumb, if it can't run 1000-5000 idle (no-op) Tasks per minute per CPU, it's too slow for our use.
 """
 
+import os
+import signal
 import cachetools
 import random
 from contextlib import contextmanager
@@ -27,6 +29,7 @@ from time import time, sleep
 from datetime import timedelta
 from functools import wraps
 
+import psutil
 from django.conf import settings
 from django.db import transaction, DatabaseError
 from django.utils import timezone
@@ -220,6 +223,41 @@ def snoop_task_log_handler(level=logging.DEBUG):
         # root_logger.setLevel(old_root_level)
 
 
+def clear_mount_processes():
+    """Stop all processes that aren't the current process, or other
+    possibly intentional processes (keep python,
+    celery, bash, kill everything else).
+    """
+    current_pid = os.getpid()
+    proc_data = [(p.pid, p.name()) for p in psutil.process_iter()]
+    pids_to_kill = []
+    if len(proc_data) > 1:
+        logger.warning('deleting extra left-over processes!')
+        for pid, name in proc_data:
+            if pid == current_pid:
+                logger.warning('-pid=%s %s  -- skipped (current proc)', pid, name)
+                continue
+            for skip in ['celery', 'python', 'pytest', 'bash']:
+                if skip in name:
+                    logger.warning('-pid=%s %s  -- skipped (%s)', pid, name, skip)
+                continue
+
+            logger.warning('-pid=%s %s  -- will kill', pid, name)
+            pids_to_kill.append(pid)
+
+    for pid in pids_to_kill:
+        try:
+            os.kill(pid, signal.SIGSTOP)
+            os.kill(pid, signal.SIGKILL)
+            logger.warning('-pid=%s -- signals SENT!', pid)
+            os.waitpid(pid, 0)
+            logger.warning('-pid=%s -- process dead!', pid)
+
+        except Exception:
+            logger.warning('-pid=%s -- signal 9 FAILED to be sent!', pid)
+            continue
+
+
 @celery.app.task
 def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     """Celery task used to run snoop Tasks without duplication.
@@ -239,37 +277,48 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     logger.info('collection %s: starting task %s', col_name, task_pk)
 
     with snoop_task_log_handler() as handler:
-        with col.set_current():
-            # first tx & select for update: get task, set status STARTED, save, end tx (commit)
-            with transaction.atomic(using=col.db_alias):
-                try:
-                    task = (
-                        models.Task.objects
-                        .select_for_update(nowait=True)
-                        .get(pk=task_pk)
-                    )
-                except DatabaseError as e:
-                    logger.error("collection %s: task %r already running (1st check), locked in db: %s",
-                                 col_name, task_pk, e)
-                    return
-                task.status = models.Task.STATUS_STARTED
-                task.date_started = timezone.now()
-                task.date_modified = timezone.now()
-                task.date_finished = None
-                task.save()
-            # second tx & select for update: get task, run task
-            with transaction.atomic(using=col.db_alias):
-                try:
-                    task = (
-                        models.Task.objects
-                        .select_for_update(nowait=True)
-                        .get(pk=task_pk)
-                    )
-                except DatabaseError as e:
-                    logger.error("collection %s: task %r already running (2nd check), locked in db: %s",
-                                 col_name, task_pk, e)
-                    return
-                run_task(task, handler, raise_exceptions)
+        if settings.SNOOP_CLEAR_MOUNTS_EVERY_TASK:
+            clear_mount_processes()
+
+        try:
+            with col.set_current():
+                # first tx & select for update: get task, set status STARTED, save, end tx (commit)
+                with transaction.atomic(using=col.db_alias):
+                    try:
+                        task = (
+                            models.Task.objects
+                            .select_for_update(nowait=True)
+                            .get(pk=task_pk)
+                        )
+                    except DatabaseError as e:
+                        logger.error(
+                            "collection %s: task %r already running (1st check), locked in db: %s",
+                            col_name, task_pk, e,
+                        )
+                        return
+                    task.status = models.Task.STATUS_STARTED
+                    task.date_started = timezone.now()
+                    task.date_modified = timezone.now()
+                    task.date_finished = None
+                    task.save()
+                # second tx & select for update: get task, run task
+                with transaction.atomic(using=col.db_alias):
+                    try:
+                        task = (
+                            models.Task.objects
+                            .select_for_update(nowait=True)
+                            .get(pk=task_pk)
+                        )
+                    except DatabaseError as e:
+                        logger.error(
+                            "collection %s: task %r already running (2nd check), locked in db: %s",
+                            col_name, task_pk, e,
+                        )
+                        return
+                    run_task(task, handler, raise_exceptions)
+        finally:
+            if settings.SNOOP_CLEAR_MOUNTS_EVERY_TASK:
+                clear_mount_processes()
 
 
 def is_task_running(task_pk):
