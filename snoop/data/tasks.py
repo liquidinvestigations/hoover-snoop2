@@ -18,6 +18,8 @@ de-duplication), and other K8s-oriented container-native solutions were not inve
 thumb, if it can't run 1000-5000 idle (no-op) Tasks per minute per CPU, it's too slow for our use.
 """
 
+import subprocess
+import sys
 import os
 import signal
 import cachetools
@@ -262,6 +264,25 @@ def clear_mount_processes():
 def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     """Celery task used to run snoop Tasks without duplication.
 
+    This runs a sub-process for each task to avoid memory leaks.
+    """
+    logger.info('collection %s: starting task process %s', col_name, task_pk)
+
+    if settings.SNOOP_CLEAR_MOUNTS_EVERY_TASK:
+        clear_mount_processes()
+
+    try:
+        # Can't use fork! Celery goes crazy when the fork does the exit(0), half of the time.
+        subprocess.check_call([sys.executable, 'manage.py', 'runtask', col_name, str(task_pk)])
+    except Exception as e:
+        logger.info('collection %s: task %s failed (%s)', col_name, task_pk, repr(e))
+    finally:
+        if settings.SNOOP_CLEAR_MOUNTS_EVERY_TASK:
+            clear_mount_processes()
+
+
+def run_task_with_lock(col_name, task_pk, raise_exceptions=False):
+    """
     This function is using Django's `select_for_update` to
     ensure only one instance of a Task is running at one time.
     After running `select_for_update` to lock the row,
@@ -272,53 +293,48 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
         task_pk: primary key of Task
         raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
     """
+
+    task_pk = int(task_pk)
+    logger.info('collection %s: starting task %s', col_name, task_pk)
     import_snoop_tasks()
     col = collections.ALL[col_name]
-    logger.info('collection %s: starting task %s', col_name, task_pk)
 
     with snoop_task_log_handler() as handler:
-        if settings.SNOOP_CLEAR_MOUNTS_EVERY_TASK:
-            clear_mount_processes()
-
-        try:
-            with col.set_current():
-                # first tx & select for update: get task, set status STARTED, save, end tx (commit)
-                with transaction.atomic(using=col.db_alias):
-                    try:
-                        task = (
-                            models.Task.objects
-                            .select_for_update(nowait=True)
-                            .get(pk=task_pk)
-                        )
-                    except DatabaseError as e:
-                        logger.error(
-                            "collection %s: task %r already running (1st check), locked in db: %s",
-                            col_name, task_pk, e,
-                        )
-                        return
-                    task.status = models.Task.STATUS_STARTED
-                    task.date_started = timezone.now()
-                    task.date_modified = timezone.now()
-                    task.date_finished = None
-                    task.save()
-                # second tx & select for update: get task, run task
-                with transaction.atomic(using=col.db_alias):
-                    try:
-                        task = (
-                            models.Task.objects
-                            .select_for_update(nowait=True)
-                            .get(pk=task_pk)
-                        )
-                    except DatabaseError as e:
-                        logger.error(
-                            "collection %s: task %r already running (2nd check), locked in db: %s",
-                            col_name, task_pk, e,
-                        )
-                        return
-                    run_task(task, handler, raise_exceptions)
-        finally:
-            if settings.SNOOP_CLEAR_MOUNTS_EVERY_TASK:
-                clear_mount_processes()
+        with col.set_current():
+            # first tx & select for update: get task, set status STARTED, save, end tx (commit)
+            with transaction.atomic(using=col.db_alias):
+                try:
+                    task = (
+                        models.Task.objects
+                        .select_for_update(nowait=True)
+                        .get(pk=task_pk)
+                    )
+                except DatabaseError as e:
+                    logger.error(
+                        "collection %s: task %r already running (1st check), locked in db: %s",
+                        col_name, task_pk, e,
+                    )
+                    return
+                task.status = models.Task.STATUS_STARTED
+                task.date_started = timezone.now()
+                task.date_modified = timezone.now()
+                task.date_finished = None
+                task.save()
+            # second tx & select for update: get task, run task
+            with transaction.atomic(using=col.db_alias):
+                try:
+                    task = (
+                        models.Task.objects
+                        .select_for_update(nowait=True)
+                        .get(pk=task_pk)
+                    )
+                except DatabaseError as e:
+                    logger.error(
+                        "collection %s: task %r already running (2nd check), locked in db: %s",
+                        col_name, task_pk, e,
+                    )
+                    return
+                run_task(task, handler, raise_exceptions)
 
 
 def is_task_running(task_pk):

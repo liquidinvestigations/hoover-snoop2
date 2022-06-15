@@ -6,7 +6,6 @@ Equivalent of using [snoop.data.management.commands.retrytasks][].
 from django.core.management.base import BaseCommand
 from ...logs import logging_for_management_command
 from ... import tasks
-from ... import collections
 
 
 class Command(BaseCommand):
@@ -18,5 +17,4 @@ class Command(BaseCommand):
 
     def handle(self, *args, collection, task_pk, **options):
         logging_for_management_command()
-        col = collections.ALL[collection]
-        tasks.laterz_snoop_task(col.db_alias, task_pk, raise_exceptions=True)
+        tasks.run_task_with_lock(collection, task_pk, raise_exceptions=True)
