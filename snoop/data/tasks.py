@@ -237,7 +237,7 @@ def clear_mount_processes():
             if pid == current_pid:
                 logger.warning('-pid=%s %s  -- skipped (current proc)', pid, name)
                 continue
-            for skip in ['celery', 'python', 'pytest', 'bash']:
+            for skip in ['celery', 'python', 'pytest', 'bash', 'py.test']:
                 if skip in name:
                     logger.warning('-pid=%s %s  -- skipped (%s)', pid, name, skip)
                 continue
