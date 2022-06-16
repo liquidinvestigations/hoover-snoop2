@@ -858,7 +858,14 @@ def _get_document_content(digest, the_file=None):
             content['ocrtext'] = content.get('ocrtext', {})
             content['ocrtext'].update(content['translated-text'])
             del content['translated-text']
-
+        if content.get('lang'):
+            if entities.LANGUAGE_CODE_MAP.get(content['lang']):
+                # need to map the 2 letters code from language detector
+                # to 3 letters code from tesseract
+                ocr_lang_code = entities.LANGUAGE_CODE_MAP[content['lang']] 
+            content['ocrtext'] = {
+                k: v for k, v in content['ocrtext'].items() if k.endswith(ocr_lang_code)
+            }
     # delete old "email" field that may be left behind on older digest data.
     if 'email' in content:
         del content['email']

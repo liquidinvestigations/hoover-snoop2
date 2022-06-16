@@ -24,6 +24,59 @@ ENTITIES_SUPPORTED_LANGUAGE_CODES = [
 ]
 """Supported 2 letter language codes for entity extraction."""
 
+LANGUAGE_CODE_MAP = {
+    "ar": "ara",
+    "bg": "bul",
+    "ca": "cat",
+    "cs": "ces",
+    "da": "dan",
+    "de": "deu",
+    "el": "ell",
+    "en": "eng",
+    "es": "spa",
+    "et": "est",
+    "fa": "fas",
+    "fi": "fin",
+    "fr": "fra",
+    "he": "heb",
+    "hi": "hin",
+    "hr": "hrv",
+    "hu": "hun",
+    "id": "ind",
+    "it": "ita",
+    "ja": "jpn",
+    "ko": "kor",
+    "lt": "lit",
+    "lv": "lav",
+    "ms": "msa",
+    "nb": "nob",
+    "nl": "nld",
+    "no": "nor",
+    "pl": "pol",
+    "pt": "por",
+    "ro": "ron",
+    "ru": "rus",
+    "sk": "slk",
+    "sl": "slv",
+    "sr": "srp",
+    "sv": "swe",
+    "th": "tha",
+    "tl": "tgl",
+    "tr": "tur",
+    "uk": "ukr",
+    "vi": "vie",
+    # there is 2 different chinese that tesseract knows
+    # chi_sim and chi_tra
+    # also polyglot might return zh_hant
+    # it needs to be tested how this behaves with chinese
+    # documents
+    "zh": "chi_tra",
+}
+"""Maps ISO 639-1 Codes from Polyglot to ISO 639-2 Codes
+from Tesseract.
+https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html
+"""
+
 MAX_ENTITY_TEXT_LENGTH = 200
 """Truncate entities after this length."""
 
@@ -46,7 +99,6 @@ file size, and the previous `TIMEOUT_BASE` constant."""
 
 MAX_LANGDETECT_DOC_READ = 1 * (2 ** 20)  # 1 MB
 """Max text length to read when running language detection."""
-
 
 TRANSLATION_MIN_SPEED_BPS = 60
 """Minimum reference speed used for translation tasks."""
@@ -177,7 +229,12 @@ def translate(blob, lang):
     _txt_limit = collections.current().translation_text_length_limit
     digest = models.Digest.objects.get(blob=blob)
     digest_data = digest.result.read_json()
-    texts = [digest_data.get('text', "")] + list(digest_data.get('ocrtext', {}).values())
+    tesseract_lang_code = LANGUAGE_CODE_MAP.get(lang)
+    if not tesseract_lang_code:
+        log.warning(f'No OCR Language code found for language: {lang}')
+    texts = [digest_data.get('text', "")] +\
+        [text[1] for text in list(digest_data.get('ocrtext', {}).items())
+         if text[0].endswith(tesseract_lang_code)]
     texts = [t[:_txt_limit].strip() for t in texts if len(t.strip()) > 1]
     texts = "\n\n".join(texts).strip()[:MAX_LANGDETECT_DOC_READ]
 
@@ -244,9 +301,13 @@ def get_entity_results(blob, language=None, translation_result_pk=None):
 
     if digest_data.get('text'):
         text_sources['text'] = digest_data.get('text', '')[:text_limit]
-
+    tesseract_lang_code = LANGUAGE_CODE_MAP.get(language)
+    if not tesseract_lang_code:
+        log.warning(f'No OCR Language code found for language: {language}')
     if digest_data.get('ocrtext'):
         for k, v in digest_data.get('ocrtext').items():
+            if not k.endswith(tesseract_lang_code):
+                continue
             if v:
                 text_sources[k] = v[:text_limit]
 
