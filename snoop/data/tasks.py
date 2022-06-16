@@ -730,7 +730,9 @@ def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
             if found_something:
                 logger.info(f'collection "{collections.current().name}": Dispatching {item_str} {func} tasks')  # noqa: E501
                 retry_tasks(task_query)
-            return found_something
+
+        if found_something:
+            continue
 
         task_query = task_query[:settings.DISPATCH_QUEUE_LIMIT]
 
