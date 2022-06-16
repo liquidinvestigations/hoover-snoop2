@@ -440,8 +440,8 @@ def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
         s3fs \\
         -o {mount_mode} -o allow_other \\
         -o use_cache={cache} -o passwd_file={password_file}  \\
-        -o dbglevel=info -o curldbg \\
-        -o use_path_request_style \\
+        -o dbglevel=info -o curldbg -o del_cache -o max_dirty_data=-1 \\
+        -o use_path_request_style -o max_stat_cache_size=10000 \\
         -o url=http://{address} \\
         {bucket} {target}
         """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
