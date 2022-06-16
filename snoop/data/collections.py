@@ -457,9 +457,9 @@ def umount_s3fs(target):
         """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
 
         attempt += 1
-        if attempt > 100:
+        if attempt > 20:
             raise RuntimeError('cannot umount the s3fs!')
-        time.sleep(0.05)
+        time.sleep(0.02)
 
 
 for item in settings.SNOOP_COLLECTIONS:

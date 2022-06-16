@@ -232,30 +232,37 @@ def clear_mount_processes():
     proc_data = [(p.pid, p.name()) for p in psutil.process_iter()]
     pids_to_kill = []
     if len(proc_data) > 1:
-        logger.warning('deleting extra left-over processes!')
         for pid, name in proc_data:
             if pid == current_pid:
-                logger.warning('-pid=%s %s  -- skipped (current proc)', pid, name)
+                logger.debug('-pid=%s %s  -- skipped (current proc)', pid, name)
                 continue
-            for skip in ['celery', 'python', 'pytest', 'bash', 'py.test']:
+            skip = False
+            for skip in ['celery', 'python', 'pytest', 'bash', 'py.test',
+                         'python3', 'runserver', 'gunicorn', 'waitress',
+                         'waitress-serve']:
                 if skip in name:
-                    logger.warning('-pid=%s %s  -- skipped (%s)', pid, name, skip)
+                    logger.debug('-pid=%s %s  -- skipped (%s)', pid, name, skip)
+                    skip = True
+                    break
+            if skip:
                 continue
 
             logger.warning('-pid=%s %s  -- will kill', pid, name)
             pids_to_kill.append(pid)
 
-    for pid in pids_to_kill:
-        try:
-            os.kill(pid, signal.SIGSTOP)
-            os.kill(pid, signal.SIGKILL)
-            logger.warning('-pid=%s -- signals SENT!', pid)
-            os.waitpid(pid, 0)
-            logger.warning('-pid=%s -- process dead!', pid)
+    if pids_to_kill:
+        logger.warning('deleting extra left-over processes!')
+        for pid in pids_to_kill:
+            try:
+                os.kill(pid, signal.SIGSTOP)
+                os.kill(pid, signal.SIGKILL)
+                logger.warning('-pid=%s -- signals SENT!', pid)
+                os.waitpid(pid, 0)
+                logger.warning('-pid=%s -- process dead!', pid)
 
-        except Exception:
-            logger.warning('-pid=%s -- signal 9 FAILED to be sent!', pid)
-            continue
+            except Exception:
+                logger.warning('-pid=%s -- signal 9 FAILED to be sent!', pid)
+                continue
 
 
 @celery.app.task
