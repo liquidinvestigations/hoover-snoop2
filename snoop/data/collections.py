@@ -27,7 +27,6 @@ This module creates Collection instances from the setting and stores them in a g
 collection requested by the user.
 """
 
-import time
 import tempfile
 import os
 import io
@@ -439,9 +438,9 @@ def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
     subprocess.check_call(f"""
         s3fs \\
         -o {mount_mode} -o allow_other \\
-        -o use_cache={cache} -o passwd_file={password_file}  \\
-        -o dbglevel=info -o curldbg -o del_cache -o max_dirty_data=-1 \\
-        -o use_path_request_style -o max_stat_cache_size=10000 \\
+        -o passwd_file={password_file}  \\
+        -o dbglevel=info -o curldbg -o max_dirty_data=4 \\
+        -o use_path_request_style  \\
         -o url=http://{address} \\
         {bucket} {target}
         """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
@@ -450,16 +449,11 @@ def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
 def umount_s3fs(target):
     """Run subprocess to umount s3fs disk from target. Will wait until completed."""
     subprocess.run(f"umount {target}", shell=True, check=False)
-    attempt = 0
-    while os.listdir(target):
+    if os.listdir(target):
         subprocess.check_call(f"""
             umount {target} || umount -l {target} || true;
         """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
-
-        attempt += 1
-        if attempt > 20:
-            raise RuntimeError('cannot umount the s3fs!')
-        time.sleep(0.02)
+        return
 
 
 for item in settings.SNOOP_COLLECTIONS:

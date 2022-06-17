@@ -257,8 +257,8 @@ def clear_mount_processes():
                 os.kill(pid, signal.SIGSTOP)
                 os.kill(pid, signal.SIGKILL)
                 logger.warning('-pid=%s -- signals SENT!', pid)
-                os.waitpid(pid, 0)
-                logger.warning('-pid=%s -- process dead!', pid)
+                # os.waitpid(pid, 0)
+                # logger.warning('-pid=%s -- process dead!', pid)
 
             except Exception:
                 logger.warning('-pid=%s -- signal 9 FAILED to be sent!', pid)
