@@ -41,13 +41,13 @@ class Command(BaseCommand):
                 # assert status != models.Task.STATUS_PENDING, \
                 #     "cannot use this on pending tasks"
 
-                queryset = models.Task.objects
+                queryset = models.Task.objects.all()
                 if func:
                     queryset = queryset.filter(func=func)
                 if status:
                     queryset = queryset.filter(status=status)
                 # queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
-                queryset = queryset.order_by('date_modified')
+                # queryset = queryset.order_by('date_modified')
 
                 if options.get('dry_run'):
                     print("Tasks to retry:", queryset.count())

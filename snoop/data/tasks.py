@@ -771,14 +771,18 @@ def retry_tasks(queryset):
     """Efficient re-queueing of an entire QuerySet pointing to Tasks.
 
     This is using bulk_update to reset the status, logs and error messages on the table; then only queues
-    the first `settings.DISPATCH_QUEUE_LIMIT` tasks."""
+    the first few thousand tasks."""
+
+    # relatively low number to avoid memory leak / crash
+    BATCH_SIZE = 1000
+    UPDATE_BATCH_SIZE = 500
 
     logger.info('Retrying %s tasks...', queryset.count())
 
-    all_tasks = queryset.all()
-    first_batch = []
-    for i in range(0, len(all_tasks), settings.DISPATCH_QUEUE_LIMIT):
-        batch = all_tasks[i:i + settings.DISPATCH_QUEUE_LIMIT]
+    task_count = queryset.count()
+    sent_first_batch = False
+    for i in range(0, task_count, BATCH_SIZE):
+        batch = list(queryset.all()[i:i + BATCH_SIZE])
         now = timezone.now()
         fields = ['status', 'error', 'broken_reason', 'log', 'date_modified']
 
@@ -788,15 +792,16 @@ def retry_tasks(queryset):
             task.broken_reason = ''
             task.log = ''
             task.date_modified = now
-        models.Task.objects.bulk_update(batch, fields, batch_size=2000)
+        models.Task.objects.bulk_update(batch, fields, batch_size=UPDATE_BATCH_SIZE)
 
-        if not first_batch:
-            first_batch = batch[:5000]
-            logger.debug('Queueing first %s tasks...', len(first_batch))
-            for task in first_batch:
+        if not sent_first_batch:
+            logger.info('Queueing first %s tasks...', task_count)
+            for task in batch:
                 queue_task(task)
+            logger.info('Done queueing first %s tasks.', task_count)
+            sent_first_batch = True
 
-        progress = int(100.0 * (i / len(all_tasks)))
+        progress = int(100.0 * (i / task_count))
         logger.info('%s%% done' % (progress,))
 
     logger.info('100% done submitting tasks.')
