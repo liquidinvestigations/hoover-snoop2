@@ -439,3 +439,9 @@ GRAPHENE = {
 SNOOP_CLEAR_MOUNTS_EVERY_TASK = bool(os.getenv('SNOOP_CLEAR_MOUNTS_EVERY_TASK', 'true'))
 """Run "killall" on the various mount sub-processes started by the system.
 Only useful when running one worker per task, otherwise tasks will interfere with each other."""
+
+SNOOP_S3FS_MOUNT_DIR = os.path.join(os.getenv('TMP', '/tmp'), 'snoop-s3fs-mounts')
+"""Location ono disk where s3fs mounts are stored."""
+
+SNOOP_S3FS_MOUNT_LIMIT = int(os.getenv('SNOOP_S3FS_MOUNT_LIMIT', '20'))
+"""Global limit of parallel S3 mounts (buckets)."""

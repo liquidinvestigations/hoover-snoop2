@@ -27,7 +27,6 @@ This module creates Collection instances from the setting and stores them in a g
 collection requested by the user.
 """
 
-import tempfile
 import os
 import io
 import logging
@@ -39,6 +38,8 @@ from django.conf import settings
 from django.db import connection
 from django.core import management
 from django.db import transaction
+
+from .s3 import get_mount
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -246,24 +247,14 @@ class Collection:
 
         address = settings.SNOOP_BLOBS_MINIO_ADDRESS
         mount_mode = 'ro' if readonly else 'rw'
-        with tempfile.NamedTemporaryFile(prefix='pass-minio-blobs-', delete=False) as pass_temp:
-            password_file = pass_temp.name
-            subprocess.check_call(f"chmod 600 {password_file}", shell=True)
-            pass_str = (settings.SNOOP_BLOBS_MINIO_ACCESS_KEY
-                        + ':'
-                        + settings.SNOOP_BLOBS_MINIO_SECRET_KEY).encode('latin-1')
-            pass_temp.write(pass_str)
-            pass_temp.close()
-
-            with tempfile.TemporaryDirectory(prefix='blob-tmp-cache-') as cache:
-                target = tempfile.mkdtemp(prefix='blob-mount-target-')
-                mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
-                try:
-                    yield target
-                finally:
-                    umount_s3fs(target)
-                    os.rmdir(target)
-                    os.unlink(password_file)
+        yield get_mount(
+            mount_name=f'{self.name}-{mount_mode}-blobs',
+            bucket=self.name,
+            mount_mode=mount_mode,
+            access_key=settings.SNOOP_BLOBS_MINIO_ACCESS_KEY,
+            secret_key=settings.SNOOP_BLOBS_MINIO_SECRET_KEY,
+            address=address,
+        )
 
     @contextmanager
     def mount_collections_root(self, readonly=True):
@@ -274,25 +265,14 @@ class Collection:
         address = settings.SNOOP_COLLECTIONS_MINIO_ADDRESS
         mount_mode = 'ro' if readonly else 'rw'
 
-        with tempfile.NamedTemporaryFile(prefix='pass-minio-collections-', delete=False) as pass_temp:
-            password_file = pass_temp.name
-            subprocess.check_call(f"chmod 600 {password_file}", shell=True)
-            pass_str = (settings.SNOOP_COLLECTIONS_MINIO_ACCESS_KEY
-                        + ':'
-                        + settings.SNOOP_COLLECTIONS_MINIO_SECRET_KEY).encode('latin-1')
-            pass_temp.write(pass_str)
-            pass_temp.close()
-
-            with tempfile.TemporaryDirectory(prefix='collection-tmp-cache-') as cache:
-                target = tempfile.mkdtemp(prefix='collection-mount-target-')
-                mount_s3fs(self.name, mount_mode, cache, password_file, address, target)
-                try:
-                    assert os.path.isdir(os.path.join(target, 'data')), 'no data found in bucket'
-                    yield target
-                finally:
-                    umount_s3fs(target)
-                    os.rmdir(target)
-                    os.unlink(password_file)
+        yield get_mount(
+            mount_name=f'{self.name}-{mount_mode}-collections',
+            bucket=self.name,
+            mount_mode=mount_mode,
+            access_key=settings.SNOOP_COLLECTIONS_MINIO_ACCESS_KEY,
+            secret_key=settings.SNOOP_COLLECTIONS_MINIO_SECRET_KEY,
+            address=address,
+        )
 
     @contextmanager
     def mount_gpghome(self):
@@ -431,29 +411,6 @@ def current():
     col = getattr(threadlocal, 'collection', None)
     assert col is not None, "There is no current collection set"
     return col
-
-
-def mount_s3fs(bucket, mount_mode, cache, password_file, address, target):
-    """Run subprocess to mount s3fs disk to target. Will wait until completed."""
-    subprocess.check_call(f"""
-        s3fs \\
-        -o {mount_mode} -o allow_other \\
-        -o passwd_file={password_file}  \\
-        -o dbglevel=info -o curldbg \\
-        -o use_path_request_style  \\
-        -o url=http://{address} \\
-        {bucket} {target}
-        """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
-
-
-def umount_s3fs(target):
-    """Run subprocess to umount s3fs disk from target. Will wait until completed."""
-    subprocess.run(f"umount {target}", shell=True, check=False)
-    if os.listdir(target):
-        subprocess.check_call(f"""
-            umount {target} || umount -l {target} || true;
-        """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
-        return
 
 
 for item in settings.SNOOP_COLLECTIONS:
