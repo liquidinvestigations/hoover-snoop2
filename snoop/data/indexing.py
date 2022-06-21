@@ -26,7 +26,7 @@ PUBLIC_TAGS_FIELD_NAME = 'tags'
 PRIVATE_TAGS_FIELD_NAME_PREFIX = 'priv-tags.'
 ENTITY_TYPE_PREFIX = 'entity-type.'
 
-MAX_TEXT_FIELD_SIZE = 10 * 2 ** 20  # 10 MB, or about 2 Bibles
+MAX_TEXT_FIELD_SIZE = 20 * 2 ** 20  # 20 MB, or about 4 Bibles
 """Max length of string to pass as `text` and `ocrtext.*` fields into Elasticsearch.
 
 These are loaded into memory all at once, so this puts a limit on that size.

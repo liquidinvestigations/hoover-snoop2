@@ -276,11 +276,8 @@ TASK_RETRY_FAIL_LIMIT = 3
 
 The actual value is higher, since we retry very old tasks more times."""
 
-WORKER_TASK_LIMIT = 10
+WORKER_TASK_LIMIT = 200
 """Max tasks count to be finished by 1 worker process before restarting it.
-
-Used to avoid memory leaks. Setting 500 here will make containers use 2-5GB memory / item, so
-we want a very small count here.
 """
 
 
