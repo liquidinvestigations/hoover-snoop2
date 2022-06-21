@@ -637,11 +637,12 @@ def unarchive_7z(blob):
         os.chdir(pwd)
         try:
             # Either mount, if possible, and if not, use the CLI to unpack into blobs
-            try:
-                return unarchive_7z_with_mount(blob)
-            except Exception as e:
-                log.exception(e)
-                log.warning('using old method (unpacking everything)...')
+            if not collections.current().disable_archive_mounting:
+                try:
+                    return unarchive_7z_with_mount(blob)
+                except Exception as e:
+                    log.exception(e)
+                    log.warning('using old method (unpacking everything)...')
             return unarchive_7z_fallback(blob)
         finally:
             os.chdir(x)
