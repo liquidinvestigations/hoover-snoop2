@@ -862,7 +862,7 @@ def _get_document_content(digest, the_file=None):
             if entities.LANGUAGE_CODE_MAP.get(content['lang']):
                 # need to map the 2 letters code from language detector
                 # to 3 letters code from tesseract
-                ocr_lang_code = entities.LANGUAGE_CODE_MAP[content['lang']] 
+                ocr_lang_code = entities.LANGUAGE_CODE_MAP[content['lang']]
             content['ocrtext'] = {
                 k: v for k, v in content.get('ocrtext', {}).items() if k.endswith(ocr_lang_code)
             }
