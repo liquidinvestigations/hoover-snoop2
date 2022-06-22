@@ -232,6 +232,8 @@ def translate(blob, lang):
     tesseract_lang_code = LANGUAGE_CODE_MAP.get(lang)
     if not tesseract_lang_code:
         log.warning(f'No OCR Language code found for language: {lang}')
+        # keep all texts if there is no matching language code
+        tesseract_lang_code = ""
     texts = [digest_data.get('text', "")] +\
         [text[1] for text in list(digest_data.get('ocrtext', {}).items())
          if text[0].endswith(tesseract_lang_code)]
@@ -304,6 +306,8 @@ def get_entity_results(blob, language=None, translation_result_pk=None):
     tesseract_lang_code = LANGUAGE_CODE_MAP.get(language)
     if not tesseract_lang_code:
         log.warning(f'No OCR Language code found for language: {language}')
+        # keep all texts if there is no matching language code
+        tesseract_lang_code = ""
     if digest_data.get('ocrtext'):
         for k, v in digest_data.get('ocrtext').items():
             if not k.endswith(tesseract_lang_code):
