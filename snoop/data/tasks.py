@@ -1103,14 +1103,14 @@ def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=F
     """
 
     # Max number of tasks to pull.
-    # We estimate extra ES metadata: 1 KB / task
-    TASK_SIZE_OVERHEAD = 1000
+    # We estimate extra ES metadata: 2 KB / task
+    TASK_SIZE_OVERHEAD = 2000
 
     # stop looking in database after the first X tasks:
-    MAX_BULK_TASK_COUNT = 200000
+    MAX_BULK_TASK_COUNT = 300
 
-    # Stop adding Tasks to bulk when current size is larger than this 50 MB
-    MAX_BULK_SIZE = 50 * (2 ** 20)
+    # Stop adding Tasks to bulk when current size is larger than this 30 MB
+    MAX_BULK_SIZE = 30 * (2 ** 20)
 
     import_snoop_tasks()
 
@@ -1300,7 +1300,7 @@ def _run_bulk_tasks_for_collection():
 
             logger.error("Failed to run single batch! Attempt #%s", failed_count)
             logger.exception(e)
-            sleep(30)
+            sleep(5)
             continue
         if not count:
             break
