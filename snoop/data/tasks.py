@@ -677,7 +677,7 @@ def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
             found_something = task_query.exists()
             if found_something:
                 logger.info(f'collection "{collections.current().name}": Dispatching {item_str} {func} tasks')  # noqa: E501
-                retry_tasks(task_query)
+                retry_tasks(task_query, reset_fail_count=True)
 
         if found_something:
             continue
@@ -715,7 +715,7 @@ def retry_task(task, fg=False):
         queue_task(task)
 
 
-def retry_tasks(queryset):
+def retry_tasks(queryset, reset_fail_count=False):
     """Efficient re-queueing of an entire QuerySet pointing to Tasks.
 
     This is using bulk_update to reset the status, logs and error messages on the table; then only queues
@@ -740,6 +740,8 @@ def retry_tasks(queryset):
             task.broken_reason = ''
             task.log = ''
             task.date_modified = now
+            if reset_fail_count:
+                task.fail_count = 0
         models.Task.objects.bulk_update(batch, fields, batch_size=UPDATE_BATCH_SIZE)
 
         if not sent_first_batch:
