@@ -43,6 +43,7 @@ def check_api_page(api, item_id, parent_id):
     assert item['id'] in children
 
 
+@pytest.mark.skip(reason="very slow ~1h, need to shrink testdata / use sub-selection")
 @pytest.mark.django_db(transaction=True)
 def test_complete_lifecycle(client, taskmanager):
     for b in settings.BLOBS_S3.list_buckets():
