@@ -234,9 +234,14 @@ def translate(blob, lang):
         log.warning(f'No OCR Language code found for language: {lang}')
         # keep all texts if there is no matching language code
         tesseract_lang_code = ""
-    texts = [digest_data.get('text', "")] +\
-        [text[1] for text in list(digest_data.get('ocrtext', {}).items())
-         if text[0].endswith(tesseract_lang_code)]
+    if tesseract_lang_code in current_collection().ocr_languages:
+        texts = [digest_data.get('text', "")] +\
+            [text[1] for text in list(digest_data.get('ocrtext', {}).items())
+             if text[0].endswith(tesseract_lang_code)]
+    else:
+        # keep first ocr if no ocr language matches detected language
+        texts = [digest_data.get('text', "")] +\
+            [[text[1] for text in list(digest_data.get('ocrtext', {}).items())][0]]
     texts = [t[:_txt_limit].strip() for t in texts if len(t.strip()) > 1]
     texts = "\n\n".join(texts).strip()[:MAX_LANGDETECT_DOC_READ]
 
@@ -308,12 +313,17 @@ def get_entity_results(blob, language=None, translation_result_pk=None):
         log.warning(f'No OCR Language code found for language: {language}')
         # keep all texts if there is no matching language code
         tesseract_lang_code = ""
-    if digest_data.get('ocrtext'):
+    if digest_data.get('ocrtext') and tesseract_lang_code in current_collection().ocr_languages:
         for k, v in digest_data.get('ocrtext').items():
             if not k.endswith(tesseract_lang_code):
                 continue
             if v:
                 text_sources[k] = v[:text_limit]
+    elif digest_data.get('ocrtext'):
+        # no ocr language matches the detecte language so we only
+        # keep the first ocr text
+        first_ocr = list(digest_data.get('ocrtext').items())[0]
+        text_sources[first_ocr[0]] = first_ocr[1][:text_limit]
 
     if translation_result_pk:
         log.info('loaded language data')

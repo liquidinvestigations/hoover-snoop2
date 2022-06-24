@@ -383,8 +383,9 @@ def index(blob, **depends_on):
 
     # translate
     translation_result = None
-    if current_collection().translation_enabled \
-            and entities.can_translate(result.get('lang')):
+    if (current_collection().translation_enabled
+        and entities.can_translate(result.get('lang'))
+            and result.get('lang') not in settings.TRANSLATION_TARGET_LANGUAGES):
         log.warning('blob %s.. type %s: running translation...',
                     str(blob.pk)[:6], blob.content_type)
         translation_result = require_dependency(
@@ -848,7 +849,7 @@ def _get_document_content(digest, the_file=None):
 
     content.update(digest_data)
     content['word-count'] = get_word_count(content)
-
+    ocrtext_sanitized = False
     # populate from digests.extra_result if it's set
     # (data from entities and langauge detection)
     if digest is not None and digest.extra_result:
@@ -858,21 +859,27 @@ def _get_document_content(digest, the_file=None):
             content['ocrtext'] = content.get('ocrtext', {})
             content['ocrtext'].update(content['translated-text'])
             del content['translated-text']
-        if content.get('lang'):
-            if entities.LANGUAGE_CODE_MAP.get(content['lang']):
-                # need to map the 2 letters code from language detector
-                # to 3 letters code from tesseract
-                ocr_lang_code = entities.LANGUAGE_CODE_MAP[content['lang']]
-                content['ocrtext'] = {
-                    k: v for k, v in content.get('ocrtext', {}).items()
-                    if k.endswith(ocr_lang_code)
-                    or k.startswith('translated')
-                }
+        ocr_lang_code = entities.LANGUAGE_CODE_MAP.get(content['lang'])
+        if content.get('lang') and ocr_lang_code in current_collection().ocr_languages:
+            # need to map the 2 letters code from language detector
+            # to 3 letters code from tesseract keep only correct ocr text
+            content['ocrtext'] = {
+                k: v for k, v in content.get('ocrtext', {}).items()
+                if k.endswith(ocr_lang_code)
+                or k.startswith('translated')
+            }
+            ocrtext_sanitized = True
 
-    elif digest_data.get('ocrtext'):
-        # no detected language available so we only keep 1 ocr text
-        first_ocr = list(digest_data.get('ocrtext').items())[0]
-        content['ocrtext'] = {first_ocr[0]: first_ocr[1]}
+    if not ocrtext_sanitized:
+        # only keep translation and first ocr text
+        first_added = False
+        for k, v in list(content.get('ocrtext', {}).items()):
+            if not k.startswith('translated') and not first_added:
+                first_added = True
+            elif k.startswith('translated'):
+                continue
+            else:
+                content.get('ocrtext').pop(k)
 
     #  delete old "email" field that may be left behind on older digest data.
     if 'email' in content:
