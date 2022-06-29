@@ -239,11 +239,14 @@ def lock_mount_7z_fuse(archive_path, mount_target, logfile):
             umount_7z_fuse(new_pid, mount_target)
             raise RuntimeError('7z-fuse process failed to start in time!')
         time.sleep(.01)
+    logger.info('mount done after %s', round(time.time() - t0, 3))
     return new_pid
 
 
 def adjust_7z_mounts(old_info, archive_path, mount_target, logfile):
     """Adjust mount directory by adding a new mount and removing old ones.
+
+    Holds info in a JSON file keyed by mount process PID as string.
 
 
     Steps:
@@ -254,10 +257,11 @@ def adjust_7z_mounts(old_info, archive_path, mount_target, logfile):
     """
     # clear out old entries
     pids_alive = {p.pid for p in psutil.process_iter()}
-    new_info = dict(old_info)
+    new_info = dict([(str(k), v) for k, v in old_info.items()])
     for old_entry in list(new_info.values()):
         if old_entry['pid'] not in pids_alive:
-            del new_info[old_entry['pid']]
+            logger.info('mount process deleted from json: pid=%s', old_entry['pid'])
+            del new_info[str(old_entry['pid'])]
             continue
         if old_entry['ppid'] not in pids_alive:
             umount_7z_fuse(old_entry['pid'], old_entry['target'])
@@ -266,7 +270,7 @@ def adjust_7z_mounts(old_info, archive_path, mount_target, logfile):
     ppid = os.getpid()
     pid = make_mount_7z_fuse(archive_path, mount_target, logfile)
     new_entry = {'pid': pid, 'ppid': ppid, 'target': mount_target, 'time': time.time()}
-    new_info[pid] = new_entry
+    new_info[str(pid)] = new_entry
     return new_info, pid
 
 
@@ -295,7 +299,7 @@ def umount_7z_fuse(pid, target):
             check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     except Exception as e:
-        logger.exception('failed to run umount path %s, target pid=%s (%s)', target, pid, e)
+        logger.warning('failed to run umount path %s, target pid=%s (%s)', target, pid, str(e))
 
     try:
         subprocess.run(
@@ -303,14 +307,16 @@ def umount_7z_fuse(pid, target):
             check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     except Exception as e:
-        logger.exception('failed to run fusermount -u path %s, target pid=%s (%s)', target, pid, e)
+        logger.warning('failed to run fusermount -u path %s, target pid=%s (%s)', target, pid, str(e))
 
     try:
         os.kill(pid, signal.SIGSTOP)
     except Exception as e:
-        logger.exception('failed to send SIGSTOP to mount, pid=%s (%s)', pid, e)
+        logger.warning('failed to send SIGSTOP to mount, pid=%s (%s)', pid, str(e))
 
     try:
         os.kill(pid, signal.SIGKILL)
     except Exception as e:
-        logger.exception('failed to send SIGKILL to mount, pid=%s (%s)', pid, e)
+        logger.warning('failed to send SIGKILL to mount, pid=%s (%s)', pid, str(e))
+
+    logger.info('unmount finished: fuse 7z pid=%s target=%s ....', pid, target)
