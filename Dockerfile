@@ -50,6 +50,11 @@ ENV CELERY_DB_REUSE_MAX=0
 RUN set -e \
  && SECRET_KEY=temp SNOOP_URL_PREFIX=snoop/ SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
+# Download & Install TINI
+ENV TINI_VERSION v0.19.0
+ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+RUN chmod +x /tini
+
 ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
 
 CMD /wait && /runserver

@@ -63,7 +63,7 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
         else:
             old_info = dict()
 
-        new_info = adjust_mounts(
+        new_info = adjust_s3_mounts(
             mount_name, old_info,
             bucket, mount_mode, cache_path, password_file_path, address, target_path, logfile_path
         )
@@ -97,8 +97,9 @@ def open_exclusive(file_path, *args, **kwargs):
         f.close()
 
 
-def adjust_mounts(mount_name, old_info,
-                  bucket, mount_mode, cache_path, password_file_path, address, target_path, logfile_path):
+def adjust_s3_mounts(mount_name, old_info,
+                     bucket, mount_mode, cache_path,
+                     password_file_path, address, target_path, logfile_path):
     """Implement Least Recently used cache for the S3 mounts.
 
     - check all mount PIDs: if any process is dead, remove from list
@@ -197,3 +198,119 @@ def umount_s3fs(target):
             umount {target} || umount -l {target} || true;
         """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
         return
+
+
+def lock_mount_7z_fuse(archive_path, mount_target, logfile):
+    """Mount new 7z archive while using a lock-protected JSON database
+    to remember created PIDs in the system.
+
+    This function also implements a clean-up of outdated / dead / defunct proceses.
+    """
+    os.makedirs(settings.SNOOP_S3FS_MOUNT_DIR, exist_ok=True)
+    mount_info_path = os.path.join(settings.SNOOP_S3FS_MOUNT_DIR, '7z-mount-info.json')
+
+    with open_exclusive(mount_info_path, 'a+') as f:
+        f.seek(0)
+        old_info_str = f.read()
+
+        logger.info('read mount info: %s', old_info_str)
+        if old_info_str:
+            old_info = json.loads(old_info_str)
+        else:
+            old_info = dict()
+
+        new_info, new_pid = adjust_7z_mounts(
+            old_info,
+            archive_path, mount_target, logfile
+        )
+
+        f.seek(0)
+        f.truncate()
+        json.dump(new_info, f)
+
+    # wait for mount to appear
+    TIME_LIMIT = 60
+    t0 = time.time()
+    while not os.listdir(mount_target):
+        # check PID if still alive
+        if not psutil.pid_exists(new_pid):
+            raise RuntimeError('7z-fuse process crashed!')
+        if time.time() - t0 > TIME_LIMIT:
+            umount_7z_fuse(new_pid, mount_target)
+            raise RuntimeError('7z-fuse process failed to start in time!')
+        time.sleep(.01)
+    return new_pid
+
+
+def adjust_7z_mounts(old_info, archive_path, mount_target, logfile):
+    """Adjust mount directory by adding a new mount and removing old ones.
+
+
+    Steps:
+        - for each old entry:
+            - if pid is dead, remove entry
+            - if ppid is dead, umount pid/target
+        - add new entry
+    """
+    # clear out old entries
+    pids_alive = {p.pid for p in psutil.process_iter()}
+    new_info = dict(old_info)
+    for old_entry in list(new_info.values()):
+        if old_entry['pid'] not in pids_alive:
+            del new_info[old_entry['pid']]
+            continue
+        if old_entry['ppid'] not in pids_alive:
+            umount_7z_fuse(old_entry['pid'], old_entry['target'])
+
+    # make new entry
+    ppid = os.getpid()
+    pid = make_mount_7z_fuse(archive_path, mount_target, logfile)
+    new_entry = {'pid': pid, 'ppid': ppid, 'target': mount_target, 'time': time.time()}
+    new_info[pid] = new_entry
+    return new_info, pid
+
+
+def make_mount_7z_fuse(archive_path, mount_target, logfile):
+    """Make new 7z-fuse mount process and return its pid."""
+
+    cmd_bash = f"""
+        nohup fuse_7z_ng -f -o ro {archive_path} {mount_target} > {logfile} 2>&1 & echo $!
+    """
+
+    logger.info('running fuse 7z process: %s', cmd_bash)
+    output = subprocess.check_output(cmd_bash, shell=True)
+    pid = int(output)
+    logger.info('7z fuse process started with pid %s', pid)
+
+    return pid
+
+
+def umount_7z_fuse(pid, target):
+    """Forcefully stop 7z user mount by using umount, fusermount and kill operations."""
+
+    logger.info('unmounting fuse 7z process: pid=%s target=%s ....', pid, target)
+    try:
+        subprocess.run(
+            ['umount', target],
+            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        logger.exception('failed to run umount path %s, target pid=%s (%s)', target, pid, e)
+
+    try:
+        subprocess.run(
+            ['fusermount', '-u', target],
+            check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        logger.exception('failed to run fusermount -u path %s, target pid=%s (%s)', target, pid, e)
+
+    try:
+        os.kill(pid, signal.SIGSTOP)
+    except Exception as e:
+        logger.exception('failed to send SIGSTOP to mount, pid=%s (%s)', pid, e)
+
+    try:
+        os.kill(pid, signal.SIGKILL)
+    except Exception as e:
+        logger.exception('failed to send SIGKILL to mount, pid=%s (%s)', pid, e)

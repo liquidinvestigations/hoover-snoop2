@@ -5,7 +5,6 @@ Tables are also implemented as archives, with each row being unpacked into a tex
 
 import csv
 import time
-from contextlib import contextmanager
 import logging
 import subprocess
 from pathlib import Path
@@ -13,6 +12,7 @@ from hashlib import sha1
 import os
 import tempfile
 import re
+from contextlib import contextmanager
 
 import mimetypes
 import pyexcel
@@ -21,6 +21,7 @@ from django.conf import settings
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
 from .. import collections
+from .. import s3
 
 log = logging.getLogger(__name__)
 
@@ -534,96 +535,73 @@ def unarchive_7z_fallback(blob):
     return listing
 
 
+def unarchive_7z_with_mount(blob):
+    """Mount 7z archive with fuse-7z-ng and create structure from files inside."""
+
+    with mount_7z_archive(blob) as temp_dir:
+        listing = list(archive_walk(Path(temp_dir)))
+        create_blobs(listing, unlink=False,
+                     archive_source_blob=blob, archive_source_root=temp_dir)
+
+    check_recursion(listing, blob.pk)
+    return listing
+
+
 @contextmanager
-def mount_7z_archive(blob, blob_path):
+def mount_7z_archive(blob):
     """Mount object from its given path onto a temporary directory.
 
     Directory is unmounted when context manager exits.
 
+    In case python process dies before context manager exist, we store
+    the child and parent PIDs in a locked JSON file, and check for
+    dead parent PIDs (which mean the children must also be killed).
+
     Args:
         - blob: the archive to mount
-        - blob_path: a path location with the above object already mounted to a filesystem
     """
-    with tempfile.TemporaryDirectory(prefix='mount-7z-fuse-ng-') as temp_dir:
-        with tempfile.TemporaryDirectory(prefix='mount-7z-symlink-') as symlink_dir:
-            guess_ext = (mimetypes.guess_extension(blob.mime_type) or '')[:20]
-            actual_extension = os.path.splitext(blob_path)[-1][:20]
-            log.debug('going to mount %s', str(blob_path))
 
-            log.debug('considering original extension: "%s", guessed extension: "%s"',
-                      actual_extension, guess_ext)
-            if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
-                path = blob_path
-                log.debug('choosing supported extension in path "%s"', path)
-            elif guess_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
-                symlink = Path(symlink_dir) / ('link' + guess_ext)
-                symlink.symlink_to(blob_path)
-                path = symlink
-                log.debug('choosing symlink with guessed extension, generated path: %s', path)
-            else:
-                log.info('no valid file extension in path; looking in File table...')
-                path = None
-                for file_entry in models.File.objects.filter(original_blob=blob):
-                    file_entry_ext = os.path.splitext(file_entry.name)[-1][:20]
-                    log.info('found extension: "%s" from file entry %s', file_entry_ext, file_entry)
-                    if file_entry_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
+    with blob.mount_path() as blob_path:
+        with tempfile.TemporaryDirectory(prefix='mount-7z-fuse-ng-') as temp_dir:
+            with tempfile.TemporaryDirectory(prefix='mount-7z-symlink-') as symlink_dir:
+                with tempfile.NamedTemporaryFile(prefix='log-7z-') as temp_log_file:
+                    guess_ext = (mimetypes.guess_extension(blob.mime_type) or '')[:20]
+                    actual_extension = os.path.splitext(blob_path)[-1][:20]
+                    log.debug('going to mount %s', str(blob_path))
+
+                    log.debug('considering original extension: "%s", guessed extension: "%s"',
+                              actual_extension, guess_ext)
+                    if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
+                        path = blob_path
+                        log.debug('choosing supported extension in path "%s"', path)
+                    elif guess_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
                         symlink = Path(symlink_dir) / ('link' + guess_ext)
                         symlink.symlink_to(blob_path)
                         path = symlink
-                        log.debug('choosing symlink with extension taken from File: %s', path)
-                        break
+                        log.debug('choosing symlink with guessed extension, generated path: %s', path)
+                    else:
+                        log.info('no valid file extension in path; looking in File table...')
+                        path = None
+                        for file_entry in models.File.objects.filter(original_blob=blob):
+                            file_entry_ext = os.path.splitext(file_entry.name)[-1][:20]
+                            log.info('found extension: "%s" from file entry %s', file_entry_ext, file_entry)
+                            if file_entry_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
+                                symlink = Path(symlink_dir) / ('link' + guess_ext)
+                                symlink.symlink_to(blob_path)
+                                path = symlink
+                                log.debug('choosing symlink with extension taken from File: %s', path)
+                                break
 
-                if path is None:
-                    path = blob_path
-                    log.debug('found no Files; choosing BY DEFAULT original path: %s', path)
+                        if path is None:
+                            path = blob_path
+                            log.debug('found no Files; choosing BY DEFAULT original path: %s', path)
 
-            subprocess.check_call(
-                ['fuse_7z_ng', '-o', 'ro', path, temp_dir],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            try:
-                yield temp_dir
-            finally:
-                attempt = 0
-                subprocess.run(
-                    ['umount', temp_dir],
-                    check=False,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-                while os.listdir(temp_dir):
-                    time.sleep(0.05)
-                    subprocess.run(
-                        ['umount', temp_dir],
-                        check=False,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    subprocess.run(
-                        ['umount', '-l', temp_dir],
-                        check=False,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-                    attempt += 1
-                    if attempt > 100:
-                        raise RuntimeError("Can't unmount 7z archive!!!")
+                    pid = s3.lock_mount_7z_fuse(path, temp_dir, temp_log_file.name)
 
-
-def unarchive_7z_with_mount(blob):
-    """Mount 7z archive with fuse-7z-ng and create structure from files inside."""
-
-    with blob.mount_path() as blob_path:
-        with mount_7z_archive(blob, blob_path) as temp_dir:
-            listing = list(archive_walk(Path(temp_dir)))
-            create_blobs(listing,
-                         unlink=False,
-                         archive_source_blob=blob,
-                         archive_source_root=temp_dir)
-
-    check_recursion(listing, blob.pk)
-    return listing
+                    try:
+                        yield temp_dir
+                    finally:
+                        s3.umount_7z_fuse(pid, temp_dir)
 
 
 def unarchive_7z(blob):

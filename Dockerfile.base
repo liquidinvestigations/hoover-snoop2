@@ -21,7 +21,7 @@ RUN set -e \
      ghostscript qpdf \
      wget curl git file \
      gpg gpg-agent \
-     gosu \
+     gosu tini \
      s3fs cmake libfuse-dev build-essential libfuse-dev libmhash-dev libminizip-dev     build-essential pkg-config cmake g++ clang libfuse-dev libmhash-dev libminizip-dev zlib1g-dev libssl-dev libgtest-dev \
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \

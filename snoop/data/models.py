@@ -336,11 +336,8 @@ class Blob(models.Model):
         if self.archive_source_key:
             from snoop.data.analyzers.archives import mount_7z_archive  # noqa
             key_str = self.archive_source_key.tobytes().decode('utf-8', errors='surrogateescape')
-            with self.archive_source_blob.mount_path() as archive_path:
-                with mount_7z_archive(self.archive_source_blob,
-                                      archive_path) as archive_root:
-                    yield os.path.join(archive_root,
-                                       key_str)
+            with mount_7z_archive(self.archive_source_blob) as archive_root:
+                yield os.path.join(archive_root, key_str)
 
         elif self.collection_source_key:
             with collections.current().mount_collections_root() as collection_root:

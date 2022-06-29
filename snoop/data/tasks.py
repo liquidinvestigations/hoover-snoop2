@@ -1099,9 +1099,10 @@ def dispatch_for(collection, queue):
 def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=False):
     """Checks current collection if we have bulk tasks run.
 
-    Returns: a tuple (TASKS, SIZES) where:
+    Returns: a tuple (TASKS, SIZES, MARKED) where:
         - TASKS is a dict, keyed by function name, containing a batch of tasks for that function
         - SIZES contains the total size, in bytes, for each task.
+        - MARKED contains the count of tasks marked here as deferred (instead of being returned)
     """
 
     # Max number of tasks to pull.
@@ -1113,6 +1114,8 @@ def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=F
 
     # Stop adding Tasks to bulk when current size is larger than this 30 MB
     MAX_BULK_SIZE = 30 * (2 ** 20)
+
+    marked_deferred = 0
 
     import_snoop_tasks()
 
@@ -1171,19 +1174,22 @@ def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=F
                 # deps not finished ==> set this as DEFERRED
                 task.status = models.Task.STATUS_DEFERRED
                 task.save()
+                marked_deferred += 1
         logger.warning('%s: Selected %s items with total size: %s', func, len(task_list[func]), current_size)
 
-    return task_list, task_sizes
+    if marked_deferred > 0:
+        logger.info('marked %s tasks as deferred.', marked_deferred)
+    return task_list, task_sizes, marked_deferred
 
 
 def have_bulk_tasks_to_run(reverse=False):
-    task_list, _ = get_bulk_tasks_to_run()
+    task_list, _, marked = get_bulk_tasks_to_run()
     if not task_list:
         return False
     for lst in task_list.values():
         if len(lst) > 0:
             return True
-    return False
+    return marked > 0
 
 
 def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferred_only=False):
@@ -1192,11 +1198,11 @@ def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferr
     Requires a collection to be selected. Does not dispatch tasks registered with `bulk = False`.
 
     Returns:
-        int: the number of Tasks completed successfully
+        int: the number of Tasks completed successfully or marked as Deferred
     """
 
     total_completed = 0
-    all_task_list, all_task_sizes = get_bulk_tasks_to_run(reverse, exclude_deferred, deferred_only)
+    all_task_list, all_task_sizes, marked = get_bulk_tasks_to_run(reverse, exclude_deferred, deferred_only)
     for func in all_task_list:
         task_list = all_task_list[func]
         task_sizes = all_task_sizes[func]
@@ -1269,7 +1275,7 @@ def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferr
         if status == models.Task.STATUS_SUCCESS:
             total_completed += len(task_list)
 
-    return total_completed
+    return total_completed + marked
 
 
 def _run_bulk_tasks_for_collection():

@@ -4,4 +4,4 @@
 
 chown $UID:$GID $DATA_DIR # snoop celery
 
-exec gosu $USER_NAME "$@"
+exec tini -v -- gosu $USER_NAME "$@"
