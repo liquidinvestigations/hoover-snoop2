@@ -723,36 +723,33 @@ def retry_tasks(queryset, reset_fail_count=False):
 
     # relatively low number to avoid memory leak / crash
     BATCH_SIZE = 1000
-    UPDATE_BATCH_SIZE = 500
 
     logger.info('Retrying %s tasks...', queryset.count())
 
     task_count = queryset.count()
-    sent_first_batch = False
-    for i in range(0, task_count, BATCH_SIZE):
-        batch = list(queryset.all()[i:i + BATCH_SIZE])
-        now = timezone.now()
-        fields = ['status', 'error', 'broken_reason', 'log', 'date_modified']
+    first_batch = list(queryset.all()[0:BATCH_SIZE])
+    now = timezone.now()
 
-        for task in batch:
-            task.status = models.Task.STATUS_PENDING
-            task.error = ''
-            task.broken_reason = ''
-            task.log = ''
-            task.date_modified = now
-            if reset_fail_count:
-                task.fail_count = 0
-        models.Task.objects.bulk_update(batch, fields, batch_size=UPDATE_BATCH_SIZE)
+    queryset.update(
 
-        if not sent_first_batch:
-            logger.info('Queueing first %s tasks...', task_count)
-            for task in batch:
-                queue_task(task)
-            logger.info('Done queueing first %s tasks.', task_count)
-            sent_first_batch = True
+    )
 
-        progress = int(100.0 * (i / task_count))
-        logger.info('%s%% done' % (progress,))
+    update_options = {
+        'status': models.Task.STATUS_PENDING,
+        'error': '',
+        'broken_reason': '',
+        'log': '',
+        'date_modified': now,
+    }
+
+    if reset_fail_count:
+        update_options['fail_count'] = 0
+    queryset.update(**update_options)
+
+    logger.info('Queueing first %s tasks...', task_count)
+    for task in first_batch:
+        queue_task(task)
+    logger.info('Done queueing first %s tasks.', task_count)
 
     logger.info('100% done submitting tasks.')
 
