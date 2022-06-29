@@ -257,7 +257,7 @@ def adjust_7z_mounts(old_info, archive_path, mount_target, logfile):
     """
     # clear out old entries
     pids_alive = {p.pid for p in psutil.process_iter()}
-    new_info = dict([(str(k), v) for k, v in old_info.items()])
+    new_info = {str(k): v for k, v in old_info.items()}
     for old_entry in list(new_info.values()):
         if old_entry['pid'] not in pids_alive:
             logger.info('mount process deleted from json: pid=%s', old_entry['pid'])
