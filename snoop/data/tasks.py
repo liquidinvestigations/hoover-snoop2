@@ -715,7 +715,7 @@ def retry_task(task, fg=False):
         queue_task(task)
 
 
-def retry_tasks(queryset, reset_fail_count=False):
+def retry_tasks(queryset, reset_fail_count=False, one_slice_only=False):
     """Efficient re-queueing of an entire QuerySet pointing to Tasks.
 
     This is using bulk_update to reset the status, logs and error messages on the table; then only queues
@@ -730,21 +730,28 @@ def retry_tasks(queryset, reset_fail_count=False):
     first_batch = list(queryset.all()[0:BATCH_SIZE])
     now = timezone.now()
 
-    queryset.update(
-
-    )
-
-    update_options = {
-        'status': models.Task.STATUS_PENDING,
-        'error': '',
-        'broken_reason': '',
-        'log': '',
-        'date_modified': now,
-    }
-
-    if reset_fail_count:
-        update_options['fail_count'] = 0
-    queryset.update(**update_options)
+    if one_slice_only:
+        fields = ['status', 'error', 'broken_reason', 'log', 'date_modified']
+        for task in first_batch:
+            task.status = models.Task.STATUS_PENDING
+            task.error = ''
+            task.broken_reason = ''
+            task.log = ''
+            task.date_modified = now
+            if reset_fail_count:
+                task.fail_count = 0
+        models.Task.objects.bulk_update(first_batch, fields, batch_size=BATCH_SIZE)
+    else:
+        update_options = {
+            'status': models.Task.STATUS_PENDING,
+            'error': '',
+            'broken_reason': '',
+            'log': '',
+            'date_modified': now,
+        }
+        if reset_fail_count:
+            update_options['fail_count'] = 0
+        queryset.update(**update_options)
 
     logger.info('Queueing first %s tasks...', task_count)
     for task in first_batch:
@@ -1049,7 +1056,8 @@ def dispatch_for(collection, queue):
                 .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
                 .filter(date_modified__lt=timezone.now() - timedelta(minutes=3))
                 .exclude(status=models.Task.STATUS_PENDING)
-                .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT_DIRS]
+                .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT_DIRS],
+                one_slice_only=True,
             )
 
         # mark dead STARTED tasks as error (hangs / memory leaks / kills)
@@ -1087,7 +1095,7 @@ def dispatch_for(collection, queue):
             )
             if old_error_qs.exists():
                 logger.info(f'{collection} found {old_error_qs.count()} ERROR|BROKEN tasks to retry')
-                retry_tasks(old_error_qs)
+                retry_tasks(old_error_qs, one_slice_only=True)
                 return True
 
     logger.info(f'dispatch for collection "{collection.name}" done\n')
