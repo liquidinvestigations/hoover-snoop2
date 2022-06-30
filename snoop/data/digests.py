@@ -849,39 +849,40 @@ def _get_document_content(digest, the_file=None):
 
     content.update(digest_data)
     content['word-count'] = get_word_count(content)
-    ocrtext_sanitized = False
     # populate from digests.extra_result if it's set
     # (data from entities and langauge detection)
     if digest is not None and digest.extra_result:
         content.update(digest.extra_result.read_json())
         # TODO delete the ocrtext hack and use this separate field
+
         if content.get('translated-text'):
             content['ocrtext'] = content.get('ocrtext', {})
             content['ocrtext'].update(content['translated-text'])
             del content['translated-text']
+
         ocr_lang_code = entities.LANGUAGE_CODE_MAP.get(content['lang'])
+        tesseract_keys = []
+        translate_keys = []
+        custom_keys = []
+        for entry in content['ocrtext']:
+            if entry.startswith('tesseract'):
+                tesseract_keys.append(entry)
+            elif entry.startswith('translated'):
+                translate_keys.append(entry)
+            elif entry not in custom_keys:
+                custom_keys.append(entry)
+
         if content.get('lang') and ocr_lang_code in current_collection().ocr_languages:
             # need to map the 2 letters code from language detector
             # to 3 letters code from tesseract keep only correct ocr text
-            content['ocrtext'] = {
-                k: v for k, v in content.get('ocrtext', {}).items()
-                if k.endswith(ocr_lang_code)
-                or k.startswith('translated')
-            }
-            ocrtext_sanitized = True
+            tesseract_keys = [key for key in tesseract_keys if key.endswith(ocr_lang_code)]
 
-    if not ocrtext_sanitized:
-        # only keep translation and first ocr text
-        first_added = False
-        for k, v in list(content.get('ocrtext', {}).items()):
-            if not k.startswith('translated') and not first_added:
-                first_added = True
-            elif k.startswith('translated'):
-                continue
-            else:
-                content.get('ocrtext').pop(k)
+        for entry in content['ocrtext']:
+            all_keys = tesseract_keys + translate_keys + custom_keys
+            if entry not in all_keys:
+                content.pop(entry)
 
-    #  delete old "email" field that may be left behind on older digest data.
+    # delete old "email" field that may be left behind on older digest data.
     if 'email' in content:
         del content['email']
 

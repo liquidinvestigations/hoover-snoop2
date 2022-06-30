@@ -237,7 +237,7 @@ def translate(blob, lang):
     if tesseract_lang_code in current_collection().ocr_languages:
         texts = [digest_data.get('text', "")] +\
             [text[1] for text in list(digest_data.get('ocrtext', {}).items())
-             if text[0].endswith(tesseract_lang_code)]
+             if text[0] == f'tesseract_{tesseract_lang_code}']
     else:
         # keep first ocr if no ocr language matches detected language
         texts = [digest_data.get('text', "")] +\
@@ -315,7 +315,7 @@ def get_entity_results(blob, language=None, translation_result_pk=None):
         tesseract_lang_code = ""
     if digest_data.get('ocrtext') and tesseract_lang_code in current_collection().ocr_languages:
         for k, v in digest_data.get('ocrtext').items():
-            if not k.endswith(tesseract_lang_code):
+            if not k == f'tesseract_{tesseract_lang_code}':
                 continue
             if v:
                 text_sources[k] = v[:text_limit]
