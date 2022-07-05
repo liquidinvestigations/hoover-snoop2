@@ -319,4 +319,9 @@ def umount_7z_fuse(pid, target):
     except Exception as e:
         logger.warning('failed to send SIGKILL to mount, pid=%s (%s)', pid, str(e))
 
+    try:
+        os.rmdir(target)
+    except Exception as e:
+        logger.warning('failed to delete mount directory, pid=%s (%s)', pid, str(e))
+
     logger.info('unmount finished: fuse 7z pid=%s target=%s ....', pid, target)

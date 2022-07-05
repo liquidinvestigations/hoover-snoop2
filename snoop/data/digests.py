@@ -191,13 +191,14 @@ def gather(blob, **depends_on):
             table_info = archives.get_table_info(
                 path, blob.mime_type, blob.mime_encoding)
 
-        rv["table-sheets"] = table_info['sheets']
-        rv["table-sheet-count"] = len(table_info['sheets'])
-        if table_info['sheets']:
-            first_sheet = table_info['sheets'][0]
-            rv["table-columns"] = table_info['sheet-columns'][first_sheet]
-            rv["table-row-count"] = table_info['sheet-row-count'][first_sheet]
-            rv["table-col-count"] = table_info['sheet-col-count'][first_sheet]
+        if table_info:
+            rv["table-sheets"] = table_info['sheets']
+            rv["table-sheet-count"] = len(table_info['sheets'])
+            if table_info['sheets']:
+                first_sheet = table_info['sheets'][0]
+                rv["table-columns"] = table_info['sheet-columns'][first_sheet]
+                rv["table-row-count"] = table_info['sheet-row-count'][first_sheet]
+                rv["table-col-count"] = table_info['sheet-col-count'][first_sheet]
 
     # extract text and meta with apache tika
     tika_rmeta_blob = depends_on.get('tika_rmeta')

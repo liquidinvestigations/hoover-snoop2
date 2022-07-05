@@ -104,9 +104,9 @@ def guess_csv_settings(file_stream, mime_encoding):
     GUESS_READ_LEN = 8192
     text = file_stream.read(GUESS_READ_LEN)
     if isinstance(text, bytes):
-        mime_encoding = mime_encoding or 'ascii'
+        mime_encoding = mime_encoding or 'latin-1'
         if mime_encoding.startswith('unknown'):
-            mime_encoding = 'ascii'
+            mime_encoding = 'latin-1'
 
         text = text.decode(mime_encoding, errors='backslashreplace')
     try:
@@ -282,8 +282,13 @@ def get_table_info(table_path, mime_type, mime_encoding):
                 auto_detect_datetime=False,
                 **extra_kw,
             )
-            row_count = _get_row_count(rows)
-            f2.seek(0)
+            try:
+                row_count = _get_row_count(rows)
+                f2.seek(0)
+            except Exception as e:
+                log.error('cannot determine row count for table "%s"!', table_path)
+                log.exception(e)
+                return None
 
             rows = pyexcel.iget_array(
                 file_stream=f2,
@@ -294,8 +299,13 @@ def get_table_info(table_path, mime_type, mime_encoding):
                 auto_detect_datetime=False,
                 **extra_kw,
             )
-            row = list(next(rows))
-            col_count = len(row)
+            try:
+                row = list(next(rows))
+                col_count = len(row)
+            except StopIteration:
+                row = []
+                col_count = 0
+                log.warning('no rows found for doc "%s"', table_path)
             colnames = sheet.colnames or collections.current().default_table_head_by_len.get(col_count) or []
             rv['sheets'].append(sheet.name)
             rv['sheet-columns'][sheet.name] = colnames
@@ -365,8 +375,13 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
                 auto_detect_datetime=False,
                 **extra_kw,
             )
-            row_count = _get_row_count(rows)
-            f2.seek(0)
+            try:
+                row_count = _get_row_count(rows)
+                f2.seek(0)
+            except Exception as e:
+                log.error('cannot determine row count for table "%s"!', table_path)
+                log.exception(e)
+                raise SnoopTaskBroken('table read error', 'table_error')
 
             # split large tables, so our in-memory archive crawler doesn't crash.
             # only do the split for sizes bigger than 1.5X the limit, so we avoid
@@ -562,46 +577,48 @@ def mount_7z_archive(blob):
     """
 
     with blob.mount_path() as blob_path:
-        with tempfile.TemporaryDirectory(prefix='mount-7z-fuse-ng-') as temp_dir:
-            with tempfile.TemporaryDirectory(prefix='mount-7z-symlink-') as symlink_dir:
-                with tempfile.NamedTemporaryFile(prefix='log-7z-') as temp_log_file:
-                    guess_ext = (mimetypes.guess_extension(blob.mime_type) or '')[:20]
-                    actual_extension = os.path.splitext(blob_path)[-1][:20]
-                    log.debug('going to mount %s', str(blob_path))
+        temp_dir = tempfile.mkdtemp(prefix='mount-7z-fuse-ng-')
+        with tempfile.TemporaryDirectory(prefix='mount-7z-symlink-') as symlink_dir:
+            with tempfile.NamedTemporaryFile(prefix='log-7z-') as temp_log_file:
+                guess_ext = (mimetypes.guess_extension(blob.mime_type) or '')[:20]
+                actual_extension = os.path.splitext(blob_path)[-1][:20]
+                log.debug('going to mount %s', str(blob_path))
 
-                    log.debug('considering original extension: "%s", guessed extension: "%s"',
-                              actual_extension, guess_ext)
-                    if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
+                log.debug(
+                    'considering original extension: "%s", guessed extension: "%s"',
+                    actual_extension, guess_ext,
+                )
+                if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
+                    path = blob_path
+                    log.debug('choosing supported extension in path "%s"', path)
+                elif guess_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
+                    symlink = Path(symlink_dir) / ('link' + guess_ext)
+                    symlink.symlink_to(blob_path)
+                    path = symlink
+                    log.debug('choosing symlink with guessed extension, generated path: %s', path)
+                else:
+                    log.info('no valid file extension in path; looking in File table...')
+                    path = None
+                    for file_entry in models.File.objects.filter(original=blob):
+                        file_entry_ext = os.path.splitext(file_entry.name)[-1][:20]
+                        log.info('found extension: "%s" from file entry %s', file_entry_ext, file_entry)
+                        if file_entry_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
+                            symlink = Path(symlink_dir) / ('link' + guess_ext)
+                            symlink.symlink_to(blob_path)
+                            path = symlink
+                            log.debug('choosing symlink with extension taken from File: %s', path)
+                            break
+
+                    if path is None:
                         path = blob_path
-                        log.debug('choosing supported extension in path "%s"', path)
-                    elif guess_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
-                        symlink = Path(symlink_dir) / ('link' + guess_ext)
-                        symlink.symlink_to(blob_path)
-                        path = symlink
-                        log.debug('choosing symlink with guessed extension, generated path: %s', path)
-                    else:
-                        log.info('no valid file extension in path; looking in File table...')
-                        path = None
-                        for file_entry in models.File.objects.filter(original_blob=blob):
-                            file_entry_ext = os.path.splitext(file_entry.name)[-1][:20]
-                            log.info('found extension: "%s" from file entry %s', file_entry_ext, file_entry)
-                            if file_entry_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
-                                symlink = Path(symlink_dir) / ('link' + guess_ext)
-                                symlink.symlink_to(blob_path)
-                                path = symlink
-                                log.debug('choosing symlink with extension taken from File: %s', path)
-                                break
+                        log.debug('found no Files; choosing BY DEFAULT original path: %s', path)
 
-                        if path is None:
-                            path = blob_path
-                            log.debug('found no Files; choosing BY DEFAULT original path: %s', path)
+                pid = s3.lock_mount_7z_fuse(path, temp_dir, temp_log_file.name)
 
-                    pid = s3.lock_mount_7z_fuse(path, temp_dir, temp_log_file.name)
-
-                    try:
-                        yield temp_dir
-                    finally:
-                        s3.umount_7z_fuse(pid, temp_dir)
+                try:
+                    yield temp_dir
+                finally:
+                    s3.umount_7z_fuse(pid, temp_dir)
 
 
 def unarchive_7z(blob):
@@ -615,7 +632,8 @@ def unarchive_7z(blob):
         os.chdir(pwd)
         try:
             # Either mount, if possible, and if not, use the CLI to unpack into blobs
-            if not collections.current().disable_archive_mounting:
+            if not collections.current().disable_archive_mounting \
+                    and not blob.archive_source_blob and not blob.archive_source_key:
                 try:
                     return unarchive_7z_with_mount(blob)
                 except Exception as e:

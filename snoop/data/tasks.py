@@ -254,6 +254,12 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         col_name, task_pk, e,
                     )
                     return
+                except models.Task.DoesNotExist:
+                    logger.error(
+                        "collection %s: task pk=%s DOES NOT EXIST IN DB",
+                        col_name, task_pk
+                    )
+                    return
                 task.status = models.Task.STATUS_STARTED
                 task.date_started = timezone.now()
                 task.date_modified = timezone.now()
