@@ -290,6 +290,7 @@ class Blob(models.Model):
 
                 b.collection_source_key = collection_source_key
                 b.save()
+                return b
 
             if archive_source_key and not b.archive_source_key and not b.collection_source_key:
                 # delete this from minio and override/save new key
@@ -303,6 +304,21 @@ class Blob(models.Model):
                 b.archive_source_key = archive_source_key
                 b.archive_source_blob = archive_source_blob
                 b.save()
+                return b
+            # ensure the S3 object still exists by checking it
+            try:
+                stat = settings.BLOBS_S3.stat_object(
+                    collections.current().name,
+                    blob_repo_path(pk),
+                )
+                assert stat is not None, 'empty stat'
+            except Exception as e:
+                logger.warning('error getting stat (%s); re-uploading blob %s...', str(e), pk)
+                settings.BLOBS_S3.fput_object(
+                    collections.current().name,
+                    blob_repo_path(pk),
+                    path,
+                )
             return b
 
         except ObjectDoesNotExist:
