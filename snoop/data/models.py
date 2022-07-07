@@ -17,7 +17,7 @@ from django.db import models
 from django.conf import settings
 from django.template.defaultfilters import truncatechars
 from django.db.models import JSONField
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from smart_open import open as smart_open
 
 from .magic import Magic
@@ -992,6 +992,10 @@ class DocumentUserTag(models.Model):
             models.Index(fields=['date_indexed', 'user', 'digest']),
         ]
 
+    def check_tag_name(self):
+        if any(char in self.tag for char in string.whitespace):
+            raise ValidationError('tag name invalid')
+
     def __str__(self):
         return f'user tag {self.pk}: tag={self.tag} user={self.user} doc={self.blob.pk[:5]}...'
 
@@ -1017,6 +1021,8 @@ class DocumentUserTag(models.Model):
     def save(self, *args, **kwargs):
         """Override for re-indexing document targeted by this tag.
         """
+
+        self.check_tag_name()
 
         self.date_indexed = None
         super().save(*args, **kwargs)
