@@ -517,27 +517,27 @@ def bulk_index(batch):
         # - digest tags --> count
 
         # - digests_gather status (between success and broken)
-        .annotate(digest_gather_status=Subquery(
-            models.TaskDependency.objects
-            .filter(next=OuterRef('pk'), name='digests_gather')
-            .values('prev__status')[:1]
-        ))
-        # - digest ID, for fetching tags
+
         .annotate(digest_id=Subquery(
             models.Digest.objects
             .filter(blob=OuterRef('blob_arg'))
             .values('pk')[:1]
         ))
-        # - and the number of tags. We use these to avoid making a query to fetch them
-        .annotate(tags_count=Count(
-            models.DocumentUserTag.objects
-            .filter(digest=OuterRef('digest_id'))
-            .values('pk')
+
+        .annotate(digest_gather_status=Subquery(
+            models.TaskDependency.objects
+            .filter(next=OuterRef('pk'), name='digests_gather')
+            .values('prev__status')[:1]
         ))
     )
+
     batch = list(task_query.all())
+    print(batch)
 
     for task in batch:
+        # this is only needed to see if tags exist
+        tags_count = Count(models.DocumentUserTag.objects.filter(digest=task.digest_id))
+        print('tags_count: ', tags_count)
         blob = task.blob_arg
         first_file = _get_first_file(blob)
         if not first_file:
@@ -556,7 +556,7 @@ def bulk_index(batch):
             digest = models.Digest.objects.get(blob=blob)
             content = _get_document_content(digest)
 
-        if task.tags_count:
+        if tags_count:
             # inject tags at indexing stage, so the private ones won't get spilled in
             # the document/file endpoints
             content.update(_get_tags(task.digest_id))
@@ -582,7 +582,8 @@ def bulk_index(batch):
         result[blob] = ok
 
     for task, body in documents_to_index:
-        if task.tags_count:
+        tags_count = Count(models.DocumentUserTag.objects.filter(digest=task.digest_id))
+        if tags_count:
             _set_tags_timestamps(task.digest_id, body)
 
     return result
