@@ -32,30 +32,33 @@ def read_csv(file_path):
     return taglist
 
 
-def update_tags(md5, tags, collection, uuid):
+def update_tags(md5, tags, collection, uuid, username, public=False):
     """Create document tags for all new tags from the list."""
+    print(public)
     collection = collections.ALL[collection]
     with collection.set_current():
         blob = models.Blob.objects.get(md5=md5)
         digest = models.Digest.objects.get(blob=blob.pk)
         existing_tags = models.DocumentUserTag.objects.filter(digest=digest.pk).values_list('tag', flat=True)
-        models.DocumentUserTag.objects.create(digest=digest, uuid=uuid, tag=' abc ',
-                                              user='kjell', public=False)
         for tag in tags:
             if tag not in existing_tags:
                 models.DocumentUserTag.objects.create(digest=digest, uuid=uuid, tag=tag,
-                                                      user='kjell', public=False)
+                                                      user=username, public=public)
 
 
 class Command(BaseCommand):
     "Import Tags UUIDs for all collections. JSON content is read from stdin."
 
     def add_arguments(self, parser):
-        parser.add_argument('collection', help='collection name')
-        parser.add_argument('taglist', help='Path to csv with tags.')
-        parser.add_argument('uuid', help='UUID of user for which the tags are imported.')
+        parser.add_argument('-c', '--col', help='collection name')
+        parser.add_argument('-t', '--tags', help='Path to csv with tags.')
+        parser.add_argument('--uuid', help='UUID of user for which the tags are imported.')
+        parser.add_argument('--user', help='Username matching the UUID.')
+        parser.add_argument('-p', action='store_true', help='Flag to set the tags as public.')
 
-    def handle(self, taglist, collection, uuid, **options):
+    def handle(self, **options):
+        print(options)
         logging_for_management_command(options['verbosity'])
-        for md5, taglist in read_csv(taglist).items():
-            update_tags(md5, taglist, collection, uuid)
+        for md5, tags in read_csv(options.get('tags')).items():
+            update_tags(md5, tags, options.get('col'), options.get('uuid'),
+                        options.get('user'), options.get('p'))
