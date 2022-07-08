@@ -23,7 +23,7 @@ from django.utils import timezone
 from django.db.models import OuterRef, Subquery, Count
 
 from .tasks import snoop_task, SnoopTaskBroken
-from .tasks import retry_task, retry_tasks, require_dependency
+from .tasks import retry_task, retry_tasks, require_dependency, run_bulk_tasks
 
 from . import models
 from .utils import zulu, read_exactly
@@ -598,8 +598,10 @@ def retry_index(blob):
         try:
             task = models.Task.objects.filter(func=func, blob_arg=blob).get()
             if task.status == models.Task.STATUS_PENDING:
+                run_bulk_tasks()
                 return
             retry_task(task)
+            run_bulk_tasks()
 
         except Exception as e:
             log.exception(e)
