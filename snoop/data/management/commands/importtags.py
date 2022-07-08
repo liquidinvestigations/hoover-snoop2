@@ -1,10 +1,10 @@
 import csv
 import logging
 
-from ... import models, collections
-
 from django.core.management.base import BaseCommand
 from snoop.data.logs import logging_for_management_command
+
+from ... import collections, models
 
 log = logging.getLogger(__name__)
 
@@ -34,16 +34,19 @@ def read_csv(file_path):
 
 def update_tags(md5, tags, collection, uuid, username, public=False):
     """Create document tags for all new tags from the list."""
-    print(public)
     collection = collections.ALL[collection]
+    updated = False
     with collection.set_current():
         blob = models.Blob.objects.get(md5=md5)
         digest = models.Digest.objects.get(blob=blob.pk)
         existing_tags = models.DocumentUserTag.objects.filter(digest=digest.pk).values_list('tag', flat=True)
         for tag in tags:
             if tag not in existing_tags:
+                updated = True
                 models.DocumentUserTag.objects.create(digest=digest, uuid=uuid, tag=tag,
                                                       user=username, public=public)
+                log.info(f'Created new tag: "{tag}" for document: "{md5}"')
+        return updated
 
 
 class Command(BaseCommand):
@@ -57,8 +60,12 @@ class Command(BaseCommand):
         parser.add_argument('-p', action='store_true', help='Flag to set the tags as public.')
 
     def handle(self, **options):
-        print(options)
         logging_for_management_command(options['verbosity'])
+        updated_any = False
         for md5, tags in read_csv(options.get('tags')).items():
-            update_tags(md5, tags, options.get('col'), options.get('uuid'),
-                        options.get('user'), options.get('p'))
+            updated = update_tags(md5, tags, options.get('col'), options.get('uuid'),
+                                  options.get('user'), options.get('p'))
+            if not updated_any and updated:
+                updated_any = True
+        if not updated_any:
+            log.info('Found no new tags to update!')
