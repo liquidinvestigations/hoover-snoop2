@@ -23,7 +23,7 @@ from django.utils import timezone
 from django.db.models import OuterRef, Subquery, Count
 
 from .tasks import snoop_task, SnoopTaskBroken
-from .tasks import retry_task, retry_tasks, require_dependency, run_bulk_tasks
+from .tasks import retry_task, retry_tasks, require_dependency
 
 from . import models
 from .utils import zulu, read_exactly
@@ -532,12 +532,9 @@ def bulk_index(batch):
     )
 
     batch = list(task_query.all())
-    print(batch)
 
     for task in batch:
         # this is only needed to see if tags exist
-        tags_count = Count(models.DocumentUserTag.objects.filter(digest=task.digest_id))
-        print('tags_count: ', tags_count)
         blob = task.blob_arg
         first_file = _get_first_file(blob)
         if not first_file:
@@ -556,7 +553,8 @@ def bulk_index(batch):
             digest = models.Digest.objects.get(blob=blob)
             content = _get_document_content(digest)
 
-        if tags_count:
+        tags_exist = models.DocumentUserTag.objects.filter(digest=task.digest_id).exists()
+        if tags_exist:
             # inject tags at indexing stage, so the private ones won't get spilled in
             # the document/file endpoints
             content.update(_get_tags(task.digest_id))
@@ -590,21 +588,21 @@ def bulk_index(batch):
 
 
 def retry_index(blob):
-    """Retry the [snoop.data.digests.index][] and [snoop.data.digests.bulk_index][] Task for the given Blob.
+    """Retry the [snoop.data.digests.bulk_index][] Task for the given Blob.
 
     Needed by the web process when some user changes the Document tags; this function will be called for the
     affected document."""
-    for func in ['digests.index', 'digests.bulk_index']:
-        try:
-            task = models.Task.objects.filter(func=func, blob_arg=blob).get()
-            if task.status == models.Task.STATUS_PENDING:
-                run_bulk_tasks()
-                return
-            retry_task(task)
-            run_bulk_tasks()
-
-        except Exception as e:
-            log.exception(e)
+    func = 'digests.bulk_index'
+    try:
+        task = models.Task.objects.filter(func=func, blob_arg=blob).get()
+        if task.status == models.Task.STATUS_PENDING:
+            bulk_index([task])
+            return
+        retry_task(task)
+        bulk_index([task])
+    except Exception as e:
+        log.exception(e)
+        log.error('failed to retry index for blob %s', blob.pk)
 
 
 def update_all_tags():
