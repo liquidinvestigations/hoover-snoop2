@@ -877,10 +877,10 @@ def _get_document_content(digest, the_file=None):
             # to 3 letters code from tesseract keep only correct ocr text
             tesseract_keys = [key for key in tesseract_keys if key.endswith(ocr_lang_code)]
 
-        for entry in content['ocrtext']:
+        for entry in list(content['ocrtext']):
             all_keys = tesseract_keys + translate_keys + custom_keys
             if entry not in all_keys:
-                content.pop(entry)
+                content['ocrtext'].pop(entry)
 
     # delete old "email" field that may be left behind on older digest data.
     if 'email' in content:
