@@ -1,3 +1,4 @@
+"""Command to import tags from a file."""
 import csv
 import logging
 
