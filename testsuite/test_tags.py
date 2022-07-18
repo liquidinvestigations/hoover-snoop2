@@ -1,6 +1,11 @@
 import pytest
 from snoop.data import collections, models
 from conftest import TESTDATA
+from django.conf import settings
+import requests
+import time
+
+ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
 
 pytestmark = [pytest.mark.django_db]
 
@@ -21,6 +26,11 @@ def test_tags_api(fakedata, taskmanager, client, django_user_model):
 
     digest = models.Digest.objects.get(blob_id=blob.pk)
     assert models.DocumentUserTag.objects.filter(digest_id=digest.pk).exists()
+    time.sleep(5)
+    res = query_es_tag('test-tag')
+    tags = res.json()['hits']['hits'][0]['_source']['tags']
+    assert res.status_code == 200
+    assert 'test-tag' in tags
 
 
 def create_tag(client, tag, blob_hash, username):
@@ -33,3 +43,16 @@ def create_tag(client, tag, blob_hash, username):
     }
     res = client.post(url, payload, content_type='application/json')
     assert res.status_code == 201
+
+
+def query_es_tag(tag):
+    """Query elasticsearch for tag and return response."""
+    es_index = collections.current().es_index
+    url = f'{ES_URL}/{es_index}/_search'
+    query = {"query": {
+        "query_string": {
+            "query": tag,
+            "default_field": "tags"
+        }
+    }}
+    return requests.get(url=url, headers={'Content-Type': 'application/json'}, json=query)
