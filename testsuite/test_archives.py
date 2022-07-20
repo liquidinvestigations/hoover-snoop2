@@ -159,12 +159,12 @@ def test_unarchive_mbox(taskmanager, testdata_current):
     with listing_blob.open() as f:
         listing = json.load(f)
 
-    assert len(listing) == 28
-    dir07 = [x for x in listing if x['name'] == '07'][0]
-    assert dir07 == {
+    assert len(listing) == 29
+    dir_07 = [x for x in listing if x['name'] == 'ab'][0]
+    assert dir_07 == {
         'children': [
-            {'blob_pk': '7779d128a2cd425eba06693b56e1fc7351c1d66c2ee78c96dd4bd5649307f636',
-             'name': '0716d9708d321ffb6a00818614779e779925365c.eml',
+            {'blob_pk': '120bd1885754e5f47f3038f358c0de31a31148243d0ee0c5032cbc3ce03c1fc7',
+             'name': 'ab01c68ea827e1c90ce10a1c27ac6734c947abdf.eml',
              'type': 'file'}],
-        'name': '07',
+        'name': 'ab',
         'type': 'directory'}
