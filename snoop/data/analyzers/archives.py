@@ -3,6 +3,7 @@
 Tables are also implemented as archives, with each row being unpacked into a text file.
 """
 
+import mailbox
 import csv
 import time
 import logging
@@ -11,7 +12,6 @@ from pathlib import Path
 from hashlib import sha1
 import os
 import tempfile
-import re
 from contextlib import contextmanager
 
 import mimetypes
@@ -452,30 +452,15 @@ def unpack_table(table_path, output_path, mime_type=None, mime_encoding=None, **
 def unpack_mbox(mbox_path, output_dir, **kw):
     """Split a MBOX into emails."""
 
-    def slice(stream):
-        last = b''
-        while True:
-            buffer = stream.read(1024 * 64)
-            if not buffer:
-                break
-            window = last + buffer
-            while True:
-                m = re.search(br'\n\r?\n(From )', window)
-                if not m:
-                    break
-                offset = m.start(1)
-                yield window[:offset]
-                window = window[offset:]
-            last = window
-        yield last
+    mbox_object = mailbox.mbox(mbox_path)
 
-    with open(mbox_path, 'rb') as f:
-        for n, message in enumerate(slice(f), 1):
-            hash = sha1(str(n).encode('utf-8')).hexdigest()
-            eml_path = Path(output_dir) / hash[:2] / '{}.eml'.format(hash)
-            eml_path.parent.mkdir(parents=True, exist_ok=True)
-            with eml_path.open('wb') as f:
-                f.write(message)
+    for key in mbox_object.keys():
+        message_bytes = mbox_object.get_bytes(key)
+        hash = sha1(str(message_bytes).encode('utf-8')).hexdigest()
+        eml_path = Path(output_dir) / hash[:2] / '{}.eml'.format(hash)
+        eml_path.parent.mkdir(parents=True, exist_ok=True)
+        with eml_path.open('wb') as f:
+            f.write(message_bytes)
 
 
 def unpack_pdf(pdf_path, output_dir, **kw):
