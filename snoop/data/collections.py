@@ -107,6 +107,10 @@ class Collection:
         self.explode_table_rows = self.opt.get('explode_table_rows', False)
 
     def get_default_queues(self):
+        """Return a list of queues which should run on the "default" worker
+        for this collection. This is required to make sure disabled tasks are not
+        left forever in "pending" state.
+        """
         lst = []
         if not (self.image_classification_classify_images_enabled
                 or self.image_classification_object_detection_enabled):
