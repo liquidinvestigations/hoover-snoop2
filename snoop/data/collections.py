@@ -106,6 +106,23 @@ class Collection:
         }
         self.explode_table_rows = self.opt.get('explode_table_rows', False)
 
+    def get_default_queues(self):
+        lst = []
+        if not (self.image_classification_classify_images_enabled
+                or self.image_classification_object_detection_enabled):
+            lst.append('img-cls')
+        if not (self.nlp_language_detection_enabled
+                or self.nlp_entity_extraction_enabled):
+            lst.append('entities')
+        if not self.translation_enabled:
+            lst.append('translate')
+        if not self.thumbnail_generator_enabled:
+            lst.append('thumbnails')
+        if not self.pdf_preview_enabled:
+            lst.append('pdf-preview')
+
+        return lst
+
     @property
     def pdf_preview_enabled(self):
         return self.opt.get('pdf_preview_enabled', bool(settings.SNOOP_PDF_PREVIEW_URL)) \
