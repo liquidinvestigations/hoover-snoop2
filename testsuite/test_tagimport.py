@@ -76,6 +76,14 @@ def create_tags_csv(tags_mapping, csv_path):
             writer.writerow(data)
 
 
+def check_tag_indexed(client, tag, blob_hash, username):
+    col = collections.current()
+    uuid = 'xyz-123'
+    url = f'/collections/{col.name}/{blob_hash}/tags/{username}/{uuid}'
+    res = client.get(url)
+    assert res.status_code == 201
+
+
 def query_es_tag(tag):
     """Query elasticsearch for tag and return response."""
     es_index = collections.current().es_index
