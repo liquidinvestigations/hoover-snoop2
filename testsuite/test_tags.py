@@ -26,10 +26,18 @@ def test_tags_api(fakedata, taskmanager, client, django_user_model):
 
     digest = models.Digest.objects.get(blob_id=blob.pk)
     assert models.DocumentUserTag.objects.filter(digest_id=digest.pk).exists()
-    time.sleep(5)
-    res = query_es_tag('test-tag')
-    tags = res.json()['hits']['hits'][0]['_source']['tags']
-    assert res.status_code == 200
+
+    res = query_es_tag('test-tag').json()
+
+    # polling for tags
+    start = time.time()
+    while not res['hits']['hits']:
+        if time.time() - start >= 300:
+            raise Exception('Indexing tags timed out!')
+        time.sleep(1)
+        res = query_es_tag('test-tag').json()
+
+    tags = res['hits']['hits'][0]['_source']['tags']
     assert 'test-tag' in tags
 
 
@@ -55,4 +63,6 @@ def query_es_tag(tag):
             "default_field": "tags"
         }
     }}
-    return requests.get(url=url, headers={'Content-Type': 'application/json'}, json=query)
+    res = requests.get(url=url, headers={'Content-Type': 'application/json'}, json=query)
+    assert res.status_code == 200
+    return res
