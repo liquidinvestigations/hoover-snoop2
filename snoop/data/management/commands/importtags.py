@@ -1,8 +1,9 @@
-"""Command to import tags from a file."""
+"""Command to import tags from a file.
+"""
 import csv
-from io import StringIO
 import logging
 import traceback
+import sys
 
 from django.core.management.base import BaseCommand
 from snoop.data.logs import logging_for_management_command
@@ -19,12 +20,12 @@ def clean_tag(tag):
     return cleaned_tag
 
 
-def read_csv(csv_str):
-    """Read a csv from a string containing md5 hashes and tags to import.
+def read_csv():
+    """Read a csv from stdin containing md5 hashes and tags to import.
 
     Returns: dictionary with md5 hashes as keys and a list of tags as values.
     """
-    csv_file = StringIO(csv_str)
+    csv_file = sys.stdin
     taglist = {}
     csv_reader = csv.DictReader(csv_file, fieldnames=['md5', 'tags'])
     next(csv_reader, None)  # skip the headers
@@ -56,7 +57,6 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('-c', '--collection', help='collection name', required=True)
-        parser.add_argument('-t', '--tags', help='String containing a csv with tags.', required=True)
         parser.add_argument('--uuid', help='UUID of user for which the tags are imported.', required=True)
         parser.add_argument('--user', help='Username matching the UUID.', required=True)
         parser.add_argument('-p', '--public', action='store_true', help='Flag to set the tags as public.',
@@ -73,7 +73,7 @@ class Command(BaseCommand):
             return
         updated_any = False
         try:
-            for md5, tags in read_csv(options.get('tags')).items():
+            for md5, tags in read_csv().items():
                 updated = update_tags(md5, tags, collection, options.get('uuid'),
                                       options.get('user'), options.get('public'))
                 if not updated_any and updated:
