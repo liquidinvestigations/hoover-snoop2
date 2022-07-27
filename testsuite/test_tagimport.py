@@ -84,15 +84,8 @@ def create_tags_csv(tags_mapping):
         data = [blob] + [', '.join(tags_mapping[blob])]
         writer.writerow(data)
 
+    # management commands reads from stdin so we set it here
     sys.stdin = StringIO(new_stdin.getvalue())
-
-
-def check_tag_indexed(client, tag, blob_hash, username):
-    col = collections.current()
-    uuid = 'xyz-123'
-    url = f'/collections/{col.name}/{blob_hash}/tags/{username}/{uuid}'
-    res = client.get(url)
-    assert res.status_code == 201
 
 
 def query_es_tag(tag):
