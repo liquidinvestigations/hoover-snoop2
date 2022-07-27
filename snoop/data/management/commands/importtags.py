@@ -1,5 +1,4 @@
-"""Command to import tags from a file.
-"""
+"""Command to import tags from a file."""
 import csv
 import logging
 import traceback
@@ -53,16 +52,16 @@ def update_tags(md5, tags, collection, uuid, username, public=False):
 
 
 class Command(BaseCommand):
-    "Import Tags UUIDs for all collections. JSON content is read from stdin."
+    """Import Tags UUIDs for all collections. CSV content is read from stdin."""
 
     def add_arguments(self, parser):
         parser.add_argument('-c', '--collection', help='collection name', required=True)
         parser.add_argument('--uuid', help='UUID of user for which the tags are imported.', required=True)
         parser.add_argument('--user', help='Username matching the UUID.', required=True)
-        parser.add_argument('-p', '--public', action='store_true', help='Flag to set the tags as public.',
-                            required=True)
+        parser.add_argument('-p', '--public', action='store_true', help='Flag to set the tags as public.')
 
     def handle(self, **options):
+        """Updates the tags for the user and adds new tags."""
         logging_for_management_command(options['verbosity'])
         collection_name = options.get('collection')
         try:

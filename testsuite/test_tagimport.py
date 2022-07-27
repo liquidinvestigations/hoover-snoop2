@@ -6,6 +6,8 @@ from django.conf import settings
 from django.core.management import call_command
 import requests
 import time
+import sys
+from io import StringIO
 
 ES_URL = settings.SNOOP_COLLECTIONS_ELASTICSEARCH_URL
 
@@ -33,10 +35,13 @@ def test_tags_api(fakedata, taskmanager, client, django_user_model):
         blob1.md5: ['tag1', 'tag2'],
         blob2.md5: ['tag1', 'tag3']
     }
-    create_tags_csv(tags_mapping, '/tmp/tags.csv')
+
     col = collections.current().name
     user = django_user_model.objects.create_user(username='test', password='pw')
-    call_command('importtags', col=col, tags='/tmp/tags.csv', user=user.username, uuid='xyz-123', p=True)
+
+    create_tags_csv(tags_mapping)
+
+    call_command('importtags', collection=col, user=user.username, uuid='xyz-123', public=True)
     digest1 = models.Digest.objects.get(blob_id=blob1.pk)
     digest2 = models.Digest.objects.get(blob_id=blob2.pk)
 
@@ -45,35 +50,41 @@ def test_tags_api(fakedata, taskmanager, client, django_user_model):
     assert models.DocumentUserTag.objects.filter(digest_id=digest2.pk, tag='tag1').exists()
     assert models.DocumentUserTag.objects.filter(digest_id=digest2.pk, tag='tag3').exists()
 
-    # need to wait for the document to be indexed
-    time.sleep(5)
+    res1 = query_es_tag('tag2').json()
 
-    res1 = query_es_tag('tag2')
-    tags1 = res1.json()['hits']['hits'][0]['_source']['tags']
-    assert res1.status_code == 200
+    # polling for tags
+    start = time.time()
+    while not res1['hits']['hits']:
+        if time.time() - start >= 300:
+            raise Exception('Indexing tags timed out!')
+        time.sleep(1)
+        res1 = query_es_tag('tag2').json()
+
+    tags1 = res1['hits']['hits'][0]['_source']['tags']
     assert 'tag1' in tags1 and 'tag2' in tags1
 
-    res2 = query_es_tag('tag3')
-    tags2 = res2.json()['hits']['hits'][0]['_source']['tags']
-    assert res2.status_code == 200
+    res2 = query_es_tag('tag3').json()
+    tags2 = res2['hits']['hits'][0]['_source']['tags']
     assert 'tag1' in tags2 and 'tag3' in tags2
 
 
-def create_tags_csv(tags_mapping, csv_path):
-    '''Create a csv with tags to import.
+def create_tags_csv(tags_mapping):
+    '''Create a csv with tags to import and save it as stdin.
 
     Takes a dictionary in the form of {blob: [tag1, tag2]}
     as input.
     '''
+    new_stdin = StringIO()
     header = ['MD5 Hash', 'Tags']
-    with open(csv_path, 'w', newline='') as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        for blob in tags_mapping:
-            # create a list to write to the file
-            # the format is [blob_hash, 'tag1, tag2']
-            data = [blob] + [', '.join(tags_mapping[blob])]
-            writer.writerow(data)
+    writer = csv.writer(new_stdin)
+    writer.writerow(header)
+    for blob in tags_mapping:
+        # create a list to write to the file
+        # the format is [blob_hash, 'tag1, tag2']
+        data = [blob] + [', '.join(tags_mapping[blob])]
+        writer.writerow(data)
+
+    sys.stdin = StringIO(new_stdin.getvalue())
 
 
 def check_tag_indexed(client, tag, blob_hash, username):
@@ -94,4 +105,6 @@ def query_es_tag(tag):
             "default_field": "tags"
         }
     }}
-    return requests.get(url=url, headers={'Content-Type': 'application/json'}, json=query)
+    res = requests.get(url=url, headers={'Content-Type': 'application/json'}, json=query)
+    assert res.status_code == 200
+    return res
