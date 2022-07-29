@@ -23,6 +23,7 @@ import random
 from contextlib import contextmanager
 from io import StringIO
 import logging
+import traceback
 from time import time, sleep
 from datetime import timedelta
 from functools import wraps
@@ -1252,10 +1253,11 @@ def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferr
         # succeeded.
         try:
             result = task_map[func](task_list)
-        except Exception as e:
-            logger.exception(e)
-            error = str(e)[:2000]
+        except Exception:
+            logger.exception(f'Error running bulk task: "{func}"!')
+            error = traceback.format_exc()[:2000]
             status = models.Task.STATUS_ERROR
+            result = {}
         else:
             status = models.Task.STATUS_SUCCESS
             error = ''
