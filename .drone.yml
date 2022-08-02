@@ -39,7 +39,6 @@ steps:
       from_secret: ghcr_docker_password
   when:
     event:
-    - push
     - tag
     branch:
     - master
