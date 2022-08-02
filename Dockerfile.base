@@ -37,7 +37,8 @@ RUN mkdir /opt/fuse-7z \
 ENV OMP_THREAD_LIMIT 1
 
 # download libpst
-RUN wget https://github.com/liquidinvestigations/snoop-deps/raw/master/libpst-0.6.74.tar.gz --progress=dot:giga \
+ENV LIBPST_VERSION libpst-0.6.74
+RUN wget https://github.com/liquidinvestigations/snoop-deps/raw/master/$LIBPST_VERSION.tar.gz --progress=dot:giga \
   && tar zxvf $LIBPST_VERSION.tar.gz \
   && rm -f $LIBPST_VERSION.tar.gz \
   && mv $LIBPST_VERSION /opt/libpst \
