@@ -156,7 +156,7 @@ services:
   commands:
 
 - name: snoop-rabbitmq
-  image: rabbitmq:3.7.3
+  image: rabbitmq:3.8.5-management-alpine
   volumes:
   - name: rabbit-v
     path: /var/lib/rabbitmq
@@ -272,6 +272,7 @@ steps:
     SNOOP_DB: "postgresql://snoop:snoop@snoop-pg:5432/snoop"
     SNOOP_COLLECTIONS: '[{"name": "testdata", "process": true}]'
     SNOOP_AMQP_URL: "amqp://snoop-rabbitmq"
+    SNOOP_RABBITMQ_HTTP_URL: "snoop-rabbitmq:15672/"
     SNOOP_TIKA_URL: "http://snoop-tika:9998"
     SNOOP_THUMBNAIL_URL: "http://snoop-thumbnail:8000/"
     SNOOP_PDF_PREVIEW_URL: "http://snoop-pdf-preview:3000/"
@@ -283,6 +284,10 @@ steps:
     SNOOP_DETECT_LANGUAGES: True
     SNOOP_TRANSLATION_URL: "http://translate-batch:5000"
     SNOOP_BROKEN_FILENAME_SERVICE: "http://broken-filename-service:5000"
+    OMP_THREAD_LIMIT: 4
+    OMP_NUM_THREADS: 4
+    SNOOP_OCR_PROCESSES_PER_DOC: 4
+
     USER_MODE: "TEST"
   commands:
   - whoami
