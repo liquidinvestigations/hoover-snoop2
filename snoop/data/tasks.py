@@ -554,7 +554,10 @@ def snoop_task(name, version=0, bulk=False, queue='default'):
             if delete_extra_deps:
                 task.prev_set.exclude(name__in=depends_on.keys()).delete()
 
-            if task.date_finished:
+            if task.date_finished \
+                    and task.status in [models.Task.STATUS_SUCCESS,
+                                        models.Task.STATUS_BROKEN,
+                                        models.Task.STATUS_ERROR]:
                 if retry:
                     retry_task(task)
                 return task
@@ -563,6 +566,7 @@ def snoop_task(name, version=0, bulk=False, queue='default'):
                 if queue_now or ALWAYS_QUEUE_NOW:
                     queue_task(task)
                 return task
+            return task
 
         def delete(*args):
             """Delete the Task instance with given positional arguments.
