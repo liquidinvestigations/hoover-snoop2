@@ -81,14 +81,16 @@ class Command(BaseCommand):
             if options['queue'] == 'system':
                 all_queues = settings.SYSTEM_QUEUES
             elif options['queue']:
-                all_queues = [c.queue_name + '.' + options['queue'] for c in all_collections]
+                all_queues = [c.queue_name + '.' + options['queue'] for c in all_collections
+                              if c.process]
             else:
                 raise RuntimeError('no queue given')
 
             if options['queue'] == 'default':
                 for c in all_collections:
-                    for q in c.get_default_queues():
-                        all_queues.append(c.queue_name + '.' + q)
+                    if c.process:
+                        for q in c.get_default_queues():
+                            all_queues.append(c.queue_name + '.' + q)
 
             argv = celery_argv(queues=all_queues, solo=options.get('solo'),
                                count=options['count'], mem_limit_mb=options['mem'])
