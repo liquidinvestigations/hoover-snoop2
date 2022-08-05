@@ -40,8 +40,6 @@ steps:
   when:
     event:
     - tag
-    branch:
-    - master
 
 
 - name: GH CR docker push branch
@@ -89,8 +87,6 @@ steps:
   when:
     event:
     - tag
-    branch:
-    - master
 
 
 - name: docker push branch
