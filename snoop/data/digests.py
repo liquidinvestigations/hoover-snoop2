@@ -860,7 +860,7 @@ def _get_document_content(digest, the_file=None):
             content['ocrtext'].update(content['translated-text'])
             del content['translated-text']
 
-        ocr_lang_code = entities.LANGUAGE_CODE_MAP.get(content['lang'])
+        ocr_lang_code = entities.LANGUAGE_CODE_MAP.get(content.get('lang'))
         tesseract_keys = []
         translate_keys = []
         custom_keys = []
