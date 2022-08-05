@@ -52,8 +52,7 @@ RUN set -e \
  && SECRET_KEY=temp SNOOP_URL_PREFIX=snoop/ SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
 # Download & Install TINI
-ENV TINI_VERSION v0.19.0
-ADD https://github.com/krallin/tini/releases/download/${TINI_VERSION}/tini /tini
+ADD https://github.com/liquidinvestigations/snoop-deps/raw/master/tini_v0.19.0 /tini
 RUN chmod +x /tini
 
 ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
