@@ -143,6 +143,12 @@ def check_blobs_vs_s3():
 
 
 def delete_blobs(blob_iterator, expected_count):
+    """Delete Database and S3 entries for Blobs using this iterator.
+
+    Reports progress as percent.
+
+    Returns a (s3, db) tuple with actual number of items deleted.
+    """
     deleted_s3 = 0
     deleted_db = 0
     expected_count += 1
@@ -164,6 +170,16 @@ def delete_blobs(blob_iterator, expected_count):
 
 
 def check_blobs_orphaned(delete=False, min_age_hours=2):
+    """Look for orphaned database Blob entries.
+
+    This is done by automatically fetching all related field named, and
+    building a single query that checks for them all.
+    This approach is better than manually lisiting fields, since it does not need to be updated.
+
+    Args:
+        - delete: if will delete found entries from Database and S3.
+        - min_age_hours: objects edited later than this many hours ago are ignored.
+    """
     # get all related fields of model Blob.
     # is_relateion=True filters out the actual fields.
     # concrete=False    filters out the Foreign Keys of this Blob pointing to itself (links to parents).
