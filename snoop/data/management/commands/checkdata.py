@@ -4,6 +4,7 @@ Optionally delete the Orphaned Database Blobs and S3 objects.
 """
 
 import logging
+import math
 from datetime import timedelta
 
 from django.conf import settings
@@ -96,6 +97,9 @@ def check_blobs_vs_s3():
     s3_current = next(s3_iter, None)
     db_current = next(db_iter, None)
 
+    s3_size = 0
+    db_size = 0
+
     # while both iterators have items, compare the heads.
     # if the head item hashes are equal, check for size difference.
     # if they are different, then save the smaller one, and iterate the respective one.
@@ -153,7 +157,7 @@ def delete_blobs(blob_iterator, expected_count):
     deleted_db = 0
     expected_count += 1
 
-    UPDATE_EVERY = int(expected_count / 11)
+    UPDATE_EVERY = math.ceil(expected_count / 11)
 
     for i, blob in enumerate(blob_iterator):
         if (i + 1) % UPDATE_EVERY == 0:
