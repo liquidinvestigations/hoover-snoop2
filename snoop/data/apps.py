@@ -7,7 +7,7 @@ from django.contrib.admin.apps import AdminConfig
 
 
 class DataConfig(AppConfig):
-    name = 'data'
+    name = 'snoop.data'
 
 
 class AdminConfig(AdminConfig):
