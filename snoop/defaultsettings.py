@@ -43,7 +43,7 @@ Loaded from environment variable `SNOOP_HOSTNAME`, default is `*` (no restrictio
 """
 
 INSTALLED_APPS = [
-    'snoop.data.apps.AdminConfig',
+    # 'snoop.data.apps.AdminConfig',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
