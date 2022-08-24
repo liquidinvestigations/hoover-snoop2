@@ -141,7 +141,8 @@ def detect_encoding(blob):
         first_4k = read_exactly(f, 4 * 2 ** 10)
     detect_result = chardet.detect(first_4k)
     confidence = detect_result.get('confidence', 0)
-    # the confidence limit is chosen arbitrarily. We found documents producing 0.79 so we lowered it from 0.8 to 0.7
+    # the confidence limit is chosen arbitrarily. We found documents producing 0.79 so we lowered
+    # it from 0.8 to 0.7
     if confidence < 0.7:
         log.warning(f'low confidence when guessing character encoding: {confidence}')
         return None
@@ -157,8 +158,8 @@ def read_text(blob):
     If provided a file of type "application/octet-stream" (mime type unknown), we attempt to guess encoding
     using "chardet" and abort if we don't see 70% confidence.
 
-    If the first attempt to decode the file fails because of an unknown encoding, we also try to guess the right
-    encoding.
+    If the first attempt to decode the file fails because of an unknown encoding, we also try to
+    guess the right encoding.
     """
 
     if blob.mime_type == 'application/octet-stream' or blob.mime_encoding == 'binary':
