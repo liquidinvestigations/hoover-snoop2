@@ -132,13 +132,19 @@ def can_read_text(blob):
 
 
 def detect_encoding(blob):
+    """Try to detect the encoding for a given blob.
+
+    Will return the encoding, if it finds one with a confidence > 0.7.
+    Otherwise it will return None.
+    """
     with blob.open() as f:
         first_4k = read_exactly(f, 4 * 2 ** 10)
     detect_result = chardet.detect(first_4k)
     confidence = detect_result.get('confidence', 0)
-    if confidence < 0.8:
+    # the confidence limit is chosen arbitrarily. We found documents producing 0.79 so we lowered it from 0.8 to 0.7
+    if confidence < 0.7:
         log.warning(f'low confidence when guessing character encoding: {confidence}')
-        return
+        return None
     else:
         return detect_result.get('encoding') or 'latin1'
 
@@ -149,7 +155,10 @@ def read_text(blob):
     This function returns a single string, truncated to the `indexing.MAX_TEXT_FIELD_SIZE` constant.
 
     If provided a file of type "application/octet-stream" (mime type unknown), we attempt to guess encoding
-    using "chardet" and abort if we don't see 80% confidence.
+    using "chardet" and abort if we don't see 70% confidence.
+
+    If the first attempt to decode the file fails because of an unknown encoding, we also try to guess the right
+    encoding.
     """
 
     if blob.mime_type == 'application/octet-stream' or blob.mime_encoding == 'binary':
@@ -157,12 +166,17 @@ def read_text(blob):
     else:
         encoding = blob.mime_encoding
 
+    if not encoding:
+        return
+
     try:
         with blob.open() as f:
             return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE).decode(encoding, errors='replace')
     # in case the initial mime type detected for the blob is unknown to python (e.g. unknown-8bit)
     except LookupError:
         encoding = detect_encoding(blob)
+        if not encoding:
+            return
         with blob.open() as f:
             return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE).decode(encoding, errors='replace')
 
