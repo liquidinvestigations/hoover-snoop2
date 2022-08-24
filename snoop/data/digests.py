@@ -131,6 +131,18 @@ def can_read_text(blob):
         (blob.mime_type in EXTRA_TEXT_MIME_TYPES and blob.mime_encoding != 'binary')
 
 
+def detect_encoding(blob):
+    with blob.open() as f:
+        first_4k = read_exactly(f, 4 * 2 ** 10)
+    detect_result = chardet.detect(first_4k)
+    confidence = detect_result.get('confidence', 0)
+    if confidence < 0.8:
+        log.warning(f'low confidence when guessing character encoding: {confidence}')
+        return
+    else:
+        return detect_result.get('encoding') or 'latin1'
+
+
 def read_text(blob):
     """Attempt to read text from raw text file.
 
@@ -141,20 +153,18 @@ def read_text(blob):
     """
 
     if blob.mime_type == 'application/octet-stream' or blob.mime_encoding == 'binary':
-        with blob.open() as f:
-            first_4k = read_exactly(f, 4 * 2 ** 10)
-        detect_result = chardet.detect(first_4k)
-        confidence = detect_result.get('confidence', 0)
-        if confidence < 0.8:
-            log.warning(f'low confidence when guessing character encoding: {confidence}')
-            return
-        else:
-            encoding = detect_result.get('encoding') or 'latin1'
+        encoding = detect_encoding(blob)
     else:
         encoding = blob.mime_encoding
 
-    with blob.open() as f:
-        return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE).decode(encoding, errors='replace')
+    try:
+        with blob.open() as f:
+            return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE).decode(encoding, errors='replace')
+    # in case the initial mime type detected for the blob is unknown to python (e.g. unknown-8bit)
+    except LookupError:
+        encoding = detect_encoding(blob)
+        with blob.open() as f:
+            return read_exactly(f, indexing.MAX_TEXT_FIELD_SIZE).decode(encoding, errors='replace')
 
 
 def _delete_empty_keys(d):
