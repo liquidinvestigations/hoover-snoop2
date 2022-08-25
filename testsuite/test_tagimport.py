@@ -64,6 +64,15 @@ def test_tags_api(fakedata, taskmanager, client, django_user_model):
     assert 'tag1' in tags1 and 'tag2' in tags1
 
     res2 = query_es_tag('tag3').json()
+
+    # polling for tags
+    start = time.time()
+    while not res2['hits']['hits']:
+        if time.time() - start >= 300:
+            raise Exception('Indexing tags timed out!')
+        time.sleep(1)
+        res2 = query_es_tag('tag3').json()
+
     tags2 = res2['hits']['hits'][0]['_source']['tags']
     assert 'tag1' in tags2 and 'tag3' in tags2
 
