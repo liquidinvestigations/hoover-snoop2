@@ -253,7 +253,8 @@ def gather(blob, **depends_on):
             rv.update(email_meta)
 
     # For large text/CSV files, Tika (and text extraction) fails. For these, we want to read the text
-    # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any
+    # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any files without a
+    # valid encoding.
     if not rv.get('text') and can_read_text(blob):
         rv['text'] = read_text(blob) or ''
 
