@@ -52,7 +52,7 @@ ENV PATH="/opt/libpst/bin:${PATH}"
 RUN pip3 install --upgrade Pillow reportlab \
  && pip3 install --upgrade lxml beautifulsoup4 \
  && pip3 install --upgrade wheel \
- && pip3 install --upgrade https://github.com/liquidinvestigations/snoop-deps/raw/master/PyPDF2-main.zip
+ && pip3 install PyPDF2==1.27.12
 RUN rm /etc/ImageMagick-6/policy.xml
 RUN git clone https://github.com/liquidinvestigations/pdf2pdfocr --branch master2 /opt/pdf2pdfocr \
  && cd /opt/pdf2pdfocr \
