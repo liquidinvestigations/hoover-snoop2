@@ -929,9 +929,11 @@ class CollectionAdminSite(SnoopAdminSite):
         return super().__init__(*args, **kwargs)
 
     def get_urls(self):
-        return super().get_urls() + [
-            path('stats', self.stats),
+        urls = super().get_urls()
+        stats_url = [
+            path('stats/', self.stats),
         ]
+        return stats_url + urls
 
     def admin_view(self, *args, **kwargs):
         with self.collection.set_current():
