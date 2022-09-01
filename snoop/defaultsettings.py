@@ -44,6 +44,7 @@ Loaded from environment variable `SNOOP_HOSTNAME`, default is `*` (no restrictio
 
 INSTALLED_APPS = [
     'snoop.data.apps.AdminConfig',
+    'snoop.data.apps.DataConfig',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
@@ -51,7 +52,6 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'drf_yasg',
-    'snoop.data',
     'graphene_django'
 ]
 """List of Django apps to load."""
@@ -442,3 +442,8 @@ SNOOP_S3FS_MOUNT_DIR = os.path.join(os.getenv('TMP', '/tmp'), 'snoop-s3fs-mounts
 
 SNOOP_S3FS_MOUNT_LIMIT = int(os.getenv('SNOOP_S3FS_MOUNT_LIMIT', '20'))
 """Global limit of parallel S3 mounts (buckets)."""
+
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+"""Define type for automatically generated primary keys.
+This is needed since Django 3.2.
+"""

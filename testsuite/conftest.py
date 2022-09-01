@@ -23,7 +23,7 @@ TESTDATA = Path(settings.SNOOP_TESTDATA) / 'data'
 
 @pytest.fixture(autouse=True)
 def testdata_transaction(request):
-    if not request.keywords._markers.get('django_db'):
+    if not request.node.get_closest_marker('django_db'):
         yield
         return
 
