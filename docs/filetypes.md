@@ -11,7 +11,7 @@
 | application/gzip                                                          | archive         | GZip Compressed Archive                  | archives            |
 | application/x-bzip2                                                       | archive         | BZip2-Archive                            | archives            |
 | application/x-tar                                                         | archive         | Tape Archive (TAR)                       | archives            |
-| application/x-hoover-pst                                                  | email-archive   |                                          | archives            |
+| application/x-hoover-pst                                                  | email-archive   | Outlook Email Archive Formats (PST)      | archives            |
 | application/mbox                                                          | -               | Mbox database files                      | archives            |
 | application/pdf                                                           | pdf             | Adobe Portable Document Format           | archives, tika, ocr |
 | text/plain                                                                | text            | Text                                     | tika                |
