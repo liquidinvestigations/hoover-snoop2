@@ -87,7 +87,7 @@ class Collection:
         self.ocr_languages = opt.get('ocr_languages', [])
         self.max_result_window = opt.get('max_result_window', 10000)
         self.refresh_interval = opt.get('refresh_interval', "1s")
-        self.disable_archive_mounting = bool(opt.get('disable_archive_mounting', False))
+        self.disable_archive_mounting = bool(opt.get('disable_archive_mounting', True))
         self.opt = opt
 
         for lang_grp in self.ocr_languages:

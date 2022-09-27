@@ -564,46 +564,45 @@ def mount_7z_archive(blob):
     with blob.mount_path() as blob_path:
         temp_dir = tempfile.mkdtemp(prefix='mount-7z-fuse-ng-')
         with tempfile.TemporaryDirectory(prefix='mount-7z-symlink-') as symlink_dir:
-            with tempfile.NamedTemporaryFile(prefix='log-7z-') as temp_log_file:
-                guess_ext = (mimetypes.guess_extension(blob.mime_type) or '')[:20]
-                actual_extension = os.path.splitext(blob_path)[-1][:20]
-                log.debug('going to mount %s', str(blob_path))
+            guess_ext = (mimetypes.guess_extension(blob.mime_type) or '')[:20]
+            actual_extension = os.path.splitext(blob_path)[-1][:20]
+            log.debug('going to mount %s', str(blob_path))
 
-                log.debug(
-                    'considering original extension: "%s", guessed extension: "%s"',
-                    actual_extension, guess_ext,
-                )
-                if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
+            log.debug(
+                'considering original extension: "%s", guessed extension: "%s"',
+                actual_extension, guess_ext,
+            )
+            if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
+                path = blob_path
+                log.debug('choosing supported extension in path "%s"', path)
+            elif guess_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
+                symlink = Path(symlink_dir) / ('link' + guess_ext)
+                symlink.symlink_to(blob_path)
+                path = symlink
+                log.debug('choosing symlink with guessed extension, generated path: %s', path)
+            else:
+                log.info('no valid file extension in path; looking in File table...')
+                path = None
+                for file_entry in models.File.objects.filter(original=blob):
+                    file_entry_ext = os.path.splitext(file_entry.name)[-1][:20]
+                    log.info('found extension: "%s" from file entry %s', file_entry_ext, file_entry)
+                    if file_entry_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
+                        symlink = Path(symlink_dir) / ('link' + guess_ext)
+                        symlink.symlink_to(blob_path)
+                        path = symlink
+                        log.debug('choosing symlink with extension taken from File: %s', path)
+                        break
+
+                if path is None:
                     path = blob_path
-                    log.debug('choosing supported extension in path "%s"', path)
-                elif guess_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
-                    symlink = Path(symlink_dir) / ('link' + guess_ext)
-                    symlink.symlink_to(blob_path)
-                    path = symlink
-                    log.debug('choosing symlink with guessed extension, generated path: %s', path)
-                else:
-                    log.info('no valid file extension in path; looking in File table...')
-                    path = None
-                    for file_entry in models.File.objects.filter(original=blob):
-                        file_entry_ext = os.path.splitext(file_entry.name)[-1][:20]
-                        log.info('found extension: "%s" from file entry %s', file_entry_ext, file_entry)
-                        if file_entry_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
-                            symlink = Path(symlink_dir) / ('link' + guess_ext)
-                            symlink.symlink_to(blob_path)
-                            path = symlink
-                            log.debug('choosing symlink with extension taken from File: %s', path)
-                            break
+                    log.debug('found no Files; choosing BY DEFAULT original path: %s', path)
 
-                    if path is None:
-                        path = blob_path
-                        log.debug('found no Files; choosing BY DEFAULT original path: %s', path)
+            pid = s3.lock_mount_7z_fuse(path, temp_dir, logfile="/dev/null")
 
-                pid = s3.lock_mount_7z_fuse(path, temp_dir, temp_log_file.name)
-
-                try:
-                    yield temp_dir
-                finally:
-                    s3.umount_7z_fuse(pid, temp_dir)
+            try:
+                yield temp_dir
+            finally:
+                s3.umount_7z_fuse(pid, temp_dir)
 
 
 def unarchive_7z(blob):
