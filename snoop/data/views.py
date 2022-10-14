@@ -8,7 +8,6 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
-from rest_framework.decorators import api_view
 
 from . import collections, digests, models, ocr, serializers, tracing
 from .analyzers import html
@@ -360,34 +359,3 @@ def pdf_preview(request, hash):
         response['Accept-Ranges'] = 'bytes'
         response['Content-Disposition'] = f'attachment; filename="{hash}_preview.pdf"'
         return response
-
-
-@collection_view
-@api_view(['PUT'])
-def rename(request, hash):
-    if request.method == 'PUT':
-        new_path = request.data['new_path']
-        new_filename = request.data['new_filename']
-        file_management.rename(hash, new_path, new_filename)
-        return HttpResponse(200)
-
-
-@collection_view
-def delete(request, hash):
-    file_management.delete(hash)
-    return HttpResponse(200)
-
-
-@collection_view
-def delete_dir(request, dir_pk):
-    file_management.delete_dir(dir_pk)
-    return HttpResponse(200)
-
-
-@collection_view
-@api_view(['PUT'])
-def move_dir(request, dir_pk):
-    if request.method == 'PUT':
-        new_path = request.data['new_path']
-        file_management.move_dir(dir_pk, new_path)
-        return HttpResponse(200)

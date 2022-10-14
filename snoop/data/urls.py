@@ -28,9 +28,4 @@ urlpatterns = [
     path('<collection>/<hash>/thumbnail/<size>.jpg', views.thumbnail),
     path('<collection>/<hash>/pdf-preview', views.pdf_preview),
     path('<collection>/graphql', views.collection_view(GraphQLView.as_view(graphiql=True))),
-
-    path('<collection>/<hash>/rename', views.rename),
-    path('<collection>/<hash>/delete', views.delete),
-    path('<collection>/<dir_pk>/delete-dir', views.delete_dir),
-    path('<collection>/<dir_pk>/move-dir', views.move_dir),
 ]
