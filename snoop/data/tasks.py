@@ -858,22 +858,28 @@ def _is_rabbitmq_memory_full():
     """Return True if rabbitmq memory is full (more than 70% of max)."""
     MEMORY_FILL_MAX = 0.70
 
-    cl = pyrabbit.api.Client(
-        settings.SNOOP_RABBITMQ_HTTP_URL,
-        settings.SNOOP_RABBITMQ_HTTP_USERNAME,
-        settings.SNOOP_RABBITMQ_HTTP_PASSWORD,
-    )
-    nodes = cl.get_nodes()
-    failed = False
-    for node in nodes:
-        hard_limit = node['mem_limit']
-        soft_limit = int(hard_limit * MEMORY_FILL_MAX)
-        use = node['mem_used']
-        if use >= soft_limit:
-            logger.warning('rabbitmq memory full; node = %s, use = %s, soft limit = %s, hard limit = %s, ',
-                           node['name'], use, soft_limit, hard_limit)
-            failed = True
-    return failed
+    try:
+        cl = pyrabbit.api.Client(
+            settings.SNOOP_RABBITMQ_HTTP_URL,
+            settings.SNOOP_RABBITMQ_HTTP_USERNAME,
+            settings.SNOOP_RABBITMQ_HTTP_PASSWORD,
+        )
+
+        nodes = cl.get_nodes()
+        failed = False
+        for node in nodes:
+            hard_limit = node['mem_limit']
+            soft_limit = int(hard_limit * MEMORY_FILL_MAX)
+            use = node['mem_used']
+            if use >= soft_limit:
+                logger.warning('rabbitmq memory full; node = %s, use = %s, soft limit = %s, hard limit = %s',
+                               node['name'], use, soft_limit, hard_limit)
+                failed = True
+        return failed
+
+    except Exception as e:
+        logger.error('error when fetching rabbitmq ndoe memory depth: %s', e)
+        return True
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
