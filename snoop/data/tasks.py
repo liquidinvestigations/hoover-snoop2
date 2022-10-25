@@ -675,7 +675,7 @@ def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
             item_str = status
         if outdated:
             task_query = task_query.exclude(version=task_map[func].version)
-            item_str = 'OUTDATED (exclude version {task_map[func].version})'
+            item_str = f'OUTDATED (exclude version {task_map[func].version})'
 
         if newest_first:
             task_query = task_query.order_by('-date_modified')
