@@ -125,7 +125,7 @@ def queue_task(task):
 
     queue_name = collections.current().queue_name + '.' + task_map[task.func].queue
     queue_length = get_rabbitmq_queue_length(queue_name)
-    if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE:
+    if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE or _is_rabbitmq_memory_full():
         return
 
     transaction.on_commit(send_to_celery)
@@ -853,6 +853,29 @@ def save_collection_stats():
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=50, ttl=20))
+def _is_rabbitmq_memory_full():
+    """Return True if rabbitmq memory is full (more than 70% of max)."""
+    MEMORY_FILL_MAX = 0.70
+
+    cl = pyrabbit.api.Client(
+        settings.SNOOP_RABBITMQ_HTTP_URL,
+        settings.SNOOP_RABBITMQ_HTTP_USERNAME,
+        settings.SNOOP_RABBITMQ_HTTP_PASSWORD,
+    )
+    nodes = cl.get_nodes()
+    failed = False
+    for node in nodes:
+        hard_limit = node['mem_limit']
+        soft_limit = int(hard_limit * MEMORY_FILL_MAX)
+        use = node['mem_used']
+        if use >= soft_limit:
+            logger.warning('rabbitmq memory full; node = %s, use = %s, soft limit = %s, hard limit = %s, ',
+                           node['name'], use, soft_limit, hard_limit)
+            failed = True
+    return failed
+
+
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
 def get_rabbitmq_queue_length(q):
     """Fetch queue length from RabbitMQ for a given queue.
@@ -1014,7 +1037,7 @@ def dispatch_for(collection, queue):
         db_tasks_remaining = _count_remaining_db_tasks_for_queue(queue)
         if queue_len > 0:
             skip = False
-            if queue_len >= settings.DISPATCH_MIN_QUEUE_SIZE:
+            if queue_len >= settings.DISPATCH_MIN_QUEUE_SIZE or _is_rabbitmq_memory_full():
                 skip = True
             if 0 < queue_len <= settings.DISPATCH_MIN_QUEUE_SIZE:
                 # skip if we don't have many tasks left --> we would double queue the ones we have
