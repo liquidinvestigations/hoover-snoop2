@@ -28,4 +28,6 @@ urlpatterns = [
     path('<collection>/<hash>/thumbnail/<size>.jpg', views.thumbnail),
     path('<collection>/<hash>/pdf-preview', views.pdf_preview),
     path('<collection>/graphql', views.collection_view(GraphQLView.as_view(graphiql=True))),
+
+    path('<collection>/<int:directory_pk>/rescan', views.rescan_directory),
 ]

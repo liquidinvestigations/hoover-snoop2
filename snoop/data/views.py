@@ -10,8 +10,8 @@ from ranged_response import RangedFileResponse
 from rest_framework import viewsets
 
 from . import collections, digests, models, ocr, serializers, tracing
+from .tasks import dispatch_directory_walk_tasks
 from .analyzers import html
-from .file_management import file_management
 
 TEXT_LIMIT = 10 ** 6  # one million characters
 tracer = tracing.Tracer(__name__)
@@ -359,3 +359,11 @@ def pdf_preview(request, hash):
         response['Accept-Ranges'] = 'bytes'
         response['Content-Disposition'] = f'attachment; filename="{hash}_preview.pdf"'
         return response
+
+
+@collection_view
+def rescan_directory(request, directory_pk):
+    if dispatch_directory_walk_tasks(directory_pk):
+        return HttpResponse(200)
+    else:
+        return HttpResponse(500)
