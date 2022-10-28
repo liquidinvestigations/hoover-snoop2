@@ -1004,12 +1004,15 @@ def dispatch_walk_tasks():
 
 def dispatch_directory_walk_tasks(directory_pk):
     """Trigger processing of a specific directory.
+
+    Returns: A string that is the full path of the directory.
     """
 
     from .filesystem import walk
     directory = models.Directory.objects.get(pk=directory_pk)
     assert directory, "Directory does not exist"
-    return walk.laterz(directory.pk)
+    walk.laterz(directory.pk)
+    return str(directory)
 
 
 @tracer.wrap_function()

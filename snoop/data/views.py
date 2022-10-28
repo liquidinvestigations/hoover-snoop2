@@ -363,7 +363,8 @@ def pdf_preview(request, hash):
 
 @collection_view
 def rescan_directory(request, directory_pk):
-    if dispatch_directory_walk_tasks(directory_pk):
-        return HttpResponse(200)
+    full_path = dispatch_directory_walk_tasks(directory_pk)
+    if full_path:
+        return HttpResponse(full_path)
     else:
         return HttpResponse(500)
