@@ -5,7 +5,7 @@ from functools import wraps
 from django.conf import settings
 from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, get_list_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
 
@@ -362,9 +362,44 @@ def pdf_preview(request, hash):
 
 
 @collection_view
+def get_path(request, directory_pk):
+    """Get the full path of a given directory"""
+    directory = models.Directory.objects.get(pk=directory_pk)
+    # check if there is a container file in the path
+    for ancestor in directory.ancestry():
+        if ancestor.container_file:
+            return HttpResponse(status=404)
+    return HttpResponse(str(directory))
+
+
+@collection_view
 def rescan_directory(request, directory_pk):
-    full_path = dispatch_directory_walk_tasks(directory_pk)
-    if full_path:
-        return HttpResponse(full_path)
+    """Start a filesystem walk in the given directory."""
+    dispatch_directory_walk_tasks(directory_pk)
+    return HttpResponse(status=200)
+
+
+@collection_view
+def file_exists(request, directory_pk, filename):
+    try:
+        file = models.File.objects.get(
+            name_bytes=str.encode(filename),
+            parent_directory__pk=directory_pk)
+    except models.File.DoesNotExist:
+        return HttpResponse(status=404)
+    if file:
+        return HttpResponse(file.pk)
+
+
+@collection_view
+def processing_status(request, hash):
+    tasks = models.Task.objects.filter(Q(status='pending')
+                                       | Q(status='started')
+                                       | Q(status='deferred'),
+                                       blob_arg__pk=hash)
+    for task in tasks:
+        print(task)
+    if tasks:
+        return HttpResponse(status=200)
     else:
-        return HttpResponse(500)
+        raise Http404()

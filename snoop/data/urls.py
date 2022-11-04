@@ -30,4 +30,7 @@ urlpatterns = [
     path('<collection>/graphql', views.collection_view(GraphQLView.as_view(graphiql=True))),
 
     path('<collection>/<int:directory_pk>/rescan', views.rescan_directory),
+    path('<collection>/<int:directory_pk>/path', views.get_path),
+    path('<collection>/<int:directory_pk>/<filename>/exists', views.file_exists),
+    path('<collection>/<hash>/processing_status', views.processing_status),
 ]

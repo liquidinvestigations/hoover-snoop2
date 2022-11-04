@@ -1012,7 +1012,6 @@ def dispatch_directory_walk_tasks(directory_pk):
     directory = models.Directory.objects.get(pk=directory_pk)
     assert directory, "Directory does not exist"
     walk.laterz(directory.pk)
-    return str(directory)
 
 
 @tracer.wrap_function()
