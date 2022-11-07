@@ -5,7 +5,7 @@ from functools import wraps
 from django.conf import settings
 from django.db.models import Q
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, get_list_or_404
+from django.shortcuts import get_object_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
 
@@ -381,6 +381,8 @@ def rescan_directory(request, directory_pk):
 
 @collection_view
 def file_exists(request, directory_pk, filename):
+    """TODO"""
+    print(filename)
     try:
         file = models.File.objects.get(
             name_bytes=str.encode(filename),
@@ -393,6 +395,7 @@ def file_exists(request, directory_pk, filename):
 
 @collection_view
 def processing_status(request, hash):
+    """TODO"""
     tasks = models.Task.objects.filter(Q(status='pending')
                                        | Q(status='started')
                                        | Q(status='deferred'),
