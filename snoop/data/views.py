@@ -381,8 +381,18 @@ def rescan_directory(request, directory_pk):
 
 @collection_view
 def file_exists(request, directory_pk, filename):
-    """TODO"""
-    print(filename)
+    """View that checks if a given file exists in the database.
+
+    Args:
+        directory_pk: Primary key of the files parent directory.
+        filename: String that is the name of the file.
+
+    Returns:
+        A HTTP response containing the primary key (hash) of the original blob,
+        if the file exists.
+
+        A HTTP 404 response if the file doesn't exist.
+    """
     try:
         file = models.File.objects.get(
             name_bytes=str.encode(filename),
@@ -390,19 +400,29 @@ def file_exists(request, directory_pk, filename):
     except models.File.DoesNotExist:
         return HttpResponse(status=404)
     if file:
-        return HttpResponse(file.pk)
+        return HttpResponse(file.original.pk)
 
 
 @collection_view
 def processing_status(request, hash):
-    """TODO"""
-    tasks = models.Task.objects.filter(Q(status='pending')
-                                       | Q(status='started')
-                                       | Q(status='deferred'),
-                                       blob_arg__pk=hash)
-    for task in tasks:
-        print(task)
-    if tasks:
+    """View that checks the processing status of a given blob.
+
+    Searches for tasks related to the given blob and filters all unfinished tasks
+    (pending, started or deferred). If there are no unfinished tasks the blob has been
+    processed.
+    Args:
+        hash: Primary key of the blob to be checked.
+
+    Returns:
+        A HTTP 200 response if the blob has been processed completely.
+
+        A HTTP 404 response if there are unfinished tasks.
+    """
+    unfinished_tasks = models.Task.objects.filter(Q(status='pending')
+                                                  | Q(status='started')
+                                                  | Q(status='deferred'),
+                                                  blob_arg__pk=hash)
+    if not unfinished_tasks:
         return HttpResponse(status=200)
     else:
         raise Http404()
