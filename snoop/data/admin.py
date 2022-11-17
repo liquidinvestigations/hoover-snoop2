@@ -345,18 +345,12 @@ def _get_stats(old_values):
 
     stored_blobs = (
         blobs
-        .filter(collection_source_key__exact=b'',
-                archive_source_key__exact=b'')
+        .filter(collection_source_key__exact=b'')
     )
 
     collection_source = (
         blobs
         .exclude(collection_source_key__exact=b'')
-    )
-
-    archive_source = (
-        blobs
-        .exclude(archive_source_key__exact=b'')
     )
 
     def __get_size(q):
@@ -374,8 +368,8 @@ def _get_stats(old_values):
             'blob_total_count': stored_blobs.count(),
             'collection_source_size': __get_size(collection_source),
             'collection_source_count': collection_source.count(),
-            'archive_source_size': __get_size(archive_source),
-            'archive_source_count': archive_source.count(),
+            'archive_source_size': 0,
+            'archive_source_count': 0,
         },
         'db_size': db_size,
         'error_counts': list(get_error_counts()),
@@ -667,24 +661,18 @@ class BlobAdmin(MultiDBModelAdmin):
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
                      'magic', 'mime_type', 'mime_encoding',
-                     'collection_source_key', 'archive_source_key',
-                     'archive_source_blob__pk', 'archive_source_blob__md5']
+                     'collection_source_key']
     readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5', 'created',
                        'size', 'magic', 'mime_type', 'mime_encoding',
-                       '_collection_source_key', '_archive_source_key', 'archive_source_blob']
+                       '_collection_source_key']
 
     change_form_template = 'snoop/admin_blob_change_form.html'
 
     def _collection_source_key(self, obj):
         return obj.collection_source_key.tobytes().decode('utf8', errors='surrogateescape')
 
-    def _archive_source_key(self, obj):
-        return obj.collection_source_key.tobytes().decode('utf8', errors='surrogateescape')
-
     def storage(self, obj):
-        return ('collection' if bool(obj.collection_source_key) else (
-            'archive' if bool(obj.archive_source_key) else 'blobs'
-        ))
+        return ('collection' if bool(obj.collection_source_key) else 'blobs')
 
     def change_view(self, request, object_id, form_url='', extra_context=None):
         """Optionally fetch and display the actual blob data in the defail view.

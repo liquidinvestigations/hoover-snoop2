@@ -515,7 +515,7 @@ def check_recursion(listing, blob_pk):
             check_recursion(item['children'], blob_pk)
 
 
-def unarchive_7z_fallback(blob):
+def unarchive_7z_impl(blob):
     """Old method of unpacking archives: simply calling 7z on them."""
 
     with blob.mount_path() as blob_path:
@@ -535,76 +535,6 @@ def unarchive_7z_fallback(blob):
     return listing
 
 
-def unarchive_7z_with_mount(blob):
-    """Mount 7z archive with fuse-7z-ng and create structure from files inside."""
-
-    with mount_7z_archive(blob) as temp_dir:
-        listing = list(archive_walk(Path(temp_dir)))
-        create_blobs(listing, unlink=False,
-                     archive_source_blob=blob, archive_source_root=temp_dir)
-
-    check_recursion(listing, blob.pk)
-    return listing
-
-
-@contextmanager
-def mount_7z_archive(blob):
-    """Mount object from its given path onto a temporary directory.
-
-    Directory is unmounted when context manager exits.
-
-    In case python process dies before context manager exist, we store
-    the child and parent PIDs in a locked JSON file, and check for
-    dead parent PIDs (which mean the children must also be killed).
-
-    Args:
-        - blob: the archive to mount
-    """
-
-    with blob.mount_path() as blob_path:
-        temp_dir = tempfile.mkdtemp(prefix='mount-7z-fuse-ng-')
-        with tempfile.TemporaryDirectory(prefix='mount-7z-symlink-') as symlink_dir:
-            guess_ext = (mimetypes.guess_extension(blob.mime_type) or '')[:20]
-            actual_extension = os.path.splitext(blob_path)[-1][:20]
-            log.debug('going to mount %s', str(blob_path))
-
-            log.debug(
-                'considering original extension: "%s", guessed extension: "%s"',
-                actual_extension, guess_ext,
-            )
-            if actual_extension in SEVENZIP_ACCEPTED_EXTENSIONS:
-                path = blob_path
-                log.debug('choosing supported extension in path "%s"', path)
-            elif guess_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
-                symlink = Path(symlink_dir) / ('link' + guess_ext)
-                symlink.symlink_to(blob_path)
-                path = symlink
-                log.debug('choosing symlink with guessed extension, generated path: %s', path)
-            else:
-                log.info('no valid file extension in path; looking in File table...')
-                path = None
-                for file_entry in models.File.objects.filter(original=blob):
-                    file_entry_ext = os.path.splitext(file_entry.name)[-1][:20]
-                    log.info('found extension: "%s" from file entry %s', file_entry_ext, file_entry)
-                    if file_entry_ext in SEVENZIP_ACCEPTED_EXTENSIONS:
-                        symlink = Path(symlink_dir) / ('link' + guess_ext)
-                        symlink.symlink_to(blob_path)
-                        path = symlink
-                        log.debug('choosing symlink with extension taken from File: %s', path)
-                        break
-
-                if path is None:
-                    path = blob_path
-                    log.debug('found no Files; choosing BY DEFAULT original path: %s', path)
-
-            pid = s3.lock_mount_7z_fuse(path, temp_dir, logfile="/dev/null")
-
-            try:
-                yield temp_dir
-            finally:
-                s3.umount_7z_fuse(pid, temp_dir)
-
-
 def unarchive_7z(blob):
     """Attempt to unarchive using fuse mount; if that fails, just unpack whole file."""
 
@@ -615,15 +545,7 @@ def unarchive_7z(blob):
     with tempfile.TemporaryDirectory(prefix='unarchive-7z-pwd-') as pwd:
         os.chdir(pwd)
         try:
-            # Either mount, if possible, and if not, use the CLI to unpack into blobs
-            if not collections.current().disable_archive_mounting \
-                    and not blob.archive_source_blob and not blob.archive_source_key:
-                try:
-                    return unarchive_7z_with_mount(blob)
-                except Exception as e:
-                    log.exception(e)
-                    log.warning('using old method (unpacking everything)...')
-            return unarchive_7z_fallback(blob)
+            return unarchive_7z_impl(blob)
         finally:
             os.chdir(x)
 
@@ -701,34 +623,19 @@ def archive_walk(path):
             }
 
 
-def create_blobs(dirlisting, unlink=True, archive_source_blob=None, archive_source_root=None):
+def create_blobs(dirlisting, unlink=True):
     """Create blobs for files in archive listing created by [snoop.data.analyzers.archive_walk][].
 
     Args:
         - unlink: if enabled (default), will delete files just after they are saved to blob storage.
-        - archive_source_blob: object to extract archive from. Used to record keeping.
-        - archive_source_root: filesystem path where above object is mounted/extracted.
     """
 
     for entry in dirlisting:
         if entry['type'] == 'file':
             path = Path(entry['path'])
-            if archive_source_blob:
-                entry['blob_pk'] = models.Blob.create_from_file(
-                    path,
-                    archive_source_blob=archive_source_blob,
-                    archive_source_key=os.path.relpath(
-                        path,
-                        start=archive_source_root,
-                    ).encode('utf-8', errors='surrogateescape'),
-                ).pk
-            else:
-                entry['blob_pk'] = models.Blob.create_from_file(path).pk
+            entry['blob_pk'] = models.Blob.create_from_file(path).pk
             if unlink:
                 os.unlink(path)
             del entry['path']
         else:
-            create_blobs(entry['children'],
-                         unlink=unlink,
-                         archive_source_blob=archive_source_blob,
-                         archive_source_root=archive_source_root)
+            create_blobs(entry['children'], unlink=unlink)

@@ -139,19 +139,6 @@ class Blob(models.Model):
     """If this is set, we store and retrieve the file using this key from the collections S3 instead of the
     default blobs S3."""
 
-    archive_source_key = models.BinaryField(max_length=4096, blank=True)
-    """If this is set, we store and retrieve the file using this path inside an archive, instead of the
-    default blobs S3. How to access the archive is specified by the `archive_source_blob` field."""
-
-    archive_source_blob = models.ForeignKey(
-        'Blob',
-        null=True,
-        on_delete=models.RESTRICT,
-        related_name='archive_children_blobs',
-    )
-    """If this is set, get the archive from this parent Blob. The file is under path
-    `archive_source_key`."""
-
     date_created = models.DateTimeField(auto_now_add=True)
     """Auto-managed timestamp."""
 
@@ -252,10 +239,7 @@ class Blob(models.Model):
         return cls.create_from_bytes(json.dumps(data, indent=1).encode('utf-8'))
 
     @classmethod
-    def create_from_file(cls, path,
-                         collection_source_key=None,
-                         archive_source_key=None,
-                         archive_source_blob=None):
+    def create_from_file(cls, path, collection_source_key=None):
         """Create a Blob from a file on disk.
 
         Since we know it has a stable path on disk, we take the luxury of
@@ -266,8 +250,6 @@ class Blob(models.Model):
         Args:
             path: string or Path to read from.
             collection_source_key: if set, will use the collection source bucket as storage.
-            archive_source_key: if set, will use this path inside the archive to find the file.
-            archive_source_blob: if set, will use the archive marked by this argument as storage.
         """
         path = Path(path).resolve().absolute()
         writer = BlobWriter()
@@ -279,7 +261,7 @@ class Blob(models.Model):
 
         try:
             b = Blob.objects.get(pk=pk)
-            if collection_source_key and not b.collection_source_key and not b.archive_source_key:
+            if collection_source_key and not b.collection_source_key:
                 # delete this from minio and override/save new key
                 try:
                     settings.BLOBS_S3.remove_object(collections.current().name, blob_repo_path(b.pk))
@@ -292,19 +274,6 @@ class Blob(models.Model):
                 b.save()
                 return b
 
-            if archive_source_key and not b.archive_source_key and not b.collection_source_key:
-                # delete this from minio and override/save new key
-                try:
-                    settings.BLOBS_S3.remove_object(collections.current().name, blob_repo_path(b.pk))
-                    logger.info('successfully deleted object from s3.')
-                except Exception as e:
-                    logger.exception(e)
-                    logger.error('failed to delete object from s3.')
-
-                b.archive_source_key = archive_source_key
-                b.archive_source_blob = archive_source_blob
-                b.save()
-                return b
             # ensure the S3 object still exists by checking it
             try:
                 stat = settings.BLOBS_S3.stat_object(
@@ -329,14 +298,6 @@ class Blob(models.Model):
                 (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
                 return blob
 
-            if archive_source_key:
-                m = Magic(path)
-                fields.update(m.fields)
-                fields['archive_source_key'] = archive_source_key
-                fields['archive_source_blob'] = archive_source_blob
-                (blob, _) = cls.objects.get_or_create(pk=pk, defaults=fields)
-                return blob
-
             with cls.create(path) as writer:
                 with open(path, 'rb') as f:
                     for block in chunks(f):
@@ -349,13 +310,7 @@ class Blob(models.Model):
         """Mount this blob under some temporary directory using s3fs-fuse / fuse-7z-ng and return its
         path."""
 
-        if self.archive_source_key:
-            from snoop.data.analyzers.archives import mount_7z_archive  # noqa
-            key_str = self.archive_source_key.tobytes().decode('utf-8', errors='surrogateescape')
-            with mount_7z_archive(self.archive_source_blob) as archive_root:
-                yield os.path.join(archive_root, key_str)
-
-        elif self.collection_source_key:
+        if self.collection_source_key:
             with collections.current().mount_collections_root() as collection_root:
                 key_str = self.collection_source_key.tobytes().decode('utf-8', errors='surrogateescape')
                 yield os.path.join(collection_root,
@@ -385,8 +340,8 @@ class Blob(models.Model):
 
         In that case, just use the `mount_path` contextmanager to get a POSIX filesystem path.
         """
-        # if (need_seek and need_fileno) or self.archive_source_key:
-        if (need_fileno) or self.archive_source_key:
+        # if (need_seek and need_fileno):
+        if (need_fileno):
             with self.mount_path() as blob_path:
                 yield open(blob_path, mode='rb')
                 return
