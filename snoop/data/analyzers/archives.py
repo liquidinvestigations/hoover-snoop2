@@ -12,7 +12,6 @@ from pathlib import Path
 from hashlib import sha1
 import os
 import tempfile
-from contextlib import contextmanager
 
 import mimetypes
 import pyexcel
@@ -21,7 +20,6 @@ from django.conf import settings
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from .. import models
 from .. import collections
-from .. import s3
 
 log = logging.getLogger(__name__)
 
