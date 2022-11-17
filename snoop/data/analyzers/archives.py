@@ -573,6 +573,7 @@ def unarchive(blob):
         else:
             raise RuntimeError('unarchive: unknown mime type')
 
+    old_pwd = os.getcwd()
     with blob.mount_path() as blob_path:
         with collections.current().mount_blobs_root(readonly=False) as blobs_root:
             base = Path(blobs_root) / 'tmp' / 'archives'
@@ -580,6 +581,7 @@ def unarchive(blob):
             with tempfile.TemporaryDirectory(prefix=blob.pk, dir=base) as temp_dir:
                 t0 = time.time()
                 log.info('starting unpack...')
+                os.chdir(temp_dir)
                 unpack_func(blob_path, temp_dir,
                             mime_type=blob.mime_type,
                             mime_encoding=blob.mime_encoding)
@@ -598,6 +600,7 @@ def unarchive(blob):
                 create_blobs(listing)
                 log.info('create archive blobs done in: %s seconds', time.time() - t0)
 
+    os.chdir(old_pwd)
     t0 = time.time()
     log.info('checking recursion archive blobs...')
     check_recursion(listing, blob.pk)
