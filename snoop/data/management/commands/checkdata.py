@@ -68,7 +68,8 @@ def check_blobs_vs_s3():
     """
     def s3_hash_size_iter():
         """Generator that returns (sha, size) tuples in order from s3."""
-        s3_object_iterator = settings.BLOBS_S3.list_objects(collections.current().name, recursive=True)
+        s3_object_iterator = settings.BLOBS_S3.\
+            list_objects(collections.current().name, recursive=True)
         for obj in s3_object_iterator:
             if obj.is_dir:
                 continue
@@ -78,7 +79,8 @@ def check_blobs_vs_s3():
 
     def db_hash_size_iter():
         """Generator that returns (sha, size) tuples in order from db."""
-        db_iterator = models.Blob.objects.order_by('pk').values('pk', 'size', 'date_modified')
+        db_iterator = models.Blob.objects.filter(collection_source_key=b'')\
+            .order_by('pk').values('pk', 'size', 'date_modified')
         for vals in db_iterator:
             yield vals['pk'], vals['size']
 

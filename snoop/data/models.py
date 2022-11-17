@@ -139,6 +139,17 @@ class Blob(models.Model):
     """If this is set, we store and retrieve the file using this key from the collections S3 instead of the
     default blobs S3."""
 
+    # archive_source_key = models.BinaryField(max_length=4096, blank=True)
+    # """[DEPRECATED] Old key for archive mounting. Can't delete it yet."""
+
+    # archive_source_blob = models.ForeignKey(
+    #     'Blob',
+    #     null=True,
+    #     on_delete=models.RESTRICT,
+    #     related_name='archive_children_blobs',
+    # )
+    # """[DEPRECATED] Old key for archive mounting. Can't delete it yet"""
+
     date_created = models.DateTimeField(auto_now_add=True)
     """Auto-managed timestamp."""
 

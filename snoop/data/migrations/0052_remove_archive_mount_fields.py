@@ -3,7 +3,7 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('data', '0051_reset_unarchive_tasks.py'),
+        ('data', '0051_reset_unarchive_tasks'),
     ]
 
     operations = [
