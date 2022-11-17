@@ -26,12 +26,4 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.RunPython(reset_unarchive_tasks, noop),
-        migrations.RemoveField(
-            model_name='blob',
-            name='archive_source_blob',
-        ),
-        migrations.RemoveField(
-            model_name='blob',
-            name='archive_source_key',
-        ),
     ]
