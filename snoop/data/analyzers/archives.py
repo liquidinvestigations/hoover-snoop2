@@ -166,6 +166,21 @@ def call_readpst(pst_path, output_dir, **kw):
 def unpack_7z(archive_path, output_dir):
     """Helper function that calls a `7z` process."""
 
+    # try the multithreaded version first
+    try:
+        subprocess.check_output([
+            '7zz',
+            '-y',
+            '-pp',
+            f'-mmt={settings.UNARCHIVE_THREADS}',
+            'x',
+            str(archive_path),
+            '-o' + str(output_dir),
+        ], stderr=subprocess.STDOUT)
+    except subprocess.CalledProcessError:
+        pass
+
+    # if it fails go for the old 7z version
     try:
         subprocess.check_output([
             '7z',
@@ -175,8 +190,6 @@ def unpack_7z(archive_path, output_dir):
             str(archive_path),
             '-o' + str(output_dir),
         ], stderr=subprocess.STDOUT)
-        # new 7zz test here
-
     except subprocess.CalledProcessError:
         raise SnoopTaskBroken("7z extraction failed", '7z_error')
 
