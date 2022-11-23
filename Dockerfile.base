@@ -49,10 +49,10 @@ RUN wget https://github.com/liquidinvestigations/snoop-deps/raw/master/$LIBPST_V
 ENV PATH="/opt/libpst/bin:${PATH}"
 
 # download recent version of 7z
-ENV 7Z_VERSION 7z2107-linux-x64
-RUN wget https://github.com/liquidinvestigations/snoop-deps/raw/master/${7Z_VERSION}.tar.xz --progress=dot:giga \
-  && tar zxvf ${7Z_VERSION}.tar.xz --one-top-level=7z \
-  && rm -f ${7Z_VERSION}.tar.xz \
+ENV SEVEN_Z_VERSION 7z2107-linux-x64
+RUN wget https://github.com/liquidinvestigations/snoop-deps/raw/master/$SEVEN_Z_VERSION}.tar.xz --progress=dot:giga \
+  && tar zxvf $SEVEN_Z_VERSION.tar.xz --one-top-level=7z \
+  && rm -f $SEVEN_Z_VERSION.tar.xz \
   && mv 7z/7zz /opt/7zz \
   && rm -r 7z
 ENV PATH="/opt/7zz:${PATH}"
