@@ -175,6 +175,7 @@ def unpack_7z(archive_path, output_dir):
             str(archive_path),
             '-o' + str(output_dir),
         ], stderr=subprocess.STDOUT)
+        # new 7zz test here
 
     except subprocess.CalledProcessError:
         raise SnoopTaskBroken("7z extraction failed", '7z_error')
