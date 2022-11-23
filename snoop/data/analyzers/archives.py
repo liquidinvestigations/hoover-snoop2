@@ -178,7 +178,7 @@ def unpack_7z(archive_path, output_dir):
             '-o' + str(output_dir),
         ], stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
-        pass
+        log.info('Multithread unarchiving failed. Trying older 7z version...')
 
     # if it fails go for the old 7z version
     try:
