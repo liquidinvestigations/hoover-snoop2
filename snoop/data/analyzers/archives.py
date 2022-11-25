@@ -170,6 +170,8 @@ def unpack_7z(archive_path, output_dir):
 
     # the -mmt switch enables multithreading. But for decompression this only affects
     # bzip2 files: see https://sevenzip.osdn.jp/chm/cmdline/switches/method.htm
+
+    # first try new 7z version (7zz)
     try:
         subprocess.check_output([
             '7zz',
@@ -181,7 +183,19 @@ def unpack_7z(archive_path, output_dir):
             '-o' + str(output_dir),
         ], stderr=subprocess.STDOUT)
     except subprocess.CalledProcessError:
-        raise SnoopTaskBroken("7z extraction failed", '7z_error')
+        log.info('7zz extraction failed. Trying older 7z version')
+        try:
+            # if it fails try the older version
+            subprocess.check_output([
+                '7z',
+                '-y',
+                '-pp',
+                'x',
+                str(archive_path),
+                '-o' + str(output_dir),
+            ], stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError:
+            raise SnoopTaskBroken("7z extraction failed", '7z_error')
 
 
 def _do_explode_row(row_id, row, output_path, sheet_name=None, colnames=None, mime_encoding=None):
