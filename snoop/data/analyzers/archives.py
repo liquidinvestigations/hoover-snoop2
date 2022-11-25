@@ -33,18 +33,20 @@ SEVENZIP_MIME_TYPES = {
     'application/gzip',
     'application/x-bzip2',
     'application/x-tar',
+    'application/x-xz',
 }
 
+# see a list of 7-zip supported types here: https://www.7-zip.org/
 SEVENZIP_ACCEPTED_EXTENSIONS = {
-    ".7z", ".apm", ".ar", ".a", ".deb", ".lib", ".arj", ".bz2", ".bzip2", ".tbz2", ".tbz", ".cab", ".chm",
-    ".chi", ".chq", ".chw", ".hxs", ".hxi", ".hxr", ".hxq", ".hxw", ".lit", ".msi", ".msp", ".doc", ".xls",
-    ".ppt", ".cpio", ".cramfs", ".dmg", ".elf", ".ext", ".ext2", ".ext3", ".ext4", ".img", ".fat", ".img",
-    ".flv", ".gz", ".gzip", ".tgz", ".tpz", ".gpt", ".mbr", ".hfs", ".hfsx", ".ihex", ".iso", ".img",
+    ".7z", ".apm", ".apfs", ".ar", ".a", ".deb", ".lib", ".arj", ".bz2", ".bzip2", ".tbz2", ".tbz", ".cab",
+    ".chm", ".chi", ".chq", ".chw", ".hxs", ".hxi", ".hxr", ".hxq", ".hxw", ".lit", ".msi", ".msp", ".doc",
+    ".xls", ".ppt", ".cpio", ".cramfs", ".dmg", ".elf", ".ext", ".ext2", ".ext3", ".ext4", ".img", ".fat",
+    ".img", ".flv", ".gz", ".gzip", ".tgz", ".tpz", ".gpt", ".mbr", ".hfs", ".hfsx", ".ihex", ".iso", ".img",
     ".lzh", ".lha", ".lzma", ".lzma86", ".macho", ".mbr", ".mslz", ".mub", ".nsis", ".ntfs", ".img", ".exe",
     ".dll", ".sys", ".te", ".pmd", ".qcow", ".qcow2", ".qcow2c", ".rar", ".r00", ".rar", ".r00", ".rpm",
     ".001", ".squashfs", ".swf", ".swf", ".tar", ".ova", ".udf", ".iso", ".img", ".scap", ".uefif", ".vdi",
-    ".vhd", ".vmdk", ".wim", ".swm", ".esd", ".xar", ".pkg", ".xz", ".txz", ".z", ".taz", ".zip", ".z01",
-    ".zipx", ".jar", ".xpi", ".odt", ".ods", ".docx", ".xlsx", ".epub",
+    ".vhd", ".vhdx", ".vmdk", ".wim", ".swm", ".esd", ".xar", ".pkg", ".xz", ".txz", ".z", ".taz", ".zip",
+    ".z01", ".zipx", ".jar", ".xpi", ".odt", ".ods", ".docx", ".xlsx", ".epub",
 }
 
 READPST_MIME_TYPES = {
@@ -166,26 +168,14 @@ def call_readpst(pst_path, output_dir, **kw):
 def unpack_7z(archive_path, output_dir):
     """Helper function that calls a `7z` process."""
 
-    # try the multithreaded version first
+    # the -mmt switch enables multithreading. But for decompression this only affects
+    # bzip2 files: see https://sevenzip.osdn.jp/chm/cmdline/switches/method.htm
     try:
         subprocess.check_output([
             '7zz',
             '-y',
             '-pp',
             f'-mmt={settings.UNARCHIVE_THREADS}',
-            'x',
-            str(archive_path),
-            '-o' + str(output_dir),
-        ], stderr=subprocess.STDOUT)
-    except subprocess.CalledProcessError:
-        log.info('Multithread unarchiving failed. Trying older 7z version...')
-
-    # if it fails go for the old 7z version
-    try:
-        subprocess.check_output([
-            '7z',
-            '-y',
-            '-pp',
             'x',
             str(archive_path),
             '-o' + str(output_dir),
