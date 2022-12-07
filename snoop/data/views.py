@@ -418,11 +418,14 @@ def processing_status(request, hash):
 
         A HTTP 404 response if there are unfinished tasks.
     """
-    unfinished_tasks = models.Task.objects.filter(Q(status='pending')
-                                                  | Q(status='started')
-                                                  | Q(status='deferred'),
-                                                  blob_arg__pk=hash)
-    if not unfinished_tasks:
-        return HttpResponse(status=200)
-    else:
-        raise Http404()
+    result = {'finished': False, 'done_count': 0, 'total_count': 0}
+    total_tasks = models.Task.objects.filter(blob_arg__pk=hash)
+    done_tasks = total_tasks.filter(Q(status='success')
+                                    | Q(status='error')
+                                    | Q(status='broken')
+                                    )
+    result['done_count'] = done_tasks.count()
+    result['total_count'] = total_tasks.count()
+    if result['done_count'] == result['total_count']:
+        result['finished'] = True
+    return JsonResponse(result)
