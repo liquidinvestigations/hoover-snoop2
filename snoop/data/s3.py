@@ -175,8 +175,6 @@ def mount_s3fs(bucket, mount_mode, cache, password_file, address, target, logfil
         -o allow_other \\
         -o max_dirty_data=64 \\
         -o passwd_file={password_file}  \\
-        -o dbglevel=info \\
-        -o curldbg \\
         -o use_path_request_style  \\
         -o url=http://{address} \\
         {bucket} {target} > {logfile} \\
