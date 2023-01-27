@@ -12,11 +12,11 @@ if __name__ == "__main__":
 
     if os.getenv('UPTRACE_DSN'):
         uptrace.configure_opentelemetry(
-            service_name="hoover-search",
+            service_name="hoover-snoop",
             service_version="0.0.0",
         )
         # LoggingInstrumentor().instrument(set_logging_format=True)
-        Psycopg2Instrumentor().instrument()
+        Psycopg2Instrumentor().instrument(skip_dep_check=True)
         DjangoInstrumentor().instrument()
 
     try:
