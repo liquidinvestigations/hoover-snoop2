@@ -29,7 +29,6 @@ idna = '*'
 kombu = '*'
 langdetect = '*'
 more-itertools = '*'
-opencensus = '*'
 pip-tools = '*'
 pluggy = '*'
 polyglot = '*'
@@ -62,8 +61,6 @@ MarkupSafe = '*'
 prometheus_client = '*'
 Pygments = '*'
 PyICU = "==2.5"
-opencensus-ext-prometheus = "*"
-opencensus-ext-zipkin = "*"
 pyrabbit = "*"
 prompt_toolkit = "*"
 djangorestframework = "*"
@@ -94,7 +91,11 @@ openpyxl = '*'
 pyxlsb = '*'
 xlrd = '*'
 xlwt = '*'
-
+uptrace = "*"
+opentelemetry-instrumentation-django = "*"
 
 [requires]
 python_version = "3.9"
+
+[pipenv]
+allow_prereleases = true
