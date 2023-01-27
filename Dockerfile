@@ -35,12 +35,9 @@ COPY . .
 RUN chmod +x /opt/hoover/snoop/docker-entrypoint.sh
 
 ENV THREAD_COUNT 20
-RUN set -e \
- && echo '#!/bin/bash -e' > /runserver \
- && echo 'waitress-serve --threads $THREAD_COUNT --port 8080 snoop.wsgi:application' >> /runserver \
- && chmod +x /runserver
+COPY ./runserver /runserver
 
-RUN chown -R $UID:$GID /runserver
+RUN chown -R $UID:$GID /runserver && chmod +x /runserver
 RUN chown -R $UID:$GID /opt/libpst
 
 ENV USER_NAME $USER_NAME

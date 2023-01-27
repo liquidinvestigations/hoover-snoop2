@@ -1,0 +1,22 @@
+#!/bin/bash -ex
+
+/wait
+
+if [[ "$DEBUG" == "true" ]]; then
+	    # --max-requests 1 \  # poor man's autoreload
+	  exec gunicorn --reload \
+	    --access-logfile '-' \
+	    --error-logfile '-' \
+	    --log-level 'info' \
+	    --threads $THREAD_COUNT \
+	    --timeout 600 \
+	 -b 0.0.0.0:8080 \
+	snoop.wsgi:application
+else
+	exec gunicorn \
+	    --error-logfile '-' \
+	 --threads $THREAD_COUNT \
+	  --timeout 600 \
+	 -b 0.0.0.0:8080 \
+	snoop.wsgi:application
+fi

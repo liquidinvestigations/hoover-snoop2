@@ -50,7 +50,7 @@ sqlparse = '*'
 tornado = '*'
 urllib3 = '*'
 vine = '*'
-waitress = '*'
+gunicorn = '*'
 webencodings = '*'
 whitenoise = '*'
 Babel = '*'
@@ -97,6 +97,3 @@ opentelemetry-instrumentation-psycopg2 = "*"
 
 [requires]
 python_version = "3.9"
-
-[pipenv]
-allow_prereleases = true
