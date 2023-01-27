@@ -93,6 +93,7 @@ xlrd = '*'
 xlwt = '*'
 uptrace = "*"
 opentelemetry-instrumentation-django = "*"
+opentelemetry-instrumentation-psycopg2 = "*"
 
 [requires]
 python_version = "3.9"
