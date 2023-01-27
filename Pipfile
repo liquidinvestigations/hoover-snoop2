@@ -95,6 +95,7 @@ uptrace = "*"
 opentelemetry-instrumentation-django = "*"
 opentelemetry-instrumentation-psycopg2 = "*"
 opentelemetry-instrumentation-logging = "*"
+opentelemetry-instrumentation-celery = "*"
 # downgrade as per https://github.com/grpc/grpc/issues/31885
 grpcio = "<=1.50"
 
