@@ -94,6 +94,8 @@ xlwt = '*'
 uptrace = "*"
 opentelemetry-instrumentation-django = "*"
 opentelemetry-instrumentation-psycopg2 = "*"
+# downgrade as per https://github.com/grpc/grpc/issues/31885
+grpcio = "<=1.50"
 
 [requires]
 python_version = "3.9"
