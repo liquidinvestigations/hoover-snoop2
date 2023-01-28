@@ -9,10 +9,11 @@ from django.shortcuts import get_object_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
 
-from . import collections, digests, models, ocr, serializers
+from . import collections, digests, models, ocr, serializers, tracing
 from .analyzers import html
 
 TEXT_LIMIT = 10 ** 6  # one million characters
+tracer = tracing.Tracer(__name__)
 
 
 def collection_view(func):
@@ -21,6 +22,7 @@ def collection_view(func):
     The collection slug is set through an URL path parameter called "collection".
     """
 
+    @tracer.wrap_function()
     @wraps(func)
     def view(request, *args, collection, **kwargs):
         try:
@@ -42,6 +44,7 @@ def drf_collection_view(func):
     result is similar to `snoop.data.views.collection_view() defined above`.
     """
 
+    @tracer.wrap_function()
     @wraps(func)
     def view(self, *args, **kwargs):
         try:

@@ -2,29 +2,15 @@
 import os
 import sys
 
-import uptrace
-from opentelemetry.instrumentation.django import DjangoInstrumentor
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
-from opentelemetry.instrumentation.logging import LoggingInstrumentor
+from snoop.data.tracing import Tracer, init_tracing
 
 if __name__ == "__main__":
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "snoop.defaultsettings")
 
-    if os.getenv('UPTRACE_DSN'):
-        uptrace.configure_opentelemetry(
-            service_name="hoover-snoop",
-            service_version="0.0.0",
-        )
-        LoggingInstrumentor().instrument(set_logging_format=True)
-        Psycopg2Instrumentor().instrument(skip_dep_check=True)
-        DjangoInstrumentor().instrument()
+    init_tracing('manage.py')
+    tracer = Tracer('manage.py')
 
-    try:
-        from django.core.management import execute_from_command_line
-    except ImportError as exc:
-        raise ImportError(
-            "Couldn't import Django. Are you sure it's installed and "
-            "available on your PYTHONPATH environment variable? Did you "
-            "forget to activate a virtual environment?"
-        ) from exc
-    execute_from_command_line(sys.argv)
+    from django.core.management import execute_from_command_line
+    with tracer.span("-".join(['manage'] + sys.argv[1:2])) as span:
+        span.set_attribute('cmdline.args', " ".join(sys.argv))
+        execute_from_command_line(sys.argv)
