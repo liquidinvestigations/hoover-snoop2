@@ -16,7 +16,6 @@ from opentelemetry.instrumentation.django import DjangoInstrumentor
 from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
 from opentelemetry.instrumentation.logging import LoggingInstrumentor
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.instrumentation.elasticsearch import ElasticsearchInstrumentor
 # commented out because of leaked socket warning, but it seems to be harmless as it uses same fd
 # from opentelemetry.instrumentation.celery import CeleryInstrumentor
 
@@ -43,7 +42,6 @@ def init_tracing(_from):
         Psycopg2Instrumentor().instrument(skip_dep_check=True)
         DjangoInstrumentor().instrument()
         RequestsInstrumentor().instrument()
-        ElasticsearchInstrumentor().instrument()
         # CeleryInstrumentor().instrument()
 
 
