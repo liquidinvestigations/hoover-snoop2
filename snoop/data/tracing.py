@@ -56,10 +56,6 @@ class Tracer:
         """
         self.name = name
         self.version = version or SERVICE_VERSION
-        # the module level assignment only works for the main thread,
-        # others need to be updated on the fly here
-        global local
-        local.tracer = None
 
     @contextmanager
     def span(self, *args, **kwds):

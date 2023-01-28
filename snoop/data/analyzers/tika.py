@@ -16,8 +16,10 @@ import requests
 from dateutil import parser
 from ..tasks import snoop_task, SnoopTaskBroken, returns_json_blob
 from ..utils import zulu
-from snoop import tracing
+from snoop.data import tracing
 from ._tika_mime_types import TIKA_MIME_TYPES
+
+tracer = tracing.Tracer(__name__)
 
 TIKA_EXPECT_FAIL_ABOVE_FILE_SIZE = 50 * 2 ** 20
 """Turn unexpected failures into permanent ones for arguments above this size.
@@ -89,6 +91,7 @@ def can_process(blob):
     return False
 
 
+@tracer.wrap_function()
 def call_tika_server(endpoint, data, content_type, data_size):
     """Executes HTTP PUT request to Tika server.
 
@@ -136,7 +139,7 @@ def call_tika_server(endpoint, data, content_type, data_size):
 def rmeta(blob):
     """Task to run Tika on a given Blob."""
 
-    with blob.open(need_fileno=True) as f, tracing.span('tika.rmeta'):
+    with blob.open(need_fileno=True) as f:
         resp = call_tika_server('rmeta/text', f, blob.content_type, blob.size)
 
     return resp.json()

@@ -10,7 +10,6 @@ import subprocess
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from snoop.profiler import Profiler
 from snoop.data.collections import ALL
 
 from ... import tasks
@@ -74,25 +73,25 @@ class Command(BaseCommand):
         """Runs workers for either collection processing or system tasks."""
 
         logging_for_management_command()
-        with Profiler():
-            tasks.import_snoop_tasks()
-            all_collections = [c for c in ALL.values() if c.process]
 
-            if options['queue'] == 'system':
-                all_queues = settings.SYSTEM_QUEUES
-            elif options['queue']:
-                all_queues = [c.queue_name + '.' + options['queue'] for c in all_collections
-                              if c.process]
-            else:
-                raise RuntimeError('no queue given')
+        tasks.import_snoop_tasks()
+        all_collections = [c for c in ALL.values() if c.process]
 
-            if options['queue'] == 'default':
-                for c in all_collections:
-                    if c.process:
-                        for q in c.get_default_queues():
-                            all_queues.append(c.queue_name + '.' + q)
+        if options['queue'] == 'system':
+            all_queues = settings.SYSTEM_QUEUES
+        elif options['queue']:
+            all_queues = [c.queue_name + '.' + options['queue'] for c in all_collections
+                          if c.process]
+        else:
+            raise RuntimeError('no queue given')
 
-            argv = celery_argv(queues=all_queues, solo=options.get('solo'),
-                               count=options['count'], mem_limit_mb=options['mem'])
-            log.info('+' + ' '.join(argv))
-            os.execv(argv[0], argv)
+        if options['queue'] == 'default':
+            for c in all_collections:
+                if c.process:
+                    for q in c.get_default_queues():
+                        all_queues.append(c.queue_name + '.' + q)
+
+        argv = celery_argv(queues=all_queues, solo=options.get('solo'),
+                           count=options['count'], mem_limit_mb=options['mem'])
+        log.info('+' + ' '.join(argv))
+        os.execv(argv[0], argv)

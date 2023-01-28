@@ -37,13 +37,13 @@ from . import collections
 from . import celery
 from . import models
 from . import indexing
-from ..profiler import profile
 from .templatetags import pretty_size
 from .utils import run_once
 from requests.exceptions import ConnectionError
-from snoop import tracing
+from snoop.data import tracing
 
 logger = logging.getLogger(__name__)
+tracer = tracing.Tracer(__name__)
 
 task_map = {}
 ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
@@ -92,6 +92,7 @@ class ExtraDependency(Exception):
         self.name = name
 
 
+@tracer.wrap_function()
 def queue_task(task):
     """Queue given Task with Celery to run on a worker.
 
@@ -131,6 +132,7 @@ def queue_task(task):
     transaction.on_commit(send_to_celery)
 
 
+@tracer.wrap_function()
 def queue_next_tasks(task, reset=False):
     """Queues all Tasks that directly depend on this one.
 
@@ -138,25 +140,24 @@ def queue_next_tasks(task, reset=False):
         task: will queue running all Tasks in `task.next_set`
         reset: if set, will set next Tasks status to "pending" before queueing it
     """
-    with tracing.span('queue_next_tasks'):
-        for next_dependency in task.next_set.all():
-            next_task = next_dependency.next
-            if reset:
-                next_task.update(
-                    status=models.Task.STATUS_PENDING,
-                    error='',
-                    broken_reason='',
-                    log='',
-                    version=task_map[task.func].version,
-                )
-                next_task.save()
+    for next_dependency in task.next_set.all():
+        next_task = next_dependency.next
+        if reset:
+            next_task.update(
+                status=models.Task.STATUS_PENDING,
+                error='',
+                broken_reason='',
+                log='',
+                version=task_map[task.func].version,
+            )
+            next_task.save()
 
-            if task_map[next_task.func].bulk:
-                logger.debug("Not queueing bulk task %r after %r", next_task, task)
-                continue
+        if task_map[next_task.func].bulk:
+            logger.debug("Not queueing bulk task %r after %r", next_task, task)
+            continue
 
-            logger.debug("Queueing %r after %r", next_task, task)
-            queue_task(next_task)
+        logger.debug("Queueing %r after %r", next_task, task)
+        queue_task(next_task)
 
 
 @run_once
@@ -222,6 +223,7 @@ def snoop_task_log_handler(level=logging.DEBUG):
 
 
 @celery.app.task
+@tracer.wrap_function()
 def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     """Celery task used to run snoop Tasks without duplication.
 
@@ -300,7 +302,6 @@ def is_task_running(task_pk):
             return True
 
 
-@profile()
 def run_task(task, log_handler, raise_exceptions=False):
     """Runs the main Task switch: get dependencies, run code,
     react to `SnoopTaskError`s, save state and logs, queue next tasks.
@@ -310,13 +311,13 @@ def run_task(task, log_handler, raise_exceptions=False):
         log_handler: instance of log handler to dump results
         raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
     """
-    with tracing.trace('run_task'):
-        tracing.add_attribute('func', task.func)
+    with tracer.span('run_task') as span1:
+        span1.set_attribute('func', task.func)
 
-        with tracing.span('check task'):
+        with tracer.span('check if task already completed') as span:
             if is_completed(task):
                 logger.debug("%r already completed", task)
-                tracing.add_annotation('already completed')
+                span.add_event('already completed')
                 queue_next_tasks(task)
                 return
 
@@ -325,7 +326,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 assert args[0] == task.blob_arg.pk
                 args = [task.blob_arg] + args[1:]
 
-        with tracing.span('check dependencies'):
+        with tracer.span('check dependencies') as span:
             depends_on = {}
 
             all_prev_deps = list(task.prev_set.all())
@@ -354,7 +355,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     )
                     task.save()
                     logger.info("%r missing dependency %r", task, prev_task)
-                    tracing.add_annotation("%r missing dependency %r" % (task, prev_task))
+                    span.add_event("%r missing dependency %r" % (task, prev_task))
                     queue_task(prev_task)
                     return
 
@@ -370,24 +371,22 @@ def run_task(task, log_handler, raise_exceptions=False):
 
                 depends_on[dep.name] = prev_result
 
-        with tracing.span('save state before run'):
+        with tracer.span('save state before run'):
             task.status = models.Task.STATUS_PENDING
             task.date_started = timezone.now()
             task.date_finished = None
             task.save()
 
-        with tracing.span('run'):
+        with tracer.span('run task function'):
             logger.debug("Running %r", task)
             t0 = time()
             try:
                 func = task_map[task.func]
-                with tracing.span('call func'):
-                    with tracing.trace(name=task.func, service_name='func'):
-                        if func.bulk:
-                            result = func([task])
-                        else:
-                            result = func(*args, **depends_on)
-                        tracing.add_annotation('success')
+                with tracer.span('call function'):
+                    if func.bulk:
+                        result = func([task])
+                    else:
+                        result = func(*args, **depends_on)
 
                 if result is not None:
                     if func.bulk:
@@ -400,10 +399,9 @@ def run_task(task, log_handler, raise_exceptions=False):
                         task.result = result
 
             except MissingDependency as dep:
-                with tracing.span('missing dependency'):
+                with tracer.span('handle missing dependency') as span:
                     msg = 'requests extra dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.info(msg)
-                    tracing.add_annotation(msg)
 
                     task.update(
                         status=models.Task.STATUS_DEFERRED,
@@ -419,10 +417,9 @@ def run_task(task, log_handler, raise_exceptions=False):
                     queue_task(task)
 
             except ExtraDependency as dep:
-                with tracing.span('extra dependency'):
+                with tracer.span('handle extra dependency'):
                     msg = 'requests to remove dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.info(msg)
-                    tracing.add_annotation(msg)
 
                     task.prev_set.filter(
                         name=dep.name,
@@ -437,60 +434,61 @@ def run_task(task, log_handler, raise_exceptions=False):
                     queue_task(task)
 
             except SnoopTaskBroken as e:
-                task.update(
-                    status=models.Task.STATUS_BROKEN,
-                    error="{}: {}".format(e.reason, e.args[0]),
-                    broken_reason=e.reason,
-                    log=log_handler.stream.getvalue(),
-                    version=task_map[task.func].version,
-                )
-                msg = 'Broken: %r %s [%.03f s]' % (task, task.broken_reason, time() - t0)
-                logger.exception(msg)
-                tracing.add_annotation(msg)
+                with tracer.span('handle task broken'):
+                    task.update(
+                        status=models.Task.STATUS_BROKEN,
+                        error="{}: {}".format(e.reason, e.args[0]),
+                        broken_reason=e.reason,
+                        log=log_handler.stream.getvalue(),
+                        version=task_map[task.func].version,
+                    )
+                    msg = 'Broken: %r %s [%.03f s]' % (task, task.broken_reason, time() - t0)
+                    logger.exception(msg)
 
             except ConnectionError as e:
-                tracing.add_annotation(repr(e))
-                logger.exception(e)
-                task.update(
-                    status=models.Task.STATUS_PENDING,
-                    error=repr(e),
-                    broken_reason='',
-                    log=log_handler.stream.getvalue(),
-                    version=task_map[task.func].version,
-                )
+                with tracer.span('handle connection error, save as pending'):
+                    logger.exception(e)
+                    task.update(
+                        status=models.Task.STATUS_PENDING,
+                        error=repr(e),
+                        broken_reason='',
+                        log=log_handler.stream.getvalue(),
+                        version=task_map[task.func].version,
+                    )
 
             except Exception as e:
-                if isinstance(e, SnoopTaskError):
-                    error = "{} ({})".format(e.args[0], e.details)
-                else:
-                    error = repr(e)
-                logger.exception(e)
-                task.update(
-                    status=models.Task.STATUS_ERROR,
-                    error=error,
-                    broken_reason='',
-                    log=log_handler.stream.getvalue(),
-                    version=task_map[task.func].version,
-                )
+                with tracer.span('handle unknown error, save as error'):
+                    if isinstance(e, SnoopTaskError):
+                        error = "{} ({})".format(e.args[0], e.details)
+                    else:
+                        error = repr(e)
+                    logger.exception(e)
+                    task.update(
+                        status=models.Task.STATUS_ERROR,
+                        error=error,
+                        broken_reason='',
+                        log=log_handler.stream.getvalue(),
+                        version=task_map[task.func].version,
+                    )
 
-                msg = 'Failed: %r  %s [%.03f s]' % (task, task.error, time() - t0)
-                tracing.add_annotation(msg)
-                logger.exception(msg)
+                    msg = 'Failed: %r  %s [%.03f s]' % (task, task.error, time() - t0)
+                    logger.exception(msg)
 
-                if raise_exceptions:
-                    raise
+                    if raise_exceptions:
+                        raise
             else:
-                logger.debug("Succeeded: %r [%.03f s]", task, time() - t0)
-                task.update(
-                    status=models.Task.STATUS_SUCCESS,
-                    error='',
-                    broken_reason='',
-                    log=log_handler.stream.getvalue(),
-                    version=task_map[task.func].version,
-                )
+                with tracer.span('save success'):
+                    logger.debug("Succeeded: %r [%.03f s]", task, time() - t0)
+                    task.update(
+                        status=models.Task.STATUS_SUCCESS,
+                        error='',
+                        broken_reason='',
+                        log=log_handler.stream.getvalue(),
+                        version=task_map[task.func].version,
+                    )
 
             finally:
-                with tracing.span('save state after run'):
+                with tracer.span('save state after run'):
                     task.date_finished = timezone.now()
                     task.save()
 
@@ -513,6 +511,9 @@ def snoop_task(name, version=0, bulk=False, queue='default'):
     """
 
     def decorator(func):
+        # add telemetry to all snoop tasks
+        func = tracer.wrap_function()(func)
+
         def laterz(*args, depends_on={}, retry=False, queue_now=True, delete_extra_deps=False):
             """Actual function doing dependency checking and queueing.
 
@@ -603,6 +604,7 @@ def snoop_task(name, version=0, bulk=False, queue='default'):
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
+@tracer.wrap_function()
 def _get_task_funcs_for_queue(queue):
     """Helper function to get all functions for a specific queue.
 
@@ -620,6 +622,7 @@ def _get_task_funcs_for_queue(queue):
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
+@tracer.wrap_function()
 def _count_remaining_db_tasks_for_queue_and_status(queue, status):
     """Helper function to count all the tasks in the database for a queue, status combo.
 
@@ -632,6 +635,7 @@ def _count_remaining_db_tasks_for_queue_and_status(queue, status):
     return task_query.count()
 
 
+@tracer.wrap_function()
 def _count_remaining_db_tasks_for_queue(queue):
     """Helper function to count all the tasks in the database for a queue, status combo.
 
@@ -648,6 +652,7 @@ def _count_remaining_db_tasks_for_queue(queue):
     return count
 
 
+@tracer.wrap_function()
 def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
     """Dispatches (queues) a limited number of Task instances of each type.
 
@@ -726,6 +731,7 @@ def retry_task(task, fg=False):
         queue_task(task)
 
 
+@tracer.wrap_function()
 def retry_tasks(queryset, reset_fail_count=False, one_slice_only=False):
     """Efficient re-queueing of an entire QuerySet pointing to Tasks.
 
@@ -843,6 +849,7 @@ def dispatch_walk_tasks():
     walk.laterz(root.pk)
 
 
+@tracer.wrap_function()
 def save_collection_stats():
     """Run the expensive computations to get collection stats, then save result in database.
     """
@@ -854,6 +861,7 @@ def save_collection_stats():
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=50, ttl=20))
+@tracer.wrap_function()
 def _is_rabbitmq_memory_full():
     """Return True if rabbitmq memory is full (more than 70% of max)."""
     MEMORY_FILL_MAX = 0.70
@@ -883,6 +891,7 @@ def _is_rabbitmq_memory_full():
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
+@tracer.wrap_function()
 def get_rabbitmq_queue_length(q):
     """Fetch queue length from RabbitMQ for a given queue.
 
@@ -908,6 +917,7 @@ def get_rabbitmq_queue_length(q):
         return 0
 
 
+@tracer.wrap_function()
 def single_task_running(key):
     """Queries both Celery and RabbitMQ to find out if the queue is completely idle.
 
@@ -945,6 +955,7 @@ def single_task_running(key):
 
 
 @celery.app.task
+@tracer.wrap_function()
 def save_stats():
     """Periodic Celery task used to save stats for all collections.
     """
@@ -968,6 +979,7 @@ def save_stats():
 
 
 @celery.app.task
+@tracer.wrap_function()
 def run_dispatcher():
     """Periodic Celery task used to queue next batches of Tasks for each collection.
 
@@ -998,6 +1010,7 @@ def run_dispatcher():
 
 
 @celery.app.task
+@tracer.wrap_function()
 def update_all_tags():
     """Periodic Celery task used to re-index documents with changed Tags.
 
@@ -1020,6 +1033,7 @@ def update_all_tags():
             digests.update_all_tags()
 
 
+@tracer.wrap_function()
 def dispatch_for(collection, queue):
     """Queue the next batches of Tasks for a given collection.
 
@@ -1141,6 +1155,7 @@ def dispatch_for(collection, queue):
     logger.info(f'dispatch for collection "{collection.name}" done\n')
 
 
+@tracer.wrap_function()
 def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=False):
     """Checks current collection if we have bulk tasks run.
 
@@ -1237,6 +1252,7 @@ def have_bulk_tasks_to_run(reverse=False):
     return marked > 0
 
 
+@tracer.wrap_function()
 def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferred_only=False):
     """Directly runs a single batch for each bulk task type.
 
@@ -1324,6 +1340,7 @@ def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferr
     return total_completed + marked
 
 
+@tracer.wrap_function()
 def _run_bulk_tasks_for_collection():
     """Helper method that runs a number of bulk task batches in the current collection."""
 
@@ -1367,6 +1384,7 @@ def _run_bulk_tasks_for_collection():
 
 
 @celery.app.task
+@tracer.wrap_function()
 def run_bulk_tasks():
     """Periodic task that runs some batches of bulk tasks for all collections.
     For each collection, we update the ES index refresh interval."""
