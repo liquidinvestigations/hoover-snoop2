@@ -32,6 +32,7 @@ ADD Pipfile Pipfile.lock ./
 RUN pipenv install --system --deploy --ignore-pipfile
 
 COPY . .
+COPY .git .
 RUN chmod +x /opt/hoover/snoop/docker-entrypoint.sh
 
 ENV THREAD_COUNT 20

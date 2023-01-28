@@ -9,7 +9,7 @@ import os
 from celery import Celery
 from celery.signals import worker_process_init
 
-from hoover.search.tracing import init_tracing
+from snoop.data.tracing import init_tracing
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "snoop.defaultsettings")
 

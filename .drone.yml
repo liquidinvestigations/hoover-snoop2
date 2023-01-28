@@ -22,8 +22,14 @@ depends_on:
 concurrency:
   limit: 1
 
+clone:
+  depth: 5000
 
 steps:
+- name: fetch
+  image: alpine/git
+  commands:
+  - git fetch --tags
 
 - name: GH CR build base docker image
   image: plugins/docker
