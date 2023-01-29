@@ -276,7 +276,7 @@ TASK_RETRY_FAIL_LIMIT = 3
 
 The actual value is higher, since we retry very old tasks more times."""
 
-WORKER_TASK_LIMIT = 200
+WORKER_TASK_LIMIT = 2000
 """Max tasks count to be finished by 1 worker process before restarting it.
 """
 
@@ -288,7 +288,7 @@ CHILD_QUEUE_LIMIT = 50
 """ Limit for queueing large counts of children tasks.
 """
 
-DISPATCH_QUEUE_LIMIT = 400
+DISPATCH_QUEUE_LIMIT = 2000
 """ Count of pending tasks to trigger per collection when finding an empty queue.
 
 A single worker core running zero-length tasks gets at most around 40
@@ -393,6 +393,7 @@ if _tracing_url:
     TRACING_API = '/api/v2/spans'
 
 SYSTEM_TASK_DEADLINE_SECONDS = 29
+TASK_COUNT_MEMORY_CACHE_TTL = 9
 celery.app.conf.beat_schedule = {
     'run_dispatcher': {
         'task': 'snoop.data.tasks.run_dispatcher',

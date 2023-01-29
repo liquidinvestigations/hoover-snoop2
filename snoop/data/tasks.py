@@ -180,6 +180,15 @@ def queue_next_tasks(task, reset=False):
         )
         if tasks:
             queue_task(tasks[0])
+        tasks = (
+            models.Task.objects
+            .filter(status=models.Task.STATUS_PENDING)
+            .include(func=task.func)
+            .order_by('-date_modified')[:1].all()
+        )
+        if tasks:
+            queue_task(tasks[0])
+
     with tracer.span('queue another task of a different type'):
         tasks = (
             models.Task.objects
@@ -649,7 +658,7 @@ def snoop_task(name, version=0, bulk=False, queue='default'):
     return decorator
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=settings.TASK_COUNT_MEMORY_CACHE_TTL))
 @tracer.wrap_function()
 def _get_task_funcs_for_queue(queue):
     """Helper function to get all functions for a specific queue.
@@ -667,7 +676,7 @@ def _get_task_funcs_for_queue(queue):
     ]
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=settings.TASK_COUNT_MEMORY_CACHE_TTL))
 @tracer.wrap_function()
 def _count_remaining_db_tasks_for_queue_and_status(func, status, collection):
     """Helper function to count all the tasks in the database for a queue, status combo.
@@ -901,7 +910,7 @@ def save_collection_stats():
     logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=50, ttl=20))
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=50, ttl=settings.TASK_COUNT_MEMORY_CACHE_TTL))
 @tracer.wrap_function()
 def _is_rabbitmq_memory_full():
     """Return True if rabbitmq memory is full (more than 70% of max)."""
@@ -955,7 +964,7 @@ def get_rabbitmq_queue_length_no_cache(q):
         return 0
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=settings.TASK_COUNT_MEMORY_CACHE_TTL))
 def get_rabbitmq_queue_length(q):
     """Fetch queue length from RabbitMQ for a given queue.
 
