@@ -176,36 +176,26 @@ def queue_next_tasks(task, reset=False):
         tasks = (
             models.Task.objects
             .filter(status=models.Task.STATUS_PENDING, func=task.func)
-            .order_by('-date_modified')[:1].all()
+            .order_by('date_modified')[:10].all()
         )
         if tasks:
-            queue_task(tasks[0])
-            tasks = (
-                models.Task.objects
-                .filter(status=models.Task.STATUS_PENDING)
-                .include(func=task.func)
-                .order_by('date_modified')[:1].all()
-            )
-            if tasks:
-                queue_task(tasks[0])
+            tasks = list(tasks)
+            random.shuffle(tasks)
+            for task in tasks[:2]:
+                queue_task(task)
 
     with tracer.span('queue another task of a different type'):
         tasks = (
             models.Task.objects
             .filter(status=models.Task.STATUS_PENDING)
             .exclude(func=task.func)
-            .order_by('-date_modified')[:1].all()
+            .order_by('date_modified')[:10].all()
         )
         if tasks:
-            queue_task(tasks[0])
-            tasks = (
-                models.Task.objects
-                .filter(status=models.Task.STATUS_PENDING)
-                .exclude(func=task.func)
-                .order_by('date_modified')[:1].all()
-            )
-            if tasks:
-                queue_task(tasks[0])
+            tasks = list(tasks)
+            random.shuffle(tasks)
+            for task in tasks[:2]:
+                queue_task(tasks)
 
 
 @run_once
