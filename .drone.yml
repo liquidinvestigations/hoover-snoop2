@@ -46,6 +46,8 @@ steps:
   when:
     event:
     - tag
+  depends_on:
+  - fetch
 
 
 - name: GH CR docker push branch
@@ -63,6 +65,7 @@ steps:
     - push
   depends_on:
   - GH CR build base docker image
+  - fetch
 
 
 - name: GH CR docker push autotag + latest
@@ -77,6 +80,7 @@ steps:
       from_secret: ghcr_docker_password
   depends_on:
   - GH CR build base docker image
+  - fetch
 
 
 - name: build base docker image
@@ -93,6 +97,8 @@ steps:
   when:
     event:
     - tag
+  depends_on:
+  - fetch
 
 
 - name: docker push branch
@@ -109,6 +115,7 @@ steps:
     - push
   depends_on:
   - build base docker image
+  - fetch
 
 - name: docker push autotag + latest
   image: plugins/docker
@@ -121,6 +128,7 @@ steps:
       from_secret: docker_password
   depends_on:
   - build base docker image
+  - fetch
 
 ---
 kind: pipeline
