@@ -181,8 +181,8 @@ def queue_next_tasks(task, reset=False):
         if tasks:
             tasks = list(tasks)
             random.shuffle(tasks)
-            for task in tasks[:2]:
-                queue_task(task)
+            for tsk in tasks[:2]:
+                queue_task(tsk)
 
     with tracer.span('queue another task of a different type'):
         tasks = (
@@ -194,8 +194,8 @@ def queue_next_tasks(task, reset=False):
         if tasks:
             tasks = list(tasks)
             random.shuffle(tasks)
-            for task in tasks[:2]:
-                queue_task(tasks)
+            for tsk in tasks[:2]:
+                queue_task(tsk)
 
 
 @run_once
