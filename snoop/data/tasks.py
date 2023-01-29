@@ -172,27 +172,23 @@ def queue_next_tasks(task, reset=False):
         logger.debug("Queueing %r after %r", next_task, task)
         queue_task(next_task)
 
-    found_next = False
     with tracer.span('queue another task of same type'):
         tasks = (
             models.Task.objects
             .filter(status=models.Task.STATUS_PENDING, func=task.func)
-            .order_by('date_modified')[:4].all()
+            .order_by('date_modified')[:1].all()
         )
         if tasks:
-            queue_task(random.choice(tasks))
-            found_next = True
-    # with 20% chance, queue another task of a different type
-    if not found_next or random.random() < 0.2:
-        with tracer.span('queue another task of a different type'):
-            tasks = (
-                models.Task.objects
-                .filter(status=models.Task.STATUS_PENDING)
-                .exclude(func=task.func)
-                .order_by('date_modified')[:4].all()
-            )
-            if tasks:
-                queue_task(random.choice(tasks))
+            queue_task(tasks[0])
+    with tracer.span('queue another task of a different type'):
+        tasks = (
+            models.Task.objects
+            .filter(status=models.Task.STATUS_PENDING)
+            .exclude(func=task.func)
+            .order_by('date_modified')[:1].all()
+        )
+        if tasks:
+            queue_task(tasks[0])
 
 
 @run_once
@@ -984,11 +980,18 @@ def save_stats():
     """Periodic Celery task used to save stats for all collections.
     """
 
+    deadline = time() + settings.SYSTEM_TASK_DEADLINE_SECONDS
+
     if not single_task_running('save_stats'):
         logger.warning('save_stats function already running, exiting')
         return
 
-    for collection in collections.ALL.values():
+    shuffled_col_list = list(collections.ALL.values())
+    random.shuffle(shuffled_col_list)
+
+    for collection in shuffled_col_list:
+        if time() > deadline:
+            break
         with collection.set_current():
             try:
                 save_collection_stats()
@@ -1007,6 +1010,7 @@ def run_dispatcher():
     everything in memory, thus becoming very slow).
     """
 
+    deadline = settings.SYSTEM_TASK_DEADLINE_SECONDS + time()
     import_snoop_tasks()
     if not single_task_running('run_dispatcher'):
         logger.warning('run_dispatcher function already running, exiting')
@@ -1022,10 +1026,12 @@ def run_dispatcher():
             for func in func_list:
                 if func:
                     dispatch_for(collection, func)
+                if time() > deadline:
+                    break
         except Exception as e:
             logger.exception(e)
-
-    sleep(3)
+        if time() > deadline:
+            break
 
 
 @celery.app.task
@@ -1045,11 +1051,15 @@ def update_all_tags():
         return
 
     collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
+    random.shuffle(collection_list)
 
+    deadline = time() + settings.SYSTEM_TASK_DEADLINE_SECONDS
     for collection in collection_list:
         with collection.set_current():
             logger.info('collection "%r": updating tags', collection)
             digests.update_all_tags()
+        if time() > deadline:
+            break
 
 
 @tracer.wrap_function()
@@ -1113,12 +1123,6 @@ def dispatch_for(collection, func):
             logger.info('%r found PENDING tasks, exiting...', collection)
             return True
 
-        # Re-try deferred tasks if we don't have anything in pending. This is to avoid a deadlock.
-        # Try the oldest tasks first, since they are the most probable to have complete deps.
-        if dispatch_tasks(func, status=models.Task.STATUS_DEFERRED, newest_first=False):
-            logger.info('%r found DEFERRED tasks, exiting...', collection)
-            return True
-
         if func.startswith('filesystem'):
             count_before = models.Task.objects.count()
             dispatch_walk_tasks()
@@ -1128,6 +1132,12 @@ def dispatch_for(collection, func):
                 logger.info('%r initial dispatch added new tasks, exiting...', collection)
                 return True
 
+        # Re-try deferred tasks if we don't have anything in pending. This is to avoid a deadlock.
+        # Try the oldest tasks first, since they are the most probable to have complete deps.
+        if dispatch_tasks(func, status=models.Task.STATUS_DEFERRED, newest_first=False):
+            logger.info('%r found DEFERRED tasks, exiting...', collection)
+            return True
+
         # retry outdated tasks
         if dispatch_tasks(func, outdated=True):
             logger.info('%r found outdated tasks, exiting...', collection)
@@ -1136,6 +1146,7 @@ def dispatch_for(collection, func):
         if collection.sync and func in ['filesystem.walk', 'ocr.walk_source']:
             logger.info("sync: retrying all walk tasks")
             # retry up oldest non-pending walk tasks that are older than 3 min
+
             retry_tasks(
                 models.Task.objects
                 .filter(func=func)
@@ -1378,13 +1389,13 @@ def _run_bulk_tasks_for_collection():
     # Stop processing each collection after this many batches or seconds
     BATCHES_IN_A_ROW = 100
     MAX_FAILED_BATCHES = 10
-    SECONDS_IN_A_ROW = 300
+    SECONDS_IN_A_ROW = settings.SYSTEM_TASK_DEADLINE_SECONDS / 2
 
     import_snoop_tasks()
 
     t0 = timezone.now()
     failed_count = 0
-    for i in range(int(BATCHES_IN_A_ROW / 2)):
+    for i in range(int(BATCHES_IN_A_ROW / 3)):
         try:
             with transaction.atomic():
                 count = run_single_batch_for_bulk_task(reverse=False, exclude_deferred=True)
@@ -1426,6 +1437,7 @@ def run_bulk_tasks():
 
     all_collections = list(collections.ALL.values())
     random.shuffle(all_collections)
+    deadline = settings.SYSTEM_TASK_DEADLINE_SECONDS + time()
     for collection in all_collections:
         # if no tasks to do, continue
         with collection.set_current():
@@ -1450,3 +1462,5 @@ def run_bulk_tasks():
                 # restore default
                 logger.info('Enable index refresh for collection %s', collection.name)
                 indexing.update_refresh_interval()
+        if time() > deadline:
+            break

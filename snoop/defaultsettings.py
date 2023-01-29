@@ -280,25 +280,28 @@ WORKER_TASK_LIMIT = 200
 """Max tasks count to be finished by 1 worker process before restarting it.
 """
 
+WORKER_PREFETCH = 100
+"""Celery-rabbitmq prefetch count.
+"""
 
 CHILD_QUEUE_LIMIT = 50
 """ Limit for queueing large counts of children tasks.
 """
 
-DISPATCH_QUEUE_LIMIT = 300
+DISPATCH_QUEUE_LIMIT = 400
 """ Count of pending tasks to trigger per collection when finding an empty queue.
 
 A single worker core running zero-length tasks gets at most around 40
 tasks/s, so to keep them all occupied for 5min: 12000
 """
 
-DISPATCH_MIN_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT / 2)
-"""If the task count on the queue is less than this value (50%),
+DISPATCH_MIN_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 0.7)
+"""If the task count on the queue is less than this value (70%),
 and if we would queue at least another DISPATCH_QUEUE_LIMIT, then
 dispatch more tasks. This is used to reduce waiting between batches.
 """
 
-DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 2)
+DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 3)
 """Don't queue anything on a queue if its length is greater than this value."""
 
 SYNC_RETRY_LIMIT_DIRS = 100
@@ -389,10 +392,11 @@ if _tracing_url:
     TRACING_PORT = int(trm.group('port'))
     TRACING_API = '/api/v2/spans'
 
+SYSTEM_TASK_DEADLINE_SECONDS = 29
 celery.app.conf.beat_schedule = {
     'run_dispatcher': {
         'task': 'snoop.data.tasks.run_dispatcher',
-        'schedule': timedelta(seconds=54),
+        'schedule': timedelta(seconds=59),
     },
     'save_stats': {
         'task': 'snoop.data.tasks.save_stats',
@@ -400,11 +404,11 @@ celery.app.conf.beat_schedule = {
     },
     'update_all_tags': {
         'task': 'snoop.data.tasks.update_all_tags',
-        'schedule': timedelta(seconds=35),
+        'schedule': timedelta(seconds=61),
     },
     'run_bulk_tasks': {
         'task': 'snoop.data.tasks.run_bulk_tasks',
-        'schedule': timedelta(seconds=66),
+        'schedule': timedelta(seconds=63),
     },
 }
 
