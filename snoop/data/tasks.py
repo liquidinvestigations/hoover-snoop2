@@ -291,7 +291,6 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         "collection %s: task %r already running (1st check), locked in db: %s",
                         col_name, task_pk, e,
                     )
-                    tracer.counter_attributes['function'] = task.func
                     tracer.counter_attributes['collection'] = col.name
                     tracer.count('task_already_running')
                     return
@@ -300,7 +299,6 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         "collection %s: task pk=%s DOES NOT EXIST IN DB",
                         col_name, task_pk
                     )
-                    tracer.counter_attributes['function'] = task.func
                     tracer.counter_attributes['collection'] = col.name
                     tracer.count('task_not_found')
                     return
