@@ -288,7 +288,7 @@ CHILD_QUEUE_LIMIT = 50
 """ Limit for queueing large counts of children tasks.
 """
 
-DISPATCH_QUEUE_LIMIT = 2000
+DISPATCH_QUEUE_LIMIT = 1000
 """ Count of pending tasks to trigger per collection when finding an empty queue.
 
 A single worker core running zero-length tasks gets at most around 40
@@ -301,7 +301,7 @@ and if we would queue at least another DISPATCH_QUEUE_LIMIT, then
 dispatch more tasks. This is used to reduce waiting between batches.
 """
 
-DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 3)
+DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 13)
 """Don't queue anything on a queue if its length is greater than this value."""
 
 SYNC_RETRY_LIMIT_DIRS = 100
