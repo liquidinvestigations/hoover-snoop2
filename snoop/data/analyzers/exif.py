@@ -72,6 +72,9 @@ def extract(blob):
         except (AttributeError, IndexError) as e:
             raise SnoopTaskBroken("ExifRead failed: " + str(e),
                                   "exifread_failed_attribute_index_error")
+        except Exception as e:
+            raise SnoopTaskBroken("ExifRead failed: " + str(e),
+                                  "exifread_failed_unknown_error")
 
     if not tags:
         return {}

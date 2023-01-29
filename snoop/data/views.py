@@ -31,6 +31,8 @@ def collection_view(func):
             raise Http404(f"Collection {collection} does not exist")
 
         with col.set_current():
+            tracer.counter_attributes['collection'] = col.name
+            tracer.count('api_collection_view')
             return func(request, *args, **kwargs)
 
     return view
@@ -54,6 +56,8 @@ def drf_collection_view(func):
             raise Http404("Collection does not exist")
 
         with col.set_current():
+            tracer.counter_attributes['collection'] = col.name
+            tracer.count('api_collection_view')
             return func(self, *args, **kwargs)
 
     return view

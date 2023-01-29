@@ -21,6 +21,7 @@ class Command(BaseCommand):
         """Only argument is the collection.
         """
         parser.add_argument('collection', type=str)
+        parser.add_argument('--force', action='store_true', help="Run task in foreground mode.")
 
     def handle(self, collection, **options):
         """Runs [snoop.data.admin.get_stats][] and prints result.
@@ -29,7 +30,7 @@ class Command(BaseCommand):
         logging_for_management_command(options['verbosity'])
         col = collections.ALL[collection]
         with col.set_current():
-            stats = get_stats()
+            stats = get_stats(options['force'])
             if not stats:
                 log.warning('no tasks found')
 

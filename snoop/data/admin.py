@@ -218,7 +218,16 @@ def get_task_matrix(task_queryset, prev_matrix={}):
             speed = (speed_success + recent_speed) / 2
         else:
             speed = speed_success
-        if speed and row.get('success_avg_duration'):
+
+        # best estimation is old eta
+        if prev_matrix_row.get('eta', 0) > 1:
+            row['eta'] = prev_matrix_row['eta']
+
+        MIN_AVG_WORKERS = 0.05
+        if row.get(AVG_WORKERS_KEY, 0) <= MIN_AVG_WORKERS:
+            row[AVG_WORKERS_KEY] = 0
+
+        if speed and row.get('success_avg_duration') and row.get(AVG_WORKERS_KEY, 0) >= MIN_AVG_WORKERS:
             remaining_time = row['remaining_size'] / speed
             eta = remaining_time + row.get('pending', 0) * TIME_OVERHEAD
             # average with simple ETA (count * duration)
@@ -379,7 +388,7 @@ def _get_stats(old_values):
     }
 
 
-def get_stats():
+def get_stats(force_reset=False):
     """This function runs (and caches) expensive collection statistics."""
 
     col_name_hash = int(hash(collections.current().name))
@@ -400,7 +409,7 @@ def get_stats():
 
     # ensure we don't fill up the worker with a single collection
     REFRESH_AFTER_SEC += duration * 2
-    if not old_value or time.time() - old_value.get('_last_updated', 0) > REFRESH_AFTER_SEC:
+    if force_reset or not old_value or time.time() - old_value.get('_last_updated', 0) > REFRESH_AFTER_SEC:
         s.value = _get_stats(old_value)
     else:
         log.info('skipping stats for collection %s, need to pass %s sec since last one',

@@ -255,6 +255,8 @@ def get_table_info(table_path, mime_type, mime_encoding):
         'pyexcel-filetype': pyexcel_filetype,
     }
 
+    f1 = None
+    f2 = None
     try:
         if pyexcel_filetype in TEXT_FILETYPES:
             f1 = open(table_path, 'rt', encoding=mime_encoding)
@@ -328,8 +330,10 @@ def get_table_info(table_path, mime_type, mime_encoding):
             rv['sheet-row-count'][sheet.name] = row_count
             rv['sheet-col-count'][sheet.name] = col_count
     finally:
-        f1.close()
-        f2.close()
+        if f1:
+            f1.close()
+        if f2:
+            f2.close()
         pyexcel.free_resources()
 
     return rv

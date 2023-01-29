@@ -618,6 +618,9 @@ class Task(models.Model):
 
     Used to detect when Python process was unexpectedly Killed, e.g. from OOM."""
 
+    STATUS_QUEUED = 'queued'
+    """Used for tasks that have been put on the queue."""
+
     STATUS_DEFERRED = 'deferred'
     """Waiting on some other task to finish."""
 
@@ -628,7 +631,7 @@ class Task(models.Model):
     in an ERROR state too."""
 
     ALL_STATUS_CODES = [STATUS_PENDING, STATUS_BROKEN,
-                        STATUS_DEFERRED, STATUS_ERROR, STATUS_SUCCESS, STATUS_STARTED]
+                        STATUS_DEFERRED, STATUS_ERROR, STATUS_SUCCESS, STATUS_STARTED, STATUS_QUEUED]
     """List of all valid status codes.
 
     TODO:
@@ -759,18 +762,18 @@ class Task(models.Model):
 
     __repr__ = __str__
 
-    def update(self, status, error, broken_reason, log, version):
+    def update(self, status=None, error=None, broken_reason=None, log=None, version=None):
         """Helper method to update multiple fields at once, without saving.
 
         This method also truncates our Text fields to decent limits, so it's
         preferred to use this instead of the fields directly.
 
         Args:
-            status: field to set
-            error: field to set
-            broken_reason: field to set
-            log: field to set
-            version: field to set
+            status: field to set, if not None
+            error: field to set, if not None
+            broken_reason: field to set, if not None
+            log: field to set, if not None
+            version: field to set, if not None
         """
         def _escape(s):
             """Escapes non-printable characters as \\XXX.
@@ -790,12 +793,18 @@ class Task(models.Model):
             return "".join(map(_translate, s))
 
         old_version = self.version
-        self.status = status
-        self.version = version
+        if version is not None:
+            self.version = version
 
-        self.error = _escape(error)[:2**13]  # 8k of error screen
-        self.broken_reason = _escape(broken_reason)[:2**12]  # 4k reason
-        self.log = _escape(log)[:2**14]  # 16k of log space
+        if status is not None:
+            self.status = status
+
+        if error is not None:
+            self.error = _escape(error)[:2**13]  # 8k of error screen
+        if broken_reason is not None:
+            self.broken_reason = _escape(broken_reason)[:2**12]  # 4k reason
+        if log is not None:
+            self.log = _escape(log)[:2**14]  # 16k of log space
 
         # Increment fail_count only if we ran the same version and still got a bad status code.
         # Reset the fail count only when status is success, or if the version changed.

@@ -285,21 +285,20 @@ CHILD_QUEUE_LIMIT = 50
 """ Limit for queueing large counts of children tasks.
 """
 
-DISPATCH_QUEUE_LIMIT = 10000
+DISPATCH_QUEUE_LIMIT = 300
 """ Count of pending tasks to trigger per collection when finding an empty queue.
 
 A single worker core running zero-length tasks gets at most around 40
 tasks/s, so to keep them all occupied for 5min: 12000
 """
 
-DISPATCH_MIN_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT / 5)
-"""If the task count on the queue is less than this value (20%),
+DISPATCH_MIN_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT / 2)
+"""If the task count on the queue is less than this value (50%),
 and if we would queue at least another DISPATCH_QUEUE_LIMIT, then
 dispatch more tasks. This is used to reduce waiting between batches.
 """
 
-
-DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 3)
+DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 2)
 """Don't queue anything on a queue if its length is greater than this value."""
 
 SYNC_RETRY_LIMIT_DIRS = 100
@@ -307,7 +306,7 @@ SYNC_RETRY_LIMIT_DIRS = 100
 will be retried by sync every minute.
 """
 
-RETRY_LIMIT_TASKS = 8000
+RETRY_LIMIT_TASKS = 5000
 """Number BROKEN/ERROR tasks to retry every minute, while their fail count has not reached the limit.
 
 See `TASK_RETRY_FAIL_LIMIT`."""

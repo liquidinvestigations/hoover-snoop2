@@ -123,6 +123,9 @@ class Collection:
             lst.append('thumbnails')
         if not self.pdf_preview_enabled:
             lst.append('pdf-preview')
+        lst.append('filesystem')
+        lst.append('ocr')
+        lst.append('digests')
 
         return lst
 

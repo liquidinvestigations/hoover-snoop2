@@ -38,6 +38,7 @@ def celery_argv(queues, solo, count, mem_limit_mb):
         '-Ofair',
         '--without-gossip', '--without-mingle',
         '--max-tasks-per-child', str(settings.WORKER_TASK_LIMIT),
+        # '--max-tasks-per-child', str(1),
         '--max-memory-per-child', str(mem_limit_mb * 1024),
         '--prefetch-multiplier', str(1),
         '--soft-time-limit', '190000',  # 52h
@@ -51,6 +52,20 @@ def celery_argv(queues, solo, count, mem_limit_mb):
         argv += ['-c', str(count)]
 
     return argv
+
+
+def rmq_queues_for(collection, queue):
+    """Return the rabbitmq complete queue names, given
+    the queue category (the queue argument of @snoop_task).
+    """
+    lst = [
+        tasks.rmq_queue_name(func, collection=collection)
+        for func in tasks.task_map
+        if tasks.task_map[func].queue == queue
+    ]
+    if not lst:
+        raise RuntimeError('no tasks in queue category! collection=%s queue=%s' % (collection, queue))
+    return lst
 
 
 class Command(BaseCommand):
@@ -77,11 +92,16 @@ class Command(BaseCommand):
         tasks.import_snoop_tasks()
         all_collections = [c for c in ALL.values() if c.process]
 
+        all_queues = []
         if options['queue'] == 'system':
             all_queues = settings.SYSTEM_QUEUES
         elif options['queue']:
-            all_queues = [c.queue_name + '.' + options['queue'] for c in all_collections
-                          if c.process]
+            all_queues = sum(
+                [
+                    rmq_queues_for(c, options['queue']) for c in all_collections if c.process
+                ],
+                start=[],
+            )
         else:
             raise RuntimeError('no queue given')
 
@@ -89,7 +109,8 @@ class Command(BaseCommand):
             for c in all_collections:
                 if c.process:
                     for q in c.get_default_queues():
-                        all_queues.append(c.queue_name + '.' + q)
+                        all_queues.extend(rmq_queues_for(c, q))
+        all_queues = list(set(all_queues))
 
         argv = celery_argv(queues=all_queues, solo=options.get('solo'),
                            count=options['count'], mem_limit_mb=options['mem'])

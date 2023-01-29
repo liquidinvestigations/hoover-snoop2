@@ -92,6 +92,15 @@ class ExtraDependency(Exception):
         self.name = name
 
 
+def rmq_queue_name(func, collection=None):
+    """Get rabbitmq name from function, collection.
+    Collection is inferred by default.
+    """
+    if collection is None:
+        collection = collections.current()
+    return collection.queue_name + '.' + task_map[func].queue + '.' + func
+
+
 @tracer.wrap_function()
 def queue_task(task):
     """Queue given Task with Celery to run on a worker.
@@ -110,22 +119,24 @@ def queue_task(task):
         running it if wrapping transaction fails.
         """
         col = collections.from_object(task)
-        try:
-            logger.info(f'queueing task {task.func}(pk {task.pk})')
-            laterz_snoop_task.apply_async(
-                (col.name, task.pk,),
-                queue=col.queue_name + '.' + task_map[task.func].queue,
-                retry=False,
-            )
-        except laterz_snoop_task.OperationalError as e:
-            logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
+        with col.set_current():
+            try:
+                logger.info(f'queueing task {task.func}(pk {task.pk})')
+                laterz_snoop_task.apply_async(
+                    (col.name, task.pk,),
+                    queue=rmq_queue_name(task.func),
+                    retry=False,
+                )
+                task.update(status=models.Task.STATUS_QUEUED)
+                task.save()
+            except laterz_snoop_task.OperationalError as e:
+                logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
 
     import_snoop_tasks()
     if task_map[task.func].bulk:
         return
 
-    queue_name = collections.current().queue_name + '.' + task_map[task.func].queue
-    queue_length = get_rabbitmq_queue_length(queue_name)
+    queue_length = get_rabbitmq_queue_length(rmq_queue_name(task.func))
     if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE or _is_rabbitmq_memory_full():
         return
 
@@ -135,6 +146,8 @@ def queue_task(task):
 @tracer.wrap_function()
 def queue_next_tasks(task, reset=False):
     """Queues all Tasks that directly depend on this one.
+
+    Also queues a pending task of the same type.
 
     Args:
         task: will queue running all Tasks in `task.next_set`
@@ -158,6 +171,28 @@ def queue_next_tasks(task, reset=False):
 
         logger.debug("Queueing %r after %r", next_task, task)
         queue_task(next_task)
+
+    found_next = False
+    with tracer.span('queue another task of same type'):
+        tasks = (
+            models.Task.objects
+            .filter(status=models.Task.STATUS_PENDING, func=task.func)
+            .order_by('date_modified')[:4].all()
+        )
+        if tasks:
+            queue_task(random.choice(tasks))
+            found_next = True
+    # with 20% chance, queue another task of a different type
+    if not found_next or random.random() < 0.2:
+        with tracer.span('queue another task of a different type'):
+            tasks = (
+                models.Task.objects
+                .filter(status=models.Task.STATUS_PENDING)
+                .exclude(func=task.func)
+                .order_by('date_modified')[:4].all()
+            )
+            if tasks:
+                queue_task(random.choice(tasks))
 
 
 @run_once
@@ -256,12 +291,18 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         "collection %s: task %r already running (1st check), locked in db: %s",
                         col_name, task_pk, e,
                     )
+                    tracer.counter_attributes['function'] = task.func
+                    tracer.counter_attributes['collection'] = col.name
+                    tracer.count('task_already_running')
                     return
                 except models.Task.DoesNotExist:
                     logger.error(
                         "collection %s: task pk=%s DOES NOT EXIST IN DB",
                         col_name, task_pk
                     )
+                    tracer.counter_attributes['function'] = task.func
+                    tracer.counter_attributes['collection'] = col.name
+                    tracer.count('task_not_found')
                     return
                 task.status = models.Task.STATUS_STARTED
                 task.date_started = timezone.now()
@@ -312,12 +353,16 @@ def run_task(task, log_handler, raise_exceptions=False):
         raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
     """
     with tracer.span('run_task') as span1:
-        span1.set_attribute('func', task.func)
+        span1.set_attribute('function', task.func)
+        span1.set_attribute('collection', collections.current().name)
+        tracer.counter_attributes['function'] = task.func
+        tracer.counter_attributes['collection'] = collections.current().name
+        tracer.count("task_started")
 
-        with tracer.span('check if task already completed') as span:
+        with tracer.span('check if task already completed'):
             if is_completed(task):
                 logger.debug("%r already completed", task)
-                span.add_event('already completed')
+                tracer.count('task_already_completed')
                 queue_next_tasks(task)
                 return
 
@@ -326,7 +371,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 assert args[0] == task.blob_arg.pk
                 args = [task.blob_arg] + args[1:]
 
-        with tracer.span('check dependencies') as span:
+        with tracer.span('check dependencies'):
             depends_on = {}
 
             all_prev_deps = list(task.prev_set.all())
@@ -355,7 +400,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     )
                     task.save()
                     logger.info("%r missing dependency %r", task, prev_task)
-                    span.add_event("%r missing dependency %r" % (task, prev_task))
+                    tracer.count("task_missing_dependency")
                     queue_task(prev_task)
                     return
 
@@ -399,7 +444,8 @@ def run_task(task, log_handler, raise_exceptions=False):
                         task.result = result
 
             except MissingDependency as dep:
-                with tracer.span('handle missing dependency') as span:
+                with tracer.span('handle missing dependency'):
+                    tracer.count("task_missing_dependency")
                     msg = 'requests extra dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.info(msg)
 
@@ -418,6 +464,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
             except ExtraDependency as dep:
                 with tracer.span('handle extra dependency'):
+                    tracer.count("task_extra_dependency")
                     msg = 'requests to remove dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.info(msg)
 
@@ -435,6 +482,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
             except SnoopTaskBroken as e:
                 with tracer.span('handle task broken'):
+                    tracer.count("task_broken")
                     task.update(
                         status=models.Task.STATUS_BROKEN,
                         error="{}: {}".format(e.reason, e.args[0]),
@@ -447,6 +495,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
             except ConnectionError as e:
                 with tracer.span('handle connection error, save as pending'):
+                    tracer.count("task_connection_error")
                     logger.exception(e)
                     task.update(
                         status=models.Task.STATUS_PENDING,
@@ -458,6 +507,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
             except Exception as e:
                 with tracer.span('handle unknown error, save as error'):
+                    tracer.count("task_unknown_error")
                     if isinstance(e, SnoopTaskError):
                         error = "{} ({})".format(e.args[0], e.details)
                     else:
@@ -478,6 +528,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                         raise
             else:
                 with tracer.span('save success'):
+                    tracer.count("task_success")
                     logger.debug("Succeeded: %r [%.03f s]", task, time() - t0)
                     task.update(
                         status=models.Task.STATUS_SUCCESS,
@@ -597,6 +648,7 @@ def snoop_task(name, version=0, bulk=False, queue='default'):
         func.version = version
         func.bulk = bulk
         func.queue = queue
+        func.func = name
         task_map[name] = func
         return func
 
@@ -623,20 +675,18 @@ def _get_task_funcs_for_queue(queue):
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
 @tracer.wrap_function()
-def _count_remaining_db_tasks_for_queue_and_status(queue, status):
+def _count_remaining_db_tasks_for_queue_and_status(func, status, collection):
     """Helper function to count all the tasks in the database for a queue, status combo.
 
     Function excludes bulk tasks from listing.
 
-    Value is cached 20s to avoid database load."""
-    all_funcs = _get_task_funcs_for_queue(queue)
-    task_query = models.Task.objects.filter(func__in=all_funcs)
-    task_query = task_query.filter(status=status)
-    return task_query.count()
+    Value is cached 20s to avoid database load.
+    Collection argument is needed to separate caches."""
+    return models.Task.objects.filter(func=func, status=status).count()
 
 
 @tracer.wrap_function()
-def _count_remaining_db_tasks_for_queue(queue):
+def _count_remaining_db_tasks_for_queue(func):
     """Helper function to count all the tasks in the database for a queue, status combo.
 
     Function excludes bulk tasks from listing.
@@ -648,12 +698,13 @@ def _count_remaining_db_tasks_for_queue(queue):
     ]
     count = 0
     for s in status_list:
-        count += _count_remaining_db_tasks_for_queue_and_status(queue, s)
+        count += _count_remaining_db_tasks_for_queue_and_status(
+            func, s, collections.current().name)
     return count
 
 
 @tracer.wrap_function()
-def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
+def dispatch_tasks(func, status=None, outdated=None, newest_first=True):
     """Dispatches (queues) a limited number of Task instances of each type.
 
     Requires a collection to be selected. Does not dispatch tasks registered with `bulk = True`.
@@ -669,45 +720,41 @@ def dispatch_tasks(queue, status=None, outdated=None, newest_first=True):
         collection.
     """
 
-    all_functions = list(_get_task_funcs_for_queue(queue))
-    random.shuffle(all_functions)
-
     found_something = False
-    for func in all_functions:
-        task_query = models.Task.objects.filter(func=func)
-        if status:
-            task_query = task_query.filter(status=status)
-            item_str = status
-        if outdated:
-            task_query = task_query.exclude(version=task_map[func].version)
-            item_str = f'OUTDATED (exclude version {task_map[func].version})'
+    task_query = models.Task.objects.filter(func=func)
+    if status:
+        task_query = task_query.filter(status=status)
+        item_str = status
+    if outdated:
+        task_query = task_query.exclude(version=task_map[func].version)
+        item_str = f'OUTDATED (exclude version {task_map[func].version})'
 
-        if newest_first:
-            task_query = task_query.order_by('-date_modified')
-        else:
-            task_query = task_query.order_by('date_modified')
+    if newest_first:
+        task_query = task_query.order_by('-date_modified')
+    else:
+        task_query = task_query.order_by('date_modified')
 
-        # if outdated, use retry_tasks to mark everything as pending
-        # from the start (to get actual ETA, not 99.99%)
-        if outdated:
-            found_something = task_query.exists()
-            if found_something:
-                logger.info(f'collection "{collections.current().name}": Dispatching {item_str} {func} tasks')  # noqa: E501
-                retry_tasks(task_query, reset_fail_count=True)
-
+    # if outdated, use retry_tasks to mark everything as pending
+    # from the start (to get actual ETA, not 99.99%)
+    if outdated:
+        found_something = task_query.exists()
         if found_something:
-            continue
+            logger.info(f'collection "{collections.current().name}": Dispatching {item_str} {func} tasks')  # noqa: E501
+            retry_tasks(task_query, reset_fail_count=True)
 
-        task_query = task_query[:settings.DISPATCH_QUEUE_LIMIT]
+    if found_something:
+        return found_something
 
-        task_count = task_query.count()
-        if not task_count:
-            continue
-        logger.info(f'collection "{collections.current().name}": Dispatching {task_count} {item_str} {func} tasks')  # noqa: E501
+    task_query = task_query[:settings.DISPATCH_QUEUE_LIMIT]
 
-        for task in task_query.iterator():
-            queue_task(task)
-        found_something = True
+    task_count = task_query.count()
+    if not task_count:
+        return found_something
+    logger.info(f'collection "{collections.current().name}": Dispatching {task_count} {item_str} {func} tasks')  # noqa: E501
+
+    for task in task_query.iterator():
+        queue_task(task)
+    found_something = True
     return found_something
 
 
@@ -890,12 +937,9 @@ def _is_rabbitmq_memory_full():
         return True
 
 
-@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
 @tracer.wrap_function()
-def get_rabbitmq_queue_length(q):
+def get_rabbitmq_queue_length_no_cache(q):
     """Fetch queue length from RabbitMQ for a given queue.
-
-    Value is cached; may be at most 20s old.
 
     Used periodically to decide if we want to queue more functions or not.
 
@@ -917,7 +961,15 @@ def get_rabbitmq_queue_length(q):
         return 0
 
 
-@tracer.wrap_function()
+@cachetools.cached(cache=cachetools.TTLCache(maxsize=500, ttl=20))
+def get_rabbitmq_queue_length(q):
+    """Fetch queue length from RabbitMQ for a given queue.
+
+    Value is cached; may be at most 20s old.
+    """
+    return get_rabbitmq_queue_length_no_cache(q)
+
+
 def single_task_running(key):
     """Queries both Celery and RabbitMQ to find out if the queue is completely idle.
 
@@ -925,33 +977,7 @@ def single_task_running(key):
     the queue will exit to make way for the ones that are later in the queue, to make sure the queue will
     never grow unbounded in size if the Task takes more time to run than its execution interval.
     """
-
-    def count_tasks(method, routing_key):
-        count = 0
-        inspector = celery.app.control.inspect()
-        task_list_map = getattr(inspector, method)()
-        if task_list_map is None:
-            logger.warning('no workers present!')
-            return 0
-
-        for tasks in task_list_map.values():
-            for task in tasks:
-                task_key = task['delivery_info']['routing_key']
-                if task_key != routing_key:
-                    continue
-
-                count += 1
-                logger.info(f'counting {method} task: {str(task)}')
-
-        return count
-
-    logger.info('querying rabbitmq for key %s', key)
-    if get_rabbitmq_queue_length(key) > 0:
-        return False
-
-    return 1 >= count_tasks('active', routing_key=key) and \
-        0 == count_tasks('scheduled', routing_key=key) and \
-        0 == count_tasks('reserved', routing_key=key)
+    return get_rabbitmq_queue_length_no_cache(key) <= 1
 
 
 @celery.app.task
@@ -972,11 +998,6 @@ def save_stats():
                 logger.exception(e)
                 continue
 
-    # Kill a little bit of time, in case there are a lot of older
-    # messages queued up, they have time to fail in the above
-    # check.
-    sleep(3)
-
 
 @celery.app.task
 @tracer.wrap_function()
@@ -994,15 +1015,15 @@ def run_dispatcher():
         return
 
     collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
-    queue_list = list(set(f.queue for f in task_map.values() if f.queue))
+    func_list = list(set(f.func for f in task_map.values() if f.queue))
     random.shuffle(collection_list)
-    random.shuffle(queue_list)
+    random.shuffle(func_list)
     for collection in collection_list:
         logger.info(f'{"=" * 10} collection "{collection.name}" {"=" * 10}')
         try:
-            for q in queue_list:
-                if q:
-                    dispatch_for(collection, q)
+            for func in func_list:
+                if func:
+                    dispatch_for(collection, func)
         except Exception as e:
             logger.exception(e)
 
@@ -1034,7 +1055,7 @@ def update_all_tags():
 
 
 @tracer.wrap_function()
-def dispatch_for(collection, queue):
+def dispatch_for(collection, func):
     """Queue the next batches of Tasks for a given collection.
 
     This is used to periodically look for new Tasks that must be executed. This queues: "pending" and
@@ -1053,8 +1074,19 @@ def dispatch_for(collection, queue):
 
     with collection.set_current():
         # count tasks in Rabbit and on DB and check if we want to queue more
-        queue_len = get_rabbitmq_queue_length(collection.queue_name + '.' + queue)
-        db_tasks_remaining = _count_remaining_db_tasks_for_queue(queue)
+        queue_len = get_rabbitmq_queue_length_no_cache(rmq_queue_name(func))
+        if queue_len == 0:
+            # check if we have any queued tasks in the DB. if we do, they all need to be re-queued...
+            db_invalid_queued_tasks = models.Task.objects.filter(func=func, status=models.Task.STATUS_QUEUED)
+            if db_invalid_queued_tasks.exists():
+                logger.error(
+                    "collection %s func %s: db has %s queued records, but rabbit has %s! resetting db...",
+                    collection.name, func,
+                    db_invalid_queued_tasks.count(),
+                    queue_len,
+                )
+                db_invalid_queued_tasks.update(status=models.Task.STATUS_PENDING)
+        db_tasks_remaining = _count_remaining_db_tasks_for_queue(func)
         if queue_len > 0:
             skip = False
             if queue_len >= settings.DISPATCH_MIN_QUEUE_SIZE or _is_rabbitmq_memory_full():
@@ -1064,31 +1096,32 @@ def dispatch_for(collection, queue):
                 if db_tasks_remaining <= settings.DISPATCH_QUEUE_LIMIT:
                     skip = True
             if skip:
-                logger.info(f'dispatch: skipping {collection}, has {queue_len} queued tasks on q = {queue}')
+                logger.info(f'dispatch: skipping {collection}, has {queue_len} queued tasks on f = {func}')
                 return
 
-        funcs_in_queue = [func for func in task_map if task_map[func].queue == queue]
-
-    logger.info('Dispatching for %r, queue = %s', collection, queue)
+    logger.info('Dispatching for %r, func = %s', collection, func)
     from .ocr import dispatch_ocr_tasks
 
     with collection.set_current():
-        if dispatch_tasks(queue, status=models.Task.STATUS_PENDING):
+        if dispatch_tasks(func, status=models.Task.STATUS_PENDING):
             # if we have enough tasks to not double queue,
             # queue the other end of the database too
-            count_pending = _count_remaining_db_tasks_for_queue_and_status(queue, models.Task.STATUS_PENDING)
+            count_pending = _count_remaining_db_tasks_for_queue_and_status(
+                func, models.Task.STATUS_PENDING,
+                collections.current().name,
+            )
             if count_pending > 3 * settings.DISPATCH_QUEUE_LIMIT:
-                dispatch_tasks(queue, status=models.Task.STATUS_PENDING, newest_first=False)
+                dispatch_tasks(func, status=models.Task.STATUS_PENDING, newest_first=False)
             logger.info('%r found PENDING tasks, exiting...', collection)
             return True
 
         # Re-try deferred tasks if we don't have anything in pending. This is to avoid a deadlock.
         # Try the oldest tasks first, since they are the most probable to have complete deps.
-        if dispatch_tasks(queue, status=models.Task.STATUS_DEFERRED, newest_first=False):
+        if dispatch_tasks(func, status=models.Task.STATUS_DEFERRED, newest_first=False):
             logger.info('%r found DEFERRED tasks, exiting...', collection)
             return True
 
-        if queue == 'filesystem':
+        if func.startswith('filesystem'):
             count_before = models.Task.objects.count()
             dispatch_walk_tasks()
             dispatch_ocr_tasks()
@@ -1098,16 +1131,16 @@ def dispatch_for(collection, queue):
                 return True
 
         # retry outdated tasks
-        if dispatch_tasks(queue, outdated=True):
+        if dispatch_tasks(func, outdated=True):
             logger.info('%r found outdated tasks, exiting...', collection)
             return True
 
-        if collection.sync and queue == 'filesystem':
+        if collection.sync and func in ['filesystem.walk', 'ocr.walk_source']:
             logger.info("sync: retrying all walk tasks")
             # retry up oldest non-pending walk tasks that are older than 3 min
             retry_tasks(
                 models.Task.objects
-                .filter(func__in=['filesystem.walk', 'ocr.walk_source'])
+                .filter(func=func)
                 .filter(date_modified__lt=timezone.now() - timedelta(minutes=3))
                 .exclude(status=models.Task.STATUS_PENDING)
                 .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT_DIRS],
@@ -1117,7 +1150,7 @@ def dispatch_for(collection, queue):
         # mark dead STARTED tasks as error (hangs / memory leaks / kills)
         old_started_qs = (
             models.Task.objects
-            .filter(func__in=funcs_in_queue)
+            .filter(func=func)
             .filter(status__in=[models.Task.STATUS_STARTED])
             .filter(date_modified__lt=timezone.now() - timedelta(minutes=settings.TASK_RETRY_AFTER_MINUTES))
             .order_by('date_modified')[:settings.RETRY_LIMIT_TASKS]
@@ -1141,7 +1174,7 @@ def dispatch_for(collection, queue):
         ]:
             old_error_qs = (
                 models.Task.objects
-                .filter(func__in=funcs_in_queue)
+                .filter(func=func)
                 .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
                 .filter(fail_count__lt=retry_limit)
                 .filter(date_modified__lt=timezone.now() - timedelta(minutes=age_minutes))
