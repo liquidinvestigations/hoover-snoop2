@@ -259,6 +259,9 @@ TODO:
     remove this value, as the API is not used anymore.
 """
 
+SNOOP_TOTAL_WORKER_COUNT = min(60, int(os.environ.get('SNOOP_TOTAL_WORKER_COUNT', '4')))
+"""Rough total number of executors to be run on the system."""
+
 
 TASK_PREFIX = os.environ.get('SNOOP_TASK_PREFIX', '')
 """Prefix to add to all snoop task queues.
@@ -293,7 +296,7 @@ CHILD_QUEUE_LIMIT = 50
 """ Limit for queueing large counts of children tasks.
 """
 
-DISPATCH_QUEUE_LIMIT = 1000
+DISPATCH_QUEUE_LIMIT = min(1000 + 200 * SNOOP_TOTAL_WORKER_COUNT, 10000)
 """ Count of pending tasks to trigger per collection when finding an empty queue.
 
 A single worker core running zero-length tasks gets at most around 40
@@ -306,7 +309,7 @@ and if we would queue at least another DISPATCH_QUEUE_LIMIT, then
 dispatch more tasks. This is used to reduce waiting between batches.
 """
 
-DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 13)
+DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 10)
 """Don't queue anything on a queue if its length is greater than this value."""
 
 SYNC_RETRY_LIMIT_DIRS = 100
@@ -314,7 +317,7 @@ SYNC_RETRY_LIMIT_DIRS = 100
 will be retried by sync every minute.
 """
 
-RETRY_LIMIT_TASKS = 5000
+RETRY_LIMIT_TASKS = 1000 + DISPATCH_QUEUE_LIMIT
 """Number BROKEN/ERROR tasks to retry every minute, while their fail count has not reached the limit.
 
 See `TASK_RETRY_FAIL_LIMIT`."""
