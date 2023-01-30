@@ -172,6 +172,9 @@ def queue_next_tasks(task, reset=False):
         logger.debug("Queueing %r after %r", next_task, task)
         queue_task(next_task)
 
+    if settings.SNOOP_TASK_DISABLE_TAIL_QUEUE:
+        return
+
     with tracer.span('queue another task of same type'):
         tasks = (
             models.Task.objects
@@ -353,17 +356,27 @@ def run_task(task, log_handler, raise_exceptions=False):
         log_handler: instance of log handler to dump results
         raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
     """
-    with tracer.span('run_task') as span1:
-        span1.set_attribute('function', task.func)
-        span1.set_attribute('collection', collections.current().name)
-        tracer.counter_attributes['function'] = task.func
-        tracer.counter_attributes['collection'] = collections.current().name
-        tracer.count("task_started")
+    _tracer_opt = {
+        'attributes': {
+            'function': task.func,
+            'function_group': task.func.split('.')[0] if '.' in task.func else task.func,
+            'collection': collections.current().name,
+        },
+        'extra_counters': {
+            'size_bytes': {
+                "unit": "b",
+                "value": task.size(),
+            },
+        },
+    }
 
-        with tracer.span('check if task already completed'):
+    with tracer.span('run_task', **_tracer_opt):
+        tracer.count("task_started", **_tracer_opt)
+
+        with tracer.span('check if task already completed', **_tracer_opt):
             if is_completed(task):
                 logger.debug("%r already completed", task)
-                tracer.count('task_already_completed')
+                tracer.count('task_already_completed', **_tracer_opt)
                 queue_next_tasks(task)
                 return
 
@@ -372,7 +385,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 assert args[0] == task.blob_arg.pk
                 args = [task.blob_arg] + args[1:]
 
-        with tracer.span('check dependencies'):
+        with tracer.span('check dependencies', **_tracer_opt):
             depends_on = {}
 
             all_prev_deps = list(task.prev_set.all())
@@ -401,7 +414,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     )
                     task.save()
                     logger.info("%r missing dependency %r", task, prev_task)
-                    tracer.count("task_missing_dependency")
+                    tracer.count("task_missing_dependency", **_tracer_opt)
                     queue_task(prev_task)
                     return
 
@@ -417,18 +430,18 @@ def run_task(task, log_handler, raise_exceptions=False):
 
                 depends_on[dep.name] = prev_result
 
-        with tracer.span('save state before run'):
+        with tracer.span('save state before run', **_tracer_opt):
             task.status = models.Task.STATUS_PENDING
             task.date_started = timezone.now()
             task.date_finished = None
             task.save()
 
-        with tracer.span('run task function'):
+        with tracer.span('run task function', **_tracer_opt):
             logger.debug("Running %r", task)
             t0 = time()
             try:
                 func = task_map[task.func]
-                with tracer.span('call function'):
+                with tracer.span('call function', **_tracer_opt):
                     if func.bulk:
                         result = func([task])
                     else:
@@ -445,8 +458,8 @@ def run_task(task, log_handler, raise_exceptions=False):
                         task.result = result
 
             except MissingDependency as dep:
-                with tracer.span('handle missing dependency'):
-                    tracer.count("task_missing_dependency")
+                with tracer.span('handle missing dependency', **_tracer_opt):
+                    tracer.count("task_missing_dependency", **_tracer_opt)
                     msg = 'requests extra dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.info(msg)
 
@@ -464,8 +477,8 @@ def run_task(task, log_handler, raise_exceptions=False):
                     queue_task(task)
 
             except ExtraDependency as dep:
-                with tracer.span('handle extra dependency'):
-                    tracer.count("task_extra_dependency")
+                with tracer.span('handle extra dependency', **_tracer_opt):
+                    tracer.count("task_extra_dependency", **_tracer_opt)
                     msg = 'requests to remove dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.info(msg)
 
@@ -482,8 +495,8 @@ def run_task(task, log_handler, raise_exceptions=False):
                     queue_task(task)
 
             except SnoopTaskBroken as e:
-                with tracer.span('handle task broken'):
-                    tracer.count("task_broken")
+                with tracer.span('handle task broken', **_tracer_opt):
+                    tracer.count("task_broken", **_tracer_opt)
                     task.update(
                         status=models.Task.STATUS_BROKEN,
                         error="{}: {}".format(e.reason, e.args[0]),
@@ -495,8 +508,8 @@ def run_task(task, log_handler, raise_exceptions=False):
                     logger.exception(msg)
 
             except ConnectionError as e:
-                with tracer.span('handle connection error, save as pending'):
-                    tracer.count("task_connection_error")
+                with tracer.span('handle connection error, save as pending', **_tracer_opt):
+                    tracer.count("task_connection_error", **_tracer_opt)
                     logger.exception(e)
                     task.update(
                         status=models.Task.STATUS_PENDING,
@@ -507,8 +520,8 @@ def run_task(task, log_handler, raise_exceptions=False):
                     )
 
             except Exception as e:
-                with tracer.span('handle unknown error, save as error'):
-                    tracer.count("task_unknown_error")
+                with tracer.span('handle unknown error, save as error', **_tracer_opt):
+                    tracer.count("task_unknown_error", **_tracer_opt)
                     if isinstance(e, SnoopTaskError):
                         error = "{} ({})".format(e.args[0], e.details)
                     else:
@@ -528,8 +541,8 @@ def run_task(task, log_handler, raise_exceptions=False):
                     if raise_exceptions:
                         raise
             else:
-                with tracer.span('save success'):
-                    tracer.count("task_success")
+                with tracer.span('save success', **_tracer_opt):
+                    tracer.count("task_success", **_tracer_opt)
                     logger.debug("Succeeded: %r [%.03f s]", task, time() - t0)
                     task.update(
                         status=models.Task.STATUS_SUCCESS,
@@ -540,7 +553,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     )
 
             finally:
-                with tracer.span('save state after run'):
+                with tracer.span('save state after run', **_tracer_opt):
                     task.date_finished = timezone.now()
                     task.save()
 

@@ -267,6 +267,11 @@ TODO:
     Remove this value, as it's not used anymore.
 """
 
+SNOOP_TASK_DISABLE_TAIL_QUEUE = False
+"""Flag to disable queueing more tasks of same/different type after a task completes.
+
+Useful for running tests with the Celery Eager executor, to avoid infinite loops.
+"""
 
 TASK_RETRY_AFTER_MINUTES = 5
 """Errored tasks are retried at most every this number of minutes."""

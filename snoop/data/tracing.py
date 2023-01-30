@@ -4,11 +4,11 @@ Provides init functions for hooking into different entry points, as well the abi
 wrap functions and create custom spans.
 """
 import functools
-import threading
 import os
 import subprocess
 import logging
 from contextlib import contextmanager
+from time import time
 
 import uptrace
 from opentelemetry import trace
@@ -24,8 +24,13 @@ from opentelemetry.instrumentation.logging import LoggingInstrumentor
 SERVICE_NAME = "hoover-snoop"
 SERVICE_VERSION = subprocess.check_output("git describe --tags --always", shell=True).decode().strip()
 
+MAX_KEY_LEN = 63
+"""Max key length for open telemetry counters, span names and other identifiers."""
+
+MAX_COUNTER_KEY_LEN = 11
+"""Max key reserved for counter suffixes."""
+
 log = logging.getLogger(__name__)
-threadlocal = threading.local()
 
 
 def init_tracing(_from):
@@ -46,6 +51,20 @@ def init_tracing(_from):
         # CeleryInstrumentor().instrument()
 
 
+def shorten_name(string, length):
+    """Shortens a string to fit under some length.
+
+    This is needed because opentelemetry key length limit are 64,
+    and will fail in various ways if they're not.
+    """
+    if len(string) <= length:
+        return string
+    half_len = int((length - 5) / 2)
+    string = string[:half_len] + '...' + string[-half_len + 1:]
+    assert len(string) <= length
+    return string
+
+
 class Tracer:
     """Tracing handler with simplified interface.
 
@@ -54,22 +73,34 @@ class Tracer:
     def __init__(self, name, version=None):
         """Construct tracer with name and version.
         """
+        name = name.replace(' ', '_')
         self.name = name
         self.version = version or SERVICE_VERSION
         self.tracer = trace.get_tracer(self.name, self.version)
         self.meter = metrics.get_meter(self.name)
         self.counters = {}
-        self.counter_attributes = {}
 
     @contextmanager
-    def span(self, *args, **kwds):
+    def span(self, name, *args, attributes={}, extra_counters={}, **kwds):
         """Call the opentelemetry start_as_current_span() context manager and manage shutdowns.
         """
-        log.debug('creating tracer for module %s...', self.name)
+        name = name.replace(' ', '_')
+        if not name.startswith(self.name):
+            name = self.name + '.' + name
+        name = shorten_name(name, MAX_KEY_LEN - MAX_COUNTER_KEY_LEN - 3)  # -2 for the __
+        log.debug('creating tracer for module=%s with name=%s...', self.name, name)
+
+        attributes = self._populate_attributes(attributes)
+        self.count(name + '__hits', attributes=attributes)
+        for key, value in extra_counters.items():
+            assert len(key) <= MAX_COUNTER_KEY_LEN, 'counter key too long!'
+            self.count(name + '__' + key, value=value['value'], attributes=attributes, unit=value['unit'])
         try:
-            with self.tracer.start_as_current_span(*args, **kwds) as span:
+            with self.tracer.start_as_current_span(name, *args, **kwds) as span:
+                t0 = time()
                 yield span
         finally:
+            self.count(name + '__duration', value=time() - t0, attributes=attributes, unit='s')
             log.debug('destroying tracer for module %s...', self.name)
             try:
                 # flush data with timeout of 30s
@@ -96,15 +127,22 @@ class Tracer:
             return wrapper
         return decorator
 
-    def count(self, key, value=1, attributes={}, description='', unit="1"):
+    def count(self, key, value=1, attributes={}, description='', unit="1", **kwds):
         """Helper for the opentelemetry "_metrics" counter.
         """
         key = key.replace(' ', '_')
+        assert len(key) <= MAX_KEY_LEN, 'counter name too long!'
+
         if key not in self.counters:
-            self.counters[key] = self.meter.create_counter(name=key, description=description, unit=unit)
+            self.counters[key] = self.meter.create_counter(
+                name=key, description=description, unit=unit)
+        attributes = self._populate_attributes(attributes)
+        self.counters[key].add(value, attributes=attributes)
+
+    def _populate_attributes(self, attributes):
+        from snoop.threadlocal import threadlocal
         attributes = dict(attributes)
-        attributes.update(self.counter_attributes)
         collection = getattr(threadlocal, 'collection', None)
         if collection:
             attributes['collection'] = collection.name
-        self.counters[key].add(value, attributes=attributes)
+        return attributes

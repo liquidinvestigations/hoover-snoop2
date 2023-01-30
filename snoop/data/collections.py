@@ -31,7 +31,6 @@ import os
 import io
 import logging
 import subprocess
-import threading
 from contextlib import contextmanager
 
 from django.conf import settings
@@ -40,6 +39,8 @@ from django.core import management
 from django.db import transaction
 
 from .s3 import get_mount
+
+from snoop.threadlocal import threadlocal
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -54,8 +55,6 @@ ALL_TESSERACT_LANGS = subprocess.check_output(
     shell=True).decode().split()
 """Global list with all the available OCR languages.
 """
-
-threadlocal = threading.local()
 
 
 class Collection:
