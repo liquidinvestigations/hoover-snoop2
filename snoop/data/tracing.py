@@ -133,11 +133,14 @@ class Tracer:
         key = key.replace(' ', '_')
         assert len(key) <= MAX_KEY_LEN, 'counter name too long!'
 
-        if key not in self.counters:
-            self.counters[key] = self.meter.create_counter(
-                name=key, description=description, unit=unit)
-        attributes = self._populate_attributes(attributes)
-        self.counters[key].add(value, attributes=attributes)
+        try:
+            if key not in self.counters:
+                self.counters[key] = self.meter.create_counter(
+                    name=key, description=description, unit=unit)
+            attributes = self._populate_attributes(attributes)
+            self.counters[key].add(value, attributes=attributes)
+        except Exception as e:
+            log.error('failed to increment count for counter %s: %s', key, str(e))
 
     def _populate_attributes(self, attributes):
         from snoop.threadlocal import threadlocal
