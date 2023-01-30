@@ -179,7 +179,7 @@ def queue_next_tasks(task, reset=False):
         tasks = (
             models.Task.objects
             .filter(status=models.Task.STATUS_PENDING, func=task.func)
-            .order_by('date_modified')[:10].all()
+            .order_by('date_modified')[:2].all()
         )
         if tasks:
             tasks = list(tasks)
@@ -192,7 +192,7 @@ def queue_next_tasks(task, reset=False):
             models.Task.objects
             .filter(status=models.Task.STATUS_PENDING)
             .exclude(func=task.func)
-            .order_by('date_modified')[:10].all()
+            .order_by('date_modified')[:2].all()
         )
         if tasks:
             tasks = list(tasks)
@@ -297,7 +297,6 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         "collection %s: task %r already running (1st check), locked in db: %s",
                         col_name, task_pk, e,
                     )
-                    tracer.counter_attributes['collection'] = col.name
                     tracer.count('task_already_running')
                     return
                 except models.Task.DoesNotExist:
@@ -305,7 +304,6 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         "collection %s: task pk=%s DOES NOT EXIST IN DB",
                         col_name, task_pk
                     )
-                    tracer.counter_attributes['collection'] = col.name
                     tracer.count('task_not_found')
                     return
                 task.status = models.Task.STATUS_STARTED
