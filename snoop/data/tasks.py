@@ -175,11 +175,12 @@ def queue_next_tasks(task, reset=False):
     if settings.SNOOP_TASK_DISABLE_TAIL_QUEUE:
         return
 
-    with tracer.span('queue another task of same type'):
+    with tracer.span('queue another task of a different type'):
         tasks = (
             models.Task.objects
-            .filter(status=models.Task.STATUS_PENDING, func=task.func)
-            .order_by('date_modified')[:2].all()
+            .filter(status=models.Task.STATUS_PENDING)
+            .exclude(func=task.func)
+            .order_by('date_modified')[:30].all()
         )
         if tasks:
             tasks = list(tasks)
@@ -187,12 +188,11 @@ def queue_next_tasks(task, reset=False):
             for tsk in tasks[:2]:
                 queue_task(tsk)
 
-    with tracer.span('queue another task of a different type'):
+    with tracer.span('queue another task of same type'):
         tasks = (
             models.Task.objects
-            .filter(status=models.Task.STATUS_PENDING)
-            .exclude(func=task.func)
-            .order_by('date_modified')[:2].all()
+            .filter(status=models.Task.STATUS_PENDING, func=task.func)
+            .order_by('date_modified')[:30].all()
         )
         if tasks:
             tasks = list(tasks)
@@ -507,7 +507,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     logger.exception(msg)
 
             except ConnectionError as e:
-                with tracer.span('handle connection error, save as pending', **_tracer_opt):
+                with tracer.span('handle connection error', **_tracer_opt):
                     tracer.count("task_connection_error", **_tracer_opt)
                     logger.exception(e)
                     task.update(
@@ -519,7 +519,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                     )
 
             except Exception as e:
-                with tracer.span('handle unknown error, save as error', **_tracer_opt):
+                with tracer.span('handle unknown error', **_tracer_opt):
                     tracer.count("task_unknown_error", **_tracer_opt)
                     if isinstance(e, SnoopTaskError):
                         error = "{} ({})".format(e.args[0], e.details)
