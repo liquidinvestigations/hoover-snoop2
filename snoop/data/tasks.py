@@ -49,7 +49,7 @@ task_map = {}
 ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
 QUEUE_ANOTHER_TASK_LIMIT = 100000
 QUEUE_ANOTHER_TASK = 'snoop.data.tasks.queue_another_task'
-QUEUE_ANOTHER_TASK_BATCH_COUNT = settings.DISPATCH_QUEUE_LIMIT / 10
+QUEUE_ANOTHER_TASK_BATCH_COUNT = int(settings.DISPATCH_QUEUE_LIMIT / 5)
 
 
 class SnoopTaskError(Exception):
@@ -101,6 +101,7 @@ def rmq_queue_name(func, collection=None):
     """
     if collection is None:
         collection = collections.current()
+    # return task_map[func].queue + '.' + func
     return collection.queue_name + '.' + task_map[func].queue + '.' + func
 
 
@@ -221,30 +222,6 @@ def queue_another_task(collection_name, func, *args, **kw):
                 for task in tasks:
                     queue_task(task)
 
-        with tracer.span('queue another task of a different type'), \
-                transaction.atomic(using=db_alias):
-            tasks = (
-                models.Task.objects
-                .select_for_update(skip_locked=True)
-                .filter(status=models.Task.STATUS_PENDING)
-                .exclude(func=func)
-                .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
-            )
-            for task in tasks:
-                queue_task(task)
-
-        with tracer.span('queue another task of any type'), \
-                transaction.atomic(using=db_alias):
-            tasks = (
-                models.Task.objects
-                .select_for_update(skip_locked=True)
-                .filter(status=models.Task.STATUS_PENDING)
-                .exclude(func=func)
-                .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
-            )
-            for task in tasks:
-                queue_task(task)
-
         if random.random() < 0.1:
             with tracer.span('queue some errors'), \
                     transaction.atomic(using=db_alias):
@@ -256,6 +233,7 @@ def queue_another_task(collection_name, func, *args, **kw):
                     old_error_qs = (
                         models.Task.objects
                         .select_for_update(skip_locked=True)
+                        .filter(func=func)
                         .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
                         .filter(fail_count__lt=retry_limit)
                         .filter(date_modified__lt=timezone.now() - timedelta(minutes=age_minutes))
@@ -265,10 +243,19 @@ def queue_another_task(collection_name, func, *args, **kw):
                         queue_task(task)
                         return
 
+        if random.random() < 0.1:
+            with tracer.span('mark some killed task'), \
+                    transaction.atomic(using=db_alias):
+                for age_minutes, retry_limit in [
+                    (settings.TASK_RETRY_AFTER_MINUTES, settings.TASK_RETRY_FAIL_LIMIT),  # ~5min
+                    (settings.TASK_RETRY_AFTER_MINUTES * 30, settings.TASK_RETRY_FAIL_LIMIT * 2),  # ~1h
+                    (settings.TASK_RETRY_AFTER_MINUTES * 1000, settings.TASK_RETRY_FAIL_LIMIT * 3),  # ~5day
+                ]:
                     # mark dead STARTED tasks as error (hangs / memory leaks / kills)
                     old_started_qs = (
                         models.Task.objects
                         .select_for_update(skip_locked=True)
+                        .filter(func=func)
                         .filter(fail_count__lt=retry_limit)
                         .filter(status__in=[models.Task.STATUS_STARTED])
                         .filter(date_modified__lt=timezone.now() - timedelta(minutes=age_minutes))
@@ -284,6 +271,7 @@ def queue_another_task(collection_name, func, *args, **kw):
                             task.fail_count += 1
                             task.save()
                             return
+
         if random.random() < 0.1:
             with tracer.span('queue some deferred'), \
                     transaction.atomic(using=db_alias):
@@ -291,6 +279,7 @@ def queue_another_task(collection_name, func, *args, **kw):
                 tasks = (
                     models.Task.objects
                     .select_for_update(skip_locked=True)
+                    .filter(func=func)
                     .filter(status=models.Task.STATUS_DEFERRED,
                             date_modified__lt=timezone.now() - timedelta(minutes=DEFERRED_WAIT_MIN))
                     .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
@@ -831,12 +820,17 @@ def dispatch_tasks(func, status=None, outdated=None, newest_first=True):
         collection.
     """
 
+    # with transaction.atomic(using=collections.current().db_alias):
     found_something = False
     task_query = models.Task.objects.filter(
         func=func, date_modified__lt=timezone.now() - timedelta(minutes=1)
     )
     if status:
-        task_query = task_query.filter(status=status)
+        task_query = (
+            task_query
+            # .select_for_update(skip_locked=True)
+            .filter(status=status)
+        )
         item_str = status
     if outdated:
         task_query = task_query.exclude(version=task_map[func].version)
@@ -905,7 +899,6 @@ def retry_tasks(queryset, reset_fail_count=False, one_slice_only=False):
 
     task_count = queryset.count()
     first_batch = list(queryset.all()[0:BATCH_SIZE])
-    now = timezone.now()
 
     if one_slice_only:
         fields = ['status', 'error', 'broken_reason', 'log', 'date_modified']
@@ -914,7 +907,7 @@ def retry_tasks(queryset, reset_fail_count=False, one_slice_only=False):
             task.error = ''
             task.broken_reason = ''
             task.log = ''
-            task.date_modified = now
+            task.date_modified = timezone.now()
             if reset_fail_count:
                 task.fail_count = 0
         models.Task.objects.bulk_update(first_batch, fields, batch_size=BATCH_SIZE)
@@ -924,7 +917,7 @@ def retry_tasks(queryset, reset_fail_count=False, one_slice_only=False):
             'error': '',
             'broken_reason': '',
             'log': '',
-            'date_modified': now,
+            'date_modified': timezone.now(),
         }
         if reset_fail_count:
             update_options['fail_count'] = 0
@@ -1320,7 +1313,7 @@ def dispatch_for(collection, func):
 
 
 @tracer.wrap_function()
-def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=False):
+def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=False, lock=True):
     """Checks current collection if we have bulk tasks run.
 
     Returns: a tuple (TASKS, SIZES, MARKED) where:
@@ -1367,8 +1360,11 @@ def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=F
         task_sizes[func] = {}
         current_size = 0
 
+        task_query = models.Task.objects
+        if lock:
+            task_query = task_query.select_for_update(skip_locked=True)
         task_query = (
-            models.Task.objects
+            task_query
             .filter(func=func)
             # don't do anything to successful, up to date tasks
             .exclude(status=models.Task.STATUS_SUCCESS, version=task_map[func].version)
@@ -1407,7 +1403,7 @@ def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=F
 
 
 def have_bulk_tasks_to_run(reverse=False):
-    task_list, _, marked = get_bulk_tasks_to_run()
+    task_list, _, marked = get_bulk_tasks_to_run(lock=False)
     if not task_list:
         return False
     for lst in task_list.values():

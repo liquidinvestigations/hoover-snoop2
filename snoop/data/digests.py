@@ -596,7 +596,7 @@ def bulk_index(batch):
         if size > ES_MAX_INTEGER:
             body['size'] = ES_MAX_INTEGER
 
-        log.info('Bulk Task %s uploading body with keys = %s', task, ", ".join(sorted(list(body.keys()))))
+        log.debug('Bulk Task %s uploading body with keys = %s', task, ", ".join(sorted(list(body.keys()))))
 
         documents_to_index.append((task, body))
 

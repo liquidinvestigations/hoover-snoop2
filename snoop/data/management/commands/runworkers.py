@@ -6,6 +6,7 @@ Starts up a variable number of worker processes with Celery, depending on settin
 import os
 import logging
 import subprocess
+import random
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -102,17 +103,39 @@ class Command(BaseCommand):
                 ],
                 start=[],
             )
+            # every worker can run digests and filesystem and ocr (if enabled)
+            all_queues += sum(
+                [
+                    rmq_queues_for(c, 'digests') for c in all_collections if c.process
+                ],
+                start=[],
+            )
+            all_queues += sum(
+                [
+                    rmq_queues_for(c, 'filesystem') for c in all_collections if c.process
+                ],
+                start=[],
+            )
+            if settings.OCR_ENABLED:
+                all_queues += sum(
+                    [
+                        rmq_queues_for(c, 'ocr') for c in all_collections if c.process
+                    ],
+                    start=[],
+                )
+
+            if options['queue'] == 'default':
+                for c in all_collections:
+                    if c.process:
+                        for q in c.get_default_queues():
+                            all_queues.extend(rmq_queues_for(c, q))
+            else:
+                all_queues.append(tasks.QUEUE_ANOTHER_TASK)
         else:
             raise RuntimeError('no queue given')
 
-        if options['queue'] == 'default':
-            for c in all_collections:
-                if c.process:
-                    for q in c.get_default_queues():
-                        all_queues.extend(rmq_queues_for(c, q))
         all_queues = list(set(all_queues))
-        if options['queue'] not in ['default', 'system']:
-            all_queues.append(tasks.QUEUE_ANOTHER_TASK)
+        random.shuffle(all_queues)
 
         argv = celery_argv(queues=all_queues, solo=options.get('solo'),
                            count=options['count'], mem_limit_mb=options['mem'])
