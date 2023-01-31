@@ -47,6 +47,8 @@ tracer = tracing.Tracer(__name__)
 
 task_map = {}
 ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
+QUEUE_ANOTHER_TASK_LIMIT = 100000
+QUEUE_ANOTHER_TASK = 'snoop.data.tasks.queue_another_task'
 
 
 class SnoopTaskError(Exception):
@@ -112,6 +114,14 @@ def queue_task(task):
         task: task to be queued in Celery
     """
 
+    queue_length = get_rabbitmq_queue_length(rmq_queue_name(task.func))
+    if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE or _is_rabbitmq_memory_full():
+        return
+
+    import_snoop_tasks()
+    if task_map[task.func].bulk:
+        return
+
     def send_to_celery():
         """This does the actual queueing operation.
 
@@ -127,19 +137,11 @@ def queue_task(task):
                     queue=rmq_queue_name(task.func),
                     retry=False,
                 )
-                task.update(status=models.Task.STATUS_QUEUED)
-                task.save()
             except laterz_snoop_task.OperationalError as e:
                 logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
 
-    import_snoop_tasks()
-    if task_map[task.func].bulk:
-        return
-
-    queue_length = get_rabbitmq_queue_length(rmq_queue_name(task.func))
-    if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE or _is_rabbitmq_memory_full():
-        return
-
+    task.update(status=models.Task.STATUS_QUEUED)
+    task.save()
     transaction.on_commit(send_to_celery)
 
 
@@ -175,30 +177,120 @@ def queue_next_tasks(task, reset=False):
     if settings.SNOOP_TASK_DISABLE_TAIL_QUEUE:
         return
 
-    with tracer.span('queue another task of a different type'):
-        tasks = (
-            models.Task.objects
-            .filter(status=models.Task.STATUS_PENDING)
-            .exclude(func=task.func)
-            .order_by('date_modified')[:30].all()
-        )
-        if tasks:
-            tasks = list(tasks)
-            random.shuffle(tasks)
-            for tsk in tasks[:2]:
-                queue_task(tsk)
+    if _is_rabbitmq_memory_full() or \
+            get_rabbitmq_queue_length(QUEUE_ANOTHER_TASK) > QUEUE_ANOTHER_TASK_LIMIT:
+        return
 
-    with tracer.span('queue another task of same type'):
-        tasks = (
-            models.Task.objects
-            .filter(status=models.Task.STATUS_PENDING, func=task.func)
-            .order_by('date_modified')[:30].all()
-        )
-        if tasks:
-            tasks = list(tasks)
-            random.shuffle(tasks)
-            for tsk in tasks[:2]:
-                queue_task(tsk)
+    queue_another_task.apply_async(
+        (collections.current().name, task.func,),
+        queue=QUEUE_ANOTHER_TASK,
+        retry=False,
+    )
+
+
+@celery.app.task
+@tracer.wrap_function()
+def queue_another_task(collection_name, func, *args, **kw):
+    """Queue a different task.
+
+    Decoupled from "queue_next_tasks" to remove ourselves from the database transaction
+    concerning previous task.
+    """
+
+    if _is_rabbitmq_memory_full():
+        return
+
+    with collections.ALL[collection_name].set_current():
+        db_alias = collections.current().db_alias
+        queue_length = get_rabbitmq_queue_length(rmq_queue_name(func))
+        if queue_length < settings.DISPATCH_MAX_QUEUE_SIZE - 2:
+            with tracer.span('queue another task of same type'), \
+                    transaction.atomic(using=db_alias):
+                tasks = (
+                    models.Task.objects
+                    .select_for_update(skip_locked=True)
+                    .filter(status=models.Task.STATUS_PENDING, func=func)
+                    .order_by('date_modified')[:1].all()
+                )
+                for task in tasks:
+                    queue_task(task)
+
+        with tracer.span('queue another task of a different type'), \
+                transaction.atomic(using=db_alias):
+            tasks = (
+                models.Task.objects
+                .select_for_update(skip_locked=True)
+                .filter(status=models.Task.STATUS_PENDING)
+                .exclude(func=func)
+                .order_by('date_modified')[:1].all()
+            )
+            for task in tasks:
+                queue_task(task)
+
+        with tracer.span('queue another task of any type'), \
+                transaction.atomic(using=db_alias):
+            tasks = (
+                models.Task.objects
+                .select_for_update(skip_locked=True)
+                .filter(status=models.Task.STATUS_PENDING)
+                .exclude(func=func)
+                .order_by('date_modified')[:1].all()
+            )
+            for task in tasks:
+                queue_task(task)
+
+        if random.random() < 0.1:
+            with tracer.span('queue some errors'), \
+                    transaction.atomic(using=db_alias):
+                for age_minutes, retry_limit in [
+                    (settings.TASK_RETRY_AFTER_MINUTES, settings.TASK_RETRY_FAIL_LIMIT),  # ~5min
+                    (settings.TASK_RETRY_AFTER_MINUTES * 30, settings.TASK_RETRY_FAIL_LIMIT * 2),  # ~1h
+                    (settings.TASK_RETRY_AFTER_MINUTES * 1000, settings.TASK_RETRY_FAIL_LIMIT * 3),  # ~5day
+                ]:
+                    old_error_qs = (
+                        models.Task.objects
+                        .select_for_update(skip_locked=True)
+                        .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
+                        .filter(fail_count__lt=retry_limit)
+                        .filter(date_modified__lt=timezone.now() - timedelta(minutes=age_minutes))
+                        .order_by('date_modified')[:1].all()
+                    )
+                    for task in old_error_qs:
+                        queue_task(task)
+                        return
+
+                    # mark dead STARTED tasks as error (hangs / memory leaks / kills)
+                    old_started_qs = (
+                        models.Task.objects
+                        .select_for_update(skip_locked=True)
+                        .filter(fail_count__lt=retry_limit)
+                        .filter(status__in=[models.Task.STATUS_STARTED])
+                        .filter(date_modified__lt=timezone.now() - timedelta(minutes=age_minutes))
+                        .order_by('date_modified')[:1].all()
+                    )
+                    for task in old_started_qs:
+                        if not is_task_running(task.pk):
+                            logger.info('marking task %s as Killed', task.pk)
+                            tracer.count("task_killed")
+                            task.status = models.Task.STATUS_BROKEN
+                            task.error = "Task Killed"
+                            task.broken_reason = "task_killed"
+                            task.fail_count += 1
+                            task.save()
+                            return
+        if random.random() < 0.1:
+            with tracer.span('queue some deferred'), \
+                    transaction.atomic(using=db_alias):
+                DEFERRED_WAIT_MIN = 15
+                tasks = (
+                    models.Task.objects
+                    .select_for_update(skip_locked=True)
+                    .filter(status=models.Task.STATUS_DEFERRED,
+                            date_modified__lt=timezone.now() - timedelta(minutes=DEFERRED_WAIT_MIN))
+                    .order_by('date_modified')[:2].all()
+                )
+                for task in tasks:
+                    queue_task(task)
 
 
 @run_once
@@ -734,7 +826,9 @@ def dispatch_tasks(func, status=None, outdated=None, newest_first=True):
     """
 
     found_something = False
-    task_query = models.Task.objects.filter(func=func)
+    task_query = models.Task.objects.filter(
+        func=func, date_modified__lt=timezone.now() - timedelta(minutes=1)
+    )
     if status:
         task_query = task_query.filter(status=status)
         item_str = status
