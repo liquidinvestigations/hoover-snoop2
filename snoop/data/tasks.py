@@ -49,6 +49,7 @@ task_map = {}
 ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
 QUEUE_ANOTHER_TASK_LIMIT = 100000
 QUEUE_ANOTHER_TASK = 'snoop.data.tasks.queue_another_task'
+QUEUE_ANOTHER_TASK_BATCH_COUNT = settings.DISPATCH_QUEUE_LIMIT / 10
 
 
 class SnoopTaskError(Exception):
@@ -131,7 +132,7 @@ def queue_task(task):
         col = collections.from_object(task)
         with col.set_current():
             try:
-                logger.info(f'queueing task {task.func}(pk {task.pk})')
+                logger.debug(f'queueing task {task.func}(pk {task.pk})')
                 laterz_snoop_task.apply_async(
                     (col.name, task.pk,),
                     queue=rmq_queue_name(task.func),
@@ -200,17 +201,22 @@ def queue_another_task(collection_name, func, *args, **kw):
     if _is_rabbitmq_memory_full():
         return
 
+    # batch things toghether probabilistically
+    PROB = 1 / QUEUE_ANOTHER_TASK_BATCH_COUNT * 2
+    if random.random() > PROB:
+        return
+
     with collections.ALL[collection_name].set_current():
         db_alias = collections.current().db_alias
         queue_length = get_rabbitmq_queue_length(rmq_queue_name(func))
-        if queue_length < settings.DISPATCH_MAX_QUEUE_SIZE - 2:
+        if queue_length < settings.DISPATCH_MAX_QUEUE_SIZE - QUEUE_ANOTHER_TASK_BATCH_COUNT:
             with tracer.span('queue another task of same type'), \
                     transaction.atomic(using=db_alias):
                 tasks = (
                     models.Task.objects
                     .select_for_update(skip_locked=True)
                     .filter(status=models.Task.STATUS_PENDING, func=func)
-                    .order_by('date_modified')[:1].all()
+                    .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
                 )
                 for task in tasks:
                     queue_task(task)
@@ -222,7 +228,7 @@ def queue_another_task(collection_name, func, *args, **kw):
                 .select_for_update(skip_locked=True)
                 .filter(status=models.Task.STATUS_PENDING)
                 .exclude(func=func)
-                .order_by('date_modified')[:1].all()
+                .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
             )
             for task in tasks:
                 queue_task(task)
@@ -234,7 +240,7 @@ def queue_another_task(collection_name, func, *args, **kw):
                 .select_for_update(skip_locked=True)
                 .filter(status=models.Task.STATUS_PENDING)
                 .exclude(func=func)
-                .order_by('date_modified')[:1].all()
+                .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
             )
             for task in tasks:
                 queue_task(task)
@@ -253,7 +259,7 @@ def queue_another_task(collection_name, func, *args, **kw):
                         .filter(status__in=[models.Task.STATUS_BROKEN, models.Task.STATUS_ERROR])
                         .filter(fail_count__lt=retry_limit)
                         .filter(date_modified__lt=timezone.now() - timedelta(minutes=age_minutes))
-                        .order_by('date_modified')[:1].all()
+                        .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
                     )
                     for task in old_error_qs:
                         queue_task(task)
@@ -266,11 +272,11 @@ def queue_another_task(collection_name, func, *args, **kw):
                         .filter(fail_count__lt=retry_limit)
                         .filter(status__in=[models.Task.STATUS_STARTED])
                         .filter(date_modified__lt=timezone.now() - timedelta(minutes=age_minutes))
-                        .order_by('date_modified')[:1].all()
+                        .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
                     )
                     for task in old_started_qs:
                         if not is_task_running(task.pk):
-                            logger.info('marking task %s as Killed', task.pk)
+                            logger.debug('marking task %s as Killed', task.pk)
                             tracer.count("task_killed")
                             task.status = models.Task.STATUS_BROKEN
                             task.error = "Task Killed"
@@ -287,7 +293,7 @@ def queue_another_task(collection_name, func, *args, **kw):
                     .select_for_update(skip_locked=True)
                     .filter(status=models.Task.STATUS_DEFERRED,
                             date_modified__lt=timezone.now() - timedelta(minutes=DEFERRED_WAIT_MIN))
-                    .order_by('date_modified')[:2].all()
+                    .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
                 )
                 for task in tasks:
                     queue_task(task)
@@ -372,7 +378,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     """
     import_snoop_tasks()
     col = collections.ALL[col_name]
-    logger.info('collection %s: starting task %s', col_name, task_pk)
+    logger.debug('collection %s: starting task %s', col_name, task_pk)
 
     with snoop_task_log_handler() as handler:
         with col.set_current():
@@ -481,7 +487,7 @@ def run_task(task, log_handler, raise_exceptions=False):
 
             all_prev_deps = list(task.prev_set.all())
             if any(dep.prev.status == models.Task.STATUS_ERROR for dep in all_prev_deps):
-                logger.info("%r has a dependency in the ERROR state.", task)
+                logger.debug("%r has a dependency in the ERROR state.", task)
                 task.update(
                     status=models.Task.STATUS_BROKEN,
                     error='',
@@ -504,7 +510,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                         version=task_map[task.func].version,
                     )
                     task.save()
-                    logger.info("%r missing dependency %r", task, prev_task)
+                    logger.debug("%r missing dependency %r", task, prev_task)
                     tracer.count("task_missing_dependency", **_tracer_opt)
                     queue_task(prev_task)
                     return
@@ -552,7 +558,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 with tracer.span('handle missing dependency', **_tracer_opt):
                     tracer.count("task_missing_dependency", **_tracer_opt)
                     msg = 'requests extra dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
-                    logger.info(msg)
+                    logger.debug(msg)
 
                     task.update(
                         status=models.Task.STATUS_DEFERRED,
@@ -571,7 +577,7 @@ def run_task(task, log_handler, raise_exceptions=False):
                 with tracer.span('handle extra dependency', **_tracer_opt):
                     tracer.count("task_extra_dependency", **_tracer_opt)
                     msg = 'requests to remove dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
-                    logger.info(msg)
+                    logger.debug(msg)
 
                     task.prev_set.filter(
                         name=dep.name,
@@ -875,7 +881,7 @@ def retry_task(task, fg=False):
         log='',
         version=task_map[task.func].version,
     )
-    logger.info("Retrying %r", task)
+    logger.debug("Retrying %r", task)
     task.save()
 
     if fg:
@@ -1011,7 +1017,7 @@ def save_collection_stats():
     from snoop.data.admin import get_stats
     t0 = time()
     get_stats()
-    logger.info('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
+    logger.debug('stats for collection {} saved in {} seconds'.format(collections.current().name, time() - t0))  # noqa: E501
 
 
 @cachetools.cached(cache=cachetools.TTLCache(maxsize=50, ttl=settings.TASK_COUNT_MEMORY_CACHE_TTL))
@@ -1169,7 +1175,7 @@ def update_all_tags():
     deadline = time() + settings.SYSTEM_TASK_DEADLINE_SECONDS
     for collection in collection_list:
         with collection.set_current():
-            logger.info('collection "%r": updating tags', collection)
+            logger.debug('collection "%r": updating tags', collection)
             digests.update_all_tags()
         if time() > deadline:
             break
@@ -1190,7 +1196,7 @@ def dispatch_for(collection, func):
     (again, to keep the natural order between batches).
     """
     if not collection.process:
-        logger.info(f'dispatch: skipping "{collection}", configured with "process = False"')
+        logger.debug(f'dispatch: skipping "{collection}", configured with "process = False"')
         return
 
     with collection.set_current():
@@ -1217,10 +1223,10 @@ def dispatch_for(collection, func):
                 if db_tasks_remaining <= settings.DISPATCH_QUEUE_LIMIT:
                     skip = True
             if skip:
-                logger.info(f'dispatch: skipping {collection}, has {queue_len} queued tasks on f = {func}')
+                logger.debug(f'dispatch: skipping {collection}, has {queue_len} queued tasks on f = {func}')
                 return
 
-    logger.info('Dispatching for %r, func = %s', collection, func)
+    logger.debug('Dispatching for %r, func = %s', collection, func)
     from .ocr import dispatch_ocr_tasks
 
     with collection.set_current():
@@ -1233,7 +1239,7 @@ def dispatch_for(collection, func):
             )
             if count_pending > 3 * settings.DISPATCH_QUEUE_LIMIT:
                 dispatch_tasks(func, status=models.Task.STATUS_PENDING, newest_first=False)
-            logger.info('%r found PENDING tasks, exiting...', collection)
+            logger.debug('%r found PENDING tasks, exiting...', collection)
             return True
 
         if func.startswith('filesystem'):
@@ -1242,22 +1248,22 @@ def dispatch_for(collection, func):
             dispatch_ocr_tasks()
             count_after = models.Task.objects.count()
             if count_before != count_after:
-                logger.info('%r initial dispatch added new tasks, exiting...', collection)
+                logger.debug('%r initial dispatch added new tasks, exiting...', collection)
                 return True
 
         # Re-try deferred tasks if we don't have anything in pending. This is to avoid a deadlock.
         # Try the oldest tasks first, since they are the most probable to have complete deps.
         if dispatch_tasks(func, status=models.Task.STATUS_DEFERRED, newest_first=False):
-            logger.info('%r found DEFERRED tasks, exiting...', collection)
+            logger.debug('%r found DEFERRED tasks, exiting...', collection)
             return True
 
         # retry outdated tasks
         if dispatch_tasks(func, outdated=True):
-            logger.info('%r found outdated tasks, exiting...', collection)
+            logger.debug('%r found outdated tasks, exiting...', collection)
             return True
 
         if collection.sync and func in ['filesystem.walk', 'ocr.walk_source']:
-            logger.info("sync: retrying all walk tasks")
+            logger.debug("sync: retrying all walk tasks")
             # retry up oldest non-pending walk tasks that are older than 3 min
 
             retry_tasks(
@@ -1298,10 +1304,10 @@ def dispatch_for(collection, func):
                 .order_by('date_modified')[:settings.RETRY_LIMIT_TASKS]
             )
             if old_started_qs.exists():
-                logger.info(f'{collection} found {old_started_qs.count()} old STARTED tasks to check')
+                logger.debug(f'{collection} found {old_started_qs.count()} old STARTED tasks to check')
                 for started_task in old_started_qs:
                     if not is_task_running(started_task.pk):
-                        logger.info('marking task %s as Killed', started_task.pk)
+                        logger.debug('marking task %s as Killed', started_task.pk)
                         tracer.count("task_killed")
                         started_task.status = models.Task.STATUS_BROKEN
                         started_task.error = "Task Killed"
@@ -1310,7 +1316,7 @@ def dispatch_for(collection, func):
                         started_task.save()
                 return True
 
-    logger.info(f'dispatch for collection "{collection.name}" done\n')
+    logger.debug(f'dispatch for collection "{collection.name}" done\n')
 
 
 @tracer.wrap_function()
@@ -1396,7 +1402,7 @@ def get_bulk_tasks_to_run(reverse=False, exclude_deferred=False, deferred_only=F
         logger.warning('%s: Selected %s items with total size: %s', func, len(task_list[func]), current_size)
 
     if marked_deferred > 0:
-        logger.info('marked %s tasks as deferred.', marked_deferred)
+        logger.debug('marked %s tasks as deferred.', marked_deferred)
     return task_list, task_sizes, marked_deferred
 
 
@@ -1454,7 +1460,7 @@ def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferr
             "fail_count",
             "error",
         ])
-        logger.info(f"Pre-run save on Task objects took {(timezone.now() - t0).total_seconds():0.2f}s")
+        logger.debug(f"Pre-run save on Task objects took {(timezone.now() - t0).total_seconds():0.2f}s")
 
         # Run the bulk task. If it failed, mark all the items inside as failed. Otherwise, mark them as
         # succeeded.
@@ -1468,8 +1474,8 @@ def run_single_batch_for_bulk_task(reverse=False, exclude_deferred=False, deferr
         else:
             status = models.Task.STATUS_SUCCESS
             error = ''
-            logger.info(f"Successfully ran bulk of {len(task_list)} tasks, "
-                        f"type {func}, size {pretty_size.pretty_size(current_size)}")
+            logger.debug(f"Successfully ran bulk of {len(task_list)} tasks, "
+                         f"type {func}, size {pretty_size.pretty_size(current_size)}")
 
         t_elapsed = (timezone.now() - t0).total_seconds()
 
@@ -1513,13 +1519,13 @@ def _run_bulk_tasks_for_collection():
     failed_count = 0
     for i in range(int(BATCHES_IN_A_ROW / 3)):
         try:
-            with transaction.atomic():
+            with transaction.atomic(using=collections.current().db_alias):
                 count = run_single_batch_for_bulk_task(reverse=False, exclude_deferred=True)
 
-            with transaction.atomic():
+            with transaction.atomic(using=collections.current().db_alias):
                 count += run_single_batch_for_bulk_task(reverse=True, exclude_deferred=True)
 
-            with transaction.atomic():
+            with transaction.atomic(using=collections.current().db_alias):
                 count += run_single_batch_for_bulk_task(deferred_only=True)
 
         except Exception as e:
@@ -1558,25 +1564,25 @@ def run_bulk_tasks():
         # if no tasks to do, continue
         with collection.set_current():
             if not collection.process:
-                logger.info(f'bulk tasks: skipping "{collection}", configured with "process = False"')
+                logger.debug(f'bulk tasks: skipping "{collection}", configured with "process = False"')
                 continue
 
             if not have_bulk_tasks_to_run(reverse=False) and not have_bulk_tasks_to_run(reverse=True):
-                logger.info('Skipping collection %s, no bulk tasks to run', collection.name)
+                logger.debug('Skipping collection %s, no bulk tasks to run', collection.name)
                 continue
 
             # disable refreshing
-            logger.info('Disable index refresh for collection %s', collection.name)
+            logger.debug('Disable index refresh for collection %s', collection.name)
             indexing.update_refresh_interval("-1")
 
             try:
-                logger.info('Running bulk tasks for collection %s', collection.name)
+                logger.debug('Running bulk tasks for collection %s', collection.name)
                 _run_bulk_tasks_for_collection()
             except Exception:
                 logger.error("Running bulk tasks failed for %s!", collection.name)
             finally:
                 # restore default
-                logger.info('Enable index refresh for collection %s', collection.name)
+                logger.debug('Enable index refresh for collection %s', collection.name)
                 indexing.update_refresh_interval()
         if time() > deadline:
             break

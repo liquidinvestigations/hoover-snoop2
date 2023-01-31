@@ -3,6 +3,7 @@
 Optimized variant of [snoop.data.management.commands.retrytask][] for very long task lists (millions).
 """
 from django.core.management.base import BaseCommand
+from django.db import transaction
 from ...logs import logging_for_management_command
 from ... import models
 from ... import tasks
@@ -41,16 +42,17 @@ class Command(BaseCommand):
                 # assert status != models.Task.STATUS_PENDING, \
                 #     "cannot use this on pending tasks"
 
-                queryset = models.Task.objects.all()
-                if func:
-                    queryset = queryset.filter(func=func)
-                if status:
-                    queryset = queryset.filter(status=status)
-                # queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
-                # queryset = queryset.order_by('date_modified')
+                with transaction.atomic(using=collections.current().db_alias):
+                    queryset = models.Task.objects.select_for_update(skip_locked=True)
+                    if func:
+                        queryset = queryset.filter(func=func)
+                    if status:
+                        queryset = queryset.filter(status=status)
+                    # queryset = queryset.exclude(status=models.Task.STATUS_PENDING)
+                    # queryset = queryset.order_by('date_modified')
 
-                if options.get('dry_run'):
-                    print("Tasks to retry:", queryset.count())
+                    if options.get('dry_run'):
+                        print("Tasks to retry:", queryset.count())
 
-                else:
-                    tasks.retry_tasks(queryset)
+                    else:
+                        tasks.retry_tasks(queryset.all())

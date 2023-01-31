@@ -111,7 +111,8 @@ class Command(BaseCommand):
                     for q in c.get_default_queues():
                         all_queues.extend(rmq_queues_for(c, q))
         all_queues = list(set(all_queues))
-        all_queues.append(tasks.QUEUE_ANOTHER_TASK)
+        if options['queue'] not in ['default', 'system']:
+            all_queues.append(tasks.QUEUE_ANOTHER_TASK)
 
         argv = celery_argv(queues=all_queues, solo=options.get('solo'),
                            count=options['count'], mem_limit_mb=options['mem'])
