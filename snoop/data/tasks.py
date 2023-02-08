@@ -1002,6 +1002,18 @@ def dispatch_walk_tasks():
     walk.laterz(root.pk)
 
 
+def dispatch_directory_walk_tasks(directory_pk):
+    """Trigger processing of a specific directory.
+
+    Returns: A string that is the full path of the directory.
+    """
+
+    from .filesystem import walk
+    directory = models.Directory.objects.get(pk=directory_pk)
+    assert directory, "Directory does not exist"
+    walk.laterz(directory.pk)
+
+
 @tracer.wrap_function()
 def save_collection_stats():
     """Run the expensive computations to get collection stats, then save result in database.
