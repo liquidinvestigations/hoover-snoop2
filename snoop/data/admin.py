@@ -219,10 +219,6 @@ def get_task_matrix(task_queryset, prev_matrix={}):
         else:
             speed = speed_success
 
-        # best estimation is old eta
-        if prev_matrix_row.get('eta', 0) > 1:
-            row['eta'] = prev_matrix_row['eta']
-
         MIN_AVG_WORKERS = 0.05
         if row.get(AVG_WORKERS_KEY, 0) <= MIN_AVG_WORKERS:
             row[AVG_WORKERS_KEY] = 0
@@ -253,6 +249,13 @@ def get_task_matrix(task_queryset, prev_matrix={}):
                 eta = (eta + prev_matrix_row.get('eta', 0)) / 2
 
             row['eta'] = eta
+        else:
+            # falloff ETA for tasks when no progress is happening
+            row['eta'] = max(0, int(prev_matrix_row.get('eta', 0) / 3) - 500)
+
+        if not collections.current().process:
+            # reset ETA for disabled collections
+            row['eta'] = 0
 
     return task_matrix
 
@@ -335,6 +338,8 @@ def _get_stats(old_values):
         if eta > 1:
             eta = int(math.ceil(eta / 60) * 60)
         eta_str = ', ETA: ' + tr('eta', eta) if eta > 1 else ''
+        if not collections.current().process:
+            eta_str = ''
         for row in task_matrix.values():
             for state in row:
                 if state in models.Task.ALL_STATUS_CODES:
