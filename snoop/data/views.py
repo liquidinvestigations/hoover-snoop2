@@ -426,6 +426,7 @@ def processing_status(request, hash):
                                     )
     result['done_count'] = done_tasks.count()
     result['total_count'] = total_tasks.count()
-    if result['done_count'] == result['total_count']:
+    total_count = result['total_count']
+    if total_count != 0 and result['done_count'] == total_count:
         result['finished'] = True
     return JsonResponse(result)
