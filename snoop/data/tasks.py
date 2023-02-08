@@ -27,6 +27,8 @@ import traceback
 from time import time, sleep
 from datetime import timedelta
 from functools import wraps
+import os
+import fcntl
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
@@ -50,6 +52,58 @@ ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
 QUEUE_ANOTHER_TASK_LIMIT = 100000
 QUEUE_ANOTHER_TASK = 'snoop.data.tasks.queue_another_task'
 QUEUE_ANOTHER_TASK_BATCH_COUNT = int(settings.DISPATCH_QUEUE_LIMIT / 5)
+
+
+def _flock_acquire(lock_path):
+    """Acquire lock file at given path.
+
+    Lock is exclusive, errors return immediately instead of waiting."""
+    open_mode = os.O_RDWR | os.O_CREAT | os.O_TRUNC
+    fd = os.open(lock_path, open_mode)
+    try:
+        # LOCK_EX = exclusive
+        # LOCK_NB = not blocking
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except Exception as e:
+        os.close(fd)
+        logger.warning('failed to get lock at ' + lock_path + ": " + str(e))
+        raise
+
+    return fd
+
+
+def _flock_release(fd):
+    """Release lock file at given path."""
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
+@contextmanager
+def _flock_contextmanager(lock_path):
+    """Creates context with exclusive file lock at given path."""
+    fd = _flock_acquire(lock_path)
+    try:
+        yield
+    finally:
+        _flock_release(fd)
+
+
+def flock(func):
+    """Function decorator that makes use of exclusive file lock to ensure
+    only one function instance is running at a time.
+
+    All function runners must be present on the same container for this to work."""
+    LOCK_FILE_BASE = '/tmp'
+    file_name = f'_snoop_flock_{func.__name__}.lock'
+    lock_path = os.path.join(LOCK_FILE_BASE, file_name)
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        with _flock_contextmanager(lock_path):
+            return func(*args, **kwargs)
+    return wrapper
 
 
 class SnoopTaskError(Exception):
@@ -1100,6 +1154,7 @@ def single_task_running(key):
 
 @celery.app.task
 @tracer.wrap_function()
+@flock
 def save_stats():
     """Periodic Celery task used to save stats for all collections.
     """
@@ -1126,6 +1181,7 @@ def save_stats():
 
 @celery.app.task
 @tracer.wrap_function()
+@flock
 def run_dispatcher():
     """Periodic Celery task used to queue next batches of Tasks for each collection.
 
@@ -1160,6 +1216,7 @@ def run_dispatcher():
 
 @celery.app.task
 @tracer.wrap_function()
+@flock
 def update_all_tags():
     """Periodic Celery task used to re-index documents with changed Tags.
 
@@ -1557,6 +1614,7 @@ def _run_bulk_tasks_for_collection():
 
 @celery.app.task
 @tracer.wrap_function()
+@flock
 def run_bulk_tasks():
     """Periodic task that runs some batches of bulk tasks for all collections.
     For each collection, we update the ES index refresh interval."""
