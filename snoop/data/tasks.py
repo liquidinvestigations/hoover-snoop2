@@ -1332,7 +1332,7 @@ def dispatch_for(collection, func):
                 models.Task.objects
                 .filter(func=func)
                 .filter(date_modified__lt=timezone.now() - timedelta(minutes=3))
-                .exclude(status=models.Task.STATUS_PENDING)
+                .filter(status=models.Task.STATUS_SUCCESS)
                 .order_by('date_modified')[:settings.SYNC_RETRY_LIMIT_DIRS],
                 one_slice_only=True,
             )
