@@ -1,6 +1,7 @@
 """Django views, mostly JSON APIs.
 """
 from functools import wraps
+import json
 
 from django.conf import settings
 from django.db.models import Q
@@ -430,3 +431,16 @@ def processing_status(request, hash):
     if total_count != 0 and result['done_count'] == total_count:
         result['finished'] = True
     return JsonResponse(result)
+
+
+def write_settings(request, collection):
+    """Overwrite collection config.
+
+    """
+    try:
+        col = collections.ALL[collection]
+    except KeyError:
+        raise Http404(f"Collection {collection} does not exist")
+    config = json.loads(request.body.strip(b' ') or '{}')
+    # TODO FIXME ITS FRIDAY
+    return JsonResponse(config)
