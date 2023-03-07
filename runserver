@@ -9,7 +9,7 @@ if [[ "$DEBUG" == "true" ]]; then
 	    --error-logfile '-' \
 	    --log-level 'info' \
 	    --worker-class sync \
-	    --workers $THREAD_COUNT \
+	    --workers 4 \
 	    --threads 1 \
 	    --max-requests 1 \
 	    --keep-alive 60 \
@@ -20,7 +20,7 @@ else
 	exec gunicorn \
 	    --error-logfile '-' \
 	    --worker-class sync \
-	    --workers $THREAD_COUNT \
+	    --workers 4 \
 	    --threads 1 \
 	    --max-requests 1 \
 	    --keep-alive 60 \

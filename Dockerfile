@@ -35,7 +35,6 @@ COPY . .
 COPY .git .
 RUN chmod +x /opt/hoover/snoop/docker-entrypoint.sh
 
-ENV THREAD_COUNT 20
 COPY ./runserver /runserver
 
 RUN chown -R $UID:$GID /runserver && chmod +x /runserver
