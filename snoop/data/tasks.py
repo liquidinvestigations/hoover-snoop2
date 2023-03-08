@@ -1106,7 +1106,7 @@ def _is_rabbitmq_memory_full():
 
     except Exception as e:
         logger.error('error when fetching rabbitmq ndoe memory depth: %s', e)
-        return True
+        return False
 
 
 @tracer.wrap_function()

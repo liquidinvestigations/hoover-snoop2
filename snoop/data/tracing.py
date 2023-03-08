@@ -95,9 +95,9 @@ class Tracer:
         for key, value in extra_counters.items():
             assert len(key) <= MAX_COUNTER_KEY_LEN, 'counter key too long!'
             self.count(name + '__' + key, value=value['value'], attributes=attributes, unit=value['unit'])
+        t0 = time()
         try:
             with self.tracer.start_as_current_span(name, *args, **kwds) as span:
-                t0 = time()
                 yield span
         finally:
             self.count(name + '__duration', value=time() - t0, attributes=attributes, unit='s')
