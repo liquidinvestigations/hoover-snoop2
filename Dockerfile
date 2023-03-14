@@ -1,4 +1,4 @@
-FROM liquidinvestigations/hoover-snoop2:0.21.1-base
+FROM liquidinvestigations/hoover-snoop2:0.22.5-base
 
 ARG USER_NAME=liquid
 ARG UID=666
@@ -6,23 +6,10 @@ ARG GID=666
 RUN groupadd -g $GID -o $USER_NAME
 RUN useradd -m -u $UID -g $GID -o -s /bin/bash $USER_NAME
 
-# deps, install s3fs, fuse-7z-ng and concat-fuse
-RUN apt-get update && apt-get install -y gosu s3fs cmake libfuse-dev build-essential libfuse-dev libmhash-dev libminizip-dev     build-essential pkg-config cmake g++ clang libfuse-dev libmhash-dev libminizip-dev zlib1g-dev libssl-dev libgtest-dev
-RUN mkdir /opt/fuse-7z \
- && git clone https://github.com/liquidinvestigations/fuse-7z-ng /opt/fuse-7z \
- && /opt/fuse-7z/build.sh \
- && rm -rf /opt/fuse-7z
-
-# install pdf2pdfocr (new version) -- since we don't have access to docker base rebuilds
-RUN rm -f /etc/ImageMagick-6/policy.xml
 RUN pip3 install packaging psutil Pillow reportlab \
   && pip3 install lxml beautifulsoup4 \
   && pip3 install wheel \
   && pip3 install PyPDF2
-RUN rm -rf /opt/pdf2pdfocr \
- && git clone https://github.com/liquidinvestigations/pdf2pdfocr --branch master2 /opt/pdf2pdfocr \
- && cd /opt/pdf2pdfocr \
- && ./install_command
 
 # install snoop
 RUN mkdir -p /opt/hoover/snoop/static
