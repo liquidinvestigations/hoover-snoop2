@@ -22,16 +22,10 @@ RUN set -e \
      wget curl git file \
      gpg gpg-agent \
      gosu tini \
-     s3fs cmake libfuse-dev build-essential libfuse-dev libmhash-dev libminizip-dev     build-essential pkg-config cmake g++ clang libfuse-dev libmhash-dev libminizip-dev zlib1g-dev libssl-dev libgtest-dev \
+     s3fs
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
  && pip3 install pipenv
-
-# install fuse-7z and concat-fuse
-RUN mkdir /opt/fuse-7z \
- && git clone https://github.com/liquidinvestigations/fuse-7z-ng /opt/fuse-7z \
- && /opt/fuse-7z/build.sh \
- && rm -rf /opt/fuse-7z
 
 # disable tesseract multithreading
 ENV OMP_THREAD_LIMIT 1
