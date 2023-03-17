@@ -39,6 +39,8 @@ RUN set -e \
 ADD https://github.com/liquidinvestigations/snoop-deps/raw/master/tini_v0.19.0 /tini
 RUN chmod +x /tini
 
+RUN git config --global --add safe.directory "*"
+
 ENTRYPOINT ["/opt/hoover/snoop/docker-entrypoint.sh"]
 
 ENV GUNICORN_WORKER_CLASS=sync
