@@ -545,12 +545,14 @@ class DirectoryAdmin(MultiDBModelAdmin):
     inlines = [ChildDirectoryInline, ChildFileInline]
 
     def name_str(self, obj):
+        """Get converted name from annotated query."""
         with self.collection.set_current():
             return obj.name_str
 
     def get_search_results(self, request, queryset, search_term):
+        """Override search results to look in the annotated field name_str."""
         # The results of the built-in search, based on search_fields
-        queryset_a, may_have_duplicates = super().get_search_results(request, queryset, search_term)
+        queryset_a, _ = super().get_search_results(request, queryset, search_term)
 
         # Queryset B starts off equal to the original queryset with
         # anotations
@@ -696,6 +698,7 @@ class LanguageModelAdmin(MultiDBModelAdmin):
 
 # https://dba.stackexchange.com/questions/53309/using-postgresql-8-4-how-to-convert-bytea-to-text-value-in-postgres
 class PG_Encode(Func):
+    """Proxy for the PG SQL function encode()"""
     function = 'encode'
 
 
@@ -741,12 +744,14 @@ class FileAdmin(MultiDBModelAdmin):
     ]
 
     def name_str(self, obj):
+        """Get converted name from annotated query."""
         with self.collection.set_current():
             return obj.name_str
 
     def get_search_results(self, request, queryset, search_term):
+        """Override search results to look in the annotated field name_str."""
         # The results of the built-in search, based on search_fields
-        queryset_a, may_have_duplicates = super().get_search_results(request, queryset, search_term)
+        queryset_a, _ = super().get_search_results(request, queryset, search_term)
 
         # Queryset B starts off equal to the original queryset with
         # anotations
