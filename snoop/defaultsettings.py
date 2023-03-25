@@ -43,6 +43,7 @@ Loaded from environment variable `SNOOP_HOSTNAME`, default is `*` (no restrictio
 """
 
 INSTALLED_APPS = [
+    'django_admin_inline_paginator',
     'snoop.data.apps.AdminConfig',
     'snoop.data.apps.DataConfig',
     'django.contrib.auth',

@@ -24,14 +24,19 @@ from django.utils.safestring import mark_safe
 from django.utils import timezone
 from django.urls import path
 from django.shortcuts import render
-from django.db.models import Sum, Count, Avg, F, Min, Max
+from django.db.models import Sum, Count, Avg, F, Min, Max, Func, Value, Q
 from django.db import connections
 from django.contrib.humanize.templatetags.humanize import naturaltime
+from django.utils.text import (
+    smart_split, unescape_string_literal
+)
+
+from django.db.models import CharField
 from . import models
 from . import tasks
 from . import collections
 from .templatetags import pretty_size
-
+from django_admin_inline_paginator.admin import TabularInlinePaginated
 
 log = logging.getLogger(__name__)
 
@@ -495,6 +500,17 @@ class MultiDBModelAdmin(admin.ModelAdmin):
         return super().has_change_permission(request, obj)
 
 
+class BaseInline(TabularInlinePaginated):
+    # model = models.File
+    # fk_name = 'parent_directory'
+    can_delete = False
+    can_edit = False
+    max_num = 0
+    min_num = 0
+    show_change_link = True
+    per_page = 10
+
+
 class DirectoryAdmin(MultiDBModelAdmin):
     """List and detail views for the folders."""
 
@@ -507,8 +523,65 @@ class DirectoryAdmin(MultiDBModelAdmin):
         'date_modified',
         'date_created',
         'name',
+        'name_str',
     ]
-    list_display = ['pk', '__str__', 'name', 'date_created', 'date_modified']
+    list_display = ['pk', '__str__', 'name_str', 'date_created', 'date_modified']
+    search_fields = ['name_str', 'pk']
+
+    class ChildFileInline(BaseInline):
+        model = models.File
+        fk_name = 'parent_directory'
+        pagination_key = 'child-file-inline-page'
+        verbose_name_plural = 'Child files'
+        verbose_name = 'child file'
+
+    class ChildDirectoryInline(BaseInline):
+        model = models.Directory
+        fk_name = 'parent_directory'
+        pagination_key = 'child-dir-inline-page'
+        verbose_name_plural = 'Child directories'
+        verbose_name = 'child directory'
+
+    inlines = [ChildDirectoryInline, ChildFileInline]
+
+    def name_str(self, obj):
+        with self.collection.set_current():
+            return obj.name_str
+
+    def get_search_results(self, request, queryset, search_term):
+        # The results of the built-in search, based on search_fields
+        queryset_a, may_have_duplicates = super().get_search_results(request, queryset, search_term)
+
+        # Queryset B starts off equal to the original queryset with
+        # anotations
+        queryset_b = queryset.alias(
+            name_str=PG_Encode(
+                F("name_bytes"),
+                Value('escape'),
+                output_field=CharField(),
+            )
+        )
+        # Filter out queryset_b on every search term
+        for bit in smart_split(search_term):
+            if bit.startswith(('"', "'")) and bit[0] == bit[-1]:
+                bit = unescape_string_literal(bit)
+            queryset_b = queryset_b.filter(Q(name_str__icontains=bit))
+
+        # Return both querysets
+        # Since we're doing 2 separate searches and combining them, it's
+        # not impossible for there to be duplicates, so we set
+        # may_have_duplicates return value to True, which will have Django
+        # filter out the duplicates
+        return (queryset_a | queryset_b), True
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            name_str=PG_Encode(
+                F("name_bytes"),
+                Value('escape'),
+                output_field=CharField(),
+            )
+        )
 
 
 class EntityAdmin(MultiDBModelAdmin):
@@ -621,13 +694,29 @@ class LanguageModelAdmin(MultiDBModelAdmin):
     list_display = ['pk', 'language_code', 'engine', 'model_name']
 
 
+# https://dba.stackexchange.com/questions/53309/using-postgresql-8-4-how-to-convert-bytea-to-text-value-in-postgres
+class PG_Encode(Func):
+    function = 'encode'
+
+
 class FileAdmin(MultiDBModelAdmin):
     """List and detail views for the files."""
 
+    class ChildDirectoryInline(BaseInline):
+        model = models.Directory
+        fk_name = 'container_file'
+        pagination_key = 'container-file-inline-page'
+        verbose_name_plural = 'child directories'
+        verbose_name = 'child directory'
+    inlines = [ChildDirectoryInline]
+
     raw_id_fields = ['parent_directory', 'original', 'blob']
-    list_display = ['__str__', 'size', 'mime_type',
-                    'original_blob_link', 'blob_link']
+    list_display = [
+        '__str__', 'size', 'mime_type',
+        'original_blob_link', 'blob_link',
+    ]
     readonly_fields = [
+        "name_str",
         'pk', 'parent_directory', 'original', 'original_blob_link',
         'blob', 'blob_link', 'mime_type',
         'ctime', 'mtime', 'size', 'date_created', 'date_modified',
@@ -648,7 +737,47 @@ class FileAdmin(MultiDBModelAdmin):
         'blob__magic',
         'blob__mime_type',
         'blob__mime_encoding',
+        'name_str',
     ]
+
+    def name_str(self, obj):
+        with self.collection.set_current():
+            return obj.name_str
+
+    def get_search_results(self, request, queryset, search_term):
+        # The results of the built-in search, based on search_fields
+        queryset_a, may_have_duplicates = super().get_search_results(request, queryset, search_term)
+
+        # Queryset B starts off equal to the original queryset with
+        # anotations
+        queryset_b = queryset.alias(
+            name_str=PG_Encode(
+                F("name_bytes"),
+                Value('escape'),
+                output_field=CharField(),
+            )
+        )
+        # Filter out queryset_b on every search term
+        for bit in smart_split(search_term):
+            if bit.startswith(('"', "'")) and bit[0] == bit[-1]:
+                bit = unescape_string_literal(bit)
+            queryset_b = queryset_b.filter(Q(name_str__icontains=bit))
+
+        # Return both querysets
+        # Since we're doing 2 separate searches and combining them, it's
+        # not impossible for there to be duplicates, so we set
+        # may_have_duplicates return value to True, which will have Django
+        # filter out the duplicates
+        return (queryset_a | queryset_b), True
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).annotate(
+            name_str=PG_Encode(
+                F("name_bytes"),
+                Value('escape'),
+                output_field=CharField(),
+            )
+        )
 
     def mime_type(self, obj):
         return obj.original.mime_type
@@ -681,6 +810,64 @@ class BlobAdmin(MultiDBModelAdmin):
                        '_collection_source_key']
 
     change_form_template = 'snoop/admin_blob_change_form.html'
+
+    class BlobFileInline(BaseInline):
+        model = models.File
+        fk_name = 'blob'
+        pagination_key = 'blob-inline-page'
+        verbose_name_plural = 'found in files'
+        verbose_name = 'found in file'
+
+    class OriginalFileInline(BaseInline):
+        model = models.File
+        fk_name = 'original'
+        pagination_key = 'original-inline-page'
+        verbose_name_plural = 'found in files as original'
+        verbose_name = 'found in file as original'
+
+    class TaskArgumentInline(BaseInline):
+        model = models.Task
+        fk_name = 'blob_arg'
+        pagination_key = 'found-in-task-arg'
+        verbose_name_plural = 'found in tasks as argument'
+        verbose_name = 'found in task as argument'
+
+    class TaskResultInline(BaseInline):
+        model = models.Task
+        fk_name = 'result'
+        pagination_key = 'found-in-task-res'
+        verbose_name_plural = 'found in tasks as result'
+        verbose_name = 'found in task as result'
+
+    class DigestArgumentInline(BaseInline):
+        model = models.Digest
+        fk_name = 'blob'
+        pagination_key = 'found-in-digest-arg'
+        verbose_name_plural = 'found in digests as argument'
+        verbose_name = 'found in digest as argument'
+
+    class DigestResultInline(BaseInline):
+        model = models.Digest
+        fk_name = 'result'
+        pagination_key = 'found-in-digest-res'
+        verbose_name_plural = 'found in digests as result'
+        verbose_name = 'found in digest as result'
+
+    class DigestExtraResultInline(BaseInline):
+        model = models.Digest
+        fk_name = 'extra_result'
+        pagination_key = 'found-in-digest-res'
+        verbose_name_plural = 'found in digests as extra result'
+        verbose_name = 'found in digest as extra result'
+
+    class DigestInline(BaseInline):
+        pass
+
+    inlines = [
+        BlobFileInline, OriginalFileInline,
+        DigestResultInline, DigestExtraResultInline, DigestArgumentInline,
+        TaskResultInline, TaskArgumentInline,
+    ]
 
     def _collection_source_key(self, obj):
         return obj.collection_source_key.tobytes().decode('utf8', errors='surrogateescape')
@@ -743,6 +930,22 @@ class TaskAdmin(MultiDBModelAdmin):
     """List and detail views for the Tasks with Retry action.
     """
 
+    class PrevInline(BaseInline):
+        model = models.TaskDependency
+        fk_name = 'next'
+        pagination_key = 'prev-tasks'
+        verbose_name_plural = 'prev tasks'
+        verbose_name = 'prev task'
+
+    class NextInline(BaseInline):
+        model = models.TaskDependency
+        fk_name = 'prev'
+        pagination_key = 'next-tasks'
+        verbose_name_plural = 'next tasks'
+        verbose_name = 'next task'
+
+    inlines = [PrevInline, NextInline]
+
     raw_id_fields = ['blob_arg', 'result']
     readonly_fields = ['_blob_arg', '_result', 'pk', 'func', 'args', 'date_created', 'date_started',
                        'date_finished', 'date_modified', 'status', 'details', 'error', 'log',
@@ -752,8 +955,30 @@ class TaskAdmin(MultiDBModelAdmin):
                     'status', 'details', 'broken_reason', 'duration',
                     'size']
     list_filter = ['func', 'status', 'broken_reason']
-    search_fields = ['pk', 'func', 'args', 'error', 'log',
-                     'broken_reason', 'blob_arg__pk', 'result__pk']
+    search_fields = [
+        'pk',
+        'func',
+        'args',
+        'error',
+        'log',
+        'broken_reason',
+        'result__pk',
+        'result__sha3_256',
+        'result__sha256',
+        'result__sha1',
+        'result__md5',
+        'result__magic',
+        'result__mime_type',
+        'result__mime_encoding',
+        'blob_arg__pk',
+        'blob_arg__sha3_256',
+        'blob_arg__sha256',
+        'blob_arg__sha1',
+        'blob_arg__md5',
+        'blob_arg__magic',
+        'blob_arg__mime_type',
+        'blob_arg__mime_encoding',
+    ]
     actions = ['retry_selected_tasks']
 
     change_form_template = 'snoop/admin_task_change_form.html'
@@ -847,7 +1072,56 @@ class TaskDependencyAdmin(MultiDBModelAdmin):
     raw_id_fields = ['prev', 'next']
     readonly_fields = ['prev', 'next', 'name']
     list_display = ['pk', 'name', 'prev', 'next']
-    search_fields = ['prev', 'next', 'name']
+    search_fields = [
+        'name',
+
+        'prev__pk',
+        'prev__func',
+        'prev__args',
+        'prev__error',
+        'prev__log',
+        'prev__broken_reason',
+        'prev__result__pk',
+        'prev__result__sha3_256',
+        'prev__result__sha256',
+        'prev__result__sha1',
+        'prev__result__md5',
+        'prev__result__magic',
+        'prev__result__mime_type',
+        'prev__result__mime_encoding',
+        'prev__blob_arg__pk',
+        'prev__blob_arg__sha3_256',
+        'prev__blob_arg__sha256',
+        'prev__blob_arg__sha1',
+        'prev__blob_arg__md5',
+        'prev__blob_arg__magic',
+        'prev__blob_arg__mime_type',
+        'prev__blob_arg__mime_encoding',
+
+        'next__pk',
+        'next__func',
+        'next__args',
+        'next__error',
+        'next__log',
+        'next__broken_reason',
+        'next__result__pk',
+        'next__result__sha3_256',
+        'next__result__sha256',
+        'next__result__sha1',
+        'next__result__md5',
+        'next__result__magic',
+        'next__result__mime_type',
+        'next__result__mime_encoding',
+        'next__blob_arg__pk',
+        'next__blob_arg__sha3_256',
+        'next__blob_arg__sha256',
+        'next__blob_arg__sha1',
+        'next__blob_arg__md5',
+        'next__blob_arg__magic',
+        'next__blob_arg__mime_type',
+        'next__blob_arg__mime_encoding',
+
+    ]
 
 
 class DigestAdmin(MultiDBModelAdmin):
@@ -861,7 +1135,25 @@ class DigestAdmin(MultiDBModelAdmin):
     ]
     list_display = ['pk', 'blob__mime_type', 'blob_link',
                     'result_link', 'extra_result_link', 'date_modified']
-    search_fields = ['pk', 'blob__pk', 'result__pk']
+    search_fields = [
+        'pk',
+        'blob__pk',
+        'result__pk',
+        'result__sha3_256',
+        'result__sha256',
+        'result__sha1',
+        'result__md5',
+        'result__magic',
+        'result__mime_type',
+        'result__mime_encoding',
+        'blob__sha3_256',
+        'blob__sha256',
+        'blob__sha1',
+        'blob__md5',
+        'blob__magic',
+        'blob__mime_type',
+        'blob__mime_encoding',
+    ]
     # TODO subclass django.contrib.admin.filters.AllValuesFieldListFilter.choices()
     # to set the current collection
     # list_filter = ['blob__mime_type']
