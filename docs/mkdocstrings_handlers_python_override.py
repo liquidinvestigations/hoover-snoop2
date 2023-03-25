@@ -152,7 +152,7 @@ class PythonCollector(BaseCollector):
         self.process = Popen(  # noqa: S603,S607 (we trust the input, and we don't want to use the absolute path)
             cmd,
             universal_newlines=True,
-            stderr=PIPE,
+            # stderr=PIPE,
             stdout=PIPE,
             stdin=PIPE,
             bufsize=-1,
@@ -191,8 +191,8 @@ class PythonCollector(BaseCollector):
         """
         final_config = ChainMap(config, self.default_config)
 
-        log.debug("Preparing input")
         json_input = json.dumps({"objects": [{"path": identifier, **final_config}]})
+        log.debug("Preparing input: " + json_input)
 
         log.debug("Writing to process' stdin")
         self.process.stdin.write(json_input + "\n")  # type: ignore
@@ -200,15 +200,13 @@ class PythonCollector(BaseCollector):
 
         log.debug("Reading process' stdout")
         stdout = self.process.stdout.readline()  # type: ignore
-        stderr = "".join(self.process.stderr.readlines())
+        # stderr = "".join(self.process.stderr.readlines())
 
         log.debug("Loading JSON output as Python object")
         try:
             result = json.loads(stdout)
         except json.decoder.JSONDecodeError as exception:
-            error = "\n".join(("Error while loading", "vvvvvvvvvvvvvvvvvvvvvvvv",
-                ">>> JSON:", stdout, ">>> RUNNER LOGS: ",
-                stderr, "^^^^^^^^^^^^^^^^^^^", traceback.format_exc()))
+            error = "\n".join(("Error while loading JSON:", stdout, traceback.format_exc()))
             raise CollectionError(error) from exception
 
         error = result.get("error")

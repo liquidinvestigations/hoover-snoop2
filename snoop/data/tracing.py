@@ -11,7 +11,6 @@ from contextlib import contextmanager
 from time import time
 
 
-
 log = logging.getLogger(__name__)
 
 try:
@@ -42,6 +41,7 @@ MAX_KEY_LEN = 63
 
 MAX_COUNTER_KEY_LEN = 11
 """Max key reserved for counter suffixes."""
+
 
 def init_tracing(_from):
     """Initialize tracing at the beginning of an entry point, like manage.py, celery or gunicorn.
