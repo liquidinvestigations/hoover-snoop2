@@ -115,3 +115,10 @@ waitress
 webencodings
 whitenoise
 whitenoise.middleware
+uptrace
+opentelemetry.trace
+opentelemetry.metrics
+opentelemetry.instrumentation.django
+opentelemetry.instrumentation.psycopg2
+opentelemetry.instrumentation.logging
+minio

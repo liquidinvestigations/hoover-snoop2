@@ -5,6 +5,7 @@ max-line-length = 109
 exclude =
     snoop/wsgi.py
     docker-setup
+    docs/*override.py
 
 per-file-ignores =
     testsuite/*: E501, F405, F403

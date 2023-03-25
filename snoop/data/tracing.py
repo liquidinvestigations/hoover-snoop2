@@ -10,28 +10,38 @@ import logging
 from contextlib import contextmanager
 from time import time
 
-import uptrace
-from opentelemetry import trace
-from opentelemetry import metrics
-from opentelemetry.instrumentation.django import DjangoInstrumentor
-from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
-from opentelemetry.instrumentation.logging import LoggingInstrumentor
-# commented out because of error "TypeError: 'HttpHeaders' object does not support item assignment"
-# from opentelemetry.instrumentation.requests import RequestsInstrumentor
-# commented out because of leaked socket warning, but it seems to be harmless as it uses same fd
-# from opentelemetry.instrumentation.celery import CeleryInstrumentor
+
+
+log = logging.getLogger(__name__)
+
+try:
+    import uptrace
+    from opentelemetry import trace
+    from opentelemetry import metrics
+    from opentelemetry.instrumentation.django import DjangoInstrumentor
+    from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
+    from opentelemetry.instrumentation.logging import LoggingInstrumentor
+    # commented out because of error "TypeError: 'HttpHeaders' object does not support item assignment"
+    # from opentelemetry.instrumentation.requests import RequestsInstrumentor
+    # commented out because of leaked socket warning, but it seems to be harmless as it uses same fd
+    # from opentelemetry.instrumentation.celery import CeleryInstrumentor
+
+except Exception as e:
+    log.exception(e)
+
 
 SERVICE_NAME = "hoover-snoop"
-SERVICE_VERSION = subprocess.check_output("git describe --tags --always", shell=True).decode().strip()
+try:
+    SERVICE_VERSION = subprocess.check_output("git describe --tags --always", shell=True).decode().strip()
+except Exception as e:
+    log.exception(e)
+    SERVICE_VERSION = 'unknown'
 
 MAX_KEY_LEN = 63
 """Max key length for open telemetry counters, span names and other identifiers."""
 
 MAX_COUNTER_KEY_LEN = 11
 """Max key reserved for counter suffixes."""
-
-log = logging.getLogger(__name__)
-
 
 def init_tracing(_from):
     """Initialize tracing at the beginning of an entry point, like manage.py, celery or gunicorn.
@@ -40,15 +50,18 @@ def init_tracing(_from):
     """
     log.info('FROM %s: initializing trace engine for %s %s...', _from, SERVICE_NAME, SERVICE_VERSION)
     if os.getenv('UPTRACE_DSN'):
-        uptrace.configure_opentelemetry(
-            service_name=SERVICE_NAME,
-            service_version=SERVICE_VERSION,
-        )
-        LoggingInstrumentor().instrument(set_logging_format=True)
-        Psycopg2Instrumentor().instrument(skip_dep_check=True)
-        DjangoInstrumentor().instrument()
-        # RequestsInstrumentor().instrument()
-        # CeleryInstrumentor().instrument()
+        try:
+            uptrace.configure_opentelemetry(
+                service_name=SERVICE_NAME,
+                service_version=SERVICE_VERSION,
+            )
+            LoggingInstrumentor().instrument(set_logging_format=True)
+            Psycopg2Instrumentor().instrument(skip_dep_check=True)
+            DjangoInstrumentor().instrument()
+            # RequestsInstrumentor().instrument()
+            # CeleryInstrumentor().instrument()
+        except Exception as e:
+            log.exception(e)
 
 
 def shorten_name(string, length):
@@ -76,8 +89,13 @@ class Tracer:
         name = name.replace(' ', '_')
         self.name = name
         self.version = version or SERVICE_VERSION
-        self.tracer = trace.get_tracer(self.name, self.version)
-        self.meter = metrics.get_meter(self.name)
+        try:
+            self.tracer = trace.get_tracer(self.name, self.version)
+            self.meter = metrics.get_meter(self.name)
+        except Exception as e:
+            log.exception(e)
+            self.tracer = None
+            self.meter = None
         self.counters = {}
 
     @contextmanager
