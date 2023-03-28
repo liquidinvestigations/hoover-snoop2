@@ -43,6 +43,7 @@ Loaded from environment variable `SNOOP_HOSTNAME`, default is `*` (no restrictio
 """
 
 INSTALLED_APPS = [
+    'django_admin_inline_paginator',
     'snoop.data.apps.AdminConfig',
     'snoop.data.apps.DataConfig',
     'django.contrib.auth',
@@ -69,6 +70,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+
+    'pellet.middleware.PelletMiddleware',
 ]
 """List of Django middleware to load."""
 
@@ -463,3 +466,23 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 """Define type for automatically generated primary keys.
 This is needed since Django 3.2.
 """
+
+PELLET = {
+    "enabled": True,
+    "query_level_metrics_enabled": True,
+    "headers": {
+        "enabled": True,
+        "query_count_header": "X-Pellet-Count",
+        "query_time_header": "X-Pellet-Time"
+    },
+    "debug": {
+        "enabled": DEBUG,
+        "count_threshold": {
+            "min": 2,
+            "low": 5,
+            "medium": 10
+        }
+    },
+    "callback": None
+}
+"""Pellet configuration for detecting N+1 queries."""

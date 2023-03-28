@@ -5,4 +5,4 @@ pip install -r docs/requirements-mkdocs.txt
 set +e
 # build with strict mode (-s) on; then serve without it
 # (since it outputs stupid warnings because of the -a param)
-while true; do mkdocs build -c -s; mkdocs serve -a 0.0.0.0:8000; sleep 4; done
+while true; do mkdocs build -c -s -v; mkdocs serve -a 0.0.0.0:8000; sleep 4; done

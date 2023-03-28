@@ -56,6 +56,7 @@ plugins:
       python:
         setup_commands:
           - import sys, os
+          - print("\n\n>>> starting docs builder!\n\n")
           - sys.path.append(".")
           - os.environ["SNOOP_DB"] = "postgresql://snoop:snoop@snoop-pg:5432/snoop"
           - os.environ["DEBUG"] = "true"
