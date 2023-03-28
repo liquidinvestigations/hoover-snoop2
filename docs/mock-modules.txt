@@ -127,3 +127,4 @@ smart_open
 psutil
 pyrabbit.api
 pyexcel
+pellet
