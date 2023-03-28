@@ -101,6 +101,7 @@ opentelemetry-instrumentation-requests = "*"
 # opentelemetry-instrumentation-elasticsearch = "*"
 # downgrade grpcio as per https://github.com/grpc/grpc/issues/31885
 grpcio = "<=1.50"
+pellet = "*"
 
 [requires]
 python_version = "3.9"
