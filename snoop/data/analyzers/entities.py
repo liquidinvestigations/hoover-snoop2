@@ -230,18 +230,21 @@ def translate(blob, lang):
     digest = models.Digest.objects.get(blob=blob)
     digest_data = digest.result.read_json()
     tesseract_lang_code = LANGUAGE_CODE_MAP.get(lang)
+    texts = [digest_data.get('text', "")]
     if not tesseract_lang_code:
         log.warning(f'No OCR Language code found for language: {lang}')
         # keep all texts if there is no matching language code
         tesseract_lang_code = ""
     if tesseract_lang_code in current_collection().ocr_languages:
-        texts = [digest_data.get('text', "")] +\
-            [text[1] for text in list(digest_data.get('ocrtext', {}).items())
-             if text[0] == f'tesseract_{tesseract_lang_code}']
+        texts += [
+            text[1] for text in list(digest_data.get('ocrtext', {}).items())
+            if text[0] == f'tesseract_{tesseract_lang_code}'
+        ]
     else:
         # keep first ocr if no ocr language matches detected language
-        texts = [digest_data.get('text', "")] +\
-            [[text[1] for text in list(digest_data.get('ocrtext', {}).items())][0]]
+        all_ocr_texts = [text[1] for text in list(digest_data.get('ocrtext', {}).items())]
+        if all_ocr_texts:
+            texts += [all_ocr_texts[0]]
     texts = [t[:_txt_limit].strip() for t in texts if len(t.strip()) > 1]
     texts = "\n\n".join(texts).strip()[:MAX_LANGDETECT_DOC_READ]
 
