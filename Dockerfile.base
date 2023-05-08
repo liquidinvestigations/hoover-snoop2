@@ -25,6 +25,7 @@ RUN set -e \
      s3fs \
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
+ && pip3 install --upgrade pip \
  && pip3 install pipenv
 
 # disable tesseract multithreading

@@ -6,7 +6,8 @@ ARG GID=666
 RUN groupadd -g $GID -o $USER_NAME
 RUN useradd -m -u $UID -g $GID -o -s /bin/bash $USER_NAME
 
-RUN pip3 install packaging psutil Pillow reportlab \
+RUN pip3 install --upgrade pip \
+  && pip3 install packaging psutil Pillow reportlab \
   && pip3 install lxml beautifulsoup4 \
   && pip3 install wheel \
   && pip3 install PyPDF2
