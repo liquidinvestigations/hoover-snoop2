@@ -1,5 +1,6 @@
 FROM python:3.9-bullseye
 ENV PYTHONUNBUFFERED 1
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN set -e \
  && echo 'deb http://deb.debian.org/debian bullseye non-free' >> /etc/apt/sources.list \
