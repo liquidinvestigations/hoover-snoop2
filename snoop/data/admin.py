@@ -395,6 +395,7 @@ def _get_stats(old_values):
         '_last_updated': time.time(),
         'stats_collection_time': int(time.time() - __t0) + 1,
         '_old_task_matrix': {k: tr(k, v) for k, v in task_matrix.items()},
+        'options': json.dumps(collections.current().opt, indent=2),
     }
 
 
@@ -404,7 +405,7 @@ def get_stats(force_reset=False):
     col_name_hash = int(hash(collections.current().name))
     if collections.current().process:
         # default stats refresh rate once per 2 min
-        REFRESH_AFTER_SEC = 100
+        REFRESH_AFTER_SEC = 120
         # add pseudorandom 0-40s
         REFRESH_AFTER_SEC += col_name_hash % 40
     else:
