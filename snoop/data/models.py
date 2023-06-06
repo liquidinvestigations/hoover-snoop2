@@ -219,6 +219,22 @@ class Blob(models.Model):
 
         os.remove(temp_blob_path)
 
+    def update_magic(self):
+        """Refreshes the mime type fields by running libmagic on the mounted blob.
+
+        Updates the database object if needed.
+        """
+        with self.mount_path() as blob_path:
+            m = Magic(Path(blob_path))
+            fields = m.fields
+        changed = False
+        for k, v in fields.items():
+            if v != getattr(self, k):
+                setattr(self, k, v)
+                changed = True
+        if changed:
+            self.save()
+
     @property
     def repo_path(self):
         return blob_repo_path(self.pk)
