@@ -128,3 +128,4 @@ psutil
 pyrabbit.api
 pyexcel
 pellet
+pellet.middleware
