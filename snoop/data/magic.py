@@ -78,7 +78,14 @@ class Magic:
         magic_output = _parse_magic(subprocess.check_output(MAGIC_PROCESS_CMD + [path]))
         self.magic_output = magic_output
 
-        if self.mime_type.startswith('text/'):
+        # Emails are often badly detected by libmagic.
+        # Sometimes, mimetype comes out null but magic has multipart boundary.
+        should_check_email = (
+            self.mime_type.startswith('text/')
+            or self.magic_output.startswith('multipart/')
+            or not self.mime_type
+        )
+        if should_check_email:
             if looks_like_email(path):
                 if looks_like_emlx_email(path):
                     self.mime_type = 'message/x-emlx'

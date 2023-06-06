@@ -204,7 +204,7 @@ def walk(directory_pk):
                 handle_file.laterz(file.pk, queue_now=False)
 
 
-@snoop_task('filesystem.handle_file', version=3, queue='filesystem')
+@snoop_task('filesystem.handle_file', version=4, queue='filesystem')
 def handle_file(file_pk, **depends_on):
     """Parse, update and possibly convert file found on in dataset.
 
@@ -231,6 +231,11 @@ def handle_file(file_pk, **depends_on):
     old_blob_mime = file.blob.mime_type
     old_blob = file.blob
     file.blob = file.original
+
+    # update mime type / magic information
+    file.blob.update_magic()
+    if file.blob != file.original:
+        file.original.update_magic()
 
     extension = pathlib.Path(file.name).suffix.lower()
     if allow_processing_for_mime_type(file.original.mime_type, extension):
