@@ -40,10 +40,13 @@ def _parse_mime(output):
         MIME_REGEX,
         output
     )
-    mime_type = m.group('mime_type')
-    mime_type = mime_type.split(r'\012-')[0]
-    mime_encoding = m.group('mime_encoding')
-    return mime_type, mime_encoding
+    if m:
+        mime_type = m.group('mime_type')
+        mime_type = mime_type.split(r'\012-')[0]
+        mime_encoding = m.group('mime_encoding')
+        return mime_type, mime_encoding
+    else:
+        return ''
 
 
 def _parse_magic(output):
@@ -55,7 +58,10 @@ def _parse_magic(output):
         MAGIC_REGEX,
         output,
     )
-    return m.group('magic_output')
+    if m:
+        return m.group('magic_output')
+    else:
+        return ''
 
 
 class Magic:
