@@ -191,6 +191,11 @@ def walk(directory_pk):
 
 
 def walk_nextcloud(directory_pk):
+    """Scan the filesystem if the collection is stored in a nextcloud and mounted via webdav.
+
+    When mounted via webdav the collection has a path in the filesystem, so we can
+    use that path and iterate over it to walk the filesystem.
+    """
     directory = models.Directory.objects.get(pk=directory_pk)
     root_data_path = os.path.join(settings.SNOOP_WEBDAV_MOUNT_DIR, collections.current().name,
                                   collections.Collection.DATA_DIR)
@@ -219,6 +224,12 @@ def walk_nextcloud(directory_pk):
 
 def create_file(thing_to_create, directory, original, stat_ctime,
                 stat_mtime, stat_size, queue_limit, nextcloud=False):
+    """Create a file object for a file that is found while walking the filesystem.
+
+    If the file is accessed via nextcloud and webdav we get the name from the file directly,
+    if not the filename is retrieved from the brokenfilename service and passed
+    in the dictionary.
+    """
     if nextcloud:
         name_bytes = thing_to_create.name.encode('utf8', errors='surrogateescape')
     else:
