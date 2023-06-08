@@ -195,7 +195,7 @@ def _delete_empty_keys(d):
             del d[k]
 
 
-@snoop_task('digests.gather', version=8, queue='digests')
+@snoop_task('digests.gather', version=9, queue='digests')
 def gather(blob, **depends_on):
     """Combines and serializes the results of the various dependencies into a single
     [snoop.data.models.Digest][] instance.
