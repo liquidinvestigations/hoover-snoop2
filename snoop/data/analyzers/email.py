@@ -17,6 +17,7 @@ from ..tasks import returns_json_blob
 from . import tika
 import re
 from . import pgp
+from . import html
 
 BYTE_ORDER_MARK = b'\xef\xbb\xbf'
 
@@ -144,7 +145,7 @@ def dump_part(message, depends_on):
             charset = 'latin1'
             rv['text'] = payload_bytes.decode(charset, errors='replace')
 
-    if content_type == 'text/html':
+    if content_type in html.HTML_MIME_TYPES:
         with models.Blob.create() as writer:
             writer.write(payload_bytes)
 
@@ -160,6 +161,12 @@ def dump_part(message, depends_on):
             rv['text'] = rmeta_data[0].get('X-TIKA:content', "") if rmeta_data else ""
         else:
             log.warning('tika HTML for Email Text failed!')
+        # Sometimes, even Tika leaves in some HTML tags...
+        if rv['text']:
+            try:
+                rv['text'] = html.clean_str(rv['text'])
+            except Exception as e:
+                log.warning('HTML cleanup module failed: ' + str(e))
 
     if message.get_content_disposition():
         raw_filename = message.get_filename()

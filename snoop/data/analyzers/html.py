@@ -11,10 +11,12 @@ def is_html(blob):
 
 
 def clean(blob):
-    ALLOWED_TAGS = list(bleach.ALLOWED_TAGS)
-    ALLOWED_TAGS.remove('a')
-
     with blob.open() as f:
         html = f.read().decode('utf-8')
+    return clean_str(html)
 
-    return bleach.clean(html, strip=True, tags=ALLOWED_TAGS)
+
+def clean_str(html_str):
+    ALLOWED_TAGS = list(bleach.ALLOWED_TAGS)
+    ALLOWED_TAGS.remove('a')
+    return bleach.clean(html_str, strip=True, tags=ALLOWED_TAGS)
