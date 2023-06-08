@@ -109,6 +109,12 @@ def walk(directory_pk):
     the `transaction.on_commit` call from `queue_task()` when queueing `walk()` from this function.
     """
     directory = models.Directory.objects.get(pk=directory_pk)
+
+    nextcloud = collections.current().nextcloud
+    if nextcloud:
+        walk_nextcloud(directory_pk)
+        return
+
     url_stat = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-stat'
     url_list = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-list'
     url_obj = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-object'
@@ -180,28 +186,65 @@ def walk(directory_pk):
                     finally:
                         os.unlink(temp_name)
 
-            file, created = directory.child_file_set.get_or_create(
-                name_bytes=thing['name_bytes'],
-                defaults=dict(
-                    ctime=time_from_unix(stat_ctime),
-                    mtime=time_from_unix(stat_mtime),
-                    size=stat_size,
-                    original=original,
-                    blob=original,
-                ),
+            create_file(thing, directory, original, stat_ctime, stat_mtime,
+                        stat_size, queue_limit, nextcloud=nextcloud)
+
+
+def walk_nextcloud(directory_pk):
+    directory = models.Directory.objects.get(pk=directory_pk)
+    root_data_path = os.path.join(settings.SNOOP_WEBDAV_MOUNT_DIR, collections.current().name,
+                                  collections.Collection.DATA_DIR)
+    path = directory_absolute_path(root_data_path, directory)
+    for i, thing in enumerate(path.iterdir()):
+        queue_limit = i >= settings.CHILD_QUEUE_LIMIT
+
+        if thing.is_dir():
+            (child_directory, created) = directory.child_directory_set.get_or_create(
+                name_bytes=thing.name.encode('utf8', errors='surrogateescape'),
             )
-            # if file is already loaded, and size+mtime are the same,
-            # don't retry handle task
-            if created \
-                    or file.mtime != time_from_unix(stat_mtime) \
-                    or file.size != stat_size:
-                file.mtime = time_from_unix(stat_mtime)
-                file.size = stat_size
-                file.original = original
-                file.save()
-                handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
-            else:
-                handle_file.laterz(file.pk, queue_now=False)
+            # since the periodic task retries all talk tasks in rotation,
+            # we're not going to dispatch a walk task we didn't create
+            walk.laterz(child_directory.pk, queue_now=created and not queue_limit)
+
+        else:
+            directory = models.Directory.objects.get(pk=directory_pk)
+            path = directory_absolute_path(root_data_path, directory) / thing.name
+            stat = path.stat()
+
+            original = models.Blob.create_from_file(path)
+
+            create_file(thing, directory, original, stat.st_ctime, stat.st_mtime,
+                        stat.st_size, queue_limit, nextcloud=True)
+
+
+def create_file(thing_to_create, directory, original, stat_ctime,
+                stat_mtime, stat_size, queue_limit, nextcloud=False):
+    if nextcloud:
+        name_bytes = thing_to_create.name.encode('utf8', errors='surrogateescape')
+    else:
+        name_bytes = thing_to_create['name_bytes']
+    file, created = directory.child_file_set.get_or_create(
+        name_bytes=name_bytes,
+        defaults=dict(
+            ctime=time_from_unix(stat_ctime),
+            mtime=time_from_unix(stat_mtime),
+            size=stat_size,
+            original=original,
+            blob=original,
+        ),
+    )
+    # if file is already loaded, and size+mtime are the same,
+    # don't retry handle task
+    if created \
+       or file.mtime != time_from_unix(stat_mtime) \
+       or file.size != stat_size:
+        file.mtime = time_from_unix(stat_mtime)
+        file.size = stat_size
+        file.original = original
+        file.save()
+        handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
+    else:
+        handle_file.laterz(file.pk, queue_now=False)
 
 
 @snoop_task('filesystem.handle_file', version=4, queue='filesystem')

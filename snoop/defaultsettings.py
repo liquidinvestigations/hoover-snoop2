@@ -493,3 +493,6 @@ if os.getenv('SENTRY_DSN'):
     SENTRY_DSN = os.getenv('SENTRY_DSN')
     SENTRY_SAMPLE_RATE = float(os.getenv('SENTRY_SAMPLE_RATE', '1.0'))
     sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=SENTRY_SAMPLE_RATE)
+
+SNOOP_WEBDAV_MOUNT_DIR = os.path.join(os.getenv('MNT', '/mnt'), 'snoop-webdav-mounts', 'collections')
+"""Location on disk where webdav mounts are stored."""

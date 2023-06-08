@@ -73,7 +73,7 @@ class Collection:
     DATA_DIR = 'data'
     GPGHOME_DIR = 'gpghome'
 
-    def __init__(self, name, process=False, sync=False, **opt):
+    def __init__(self, name, process=False, sync=False, nextcloud=False, **opt):
         """Initialize object.
 
         Raises:
@@ -83,6 +83,7 @@ class Collection:
         self.name = name
         self.process = process
         self.sync = sync and process
+        self.nextcloud = nextcloud
         self.ocr_languages = opt.get('ocr_languages', [])
         self.max_result_window = opt.get('max_result_window', 10000)
         self.refresh_interval = opt.get('refresh_interval', "1s")
