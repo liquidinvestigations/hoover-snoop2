@@ -20,7 +20,7 @@ import logging
 from django.conf import settings
 from django.core.paginator import Paginator
 from django.utils import timezone
-from django.db.models import OuterRef, Subquery, Count
+from django.db.models import OuterRef, Subquery, Count, Q
 
 from .tasks import snoop_task, SnoopTaskBroken
 from .tasks import retry_task, retry_tasks, require_dependency
@@ -42,6 +42,10 @@ from .collections import current as current_collection
 
 log = logging.getLogger(__name__)
 ES_MAX_INTEGER = 2 ** 31 - 1
+"""The max integer field available in ES 6.8."""
+
+MAX_DOC_FILE_COUNT = 1000
+"""The max number of file paths to be added to a de-duplicated document."""
 
 
 @snoop_task('digests.launch', version=12, queue='digests')
@@ -793,25 +797,19 @@ def parent_children_page(item):
     return page_index
 
 
+def _get_first_files(blob, limit):
+    """Returns queryset with files pointing to this Blob, ordered by file ID."""
+
+    return (
+        models.File.objects
+        .filter(Q(original=blob) | Q(blob=blob))
+        .order_by('pk')
+    )[:limit]
+
+
 def _get_first_file(blob):
     """Returns first file pointing to this Blob, ordered by file ID."""
-
-    first_file = (
-        blob
-        .file_set
-        .order_by('pk')
-        .first()
-    )
-
-    if not first_file:
-        first_file = (
-            models.File.objects
-            .filter(original=blob)
-            .order_by('pk')
-            .first()
-        )
-
-    return first_file
+    return _get_first_files(blob, 1).first()
 
 
 def _get_document_content(digest, the_file=None):
@@ -827,6 +825,13 @@ def _get_document_content(digest, the_file=None):
 
     Since the data here is served for anyone with access to the collection, private user data can't be added
     here.
+
+    Arguments:
+        - `the_file`: if set, return content for this instance of a document.
+            if None, then assume this is the de-duplicated object we
+            want to push to elasticsearch - so add all
+            file-specific fields in all their values
+            (for the first 1k files)
     """
 
     def get_text_lengths(data):
@@ -838,20 +843,24 @@ def _get_document_content(digest, the_file=None):
         return max(get_text_lengths(data))
 
     if not the_file:
-        the_file = _get_first_file(digest.blob)
+        file_list = list(_get_first_files(digest.blob, MAX_DOC_FILE_COUNT))
+    else:
+        file_list = [the_file]
 
     digest_data = {}
     if digest is not None:
         digest_data = digest.result.read_json()
 
     attachments = None
-    filetype = get_filetype(the_file.blob.mime_type)
+    filetype = get_filetype(file_list[0].blob.mime_type)
     if filetype == 'email':
-        if the_file.child_directory_set.count() > 0:
+        if file_list[0].child_directory_set.count() > 0:
             attachments = True
 
-    original = the_file.original
-    path = full_path(the_file)
+    original = file_list[0].original
+    _paths = sorted(set([full_path(f) for f in file_list]))
+    _filenames = sorted(set([f.name for f in file_list]))
+    _paths_parts = sorted(set(sum((path_parts(path) for path in _paths), start=[])))
 
     content = {
         'content-type': original.mime_type,
@@ -865,11 +874,11 @@ def _get_document_content(digest, the_file=None):
         'id': original.sha3_256,
         'sha3-256': original.sha3_256,
         'size': original.size,
-        'filename': the_file.name,
+        'filename': _filenames,
 
-        'path': path,
-        'path-text': path,
-        'path-parts': path_parts(path),
+        'path': _paths,
+        'path-text': _paths,
+        'path-parts': _paths_parts,
         'attachments': attachments,
     }
 
@@ -950,7 +959,7 @@ def get_document_data(blob, children_page=1):
         'parent_id': parent_id(first_file),
         'has_locations': True,
         'version': _get_document_version(digest),
-        'content': _get_document_content(digest, first_file),
+        'content': _get_document_content(digest, None),
         'children': children,
         'children_page': children_page,
         'children_has_next_page': has_next,
