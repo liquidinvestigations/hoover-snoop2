@@ -526,7 +526,7 @@ def _set_tags_timestamps(digest_id, body):
             q.update(date_indexed=now)
 
 
-@snoop_task('digests.bulk_index', bulk=True, version=12, queue='digests')
+@snoop_task('digests.bulk_index', bulk=True, version=13, queue='digests')
 def bulk_index(batch):
     """Task used to send many documents to Elasticsearch.
 
