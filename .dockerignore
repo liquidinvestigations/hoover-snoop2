@@ -10,3 +10,4 @@ docker-setup
 testsuite/volumes
 .drone.yml
 .drone.yml.bak
+__pycache__
