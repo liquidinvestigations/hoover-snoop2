@@ -39,7 +39,7 @@ def test_digest_msg(fakedata, taskmanager, client):
     digest = api.get_digest(msg_file.blob.pk)['content']
 
     assert digest['content-type'] == 'application/vnd.ms-outlook'
-    assert digest['filename'] == 'the.msg'
+    assert digest['filename'] == ['the.msg']
     assert digest['filetype'] == 'email'
     assert digest['md5'] == '38385c4487719fa9dd0fb695d3aad0ee'
     assert digest['sha1'] == '90548132e18bfc3088e81918bbcaf887a68c6acc'
