@@ -65,4 +65,3 @@ if settings.URL_PREFIX:
     urlpatterns = [path(settings.URL_PREFIX, include(base_urlpatterns))]
 else:
     urlpatterns = base_urlpatterns
-
