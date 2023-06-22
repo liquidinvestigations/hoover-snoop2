@@ -3,7 +3,7 @@
 /wait
 
 if [[ "$DJ_TRACKER_ENABLE" == "true" ]]; then
-  export RELOAD="--noreload"
+  export RELOAD=""
 else
   export RELOAD="--reload"
 fi
