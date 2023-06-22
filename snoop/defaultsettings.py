@@ -42,6 +42,8 @@ ALLOWED_HOSTS = [os.environ.get('SNOOP_HOSTNAME', '*')]
 Loaded from environment variable `SNOOP_HOSTNAME`, default is `*` (no restrictions).
 """
 
+DJ_TRACKER_ENABLE = (os.environ.get('DJ_TRACKER_ENABLE') == 'true')
+
 INSTALLED_APPS = [
     'django_admin_inline_paginator',
     'snoop.data.apps.AdminConfig',
@@ -54,7 +56,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'drf_yasg',
     'graphene_django'
-]
+] + (['dj_tracker'] if DJ_TRACKER_ENABLE else [])
 """List of Django apps to load."""
 
 MIDDLEWARE = [
@@ -72,7 +74,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
 
     'pellet.middleware.PelletMiddleware',
-]
+] + (["dj_tracker.middleware.DjTrackerMiddleware"] if DJ_TRACKER_ENABLE else [])
 """List of Django middleware to load."""
 
 REST_FRAMEWORK = {

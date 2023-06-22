@@ -57,3 +57,11 @@ if settings.URL_PREFIX:
     urlpatterns = [path(settings.URL_PREFIX, include(base_urlpatterns))]
 else:
     urlpatterns = base_urlpatterns
+
+
+if settings.DJ_TRACKER_ENABLE:
+    from dj_tracker.urls import urlpatterns as dj_tracker_urls
+
+    urlpatterns += [
+        path("dj-tracker/", include(dj_tracker_urls)),
+    ]
