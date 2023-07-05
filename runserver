@@ -2,15 +2,9 @@
 
 /wait
 
-if [[ "$DJ_TRACKER_ENABLE" == "true" ]]; then
-  export RELOAD="--noreload"
-else
-  export RELOAD="--reload"
-fi
-
 if [[ "$DEBUG" == "true" ]]; then
 	    # --max-requests 1 \  # poor man's autoreload
-	  exec gunicorn $RELOAD \
+	  exec gunicorn --reload \
 	    --access-logfile '-' \
 	    --error-logfile '-' \
 	    --log-level 'info' \
