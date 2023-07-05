@@ -4,9 +4,6 @@
 
 if [[ "$DJ_TRACKER_ENABLE" == "true" ]]; then
   export RELOAD=""
-  export GUNICORN_WORKERS=1
-  export GUNICORN_THREADS=1
-  export GUNICORN_WORKER_CLASS=sync
 else
   export RELOAD="--reload"
 fi
