@@ -102,6 +102,7 @@ opentelemetry-instrumentation-requests = "*"
 # downgrade grpcio as per https://github.com/grpc/grpc/issues/31885
 grpcio = "<=1.50"
 pellet = "*"
+sentry-sdk = {extras = ["django"], version = "*"}
 
 [requires]
 python_version = "3.9"

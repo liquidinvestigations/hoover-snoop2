@@ -486,3 +486,10 @@ PELLET = {
     "callback": None
 }
 """Pellet configuration for detecting N+1 queries."""
+
+# if Sentry is configured, start it.
+if os.getenv('SENTRY_DSN'):
+    import sentry_sdk
+    SENTRY_DSN = os.getenv('SENTRY_DSN')
+    SENTRY_SAMPLE_RATE = float(os.getenv('SENTRY_SAMPLE_RATE', '1.0'))
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=SENTRY_SAMPLE_RATE)

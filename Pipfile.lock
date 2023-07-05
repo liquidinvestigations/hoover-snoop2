@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "a3ccdae32f81e9f537c8f2f744786c7298a103cead6178b6543c0fe441907b53"
+            "sha256": "9065aa9c872e872c692cb6af5a20cb3d6584abb7fbb8bfd8458a3d74b7382682"
         },
         "pipfile-spec": 6,
         "requires": {
@@ -727,6 +727,14 @@
             "markers": "python_version >= '3.7'",
             "version": "==1.15.0"
         },
+        "opentelemetry-exporter-otlp-proto-common": {
+            "hashes": [
+                "sha256:276073ccc8c6e6570fe05ca8ca0de77d662bc89bc614ec8bfbc855112f7e25e3",
+                "sha256:4d9883d6929aabe75e485950bbe8b149a14d95e50b1570426832daa6913b0871"
+            ],
+            "markers": "python_version >= '3.7'",
+            "version": "==1.18.0"
+        },
         "opentelemetry-exporter-otlp-proto-grpc": {
             "hashes": [
                 "sha256:844f2a4bb9bcda34e4eb6fe36765e5031aacb36dc60ed88c90fc246942ea26e7",
@@ -1439,6 +1447,17 @@
             "markers": "python_version >= '3.7'",
             "version": "==0.6.0"
         },
+        "sentry-sdk": {
+            "extras": [
+                "django"
+            ],
+            "hashes": [
+                "sha256:8c0ba7a0ed4e39635d335fdac7c00840b14ce4319bb8629b934243d6306fee7d",
+                "sha256:eb2a5080912dc9b397925657669e3761d95d62c8aa4c0c6d6a73d5a31edaafe9"
+            ],
+            "index": "pypi",
+            "version": "==1.27.0"
+        },
         "setuptools": {
             "hashes": [
                 "sha256:7f4bc85450898a09f76ebf28b72fa25bc7111f6c7d665d514a60bba9c75ef2a9",
@@ -1543,6 +1562,14 @@
             ],
             "markers": "python_version >= '3.7'",
             "version": "==4.4.0"
+        },
+        "tzdata": {
+            "hashes": [
+                "sha256:11ef1e08e54acb0d4f95bdb1be05da659673de4acbd21bf9c69e94cc5e907a3a",
+                "sha256:7e65763eef3120314099b6939b5546db7adce1e7d6f2e179e3df563c70511eda"
+            ],
+            "markers": "python_version >= '2'",
+            "version": "==2023.3"
         },
         "uptrace": {
             "hashes": [
