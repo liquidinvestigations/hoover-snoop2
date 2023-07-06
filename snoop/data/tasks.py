@@ -1654,3 +1654,11 @@ def run_bulk_tasks():
                 indexing.update_refresh_interval()
         if time() > deadline:
             break
+
+
+@celery.app.task
+@tracer.wrap_function()
+@flock
+def sync_nextcloud_collections():
+    """Periodic task that syncs the collections from nextcloud."""
+    pass
