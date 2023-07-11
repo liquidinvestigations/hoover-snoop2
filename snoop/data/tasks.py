@@ -580,7 +580,11 @@ def run_task(task, log_handler, raise_exceptions=False):
             logger.debug("Running %r", task)
             t0 = time()
             try:
-                func = task_map[task.func]
+                func = task_map.get(task.func)
+                if not func:
+                    msg = "task func " + task.func + ' does not exist.'
+                    raise SnoopTaskBroken(msg, 'unknown_task_func')
+
                 with tracer.span('call function', **_tracer_opt):
                     if func.bulk:
                         result = func([task])
