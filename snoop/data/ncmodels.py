@@ -1,3 +1,7 @@
+"""Django model definition for Nextcloud Collection.
+
+Needs to be in a seperate file to avoid cyclic imports.
+"""
 from django.db import models
 
 

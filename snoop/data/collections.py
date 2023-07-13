@@ -410,6 +410,7 @@ class CollectionsRouter:
     snoop_app_labels = ['data']
 
     def db_for_read(self, model, instance=None, **hints):
+        """NextcloudCollection Table needs to go into default db."""
         print('In db for read!!!')
         print(model._meta)
         print(model._meta.object_name)
@@ -485,6 +486,8 @@ def get_all():
 
 
 def mount_collection(col, nc_col):
+    """Mount a nextcloud collection via webdav.
+    """
     print('trying to mount!!!')
     subprocess.run(['mkdir', '-p', f'/mnt/snoop-webdav-mounts/{col.name}'], check=True)
 
