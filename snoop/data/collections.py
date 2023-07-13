@@ -486,13 +486,13 @@ def get_all():
 
 def mount_collection(col, nc_col):
     print('trying to mount!!!')
-    subprocess.run(['mkdir', '-p', f'/mnt/snoop-webdav-mounts/{col.name}'])
+    subprocess.run(['mkdir', '-p', f'/mnt/snoop-webdav-mounts/{col.name}'], check=True)
 
     secrets_content = f'/mnt/snoop-webdav-mounts/{col.name} {nc_col.user} {nc_col.password}'  # noqa E501
     with open('/etc/davfs2/secrets', 'w') as secrets_file:
         secrets_file.write(secrets_content)
 
         mount_command = f'mount -t davfs http://10.66.60.1:9972{nc_col.url} /mnt/snoop-webdav-mounts/{col.name}'  # noqa E501
-        result = subprocess.run(mount_command, shell=True)
+        result = subprocess.run(mount_command, shell=True, check=True)
         print(result.returncode, result.stdout, result.stderr)
         print(f'Mounted collection {col.name}.')
