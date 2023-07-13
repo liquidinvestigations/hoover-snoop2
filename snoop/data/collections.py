@@ -23,7 +23,7 @@ The list of collections is static and supplied through a single dict in
 required whenever the collection count or configuration is changed.
 
 This module creates Collection instances from the setting and stores them in a global called
-[`ALL`][snoop.data.collections.ALL]. This global is usually used in management commands to select the
+[`ALL`][snoop.data.collections.get_all()]. This global is usually used in management commands to select the
 collection requested by the user.
 """
 
@@ -34,20 +34,20 @@ import subprocess
 from contextlib import contextmanager
 
 from django.conf import settings
-from django.db import connection
+from django.db import connection, connections
 from django.core import management
 from django.db import transaction
 
 from .s3 import get_mount
+from .ncmodels import NextcloudCollection
 
 from snoop.threadlocal import threadlocal
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-ALL = {}
-"""Global dictionary storing all the collections.
-"""
+INITIALIZED_NC_COLLECTIONS = []
+"""Global list of mounted nextcloud collections."""
 
 
 ALL_TESSERACT_LANGS = subprocess.check_output(
@@ -340,10 +340,10 @@ def drop_db(db_name):
 
 
 def create_databases():
-    """Go through [snoop.data.collections.ALL][] and create databases that don't exist yet."""
+    """Go through [snoop.data.collections.get_all()][] and create databases that don't exist yet."""
 
     dbs = all_collection_dbs()
-    for col in ALL.values():
+    for col in get_all().values():
         if col.db_name not in dbs:
             logger.info(f'Creating database {col.db_name}')
             with connection.cursor() as conn:
@@ -351,9 +351,9 @@ def create_databases():
 
 
 def migrate_databases():
-    """Run database migrations for everything in [snoop.data.collections.ALL][]"""
+    """Run database migrations for everything in [snoop.data.collections.get_all()][]"""
 
-    for col in ALL.values():
+    for col in get_all().values():
         try:
             logger.info(f'Migrating database {col.db_name}')
             col.migrate()
@@ -364,10 +364,10 @@ def migrate_databases():
 
 
 def create_es_indexes():
-    """Create elasticsearch indexes for everything in [snoop.data.collections.ALL][]"""
+    """Create elasticsearch indexes for everything in [snoop.data.collections.get_all()][]"""
 
     from snoop.data import indexing
-    for col in ALL.values():
+    for col in get_all().values():
         with col.set_current():
             if not indexing.index_exists():
                 logger.info(f'Creating index {col.es_index}')
@@ -383,7 +383,7 @@ def create_roots():
 
     from .models import Directory
 
-    for col in ALL.values():
+    for col in get_all().values():
         with transaction.atomic(using=col.db_alias), col.set_current():
             if settings.BLOBS_S3.bucket_exists(col.name):
                 logger.info('found bucket %s', col.name)
@@ -404,10 +404,19 @@ class CollectionsRouter:
     Uses the current collection's `.db_alias` to decide what database to route the reads and writes to.
     """
 
+    # TODO change router so that it doesn't have to know which model goes where
+    # make a new base class for collection routed models
+
     snoop_app_labels = ['data']
 
     def db_for_read(self, model, instance=None, **hints):
+        print('In db for read!!!')
+        print(model._meta)
+        print(model._meta.object_name)
         if model._meta.app_label in self.snoop_app_labels:
+            if model._meta.object_name == 'NextcloudCollection':
+                print('NextcloudCollection model detected')
+                return 'default'
             if instance is None:
                 db_alias = current().db_alias
             else:
@@ -423,6 +432,8 @@ class CollectionsRouter:
         Snoop models not allowed in 'default'; other models not allowed
         in collection_* databases
         """
+        if model_name == 'nextcloudcollection':
+            return True
         if db == 'default':
             return (app_label not in self.snoop_app_labels)
         else:
@@ -434,7 +445,7 @@ def from_object(obj):
 
     db_alias = obj._state.db
     assert db_alias.startswith('collection_')
-    return ALL[db_alias.split('_', 1)[1]]
+    return get_all()[db_alias.split('_', 1)[1]]
 
 
 def current():
@@ -447,6 +458,41 @@ def current():
     return col
 
 
-for item in settings.SNOOP_COLLECTIONS:
-    col = Collection(**item)
-    ALL[col.name] = col
+def get_all():
+    """Return all collections that are configured in the system.
+
+    Takes the static collections from the settings file and also
+    the dynamic nextcloud collections.
+    """
+    ALL = {}
+    for item in settings.SNOOP_COLLECTIONS:
+        col = Collection(**item)
+        ALL[col.name] = col
+
+    for nc_col in NextcloudCollection.objects.all():
+        col = Collection(nc_col.name, process=True, sync=True, nextcloud=True)
+        ALL[col.name] = col
+        print('ALL after adding nc_col: ', ALL)
+
+        print('MOUNTED before: ', INITIALIZED_NC_COLLECTIONS)
+        if col.name not in INITIALIZED_NC_COLLECTIONS:
+            db_name = f'collection_{col.name}'
+            connections.databases[db_name] = dict(settings.default_db, NAME=db_name)
+            mount_collection(col, nc_col)
+            INITIALIZED_NC_COLLECTIONS.append(col.name)
+        print('MOUNTED after: ', INITIALIZED_NC_COLLECTIONS)
+    return ALL
+
+
+def mount_collection(col, nc_col):
+    print('trying to mount!!!')
+    subprocess.run(['mkdir', '-p', f'/mnt/snoop-webdav-mounts/{col.name}'])
+
+    secrets_content = f'/mnt/snoop-webdav-mounts/{col.name} {nc_col.user} {nc_col.password}'  # noqa E501
+    with open('/etc/davfs2/secrets', 'w') as secrets_file:
+        secrets_file.write(secrets_content)
+
+        mount_command = f'mount -t davfs http://10.66.60.1:9972{nc_col.url} /mnt/snoop-webdav-mounts/{col.name}'  # noqa E501
+        result = subprocess.run(mount_command, shell=True)
+        print(result.returncode, result.stdout, result.stderr)
+        print(f'Mounted collection {col.name}.')

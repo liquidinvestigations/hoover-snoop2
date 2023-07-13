@@ -28,7 +28,7 @@ class Command(BaseCommand):
         """
 
         logging_for_management_command(options['verbosity'])
-        col = collections.ALL[collection]
+        col = collections.get_all()[collection]
         with col.set_current():
             stats = get_stats(options['force'])
             if not stats:

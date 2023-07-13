@@ -255,6 +255,9 @@ SNOOP_PDF_PREVIEW_URL = os.environ.get('SNOOP_PDF_PREVIEW_URL')
 SNOOP_IMAGE_CLASSIFICATION_URL = os.environ.get('SNOOP_IMAGE_CLASSIFICATION_URL')
 SNOOP_OBJECT_DETECTION_URL = os.environ.get('SNOOP_OBJECT_DETECTION_URL')
 
+HOOVER_SEARCH_URL = os.environ.get('HOOVER_SEARCH_URL')
+"""Hoover Search API URL."""
+
 SNOOP_FEED_PAGE_SIZE = 100
 """Pagination size for the /feed URLs.
 
@@ -422,6 +425,10 @@ celery.app.conf.beat_schedule = {
         'task': 'snoop.data.tasks.run_bulk_tasks',
         'schedule': timedelta(seconds=63),
     },
+    'sync_nextcloud_collections': {
+        'task': 'snoop.data.tasks.sync_nextcloud_collections',
+        'schedule': timedelta(seconds=63),
+    },
 }
 
 celery.app.conf.task_routes = {
@@ -429,9 +436,14 @@ celery.app.conf.task_routes = {
     'snoop.data.tasks.save_stats': {'queue': 'save_stats'},
     'snoop.data.tasks.update_all_tags': {'queue': 'update_all_tags'},
     'snoop.data.tasks.run_bulk_tasks': {'queue': 'run_bulk_tasks'},
+    'snoop.data.tasks.sync_nextcloud_collections': {'queue': 'sync_nextcloud_collections'},
 }
 
-SYSTEM_QUEUES = ['run_dispatcher', 'save_stats', 'update_all_tags', 'run_bulk_tasks']
+SYSTEM_QUEUES = ['run_dispatcher',
+                 'save_stats',
+                 'update_all_tags',
+                 'run_bulk_tasks',
+                 'sync_nextcloud_collections']
 """List of "system queues" - celery that must be executed periodically.
 
 One execution of any of these functions will work on all collections under a `for` loop.

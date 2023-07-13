@@ -1296,7 +1296,7 @@ def get_admin_links():
 
 DEFAULT_ADMIN_NAME = '_default'
 sites = {}
-for collection in collections.ALL.values():
+for collection in collections.get_all().values():
     sites[collection.name] = make_collection_admin_site(collection)
 
 sites[DEFAULT_ADMIN_NAME] = admin.site

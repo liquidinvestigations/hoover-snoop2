@@ -1,5 +1,6 @@
 """Django views, mostly JSON APIs.
 """
+import subprocess
 from functools import wraps
 
 from django.conf import settings
@@ -27,7 +28,7 @@ def collection_view(func):
     @wraps(func)
     def view(request, *args, collection, **kwargs):
         try:
-            col = collections.ALL[collection]
+            col = collections.get_all()[collection]
         except KeyError:
             raise Http404(f"Collection {collection} does not exist")
 
@@ -51,7 +52,7 @@ def drf_collection_view(func):
     def view(self, *args, **kwargs):
         try:
             collection = self.kwargs['collection']
-            col = collections.ALL[collection]
+            col = collections.get_all()[collection]
         except KeyError:
             raise Http404("Collection does not exist")
 
@@ -430,3 +431,27 @@ def processing_status(request, hash):
     if total_count != 0 and result['done_count'] == total_count:
         result['finished'] = True
     return JsonResponse(result)
+
+
+def add_collection(request, col_name):
+    """View that can be called from the worker container to add a collection."""
+    col = collections.Collection(col_name,
+                                 process=True,
+                                 sync=True,
+                                 nextcloud=True,
+                                 )
+    collections.get_all()[col.name] = col
+    collections.create_databases()
+    collections.migrate_databases()
+    collections.create_es_indexes()
+    collections.create_roots()
+
+    subprocess.run(['mkdir', '-p', f'/mnt/snoop-webdav-mounts/{col.name}'])
+
+    secrets_content = f'/mnt/snoop-webdav-mounts/{col.name} {nc_col.get("user")} {nc_col.get("password")}'  # noqa E501
+    with open('/etc/davfs2/secrets', 'w') as secrets_file:
+        secrets_file.write(secrets_content)
+
+    mount_command = f'mount -t davfs http://10.66.60.1:9972{nc_col.get("url")} /mnt/snoop-webdav-mounts/{col.name}'  # noqa E501
+    subprocess.run(mount_command, shell=True)
+    print(f'Mounted collection {col.name}!!!')

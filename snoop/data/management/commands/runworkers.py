@@ -11,7 +11,7 @@ import random
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from snoop.data.collections import ALL
+from snoop.data.collections import get_all
 
 from ... import tasks
 from ...logs import logging_for_management_command
@@ -91,7 +91,7 @@ class Command(BaseCommand):
         logging_for_management_command()
 
         tasks.import_snoop_tasks()
-        all_collections = [c for c in ALL.values() if c.process]
+        all_collections = [c for c in get_all().values() if c.process]
 
         all_queues = []
         if options['queue'] == 'system':
