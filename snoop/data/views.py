@@ -1,6 +1,5 @@
 """Django views, mostly JSON APIs.
 """
-import subprocess
 from functools import wraps
 
 from django.conf import settings
