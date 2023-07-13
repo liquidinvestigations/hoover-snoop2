@@ -411,12 +411,9 @@ class CollectionsRouter:
 
     def db_for_read(self, model, instance=None, **hints):
         """NextcloudCollection Table needs to go into default db."""
-        print('In db for read!!!')
-        print(model._meta)
-        print(model._meta.object_name)
+
         if model._meta.app_label in self.snoop_app_labels:
             if model._meta.object_name == 'NextcloudCollection':
-                print('NextcloudCollection model detected')
                 return 'default'
             if instance is None:
                 db_alias = current().db_alias
@@ -473,22 +470,18 @@ def get_all():
     for nc_col in NextcloudCollection.objects.all():
         col = Collection(nc_col.name, process=True, sync=True, nextcloud=True)
         ALL[col.name] = col
-        print('ALL after adding nc_col: ', ALL)
 
-        print('MOUNTED before: ', INITIALIZED_NC_COLLECTIONS)
         if col.name not in INITIALIZED_NC_COLLECTIONS:
             db_name = f'collection_{col.name}'
             connections.databases[db_name] = dict(settings.default_db, NAME=db_name)
             mount_collection(col, nc_col)
             INITIALIZED_NC_COLLECTIONS.append(col.name)
-        print('MOUNTED after: ', INITIALIZED_NC_COLLECTIONS)
     return ALL
 
 
 def mount_collection(col, nc_col):
     """Mount a nextcloud collection via webdav.
     """
-    print('trying to mount!!!')
     subprocess.run(['mkdir', '-p', f'/mnt/snoop-webdav-mounts/{col.name}'], check=True)
 
     secrets_content = f'/mnt/snoop-webdav-mounts/{col.name} {nc_col.user} {nc_col.password}'  # noqa E501
