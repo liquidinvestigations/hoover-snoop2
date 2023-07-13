@@ -509,7 +509,7 @@ if os.getenv('SENTRY_DSN'):
 SNOOP_WEBDAV_MOUNT_DIR = os.path.join(os.getenv('MNT', '/mnt'), 'snoop-webdav-mounts', 'collections')
 """Location on disk where webdav mounts are stored."""
 
-ENABLE_COLLECTION_ADMINS = os.getenv('ENABLE_COLLECTION_ADMINS', False)
+ENABLE_COLLECTION_ADMINS = os.getenv('ENABLE_COLLECTION_ADMINS', None)
 """Used to disable collection admins during CI build.
 We need this because otherwise the admin site will try
 to hit the database, which is not available during that stage
