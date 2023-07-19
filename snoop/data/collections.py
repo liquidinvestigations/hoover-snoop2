@@ -198,6 +198,21 @@ class Collection:
             )
         )
 
+    @property
+    def blobs_s3_connection_settings(self):
+        if self.opt.get('s3_blobs_access_key'):
+            return dict(
+                access_key=self.opt.get('s3_blobs_access_key'),
+                secret_key=self.opt.get('s3_blobs_secret_key'),
+                address=self.opt.get('s3_blobs_address'),
+            )
+        else:
+            return dict(
+                access_key=settings.SNOOP_BLOBS_MINIO_ACCESS_KEY,
+                secret_key=settings.SNOOP_BLOBS_MINIO_SECRET_KEY,
+                address=settings.SNOOP_BLOBS_MINIO_ADDRESS,
+            )
+
     def __repr__(self):
         """String representation for a Collection.
         """
@@ -268,15 +283,12 @@ class Collection:
 
         Another temporary directory is created to store the cache."""
 
-        address = settings.SNOOP_BLOBS_MINIO_ADDRESS
         mount_mode = 'ro' if readonly else 'rw'
         yield get_mount(
             mount_name=f'{self.name}-{mount_mode}-blobs',
             bucket=self.name,
             mount_mode=mount_mode,
-            access_key=settings.SNOOP_BLOBS_MINIO_ACCESS_KEY,
-            secret_key=settings.SNOOP_BLOBS_MINIO_SECRET_KEY,
-            address=address,
+            **(self.blobs_s3_connection_settings),
         )
 
     @contextmanager
@@ -285,16 +297,14 @@ class Collection:
 
         Another temporary directory is created to store the cache."""
 
-        address = settings.SNOOP_COLLECTIONS_MINIO_ADDRESS
         mount_mode = 'ro' if readonly else 'rw'
-
         yield get_mount(
             mount_name=f'{self.name}-{mount_mode}-collections',
             bucket=self.name,
             mount_mode=mount_mode,
             access_key=settings.SNOOP_COLLECTIONS_MINIO_ACCESS_KEY,
             secret_key=settings.SNOOP_COLLECTIONS_MINIO_SECRET_KEY,
-            address=address,
+            address=settings.SNOOP_COLLECTIONS_MINIO_ADDRESS,
         )
 
     @contextmanager
