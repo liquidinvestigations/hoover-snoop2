@@ -10,6 +10,7 @@ import time
 import signal
 import logging
 import psutil
+import shutil
 import os
 import json
 import fcntl
@@ -23,6 +24,25 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
+def clean_makedirs(path):
+    """Helper function that works like `os.makedirs(path, exist_ok=True)`,
+    but also takes care to remove any file that might be at the path instead of a folder.
+    """
+    if os.path.isdir(path):
+        return
+    try:
+        os.makedirs(path, exist_ok=True)
+        return
+    except OSError:
+        assert os.path.exists(path), "dir not created after os.makedirs()!"
+
+        if not os.path.isdir(path):
+            logger.warning('found file/socket instead of directory at %s... removing', path)
+            os.remove(path)
+            os.makedirs(path, exist_ok=True)
+            assert os.path.isdir(path), "dir not created after removing file and running os.makedirs()!"
+
+
 def timestamp():
     """Returns current timestamp float for the mount LRU Cache."""
 
@@ -33,7 +53,8 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
     """Ensure requested S3fs is mounted, while also
     unmounting least recently used mounts over the limit."""
 
-    os.makedirs(settings.SNOOP_S3FS_MOUNT_DIR, exist_ok=True)
+    clean_makedirs(settings.SNOOP_S3FS_MOUNT_DIR)
+
     mount_info_path = os.path.join(settings.SNOOP_S3FS_MOUNT_DIR, 'mount-info.json')
     base_path = os.path.join(settings.SNOOP_S3FS_MOUNT_DIR, mount_name)
     target_path = os.path.join(base_path, 'target')
@@ -41,9 +62,7 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
     logfile_path = os.path.join(base_path, 'mount-log.txt')
     password_file_path = os.path.join(base_path, 'password-file')
 
-    os.makedirs(base_path, exist_ok=True)
-    os.makedirs(target_path, exist_ok=True)
-    os.makedirs(cache_path, exist_ok=True)
+    clean_makedirs(base_path)
 
     # write password file
     with open(password_file_path, 'wb') as pass_temp:
@@ -126,10 +145,15 @@ def adjust_s3_mounts(mount_name, old_info,
 
     # create new mount
     logger.info('creating new mount: %s', mount_name)
+    clean_makedirs(target_path)
+    clean_makedirs(cache_path)
     pid = mount_s3fs(bucket, mount_mode, cache_path, password_file_path, address, target_path, logfile_path)
 
     # create new entry with pid and timestamp
-    new_info[mount_name] = {'pid': pid, 'timestamp': timestamp(), 'target': target_path}
+    new_info[mount_name] = {
+        'pid': pid, 'timestamp': timestamp(),
+        'target': target_path, 'cache': cache_path,
+    }
 
     # if above mount limit, then send signals to unmount and stop
     if len(new_info) > settings.SNOOP_S3FS_MOUNT_LIMIT:
@@ -139,6 +163,7 @@ def adjust_s3_mounts(mount_name, old_info,
         for mount in mounts_to_stop:
             pid = new_info[mount]['pid']
             target = new_info[mount]['target']
+            cache = new_info[mount].get('cache')
             logger.info('removing old mount: pid=%s target=%s', pid, target)
 
             try:
@@ -155,6 +180,18 @@ def adjust_s3_mounts(mount_name, old_info,
                 os.kill(pid, signal.SIGKILL)
             except Exception as e:
                 logger.exception('failed to send SIGKILL to mount, pid=%s (%s)', pid, e)
+
+            if target:
+                try:
+                    os.rmdir(target)
+                except Exception as e:
+                    logger.exception('Failed to os.rmdir() the target directory %s (%s)', target, e)
+
+            if cache:
+                try:
+                    shutil.rmtree(cache)
+                except Exception as e:
+                    logger.exception('Failed to shutil.rmtree() the cache directory %s (%s)', cache, e)
 
     return new_info
 
