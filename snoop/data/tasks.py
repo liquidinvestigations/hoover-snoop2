@@ -1667,7 +1667,8 @@ def sync_nextcloud_collections():
     json = requests.get(search_url).json()
     for nc_col in json:
         print(json)
-        if nc_col.get('name') not in collections.get_all():
+        print(collections.get_all())
+        if not NextcloudCollection.objects.filter(name=nc_col.get('name')).exists():
             col = NextcloudCollection(name=nc_col.get('name'),
                                       user=nc_col.get('username'),
                                       url=nc_col.get('url'),

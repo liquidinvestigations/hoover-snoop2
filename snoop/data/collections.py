@@ -468,12 +468,17 @@ def get_all():
         ALL[col.name] = col
 
     for nc_col in NextcloudCollection.objects.all():
-        col = Collection(nc_col.name, process=True, sync=True, nextcloud=True)
+        if '_' in nc_col.name:
+            nc_col_name = nc_col.name.replace('_', '-')
+        else:
+            nc_col_name = nc_col.name
+        col = Collection(nc_col_name, process=True, sync=True, nextcloud=True)
         ALL[col.name] = col
 
         if col.name not in INITIALIZED_NC_COLLECTIONS:
             db_name = f'collection_{col.name}'
-            connections.databases[db_name] = dict(settings.default_db, NAME=db_name)
+            default_db = settings.DATABASES['default']
+            connections.databases[db_name] = dict(default_db, NAME=db_name)
             mount_collection(col, nc_col)
             INITIALIZED_NC_COLLECTIONS.append(col.name)
     return ALL
@@ -482,13 +487,17 @@ def get_all():
 def mount_collection(col, nc_col):
     """Mount a nextcloud collection via webdav.
     """
-    subprocess.run(['mkdir', '-p', f'/mnt/snoop-webdav-mounts/{col.name}'], check=True)
+    subprocess.run(['mkdir', '-p', f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{nc_col.name}/data'], check=True)
 
-    secrets_content = f'/mnt/snoop-webdav-mounts/{col.name} {nc_col.user} {nc_col.password}'  # noqa E501
-    with open('/etc/davfs2/secrets', 'w') as secrets_file:
-        secrets_file.write(secrets_content)
+    secrets_content = f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{nc_col.name}/data {nc_col.user} {nc_col.password}'  # noqa E501
+    with open('/etc/davfs2/secrets', 'a') as secrets_file:
+        secrets_file.write(f'\n{secrets_content}')
 
-        mount_command = f'mount -t davfs http://10.66.60.1:9972{nc_col.url} /mnt/snoop-webdav-mounts/{col.name}'  # noqa E501
-        result = subprocess.run(mount_command, shell=True, check=True)
-        print(result.returncode, result.stdout, result.stderr)
-        print(f'Mounted collection {col.name}.')
+        mount_command = f'mount -t davfs http://10.66.60.1:9972{nc_col.url} {settings.SNOOP_WEBDAV_MOUNT_DIR}/{nc_col.name}/data'  # noqa E501
+        try:
+            result = subprocess.run(mount_command, shell=True, check=True)
+            print(result.returncode, result.stdout, result.stderr)
+            print(f'Mounted collection {col.name}.')
+        except subprocess.CalledProcessError as e:
+            print(e, e.output)
+            print(f'Could not mount collection {col.name}.')
