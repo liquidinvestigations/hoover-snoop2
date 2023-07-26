@@ -91,18 +91,14 @@ openpyxl = '*'
 pyxlsb = '*'
 xlrd = '*'
 xlwt = '*'
-uptrace = "*"
-opentelemetry-instrumentation-django = "*"
-opentelemetry-instrumentation-psycopg2 = "*"
-opentelemetry-instrumentation-logging = "*"
-opentelemetry-instrumentation-celery = "*"
-opentelemetry-instrumentation-requests = "*"
 # not used: elasticsearch library
 # opentelemetry-instrumentation-elasticsearch = "*"
 # downgrade grpcio as per https://github.com/grpc/grpc/issues/31885
 grpcio = "<=1.50"
 pellet = "*"
 sentry-sdk = {extras = ["django"], version = "*"}
+opentelemetry-distro = "*"
+opentelemetry-exporter-otlp = "*"
 
 [requires]
 python_version = "3.9"

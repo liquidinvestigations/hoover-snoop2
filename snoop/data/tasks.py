@@ -35,6 +35,7 @@ from django.db import transaction, DatabaseError
 from django.utils import timezone
 import pyrabbit.api
 
+from . import tracing
 from . import collections
 from . import celery
 from . import models
@@ -42,7 +43,6 @@ from . import indexing
 from .templatetags import pretty_size
 from .utils import run_once
 from requests.exceptions import ConnectionError
-from snoop.data import tracing
 
 logger = logging.getLogger(__name__)
 tracer = tracing.Tracer(__name__)
