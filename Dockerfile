@@ -33,6 +33,8 @@ ENV UID $UID
 ENV GID $GID
 
 ENV CELERY_DB_REUSE_MAX=0
+ENV OTEL_TRACES_EXPORTER=none OTEL_METRICS_EXPORTER=none OTEL_LOGS_EXPORTER=none
+
 RUN set -e \
  && SECRET_KEY=temp SNOOP_URL_PREFIX=snoop/ SNOOP_DB='postgresql://snoop:snoop@snoop-pg:5432/snoop' ./manage.py collectstatic --noinput
 
