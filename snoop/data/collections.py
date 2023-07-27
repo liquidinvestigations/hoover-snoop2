@@ -493,7 +493,10 @@ def mount_collection(col, nc_col):
     with open('/etc/davfs2/secrets', 'a') as secrets_file:
         secrets_file.write(f'\n{secrets_content}')
 
-        mount_command = f'mount -t davfs http://10.66.60.1:9972{nc_col.url} {settings.SNOOP_WEBDAV_MOUNT_DIR}/{nc_col.name}/data'  # noqa E501
+        mount_command = (
+            f'mount -t davfs http://10.66.60.1:9972{nc_col.url}'
+            f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{nc_col.name}/data'
+        )
         try:
             result = subprocess.run(mount_command, shell=True, check=True)
             print(result.returncode, result.stdout, result.stderr)
