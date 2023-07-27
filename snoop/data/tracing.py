@@ -1,4 +1,4 @@
-# pylint: disable=wrong-import-position
+# flake8: noqa
 """Tracing integration library.
 Provides init functions for hooking into different entry points, as well the ability to
 wrap functions and create custom spans.
@@ -11,25 +11,33 @@ from contextlib import contextmanager
 from time import time
 import threading
 import queue
-import os
 import sys
+import os
 
 
+# fix PYTHONPATH env for the auto-instrumentation
+os.environ['PYTHONPATH'] = (
+    (os.environ.get('PYTHONPATH', '') + ':') if os.environ.get('PYTHONPATH') else ''
+) + ':'.join(sys.path)
 log = logging.getLogger(__name__)
-os.environ['PYTHONPATH'] = os.environ.get('PYTHONPATH', '') + ':' + ':'.join(sys.path)
 
 
 try:
+    assert os.environ.get('TRACING_ENABLED'), 'tracing not enabled'
     from opentelemetry.instrumentation.auto_instrumentation.sitecustomize import initialize
     initialize()
+    from opentelemetry import metrics, trace  # noqa: E402 -- needs to happen after initialize
+    ENABLED = True
 except Exception as e:
-    log.exception(e)
+    log.debug(e)
+    log.debug('could not init tracing; moving on.')
+    trace = None
+    metrics = None
+    ENABLED = False
 
 
-from opentelemetry import metrics, trace  # noqa: E402
-
-SERVICE_NAME = os.environ.get("OTEL_SERVICE_NAME")
-SERVICE_VERSION = subprocess.check_output("git describe --tags --always", shell=True).decode().strip()
+SERVICE_NAME = os.environ.get("OTEL_SERVICE_NAME", '')
+SERVICE_VERSION = os.environ.get('OTEL_SERVICE_VERSION', '')
 
 MAX_KEY_LEN = 63
 """Max key length for open telemetry counters, span names and other identifiers."""
@@ -38,6 +46,10 @@ MAX_COUNTER_KEY_LEN = 14
 """Max key reserved for counter suffixes."""
 
 UPLOAD_DELAY_SECONDS = 15
+"""Flush the spans storage once every this amount of seconds."""
+
+COUNTER_QUEUE_SIZE = 5000
+"""Max size of queue where count events are stored."""
 
 
 def shorten_name(string, length):
@@ -53,6 +65,24 @@ def shorten_name(string, length):
     return string
 
 
+class FakeSpan:
+    """Class that mocks tracing spans. Used when tracing disabled."""
+
+    def __getattr__(self, *a, **kw):
+        return self
+
+    def __call__(self, *a, **kw):
+        return self
+
+    def __bool__(self):
+        return True
+
+    def __str__(self):
+        return 'FakeSpan'
+
+    __repr__ = __str__
+
+
 class Tracer:
     """Tracing handler with simplified interface.
     Manages flush of opentelemetry tracing objects after use.
@@ -63,16 +93,25 @@ class Tracer:
         name = name.replace(' ', '_')
         self.name = name
         self.version = version or SERVICE_VERSION
-        self.tracer = trace.get_tracer(self.name, self.version)
         self.last_upload_time = time()
-        self.counter_queue = queue.Queue(3000)
-        self.counter_thread = threading.Thread(target=self.counter_worker, daemon=True)
-        self.counter_thread.start()
+        if ENABLED:
+            self.tracer = trace.get_tracer(self.name, self.version)
+            self.counter_queue = queue.Queue(COUNTER_QUEUE_SIZE)
+            self.counter_thread = threading.Thread(target=self.counter_worker, daemon=True)
+            self.counter_thread.start()
+        else:
+            self.tracer = None
+            self.counter_queue = None
+            self.counter_thread = None
 
     @contextmanager
     def span(self, name, *args, attributes={}, extra_counters={}, **kwds):
         """Call the opentelemetry start_as_current_span() context manager and manage shutdowns.
         """
+        if not ENABLED:
+            yield FakeSpan()
+            return
+
         name = name.replace(' ', '_')
         if not name.startswith(self.name):
             name = self.name + '.' + name
@@ -84,7 +123,6 @@ class Tracer:
         for key, value in extra_counters.items():
             assert len(key) <= MAX_COUNTER_KEY_LEN, 'counter key too long!'
             self.count(name + '__' + key, value=value['value'], attributes=attributes, unit=value['unit'])
-        t0 = time()  # set fallback to avoid 'use before assign'
         try:
             with self.tracer.start_as_current_span(name, *args, **kwds) as span:
                 t0 = time()
@@ -114,6 +152,9 @@ class Tracer:
         """Returns a function wrapper that has a telemetry span around the function.
         """
         def decorator(function):
+            if not ENABLED:
+                return function
+
             fname = self.name + '.' + function.__qualname__
             log.debug('initializing trace for function %s...', fname)
 
@@ -142,6 +183,10 @@ class Tracer:
             log.error('failed to increment count for counter %s: %s', key, str(e))
 
     def count(self, key, value=1, attributes={}, description='', unit="1", **kwds):
+        """Increment performance counter. This sends a message to the tracing thread."""
+        if not ENABLED:
+            return
+
         args = (key, value, attributes, description, unit, kwds)
         try:
             self.counter_queue.put(args, block=False)
@@ -150,6 +195,9 @@ class Tracer:
             log.warning('counter queue full: ' + self.name)
 
     def counter_worker(self):
+        """Thread function that runs the tracing thread."""
+        if not ENABLED:
+            return
         counters = {}
         meter = metrics.get_meter(self.name)
         while True:

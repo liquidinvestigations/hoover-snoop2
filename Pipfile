@@ -99,6 +99,7 @@ pellet = "*"
 sentry-sdk = {extras = ["django"], version = "*"}
 opentelemetry-distro = "*"
 opentelemetry-exporter-otlp = "*"
+opentelemetry-sdk = "*"
 
 [requires]
 python_version = "3.9"
