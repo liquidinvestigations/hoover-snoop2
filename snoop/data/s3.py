@@ -78,7 +78,11 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
 
         logger.info('read mount info: %s', old_info_str)
         if old_info_str:
-            old_info = json.loads(old_info_str)
+            try:
+                old_info = json.loads(old_info_str)
+            except Exception as e:
+                logger.warning('old mount info corrupted: %s', e)
+                old_info = dict()
         else:
             old_info = dict()
 
