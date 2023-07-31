@@ -1050,7 +1050,9 @@ class TaskAdmin(MultiDBModelAdmin):
         if obj.date_finished:
             return pretty_size.pretty_timedelta(obj.date_finished - obj.date_started)
         return ''
-    duration.admin_order_field = F('date_finished') - F('date_started')
+    duration.admin_order_field = (
+        F('date_finished') - F('date_started')
+    ).desc(nulls_last=True)
 
     def size(self, obj):
         return pretty_size.pretty_size(obj.size())
