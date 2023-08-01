@@ -536,6 +536,8 @@ def bulk_index(batch):
     # list of (task, body) tuples to send to ES as a single batch request
     result = {}
     documents_to_index = []
+    if not batch:
+        return result
 
     task_query = (
         models.Task.objects
@@ -563,6 +565,9 @@ def bulk_index(batch):
     )
 
     batch = list(task_query.all())
+
+    if not batch:
+        return result
 
     for task in batch:
         # this is only needed to see if tags exist
@@ -603,6 +608,9 @@ def bulk_index(batch):
         log.debug('Bulk Task %s uploading body with keys = %s', task, ", ".join(sorted(list(body.keys()))))
 
         documents_to_index.append((task, body))
+
+    if not documents_to_index:
+        return result
 
     rv = indexing.bulk_index([(task.blob_arg.pk, body) for task, body in documents_to_index])
     for x in rv['items']:
