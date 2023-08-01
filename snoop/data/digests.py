@@ -216,9 +216,13 @@ def gather(blob, **depends_on):
 
     if archives.is_table(blob):
         rv['is-table'] = True
-        with blob.mount_path() as path:
-            table_info = archives.get_table_info(
-                path, blob.mime_type, blob.mime_encoding)
+        try:
+            with blob.mount_path() as path:
+                table_info = archives.get_table_info(
+                    path, blob.mime_type, blob.mime_encoding)
+        except Exception as e:
+            log.warning('error retrieving table info: %s', str(e))
+            table_info = None
 
         if table_info:
             rv["table-sheets"] = table_info['sheets']
