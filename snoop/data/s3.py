@@ -133,13 +133,18 @@ def adjust_s3_mounts(mount_name, old_info,
       - if above mount limit, then send signals to unmount and stop
     """
 
-    # check all mount PIDs: if any process is dead, remove from list
-    pids_alive = {p.pid for p in psutil.process_iter()}
-    new_info = dict(old_info)
-    for key, value in list(old_info.items()):
-        if value['pid'] not in pids_alive:
-            logger.info('old mount dead, key=%s', key)
-            del new_info[key]
+    def _clear_dead(info):
+        # check all mount PIDs: if any process is dead, remove from list
+        pids_alive = {p.pid for p in psutil.process_iter()}
+        info = dict(info)
+        for key, value in list(info.items()):
+            if value['pid'] not in pids_alive:
+                logger.info('old mount dead, key=%s', key)
+                del info[key]
+        return info
+
+    # need to clear dead before checking, in case something died by itself
+    new_info = _clear_dead(old_info)
 
     # if mount exists in list, update timestamp, return
     if mount_name in new_info:
@@ -164,38 +169,42 @@ def adjust_s3_mounts(mount_name, old_info,
         count_mounts_to_remove = len(new_info) - settings.SNOOP_S3FS_MOUNT_LIMIT
         mounts_sorted_by_timestamp = sorted(list(new_info.keys()), key=lambda x: new_info[x]['timestamp'])
         mounts_to_stop = mounts_sorted_by_timestamp[:count_mounts_to_remove]
-        for mount in mounts_to_stop:
-            pid = new_info[mount]['pid']
-            target = new_info[mount]['target']
-            cache = new_info[mount].get('cache')
-            logger.info('removing old mount: pid=%s target=%s', pid, target)
+        for _ in range(2):
+            for mount in mounts_to_stop:
+                pid = new_info[mount]['pid']
+                target = new_info[mount]['target']
+                cache = new_info[mount].get('cache')
+                logger.info('removing old mount: pid=%s target=%s', pid, target)
 
-            try:
-                umount_s3fs(target)
-            except Exception as e:
-                logger.exception('failed to run "umount" for target=%s (%s)', target, e)
-
-            try:
-                os.kill(pid, signal.SIGSTOP)
-            except Exception as e:
-                logger.exception('failed to send SIGSTOP to mount, pid=%s (%s)', pid, e)
-
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except Exception as e:
-                logger.exception('failed to send SIGKILL to mount, pid=%s (%s)', pid, e)
-
-            if target:
                 try:
-                    os.rmdir(target)
+                    umount_s3fs(target)
                 except Exception as e:
-                    logger.exception('Failed to os.rmdir() the target directory %s (%s)', target, e)
+                    logger.exception('failed to run "umount" for target=%s (%s)', target, e)
 
-            if cache:
                 try:
-                    shutil.rmtree(cache)
+                    os.kill(pid, signal.SIGSTOP)
                 except Exception as e:
-                    logger.exception('Failed to shutil.rmtree() the cache directory %s (%s)', cache, e)
+                    logger.exception('failed to send SIGSTOP to mount, pid=%s (%s)', pid, e)
+
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except Exception as e:
+                    logger.exception('failed to send SIGKILL to mount, pid=%s (%s)', pid, e)
+
+                if target:
+                    try:
+                        os.rmdir(target)
+                    except Exception as e:
+                        logger.exception('Failed to os.rmdir() the target directory %s (%s)', target, e)
+
+                if cache:
+                    try:
+                        shutil.rmtree(cache)
+                    except Exception as e:
+                        logger.exception('Failed to shutil.rmtree() the cache directory %s (%s)', cache, e)
+            time.sleep(0.001)
+
+        new_info = _clear_dead(old_info)
 
     return new_info
 

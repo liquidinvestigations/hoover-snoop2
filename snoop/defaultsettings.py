@@ -287,11 +287,11 @@ TASK_RETRY_FAIL_LIMIT = 3
 
 The actual value is higher, since we retry very old tasks more times."""
 
-WORKER_TASK_LIMIT = 2000
+WORKER_TASK_LIMIT = 1000
 """Max tasks count to be finished by 1 worker process before restarting it.
 """
 
-WORKER_PREFETCH = 100
+WORKER_PREFETCH = 1
 """Celery-rabbitmq prefetch count.
 """
 
@@ -312,7 +312,7 @@ and if we would queue at least another DISPATCH_QUEUE_LIMIT, then
 dispatch more tasks. This is used to reduce waiting between batches.
 """
 
-DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 10)
+DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 5)
 """Don't queue anything on a queue if its length is greater than this value."""
 
 SYNC_RETRY_LIMIT_DIRS = 100
@@ -404,7 +404,7 @@ if _tracing_url:
     TRACING_API = '/api/v2/spans'
 
 SYSTEM_TASK_DEADLINE_SECONDS = 29
-TASK_COUNT_MEMORY_CACHE_TTL = 9
+TASK_COUNT_MEMORY_CACHE_TTL = 20
 celery.app.conf.beat_schedule = {
     'run_dispatcher': {
         'task': 'snoop.data.tasks.run_dispatcher',
@@ -459,7 +459,7 @@ Only useful when running one worker per task, otherwise tasks will interfere wit
 SNOOP_S3FS_MOUNT_DIR = os.path.join(os.getenv('TMP', '/tmp'), 'snoop-s3fs-mounts')
 """Location ono disk where s3fs mounts are stored."""
 
-SNOOP_S3FS_MOUNT_LIMIT = int(os.getenv('SNOOP_S3FS_MOUNT_LIMIT', '40'))
+SNOOP_S3FS_MOUNT_LIMIT = int(os.getenv('SNOOP_S3FS_MOUNT_LIMIT', '16'))
 """Global limit of parallel S3 mounts (buckets)."""
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
