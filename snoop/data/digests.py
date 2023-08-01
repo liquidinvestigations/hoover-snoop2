@@ -214,143 +214,148 @@ def gather(blob, **depends_on):
         first_file_extension = None
     rv['skipped'] = not allow_processing_for_mime_type(blob.mime_type, first_file_extension)
 
-    if archives.is_table(blob):
-        rv['is-table'] = True
-        try:
-            with blob.mount_path() as path:
-                table_info = archives.get_table_info(
-                    path, blob.mime_type, blob.mime_encoding)
-        except Exception as e:
-            log.warning('error retrieving table info: %s', str(e))
-            table_info = None
+    try:
+        # Info Gathering section
+        if archives.is_table(blob):
+            rv['is-table'] = True
+            try:
+                with blob.mount_path() as path:
+                    table_info = archives.get_table_info(
+                        path, blob.mime_type, blob.mime_encoding)
+            except Exception as e:
+                log.warning('error retrieving table info: %s', str(e))
+                table_info = None
 
-        if table_info:
-            rv["table-sheets"] = table_info['sheets']
-            rv["table-sheet-count"] = len(table_info['sheets'])
-            if table_info['sheets']:
-                first_sheet = table_info['sheets'][0]
-                rv["table-columns"] = table_info['sheet-columns'][first_sheet]
-                rv["table-row-count"] = table_info['sheet-row-count'][first_sheet]
-                rv["table-col-count"] = table_info['sheet-col-count'][first_sheet]
+            if table_info:
+                rv["table-sheets"] = table_info['sheets']
+                rv["table-sheet-count"] = len(table_info['sheets'])
+                if table_info['sheets']:
+                    first_sheet = table_info['sheets'][0]
+                    rv["table-columns"] = table_info['sheet-columns'][first_sheet]
+                    rv["table-row-count"] = table_info['sheet-row-count'][first_sheet]
+                    rv["table-col-count"] = table_info['sheet-col-count'][first_sheet]
 
-    # extract text and meta with apache tika
-    tika_rmeta_blob = depends_on.get('tika_rmeta')
-    if tika_rmeta_blob:
-        if isinstance(tika_rmeta_blob, SnoopTaskBroken):
-            rv['broken'].append(tika_rmeta_blob.reason)
-            log.warning("tika_rmeta task is broken; skipping")
-        else:
-            tika_rmeta = tika_rmeta_blob.read_json()
-            if tika_rmeta:
-                rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
-                rv['date'] = tika.get_date_modified(tika_rmeta)
-                rv['date-created'] = tika.get_date_created(tika_rmeta)
-                rv.update(tika.convert_for_indexing(tika_rmeta))
+        # extract text and meta with apache tika
+        tika_rmeta_blob = depends_on.get('tika_rmeta')
+        if tika_rmeta_blob:
+            if isinstance(tika_rmeta_blob, SnoopTaskBroken):
+                rv['broken'].append(tika_rmeta_blob.reason)
+                log.warning("tika_rmeta task is broken; skipping")
             else:
-                log.warning("tika task returned empty result!")
-
-    # parse email for text and headers
-    email_parse_blob = depends_on.get('email_parse')
-    if email_parse_blob:
-        if isinstance(email_parse_blob, SnoopTaskBroken):
-            rv['broken'].append(email_parse_blob.reason)
-            log.warning("email_parse task is broken; skipping")
-        else:
-            email_parse = email_parse_blob.read_json()
-            email_meta = email.email_meta(email_parse)
-            rv.update(email_meta)
-
-    # For large text/CSV files, Tika (and text extraction) fails. For these, we want to read the text
-    # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any files without a
-    # valid encoding.
-    if not rv.get('text') and can_read_text(blob):
-        rv['text'] = read_text(blob) or ''
-
-    # check if pdf-preview is available
-    rv['has-pdf-preview'] = False
-    pdf_preview = depends_on.get('get_pdf_preview')
-    if isinstance(pdf_preview, SnoopTaskBroken):
-        rv['broken'].append(pdf_preview.reason)
-        log.warning('get_pdf_preview task is broken; skipping')
-    elif isinstance(pdf_preview, models.Blob):
-        rv['has-pdf-preview'] = True
-
-    # combine OCR results, limiting string sizes to indexing.MAX_TEXT_FIELD_SIZE
-    ocr_results = dict(ocr.ocr_texts_for_blob(blob))
-    if ocr.can_process(blob) or rv['has-pdf-preview']:
-        for lang in current_collection().ocr_languages:
-            ocr_blob = depends_on.get(f'tesseract_{lang}')
-            if not ocr_blob or isinstance(ocr_blob, SnoopTaskBroken):
-                log.warning(f'tesseract ocr result missing for lang {lang}')
-                rv['broken'].append('ocr_missing')
-                ocr_results[f'tesseract_{lang}'] = ""
-                continue
-            log.info('found OCR blob with mime type: %s', ocr_blob.mime_type)
-            with ocr_blob.mount_path() as ocr_path:
-                if ocr_blob.mime_type == 'application/pdf':
-                    ocr_results[f'tesseract_{lang}'] = subprocess.check_output(
-                        f'pdftotext -q -enc UTF-8 {ocr_path} - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',
-                        shell=True,
-                    ).decode('utf8', errors='replace').strip()
+                tika_rmeta = tika_rmeta_blob.read_json()
+                if tika_rmeta:
+                    rv['text'] = tika_rmeta[0].get('X-TIKA:content', "")[:indexing.MAX_TEXT_FIELD_SIZE]
+                    rv['date'] = tika.get_date_modified(tika_rmeta)
+                    rv['date-created'] = tika.get_date_created(tika_rmeta)
+                    rv.update(tika.convert_for_indexing(tika_rmeta))
                 else:
-                    with open(ocr_path, 'rb') as f:
-                        ocr_results[f'tesseract_{lang}'] = read_exactly(
-                            f,
-                            indexing.MAX_TEXT_FIELD_SIZE,
-                        ).decode('utf-8', errors='replace').strip()
-                log.info('loaded OCR text for lang %s with length %s', lang,
-                         len(ocr_results[f'tesseract_{lang}']))
-    if ocr_results:
-        rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
-        if rv['ocr']:
-            if blob.mime_type == 'application/pdf' or rv['has-pdf-preview']:
-                rv['ocrpdf'] = True
+                    log.warning("tika task returned empty result!")
+
+        # parse email for text and headers
+        email_parse_blob = depends_on.get('email_parse')
+        if email_parse_blob:
+            if isinstance(email_parse_blob, SnoopTaskBroken):
+                rv['broken'].append(email_parse_blob.reason)
+                log.warning("email_parse task is broken; skipping")
             else:
-                rv['ocrimage'] = True
-            rv['ocrtext'] = ocr_results
-        else:
-            log.warning('all OCR results were blank.')
+                email_parse = email_parse_blob.read_json()
+                email_meta = email.email_meta(email_parse)
+                rv.update(email_meta)
 
-    # try and extract exif data
-    exif_data_blob = depends_on.get('exif_data')
-    if exif_data_blob:
-        if isinstance(exif_data_blob, SnoopTaskBroken):
-            rv['broken'].append(exif_data_blob.reason)
-            log.warning("exif_data task is broken; skipping")
+        # For large text/CSV files, Tika (and text extraction) fails. For these, we want to read the text
+        # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any files without a
+        # valid encoding.
+        if not rv.get('text') and can_read_text(blob):
+            rv['text'] = read_text(blob) or ''
 
-        else:
-            exif_data = exif_data_blob.read_json()
-            rv['location'] = exif_data.get('location')
-            rv['date-created'] = exif_data.get('date-created')
+        # check if pdf-preview is available
+        rv['has-pdf-preview'] = False
+        pdf_preview = depends_on.get('get_pdf_preview')
+        if isinstance(pdf_preview, SnoopTaskBroken):
+            rv['broken'].append(pdf_preview.reason)
+            log.warning('get_pdf_preview task is broken; skipping')
+        elif isinstance(pdf_preview, models.Blob):
+            rv['has-pdf-preview'] = True
 
-    rv['has-thumbnails'] = False
-    thumbnails = depends_on.get('get_thumbnail')
-    if thumbnails:
-        if isinstance(thumbnails, SnoopTaskBroken):
-            rv['broken'].append(thumbnails.reason)
-            log.warning('get_thumbnail task is broken; skipping')
-        else:
-            rv['has-thumbnails'] = True
+        # combine OCR results, limiting string sizes to indexing.MAX_TEXT_FIELD_SIZE
+        ocr_results = dict(ocr.ocr_texts_for_blob(blob))
+        if ocr.can_process(blob) or rv['has-pdf-preview']:
+            for lang in current_collection().ocr_languages:
+                ocr_blob = depends_on.get(f'tesseract_{lang}')
+                if not ocr_blob or isinstance(ocr_blob, SnoopTaskBroken):
+                    log.warning(f'tesseract ocr result missing for lang {lang}')
+                    rv['broken'].append('ocr_missing')
+                    ocr_results[f'tesseract_{lang}'] = ""
+                    continue
+                log.info('found OCR blob with mime type: %s', ocr_blob.mime_type)
+                with ocr_blob.mount_path() as ocr_path:
+                    if ocr_blob.mime_type == 'application/pdf':
+                        ocr_results[f'tesseract_{lang}'] = subprocess.check_output(
+                            f'pdftotext -q -enc UTF-8 {ocr_path} - | head -c {indexing.MAX_TEXT_FIELD_SIZE}',
+                            shell=True,
+                        ).decode('utf8', errors='replace').strip()
+                    else:
+                        with open(ocr_path, 'rb') as f:
+                            ocr_results[f'tesseract_{lang}'] = read_exactly(
+                                f,
+                                indexing.MAX_TEXT_FIELD_SIZE,
+                            ).decode('utf-8', errors='replace').strip()
+                    log.info('loaded OCR text for lang %s with length %s', lang,
+                             len(ocr_results[f'tesseract_{lang}']))
+        if ocr_results:
+            rv['ocr'] = any(len(x.strip()) > 0 for x in ocr_results.values())
+            if rv['ocr']:
+                if blob.mime_type == 'application/pdf' or rv['has-pdf-preview']:
+                    rv['ocrpdf'] = True
+                else:
+                    rv['ocrimage'] = True
+                rv['ocrtext'] = ocr_results
+            else:
+                log.warning('all OCR results were blank.')
 
-    rv['detected-objects'] = []
-    detections = depends_on.get('detect_objects')
-    if detections:
-        if isinstance(detections, SnoopTaskBroken):
-            rv['broken'].append(detections.reason)
-            log.warning('object_detection task is broken; skipping')
-        else:
-            detected_objects = detections.read_json()
-            rv['detected-objects'] = detected_objects
+        # try and extract exif data
+        exif_data_blob = depends_on.get('exif_data')
+        if exif_data_blob:
+            if isinstance(exif_data_blob, SnoopTaskBroken):
+                rv['broken'].append(exif_data_blob.reason)
+                log.warning("exif_data task is broken; skipping")
 
-    rv['image-classes'] = []
-    predictions = depends_on.get('classify_image')
-    if predictions:
-        if isinstance(predictions, SnoopTaskBroken):
-            rv['broken'].append(predictions.reason)
-            log.warning('image_classification task is broken; skipping')
-        else:
-            image_classes = predictions.read_json()
-            rv['image-classes'] = image_classes
+            else:
+                exif_data = exif_data_blob.read_json()
+                rv['location'] = exif_data.get('location')
+                rv['date-created'] = exif_data.get('date-created')
+
+        rv['has-thumbnails'] = False
+        thumbnails = depends_on.get('get_thumbnail')
+        if thumbnails:
+            if isinstance(thumbnails, SnoopTaskBroken):
+                rv['broken'].append(thumbnails.reason)
+                log.warning('get_thumbnail task is broken; skipping')
+            else:
+                rv['has-thumbnails'] = True
+
+        rv['detected-objects'] = []
+        detections = depends_on.get('detect_objects')
+        if detections:
+            if isinstance(detections, SnoopTaskBroken):
+                rv['broken'].append(detections.reason)
+                log.warning('object_detection task is broken; skipping')
+            else:
+                detected_objects = detections.read_json()
+                rv['detected-objects'] = detected_objects
+
+        rv['image-classes'] = []
+        predictions = depends_on.get('classify_image')
+        if predictions:
+            if isinstance(predictions, SnoopTaskBroken):
+                rv['broken'].append(predictions.reason)
+                log.warning('image_classification task is broken; skipping')
+            else:
+                image_classes = predictions.read_json()
+                rv['image-classes'] = image_classes
+    except Exception as e:
+        log.error('gather() failed while getting data: %s', str(e))
+        rv['broken'].append('gather_failed')
 
     _delete_empty_keys(rv)
 

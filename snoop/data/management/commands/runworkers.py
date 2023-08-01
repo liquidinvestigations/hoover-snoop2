@@ -42,8 +42,8 @@ def celery_argv(queues, solo, count, mem_limit_mb):
         # '--max-tasks-per-child', str(1),
         '--max-memory-per-child', str(mem_limit_mb * 1024),
         '--prefetch-multiplier', str(settings.WORKER_PREFETCH),
-        '--soft-time-limit', '190000',  # 52h
-        '--time-limit', '200000',  # 55h
+        '--soft-time-limit', '216000',  # 60h
+        '--time-limit', '230400',  # 64h
         '-Q', ','.join(queues),
     ]
 

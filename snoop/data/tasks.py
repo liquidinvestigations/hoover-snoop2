@@ -101,8 +101,12 @@ def flock(func):
 
     @wraps(func)
     def wrapper(*args, **kwargs):
-        with _flock_contextmanager(lock_path):
-            return func(*args, **kwargs)
+        try:
+            with _flock_contextmanager(lock_path):
+                return func(*args, **kwargs)
+        except Exception as e:
+            logger.warning('function already running: %s, %s', func.__name__, str(e))
+            return
     return wrapper
 
 
@@ -233,15 +237,14 @@ def queue_next_tasks(task, reset=False):
     if settings.SNOOP_TASK_DISABLE_TAIL_QUEUE:
         return
 
-    if _is_rabbitmq_memory_full() or \
-            get_rabbitmq_queue_length(QUEUE_ANOTHER_TASK) > QUEUE_ANOTHER_TASK_LIMIT:
+    if _is_rabbitmq_memory_full():
         return
-
-    queue_another_task.apply_async(
-        (collections.current().name, task.func,),
-        queue=QUEUE_ANOTHER_TASK,
-        retry=False,
-    )
+    if get_rabbitmq_queue_length(QUEUE_ANOTHER_TASK) < QUEUE_ANOTHER_TASK_LIMIT:
+        queue_another_task.apply_async(
+            (collections.current().name, task.func,),
+            queue=QUEUE_ANOTHER_TASK,
+            retry=False,
+        )
 
 
 @celery.app.task
@@ -434,7 +437,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         .get(pk=task_pk)
                     )
                 except DatabaseError as e:
-                    logger.error(
+                    logger.warning(
                         "collection %s: task %r already running (1st check), locked in db: %s",
                         col_name, task_pk, e,
                     )
@@ -1272,7 +1275,7 @@ def dispatch_for(collection, func):
             # check if we have any queued tasks in the DB. if we do, they all need to be re-queued...
             db_invalid_queued_tasks = models.Task.objects.filter(func=func, status=models.Task.STATUS_QUEUED)
             if db_invalid_queued_tasks.exists():
-                logger.error(
+                logger.warning(
                     "collection %s func %s: db has %s queued records, but rabbit has %s! resetting db...",
                     collection.name, func,
                     db_invalid_queued_tasks.count(),

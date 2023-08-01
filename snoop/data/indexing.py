@@ -169,6 +169,9 @@ def index(id, data):
 def bulk_index(items):
     """Index many documents provided as (id, body)."""
 
+    if not items:
+        return {'items': []}
+
     def generate_data(items):
         for _id, body in items:
             action = {

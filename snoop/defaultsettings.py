@@ -279,7 +279,7 @@ SNOOP_TASK_DISABLE_TAIL_QUEUE = False
 Useful for running tests with the Celery Eager executor, to avoid infinite loops.
 """
 
-TASK_RETRY_AFTER_MINUTES = 5
+TASK_RETRY_AFTER_MINUTES = 4
 """Errored tasks are retried at most every this number of minutes."""
 
 TASK_RETRY_FAIL_LIMIT = 3
@@ -287,7 +287,7 @@ TASK_RETRY_FAIL_LIMIT = 3
 
 The actual value is higher, since we retry very old tasks more times."""
 
-WORKER_TASK_LIMIT = 1000
+WORKER_TASK_LIMIT = 10000
 """Max tasks count to be finished by 1 worker process before restarting it.
 """
 
@@ -312,7 +312,7 @@ and if we would queue at least another DISPATCH_QUEUE_LIMIT, then
 dispatch more tasks. This is used to reduce waiting between batches.
 """
 
-DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 5)
+DISPATCH_MAX_QUEUE_SIZE = int(DISPATCH_QUEUE_LIMIT * 8)
 """Don't queue anything on a queue if its length is greater than this value."""
 
 SYNC_RETRY_LIMIT_DIRS = 100
