@@ -129,8 +129,7 @@ class Command(BaseCommand):
                     if c.process:
                         for q in c.get_default_queues():
                             all_queues.extend(rmq_queues_for(c, q))
-            else:
-                all_queues.append(tasks.QUEUE_ANOTHER_TASK)
+            all_queues.append(tasks.QUEUE_ANOTHER_TASK)
         else:
             raise RuntimeError('no queue given')
 

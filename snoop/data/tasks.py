@@ -1197,14 +1197,13 @@ def run_dispatcher():
     everything in memory, thus becoming very slow).
     """
 
-    deadline = settings.SYSTEM_TASK_DEADLINE_SECONDS + time()
     import_snoop_tasks()
     if not single_task_running('run_dispatcher'):
         logger.warning('run_dispatcher function already running, exiting')
         return
 
     collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
-    func_list = list(set(f.func for f in task_map.values() if f.queue))
+    func_list = sorted(set(f.func for f in task_map.values() if f.queue))
     random.shuffle(collection_list)
     random.shuffle(func_list)
     for collection in collection_list:
@@ -1213,12 +1212,8 @@ def run_dispatcher():
             for func in func_list:
                 if func:
                     dispatch_for(collection, func)
-                if time() > deadline:
-                    break
         except Exception as e:
             logger.exception(e)
-        if time() > deadline:
-            break
 
 
 @celery.app.task

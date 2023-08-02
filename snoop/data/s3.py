@@ -76,7 +76,7 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
         f.seek(0)
         old_info_str = f.read()
 
-        logger.info('read mount info: %s', old_info_str)
+        logger.debug('read mount info: %s', old_info_str)
         if old_info_str:
             try:
                 old_info = json.loads(old_info_str)
@@ -148,7 +148,7 @@ def adjust_s3_mounts(mount_name, old_info,
 
     # if mount exists in list, update timestamp, return
     if mount_name in new_info:
-        logger.info('found old mount still alive: %s', mount_name)
+        logger.debug('found old mount still alive: %s', mount_name)
         new_info[mount_name]['timestamp'] = timestamp()
         return new_info
 
