@@ -494,7 +494,7 @@ def mount_collection(col, nc_col):
         secrets_file.write(f'\n{secrets_content}')
 
         mount_command = (
-            f'mount -t davfs http://10.66.60.1:9972{nc_col.url}'
+            f'mount -t davfs http://10.66.60.1:9972{nc_col.url} '
             f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{nc_col.name}/data'
         )
         try:
