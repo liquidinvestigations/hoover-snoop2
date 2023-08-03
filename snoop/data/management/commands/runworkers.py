@@ -19,7 +19,7 @@ from ...logs import logging_for_management_command
 log = logging.getLogger(__name__)
 
 
-def celery_argv(queues, solo, count, mem_limit_mb):
+def celery_argv(queues, solo, count, mem_limit_mb, name):
     """Builds the command line to run a `celery worker` process."""
 
     celery_binary = (
@@ -34,6 +34,7 @@ def celery_argv(queues, solo, count, mem_limit_mb):
         '-A', 'snoop.data',
         'worker',
         '-E',
+        '-n', name,
         '--pidfile=',
         f'--loglevel={loglevel}',
         '-Ofair',
@@ -50,7 +51,7 @@ def celery_argv(queues, solo, count, mem_limit_mb):
     if solo:
         argv += ['-P', 'solo']
     else:
-        argv += ['-c', str(count)]
+        argv += ['-P', 'prefork', '-c', str(count)]
 
     return argv
 
@@ -96,6 +97,9 @@ class Command(BaseCommand):
         all_queues = []
         if options['queue'] == 'system':
             all_queues = settings.SYSTEM_QUEUES
+        elif options['queue'] == 'queues':
+            all_queues.append(tasks.QUEUE_ANOTHER_TASK)
+            all_queues.append(tasks.QUEUE_ANOTHER_TASK)
         elif options['queue']:
             all_queues = sum(
                 [
@@ -136,7 +140,9 @@ class Command(BaseCommand):
         all_queues = list(set(all_queues))
         random.shuffle(all_queues)
 
+        worker_name = options['queue'] + str(random.randint(1, 10000)) + '@%h'
         argv = celery_argv(queues=all_queues, solo=options.get('solo'),
-                           count=options['count'], mem_limit_mb=options['mem'])
+                           count=options['count'], mem_limit_mb=options['mem'],
+                           name=worker_name)
         log.info('+' + ' '.join(argv))
         os.execv(argv[0], argv)

@@ -173,13 +173,14 @@ def queue_task(task):
     Args:
         task: task to be queued in Celery
     """
-
-    queue_length = get_rabbitmq_queue_length(rmq_queue_name(task.func))
-    if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE or _is_rabbitmq_memory_full():
-        return
-
     import_snoop_tasks()
     if task_map[task.func].bulk:
+        return
+    col = collections.from_object(task)
+
+    # if queue is full, abort
+    queue_length = get_rabbitmq_queue_length(rmq_queue_name(task.func))
+    if queue_length >= settings.DISPATCH_MAX_QUEUE_SIZE or _is_rabbitmq_memory_full():
         return
 
     def send_to_celery():
@@ -188,7 +189,6 @@ def queue_task(task):
         This is wrapped in `transactions.on_commit` to avoid
         running it if wrapping transaction fails.
         """
-        col = collections.from_object(task)
         with col.set_current():
             try:
                 logger.debug(f'queueing task {task.func}(pk {task.pk})')
@@ -200,13 +200,35 @@ def queue_task(task):
             except laterz_snoop_task.OperationalError as e:
                 logger.error(f'failed to submit {task.func}(pk {task.pk}): {e}')
 
-    task.update(status=models.Task.STATUS_QUEUED)
-    task.save()
-    transaction.on_commit(send_to_celery)
+    # Check the lock on the task. If we get it, set status = QUEUED and send to celery"""
+    with col.set_current():
+        with transaction.atomic(using=col.db_alias), tracer.span('task fetch mark started'):
+            try:
+                task = (
+                    models.Task.objects
+                    .select_for_update(nowait=True)
+                    .get(pk=task.pk)
+                )
+                task.update(status=models.Task.STATUS_QUEUED)
+                task.save()
+                transaction.on_commit(send_to_celery)
+            except DatabaseError as e:
+                logger.warning(
+                    "queue_task(): collection %s: task %r already locked: %s",
+                    col.name, task.pk, e,
+                )
+                tracer.count('queue_task_locked')
+                return
+            except models.Task.DoesNotExist:
+                logger.error(
+                    "queue_task(): collection %s: task pk=%s DOES NOT EXIST IN DB",
+                    col.name, task.pk
+                )
+                tracer.count('queue_task_not_found')
+                return
 
 
-@tracer.wrap_function()
-def queue_next_tasks(task, reset=False):
+def queue_next_tasks(*a, **kw):
     """Queues all Tasks that directly depend on this one.
 
     Also queues a pending task of the same type.
@@ -215,6 +237,14 @@ def queue_next_tasks(task, reset=False):
         task: will queue running all Tasks in `task.next_set`
         reset: if set, will set next Tasks status to "pending" before queueing it
     """
+    # attempt to avoid locks by running the update outside the first transaction
+    transaction.on_commit(lambda: _do_queue_next_tasks(*a, **kw))
+
+
+@tracer.wrap_function()
+def _do_queue_next_tasks(task, reset=False):
+    """Implementation for `queue_next_tasks`.
+    This is offset to the end of the Tx using on_commit."""
     for next_dependency in task.next_set.all():
         next_task = next_dependency.next
         if reset:
@@ -407,6 +437,23 @@ def snoop_task_log_handler(level=logging.DEBUG):
         # root_logger.setLevel(old_root_level)
 
 
+def is_task_running(task_pk):
+    """Check if a started task is still running, by trying to get the lock for it."""
+
+    with transaction.atomic(using=collections.current().db_alias):
+        try:
+            task = (
+                models.Task.objects
+                .select_for_update(nowait=True)
+                .get(pk=task_pk)
+            )
+            logger.warning('got lock for task %s, task is DEAD', task.pk)
+            return False
+        except DatabaseError as e:
+            logger.debug('task is RUNNING, error while fetching lock: %s', e)
+            return True
+
+
 @celery.app.task
 @tracer.wrap_function()
 def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
@@ -426,6 +473,22 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     col = collections.ALL[col_name]
     logger.debug('collection %s: starting task %s', col_name, task_pk)
 
+    def lock_children(task):
+        """Lock all children tasks to make sure we can update them after the results."""
+        next_tasks = [dep.next for dep in task.next_set.all()]
+        for next_task in next_tasks:
+            try:
+                next_locked = (
+                    models.Task.objects
+                    .select_for_update(nowait=True)
+                    .get(pk=next_task.pk)
+                )
+                logger.debug('locked child: %s', next_locked.pk)
+            except Exception as e:
+                logger.warning('failed to lock child: %s -> %s (%s)',
+                               task.func, next_task.func, str(e))
+                raise
+
     with snoop_task_log_handler() as handler:
         with col.set_current():
             # first tx & select for update: get task, set status STARTED, save, end tx (commit)
@@ -436,6 +499,8 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                         .select_for_update(nowait=True)
                         .get(pk=task_pk)
                     )
+                    lock_children(task)
+
                 except DatabaseError as e:
                     logger.warning(
                         "collection %s: task %r already running (1st check), locked in db: %s",
@@ -450,11 +515,85 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                     )
                     tracer.count('task_not_found')
                     return
+
+            _tracer_opt = {
+                'attributes': {
+                    'function': task.func,
+                    'function_group': task.func.split('.')[0] if '.' in task.func else task.func,
+                    'collection': collections.current().name,
+                },
+                'extra_counters': {
+                    'size_bytes': {
+                        "unit": "b",
+                        "value": task.size(),
+                    },
+                },
+            }
+
+            with tracer.span('check if task already completed', **_tracer_opt):
+                if is_completed(task):
+                    logger.debug("%r already completed", task)
+                    tracer.count('task_already_completed', **_tracer_opt)
+                    queue_next_tasks(task)
+                    return
+
                 task.status = models.Task.STATUS_STARTED
                 task.date_started = timezone.now()
                 task.date_modified = timezone.now()
                 task.date_finished = None
                 task.save()
+
+            with tracer.span('check dependencies', **_tracer_opt):
+                depends_on = {}
+
+                all_prev_deps = list(task.prev_set.all())
+                if any(dep.prev.status == models.Task.STATUS_ERROR for dep in all_prev_deps):
+                    logger.debug("%r has a dependency in the ERROR state.", task)
+                    task.update(
+                        status=models.Task.STATUS_BROKEN,
+                        error='',
+                        broken_reason='dependency_has_error',
+                        log=handler.stream.getvalue(),
+                        version=task_map[task.func].version,
+                    )
+                    task.save()
+                    queue_next_tasks(task, reset=True)
+                    return
+
+                for dep in all_prev_deps:
+                    prev_task = dep.prev
+                    if not is_completed(prev_task):
+                        task.update(
+                            status=models.Task.STATUS_DEFERRED,
+                            error='',
+                            broken_reason='',
+                            log=handler.stream.getvalue(),
+                            version=task_map[task.func].version,
+                        )
+                        task.save()
+                        logger.debug("%r missing dependency %r", task, prev_task)
+                        tracer.count("task_missing_dependency", **_tracer_opt)
+                        queue_task(prev_task)
+                        return
+
+                    if prev_task.status == models.Task.STATUS_SUCCESS:
+                        prev_result = prev_task.result
+                    elif prev_task.status == models.Task.STATUS_BROKEN:
+                        prev_result = SnoopTaskBroken(
+                            prev_task.error,
+                            prev_task.broken_reason
+                        )
+                    else:
+                        raise RuntimeError(f"Unexpected status {prev_task.status}")
+
+                    depends_on[dep.name] = prev_result
+
+            with tracer.span('save state before run', **_tracer_opt):
+                task.status = models.Task.STATUS_RUNNING
+                task.date_started = timezone.now()
+                task.date_finished = None
+                task.save()
+
             # second tx & select for update: get task, run task
             with transaction.atomic(using=col.db_alias):
                 with tracer.span('task fetch lock object'):
@@ -464,33 +603,17 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                             .select_for_update(nowait=True)
                             .get(pk=task_pk)
                         )
+                        lock_children(task)
                     except DatabaseError as e:
                         logger.error(
                             "collection %s: task %r already running (2nd check), locked in db: %s",
                             col_name, task_pk, e,
                         )
                         return
-                run_task(task, handler, raise_exceptions)
+                run_task(task, depends_on, handler, raise_exceptions, _tracer_opt)
 
 
-def is_task_running(task_pk):
-    """Check if a started task is still running, by trying to get the lock for it."""
-
-    with transaction.atomic(using=collections.current().db_alias):
-        try:
-            task = (
-                models.Task.objects
-                .select_for_update(nowait=True)
-                .get(pk=task_pk)
-            )
-            logger.warning('got lock for task %s, task is DEAD', task.pk)
-            return False
-        except DatabaseError as e:
-            logger.debug('task is RUNNING, error while fetching lock: %s', e)
-            return True
-
-
-def run_task(task, log_handler, raise_exceptions=False):
+def run_task(task, depends_on, log_handler, raise_exceptions=False, _tracer_opt=dict()):
     """Runs the main Task switch: get dependencies, run code,
     react to `SnoopTaskError`s, save state and logs, queue next tasks.
 
@@ -499,85 +622,13 @@ def run_task(task, log_handler, raise_exceptions=False):
         log_handler: instance of log handler to dump results
         raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
     """
-    _tracer_opt = {
-        'attributes': {
-            'function': task.func,
-            'function_group': task.func.split('.')[0] if '.' in task.func else task.func,
-            'collection': collections.current().name,
-        },
-        'extra_counters': {
-            'size_bytes': {
-                "unit": "b",
-                "value": task.size(),
-            },
-        },
-    }
-
     with tracer.span('run_task', **_tracer_opt):
         tracer.count("task_started", **_tracer_opt)
 
-        with tracer.span('check if task already completed', **_tracer_opt):
-            if is_completed(task):
-                logger.debug("%r already completed", task)
-                tracer.count('task_already_completed', **_tracer_opt)
-                queue_next_tasks(task)
-                return
-
-            args = task.args
-            if task.blob_arg:
-                assert args[0] == task.blob_arg.pk
-                args = [task.blob_arg] + args[1:]
-
-        with tracer.span('check dependencies', **_tracer_opt):
-            depends_on = {}
-
-            all_prev_deps = list(task.prev_set.all())
-            if any(dep.prev.status == models.Task.STATUS_ERROR for dep in all_prev_deps):
-                logger.debug("%r has a dependency in the ERROR state.", task)
-                task.update(
-                    status=models.Task.STATUS_BROKEN,
-                    error='',
-                    broken_reason='dependency_has_error',
-                    log=log_handler.stream.getvalue(),
-                    version=task_map[task.func].version,
-                )
-                task.save()
-                queue_next_tasks(task, reset=True)
-                return
-
-            for dep in all_prev_deps:
-                prev_task = dep.prev
-                if not is_completed(prev_task):
-                    task.update(
-                        status=models.Task.STATUS_DEFERRED,
-                        error='',
-                        broken_reason='',
-                        log=log_handler.stream.getvalue(),
-                        version=task_map[task.func].version,
-                    )
-                    task.save()
-                    logger.debug("%r missing dependency %r", task, prev_task)
-                    tracer.count("task_missing_dependency", **_tracer_opt)
-                    queue_task(prev_task)
-                    return
-
-                if prev_task.status == models.Task.STATUS_SUCCESS:
-                    prev_result = prev_task.result
-                elif prev_task.status == models.Task.STATUS_BROKEN:
-                    prev_result = SnoopTaskBroken(
-                        prev_task.error,
-                        prev_task.broken_reason
-                    )
-                else:
-                    raise RuntimeError(f"Unexpected status {prev_task.status}")
-
-                depends_on[dep.name] = prev_result
-
-        with tracer.span('save state before run', **_tracer_opt):
-            task.status = models.Task.STATUS_PENDING
-            task.date_started = timezone.now()
-            task.date_finished = None
-            task.save()
+        args = task.args
+        if task.blob_arg:
+            assert args[0] == task.blob_arg.pk
+            args = [task.blob_arg] + args[1:]
 
         with tracer.span('run task function', **_tracer_opt):
             logger.debug("Running %r", task)

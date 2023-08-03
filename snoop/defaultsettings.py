@@ -8,11 +8,14 @@ import re
 from datetime import timedelta
 from pathlib import Path
 import json
+import logging
 
 from minio import Minio
 import boto3
 
 from snoop.data import celery
+
+logger = logging.getLogger(__name__)
 
 # WARNING: Docstrings are placed after the assignment.
 # See the example here:
@@ -287,7 +290,7 @@ TASK_RETRY_FAIL_LIMIT = 3
 
 The actual value is higher, since we retry very old tasks more times."""
 
-WORKER_TASK_LIMIT = 10000
+WORKER_TASK_LIMIT = 500
 """Max tasks count to be finished by 1 worker process before restarting it.
 """
 
@@ -459,7 +462,7 @@ Only useful when running one worker per task, otherwise tasks will interfere wit
 SNOOP_S3FS_MOUNT_DIR = os.path.join(os.getenv('TMP', '/tmp'), 'snoop-s3fs-mounts')
 """Location ono disk where s3fs mounts are stored."""
 
-SNOOP_S3FS_MOUNT_LIMIT = int(os.getenv('SNOOP_S3FS_MOUNT_LIMIT', '16'))
+SNOOP_S3FS_MOUNT_LIMIT = int(os.getenv('SNOOP_S3FS_MOUNT_LIMIT', '4'))
 """Global limit of parallel S3 mounts (buckets)."""
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'

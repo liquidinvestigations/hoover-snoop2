@@ -10,37 +10,150 @@ import time
 import signal
 import logging
 import psutil
-import shutil
 import os
 import json
 import fcntl
 from contextlib import contextmanager
 import subprocess
+import sys
 
 from django.conf import settings
+
+from . import tracing
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+tracer = tracing.Tracer(__name__)
+
+
+@contextmanager
+def open_exclusive(file_path, *args, **kwargs):
+    """Context manager that uses exclusive blocking flock
+    to ensure singular access to opened file."""
+
+    def lock_file(fd):
+        fcntl.flock(fd, fcntl.LOCK_EX)
+
+    def unlock_file(fd):
+        fcntl.flock(fd, fcntl.LOCK_UN)
+
+    f = open(file_path, *args, **kwargs)
+    lock_file(f.fileno())
+    try:
+        yield f
+    finally:
+        f.flush()
+        os.fsync(f.fileno())
+        unlock_file(f.fileno())
+        f.close()
 
 
 def clean_makedirs(path):
     """Helper function that works like `os.makedirs(path, exist_ok=True)`,
     but also takes care to remove any file that might be at the path instead of a folder.
     """
-    if os.path.isdir(path):
-        return
-    try:
-        os.makedirs(path, exist_ok=True)
-        return
-    except OSError:
-        assert os.path.exists(path), "dir not created after os.makedirs()!"
+    RETRIES = 3
+    SLEEP = 0.05
+    for retry in range(RETRIES):
+        try:
+            if os.path.isdir(path):
+                return
 
-        if not os.path.isdir(path):
-            logger.warning('found file/socket instead of directory at %s... removing', path)
-            os.remove(path)
-            os.makedirs(path, exist_ok=True)
-            assert os.path.isdir(path), "dir not created after removing file and running os.makedirs()!"
+            # try first makedirs, to get the parents
+            try:
+                os.makedirs(path, exist_ok=True)
+                return
+            except OSError:
+                pass
+
+            # if it's a normal file, remove that
+            if os.path.exists(path) and not os.path.isdir(path):
+                try:
+                    os.remove(path)
+                except Exception as e:
+                    logger.exception(e)
+
+            if os.path.exists(path):
+                logger.error('os.remove() did not remove the file!')
+
+            try:
+                os.makedirs(path, exist_ok=True)
+                return
+            except OSError:
+                assert os.path.exists(path), "dir not created after second os.makedirs()!"
+
+                if not os.path.isdir(path):
+                    os.makedirs(path, exist_ok=True)
+                    assert os.path.isdir(path), \
+                        "dir not created after removing file and running os.makedirs()!"
+        except Exception as e:
+            logger.warning('retrying clean_makedirs() %s/%s %s', retry, RETRIES, str(e))
+            time.sleep(SLEEP)
+
+
+WORKER_PROCESS_INDEX = -1
+
+
+def _get_worker_process_index():
+    """Returns a numerical index that is stable through worker restarts.
+
+    We want the same IDs to be reused by processes. PIDs are unadequate for this
+    role because they are managed to avoid collisions.
+
+    I couldn't get Celery or its library Billard to get me a stable worker ID.
+    """
+
+    # for Gunicorn workers, we get this from an env
+    if (os.getenv("GUNICORN_WORKER_ID") or '').strip():
+        return int(os.getenv("GUNICORN_WORKER_ID"))
+
+    clean_makedirs(settings.SNOOP_S3FS_MOUNT_DIR)
+    worker_pid_list_file = os.path.join(
+        settings.SNOOP_S3FS_MOUNT_DIR,
+        'worker-process-index-list.json'
+    )
+    worker_pid_list = []
+    with open_exclusive(worker_pid_list_file, 'a+') as f:
+        f.seek(0)
+        info_str = f.read()
+        if info_str:
+            try:
+                worker_pid_list = json.loads(info_str)
+            except Exception as e:
+                logger.debug('cannot parse pids: %s %s %s',
+                             worker_pid_list_file, info_str, str(e))
+        # check if our pid is in the list; if it is, return the index
+        current_pid = os.getpid()
+        if current_pid in worker_pid_list:
+            return worker_pid_list.index(current_pid)
+
+        # check if any other process is dead; if it is, replace its place in the list
+        all_pids = {p.pid for p in psutil.process_iter()}
+        for i, old_pid in enumerate(worker_pid_list):
+            if old_pid not in all_pids:
+                worker_pid_list[i] = current_pid
+                break
+        else:
+            # we did not find any dead process in the list
+            worker_pid_list.append(current_pid)
+
+        # overwrite data
+        f.seek(0)
+        f.truncate()
+        json.dump(worker_pid_list, f)
+        return worker_pid_list.index(current_pid)
+
+
+def refresh_worker_index():
+    global WORKER_PROCESS_INDEX
+    WORKER_PROCESS_INDEX = _get_worker_process_index()
+    logger.warning(
+        'WORKER PROCESS INDEX = %s  (pid=%s  args=%s)',
+        WORKER_PROCESS_INDEX,
+        os.getpid(),
+        sys.argv,
+    )
 
 
 def timestamp():
@@ -49,16 +162,84 @@ def timestamp():
     return time.time()
 
 
+def _get_worker_base_path():
+    """Returns a unique path for each subprocess where we place mounts."""
+
+    worker_base_path = os.path.join(
+        settings.SNOOP_S3FS_MOUNT_DIR,
+        str(WORKER_PROCESS_INDEX),
+    )
+    clean_makedirs(worker_base_path)
+    return worker_base_path
+
+
+def clear_mounts():
+    """Unmount all S3 volumes and clear out the metadata and logs.
+    Used when Celery process restarts."""
+
+    worker_base_path = _get_worker_base_path()
+    if not os.path.isdir(worker_base_path):
+        return
+
+    mount_info_path = os.path.join(worker_base_path, 'mount-info.json')
+    mount_info = {}
+    if os.path.isfile(mount_info_path):
+        with open_exclusive(mount_info_path, 'a+') as f:
+            f.seek(0)
+            info_str = f.read()
+
+            logger.debug('read mount info: %s', info_str)
+            if info_str:
+                try:
+                    mount_info = json.loads(info_str)
+                except Exception as e:
+                    logger.debug('clear mounts info corrupted: %s', e)
+        for mount_value in mount_info.values():
+            umount_s3fs(mount_value['target'], mount_value['pid'])
+        os.remove(mount_info_path)
+    # in case json is kaputt, let's use `find` to try to unmount all targets
+    targets = subprocess.check_output(
+        (
+            f'find "{worker_base_path}" '
+            ' -mindepth 1 -maxdepth 3 -xdev -type d -name target'
+        ),
+        shell=True,
+    ).decode('ascii').strip().splitlines()
+    for target in targets:
+        target = target.strip()
+        if target:
+            try:
+                umount_s3fs(target)
+            except Exception as e:
+                logger.warning('could not umount s3fs! %s', str(e))
+                raise
+    if not os.path.isdir(worker_base_path):
+        return
+    # keep using `find -xdev` to avoid deleting stuff inside mounts.
+    subprocess.call(
+        (
+            f'find "{worker_base_path}" '
+            ' -xdev -type f -delete'
+        ),
+        shell=True,
+    )
+    subprocess.call(
+        (
+            f'find "{worker_base_path}" '
+            ' -xdev -type d -empty -delete'
+        ),
+        shell=True,
+    )
+
+
 def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
     """Ensure requested S3fs is mounted, while also
     unmounting least recently used mounts over the limit."""
 
-    clean_makedirs(settings.SNOOP_S3FS_MOUNT_DIR)
-
-    mount_info_path = os.path.join(settings.SNOOP_S3FS_MOUNT_DIR, 'mount-info.json')
-    base_path = os.path.join(settings.SNOOP_S3FS_MOUNT_DIR, mount_name)
+    worker_base_path = _get_worker_base_path()
+    mount_info_path = os.path.join(worker_base_path, 'mount-info.json')
+    base_path = os.path.join(worker_base_path, mount_name)
     target_path = os.path.join(base_path, 'target')
-    cache_path = os.path.join(base_path, 'cache')
     logfile_path = os.path.join(base_path, 'mount-log.txt')
     password_file_path = os.path.join(base_path, 'password-file')
 
@@ -88,7 +269,7 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
 
         new_info = adjust_s3_mounts(
             mount_name, old_info,
-            bucket, mount_mode, cache_path, password_file_path, address, target_path, logfile_path
+            bucket, mount_mode, password_file_path, address, target_path, logfile_path
         )
 
         f.seek(0)
@@ -98,30 +279,8 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
     return target_path
 
 
-@contextmanager
-def open_exclusive(file_path, *args, **kwargs):
-    """Context manager that uses exclusive blocking flock
-    to ensure singular access to opened file."""
-
-    def lock_file(fd):
-        fcntl.flock(fd, fcntl.LOCK_EX)
-
-    def unlock_file(fd):
-        fcntl.flock(fd, fcntl.LOCK_UN)
-
-    f = open(file_path, *args, **kwargs)
-    lock_file(f.fileno())
-    try:
-        yield f
-    finally:
-        f.flush()
-        os.fsync(f.fileno())
-        unlock_file(f.fileno())
-        f.close()
-
-
 def adjust_s3_mounts(mount_name, old_info,
-                     bucket, mount_mode, cache_path,
+                     bucket, mount_mode,
                      password_file_path, address, target_path, logfile_path):
     """Implement Least Recently used cache for the S3 mounts.
 
@@ -155,13 +314,12 @@ def adjust_s3_mounts(mount_name, old_info,
     # create new mount
     logger.info('creating new mount: %s', mount_name)
     clean_makedirs(target_path)
-    clean_makedirs(cache_path)
-    pid = mount_s3fs(bucket, mount_mode, cache_path, password_file_path, address, target_path, logfile_path)
+    pid = mount_s3fs(bucket, mount_mode, password_file_path, address, target_path, logfile_path)
 
     # create new entry with pid and timestamp
     new_info[mount_name] = {
         'pid': pid, 'timestamp': timestamp(),
-        'target': target_path, 'cache': cache_path,
+        'target': target_path,
     }
 
     # if above mount limit, then send signals to unmount and stop
@@ -173,35 +331,12 @@ def adjust_s3_mounts(mount_name, old_info,
             for mount in mounts_to_stop:
                 pid = new_info[mount]['pid']
                 target = new_info[mount]['target']
-                cache = new_info[mount].get('cache')
                 logger.info('removing old mount: pid=%s target=%s', pid, target)
 
                 try:
-                    umount_s3fs(target)
+                    umount_s3fs(target, pid)
                 except Exception as e:
-                    logger.exception('failed to run "umount" for target=%s (%s)', target, e)
-
-                try:
-                    os.kill(pid, signal.SIGSTOP)
-                except Exception as e:
-                    logger.exception('failed to send SIGSTOP to mount, pid=%s (%s)', pid, e)
-
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except Exception as e:
-                    logger.exception('failed to send SIGKILL to mount, pid=%s (%s)', pid, e)
-
-                if target:
-                    try:
-                        os.rmdir(target)
-                    except Exception as e:
-                        logger.exception('Failed to os.rmdir() the target directory %s (%s)', target, e)
-
-                if cache:
-                    try:
-                        shutil.rmtree(cache)
-                    except Exception as e:
-                        logger.exception('Failed to shutil.rmtree() the cache directory %s (%s)', cache, e)
+                    logger.exception('failed to run "umount_s3fs" for target=%s (%s)', target, e)
             time.sleep(0.001)
 
         new_info = _clear_dead(old_info)
@@ -209,7 +344,7 @@ def adjust_s3_mounts(mount_name, old_info,
     return new_info
 
 
-def mount_s3fs(bucket, mount_mode, cache, password_file, address, target, logfile):
+def mount_s3fs(bucket, mount_mode, password_file, address, target, logfile):
     """Run subprocess to mount s3fs disk to target. Will wait until completed."""
 
     # unused options:
@@ -219,7 +354,7 @@ def mount_s3fs(bucket, mount_mode, cache, password_file, address, target, logfil
     # does not work on very large archives (would need same amount of temp space)
 
     cmd_bash = f"""
-    nohup s3fs \\
+    s3fs \\
         -f \\
         -o {mount_mode} \\
         -o allow_other \\
@@ -231,18 +366,57 @@ def mount_s3fs(bucket, mount_mode, cache, password_file, address, target, logfil
         2>&1 & echo $!
     """
     logger.info('running s3fs process: %s', cmd_bash)
+    tracer.count("mount_s3fs_start")
     output = subprocess.check_output(cmd_bash, shell=True)
     pid = int(output)
     logger.info('s3fs process started with pid %s', pid)
     return pid
 
 
-def umount_s3fs(target):
+def umount_s3fs(target, pid=None):
     """Run subprocess to umount s3fs disk from target. Will wait until completed."""
 
-    subprocess.run(f"umount {target}", shell=True, check=False)
-    if os.listdir(target):
-        subprocess.check_call(f"""
-            umount {target} || umount -l {target} || true;
-        """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
+    def _pid_alive():
+        if pid:
+            return pid in [p.pid for p in psutil.process_iter()]
+        return False
+
+    def _data_mounted():
+        return os.path.isdir(target) and bool(os.listdir(target))
+
+    if not _pid_alive() and not _data_mounted() and not os.path.isdir(target):
         return
+
+    for retry in range(10):
+        subprocess.run(f"umount {target}", shell=True, check=False)
+
+        if _pid_alive():
+            try:
+                os.kill(pid, signal.SIGSTOP)
+            except Exception as e:
+                logger.exception('failed to send SIGSTOP to mount, pid=%s (%s)', pid, e)
+
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except Exception as e:
+                logger.exception('failed to send SIGKILL to mount, pid=%s (%s)', pid, e)
+
+        if _data_mounted():
+            subprocess.check_call(f"""
+                umount {target} || umount -l {target} || true;
+            """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
+
+        if not _data_mounted:
+            try:
+                os.rmdir(target)
+            except Exception as e:
+                logger.warning('Failed to os.rmdir() the target directory %s (%s)', target, e)
+
+        if not _pid_alive() and not _data_mounted() and not os.path.isdir(target):
+            tracer.count("umount_s3fs_success")
+            return
+
+        time.sleep(0.05 + 0.1 * retry)
+
+    tracer.count("umount_s3fs_failed")
+    raise RuntimeError(f'cannot remove old S3 mounts! target={target}, pid={pid}')
