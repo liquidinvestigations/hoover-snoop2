@@ -11,8 +11,6 @@ import random
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
-from snoop.data.collections import ALL
-
 from ... import tasks
 from ...logs import logging_for_management_command
 
@@ -56,18 +54,16 @@ def celery_argv(queues, solo, count, mem_limit_mb, name):
     return argv
 
 
-def rmq_queues_for(collection, queue):
+def rmq_queues_for(queue):
     """Return the rabbitmq complete queue names, given
     the queue category (the queue argument of @snoop_task).
     """
     lst = [
-        tasks.rmq_queue_name(func, collection=collection)
+        tasks.rmq_queue_name(func)
         for func in tasks.task_map
         if tasks.task_map[func].queue == queue
     ]
-    if not lst:
-        raise RuntimeError('no tasks in queue category! collection=%s queue=%s' % (collection, queue))
-    return lst
+    return list(set(lst))
 
 
 class Command(BaseCommand):
@@ -92,47 +88,30 @@ class Command(BaseCommand):
         logging_for_management_command()
 
         tasks.import_snoop_tasks()
-        all_collections = [c for c in ALL.values() if c.process]
-
         all_queues = []
         if options['queue'] == 'system':
             all_queues = settings.SYSTEM_QUEUES
         elif options['queue'] == 'queues':
             all_queues.append(tasks.QUEUE_ANOTHER_TASK)
-            all_queues.append(tasks.QUEUE_ANOTHER_TASK)
         elif options['queue']:
-            all_queues = sum(
-                [
-                    rmq_queues_for(c, options['queue']) for c in all_collections if c.process
-                ],
-                start=[],
-            )
+            all_queues.extend(rmq_queues_for(options['queue']))
             # every worker can run digests and filesystem and ocr (if enabled)
-            all_queues += sum(
-                [
-                    rmq_queues_for(c, 'digests') for c in all_collections if c.process
-                ],
-                start=[],
-            )
-            all_queues += sum(
-                [
-                    rmq_queues_for(c, 'filesystem') for c in all_collections if c.process
-                ],
-                start=[],
-            )
+            all_queues.extend(rmq_queues_for('digests'))
+            all_queues.extend(rmq_queues_for('filesystem'))
             if settings.OCR_ENABLED:
-                all_queues += sum(
-                    [
-                        rmq_queues_for(c, 'ocr') for c in all_collections if c.process
-                    ],
-                    start=[],
-                )
+                all_queues.extend(rmq_queues_for('ocr'))
 
             if options['queue'] == 'default':
-                for c in all_collections:
-                    if c.process:
-                        for q in c.get_default_queues():
-                            all_queues.extend(rmq_queues_for(c, q))
+                all_queues.extend(rmq_queues_for('filesystem'))
+                all_queues.extend(rmq_queues_for('ocr'))
+                all_queues.extend(rmq_queues_for('digests'))
+
+                all_queues.extend(rmq_queues_for('img-cls'))
+                all_queues.extend(rmq_queues_for('entities'))
+                all_queues.extend(rmq_queues_for('translate'))
+                all_queues.extend(rmq_queues_for('thumbnails'))
+                all_queues.extend(rmq_queues_for('pdf-preview'))
+
             all_queues.append(tasks.QUEUE_ANOTHER_TASK)
         else:
             raise RuntimeError('no queue given')

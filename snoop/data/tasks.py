@@ -157,10 +157,7 @@ def rmq_queue_name(func, collection=None):
     """Get rabbitmq name from function, collection.
     Collection is inferred by default.
     """
-    if collection is None:
-        collection = collections.current()
-    # return task_map[func].queue + '.' + func
-    return collection.queue_name + '.' + task_map[func].queue + '.' + func
+    return task_map[func].queue + '.' + func
 
 
 @tracer.wrap_function()
