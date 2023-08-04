@@ -995,7 +995,7 @@ class TaskAdmin(MultiDBModelAdmin):
         'broken': 'color: orange',
         'error': 'color: red',
         'deferred': 'color: grey',
-        'started': 'color: yellow',
+        'started': 'color: light blue',
     }
 
     def change_view(self, request, object_id, form_url='', extra_context=None):

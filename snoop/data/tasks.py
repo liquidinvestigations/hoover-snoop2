@@ -51,7 +51,7 @@ task_map = {}
 ALWAYS_QUEUE_NOW = settings.ALWAYS_QUEUE_NOW
 QUEUE_ANOTHER_TASK_LIMIT = 100000
 QUEUE_ANOTHER_TASK = 'snoop.data.tasks.queue_another_task'
-QUEUE_ANOTHER_TASK_BATCH_COUNT = int(settings.DISPATCH_QUEUE_LIMIT / 5)
+QUEUE_ANOTHER_TASK_BATCH_COUNT = 1000
 
 
 def _flock_acquire(lock_path):
@@ -267,14 +267,16 @@ def _do_queue_next_tasks(task, reset=False):
     if settings.SNOOP_TASK_DISABLE_TAIL_QUEUE:
         return
 
-    if _is_rabbitmq_memory_full():
-        return
-    if get_rabbitmq_queue_length(QUEUE_ANOTHER_TASK) < QUEUE_ANOTHER_TASK_LIMIT:
-        queue_another_task.apply_async(
-            (collections.current().name, task.func,),
-            queue=QUEUE_ANOTHER_TASK,
-            retry=False,
-        )
+    # batch things toghether probabilistically when calling queue_another_task
+    if random.random() < 1 / QUEUE_ANOTHER_TASK_BATCH_COUNT:
+        if _is_rabbitmq_memory_full():
+            return
+        if get_rabbitmq_queue_length(QUEUE_ANOTHER_TASK) < QUEUE_ANOTHER_TASK_LIMIT:
+            queue_another_task.apply_async(
+                (collections.current().name, task.func,),
+                queue=QUEUE_ANOTHER_TASK,
+                retry=False,
+            )
 
 
 @celery.app.task
@@ -289,11 +291,6 @@ def queue_another_task(collection_name, func, *args, **kw):
     if _is_rabbitmq_memory_full():
         return
 
-    # batch things toghether probabilistically
-    PROB = 1 / QUEUE_ANOTHER_TASK_BATCH_COUNT * 2
-    if random.random() > PROB:
-        return
-
     with collections.ALL[collection_name].set_current():
         db_alias = collections.current().db_alias
         queue_length = get_rabbitmq_queue_length(rmq_queue_name(func))
@@ -304,7 +301,18 @@ def queue_another_task(collection_name, func, *args, **kw):
                     models.Task.objects
                     .select_for_update(skip_locked=True)
                     .filter(status=models.Task.STATUS_PENDING, func=func)
-                    .order_by('date_modified')[:QUEUE_ANOTHER_TASK_BATCH_COUNT].all()
+                    .order_by('date_modified')[:int(QUEUE_ANOTHER_TASK_BATCH_COUNT)].all()
+                )
+                for task in tasks:
+                    queue_task(task)
+
+            with tracer.span('queue another task of any type'), \
+                    transaction.atomic(using=db_alias):
+                tasks = (
+                    models.Task.objects
+                    .select_for_update(skip_locked=True)
+                    .filter(status=models.Task.STATUS_PENDING)
+                    .order_by('date_modified')[:int(QUEUE_ANOTHER_TASK_BATCH_COUNT)].all()
                 )
                 for task in tasks:
                     queue_task(task)
@@ -537,12 +545,6 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                     queue_next_tasks(task)
                     return
 
-                task.status = models.Task.STATUS_STARTED
-                task.date_started = timezone.now()
-                task.date_modified = timezone.now()
-                task.date_finished = None
-                task.save()
-
             with tracer.span('check dependencies', **_tracer_opt):
                 depends_on = {}
 
@@ -589,8 +591,9 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                     depends_on[dep.name] = prev_result
 
             with tracer.span('save state before run', **_tracer_opt):
-                task.status = models.Task.STATUS_RUNNING
+                task.status = models.Task.STATUS_STARTED
                 task.date_started = timezone.now()
+                task.date_modified = timezone.now()
                 task.date_finished = None
                 task.save()
 
@@ -1338,7 +1341,7 @@ def dispatch_for(collection, func):
                 if db_tasks_remaining <= settings.DISPATCH_QUEUE_LIMIT:
                     skip = True
             if skip:
-                logger.debug(f'dispatch: skipping {collection}, has {queue_len} queued tasks on f = {func}')
+                logger.info(f'dispatch: skipping {collection}, has {queue_len} queued tasks on f = {func}')
                 return
 
     logger.debug('Dispatching for %r, func = %s', collection, func)

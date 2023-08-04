@@ -160,7 +160,7 @@ def walk(directory_pk):
                 stat_size = stat['size']
                 stat_ctime = stat['ctime']
                 stat_mtime = stat['mtime']
-                # save file to local disk and create blob from it
+                # save file to remote disk and create blob from it
                 with collections.current().mount_blobs_root(readonly=False) as w_blobs_root:
                     tmp_base = pathlib.Path(w_blobs_root) / 'tmp' / 'blobs-broken-filenames'
                     tmp_base.mkdir(parents=True, exist_ok=True)

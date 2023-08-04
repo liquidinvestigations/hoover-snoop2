@@ -267,6 +267,7 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
         else:
             old_info = dict()
 
+        t0 = time.time()
         new_info = adjust_s3_mounts(
             mount_name, old_info,
             bucket, mount_mode, password_file_path, address, target_path, logfile_path
@@ -276,7 +277,23 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
         f.truncate()
         json.dump(new_info, f)
 
+        # wait until the mount was done correctly before returning - in total about 60s
+        for retry in range(60):
+            if target_is_mounted(target_path):
+                dt = round(time.time() - t0, 3)
+                logging.debug('mount %s working after %s sec', target_path, dt)
+                break
+            time.sleep(0.01 + 0.04 * retry)
+        else:
+            dt = round(time.time() - t0, 3)
+            raise RuntimeError(f's3 mount did not start for {target_path} after {dt} sec!')
+
     return target_path
+
+
+def target_is_mounted(path):
+    """Returns True if the path is a linux mount point"""
+    return 0 == subprocess.call('findmnt ' + str(path), shell=True)
 
 
 def adjust_s3_mounts(mount_name, old_info,
@@ -382,13 +399,22 @@ def umount_s3fs(target, pid=None):
         return False
 
     def _data_mounted():
-        return os.path.isdir(target) and bool(os.listdir(target))
+        try:
+            return bool(os.listdir(target))
+        finally:
+            return False
+
+    subprocess.run(f"umount {target}", shell=True, check=False)
+    subprocess.run(f"rmdir {target}", shell=True, check=False)
+    if _pid_alive():
+        subprocess.run(f"kill {pid}", shell=True, check=False)
 
     if not _pid_alive() and not _data_mounted() and not os.path.isdir(target):
         return
 
     for retry in range(10):
         subprocess.run(f"umount {target}", shell=True, check=False)
+        subprocess.run(f"rmdir {target}", shell=True, check=False)
 
         if _pid_alive():
             try:
@@ -406,7 +432,7 @@ def umount_s3fs(target, pid=None):
                 umount {target} || umount -l {target} || true;
             """, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,)
 
-        if not _data_mounted:
+        if not _data_mounted():
             try:
                 os.rmdir(target)
             except Exception as e:
@@ -416,7 +442,7 @@ def umount_s3fs(target, pid=None):
             tracer.count("umount_s3fs_success")
             return
 
-        time.sleep(0.05 + 0.1 * retry)
+        time.sleep(0.05 + 0.05 * retry)
 
     tracer.count("umount_s3fs_failed")
     raise RuntimeError(f'cannot remove old S3 mounts! target={target}, pid={pid}')

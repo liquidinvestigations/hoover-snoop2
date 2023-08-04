@@ -290,7 +290,7 @@ TASK_RETRY_FAIL_LIMIT = 3
 
 The actual value is higher, since we retry very old tasks more times."""
 
-WORKER_TASK_LIMIT = 500
+WORKER_TASK_LIMIT = 1000
 """Max tasks count to be finished by 1 worker process before restarting it.
 """
 
@@ -302,7 +302,7 @@ CHILD_QUEUE_LIMIT = 50
 """ Limit for queueing large counts of children tasks.
 """
 
-DISPATCH_QUEUE_LIMIT = min(1000 + 200 * SNOOP_TOTAL_WORKER_COUNT, 10000)
+DISPATCH_QUEUE_LIMIT = min(2000 + 300 * SNOOP_TOTAL_WORKER_COUNT, 12000)
 """ Count of pending tasks to trigger per collection when finding an empty queue.
 
 A single worker core running zero-length tasks gets at most around 40
