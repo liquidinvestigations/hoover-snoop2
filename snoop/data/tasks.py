@@ -160,8 +160,7 @@ def rmq_queue_name(func, collection=None):
     return task_map[func].queue + '.' + func
 
 
-@tracer.wrap_function()
-def queue_task(task):
+def queue_task(*a, **kw):
     """Queue given Task with Celery to run on a worker.
 
     If called from inside a transaction, queueing will be done after
@@ -170,10 +169,23 @@ def queue_task(task):
     Args:
         task: task to be queued in Celery
     """
+    # attempt to avoid locks by running the update outside the first transaction
+    transaction.on_commit(lambda: _do_queue_task(*a, **kw))
+
+
+@tracer.wrap_function()
+def _do_queue_task(task):
+    """Implementation for `queue_task()`. If celery queue has space,
+    lock the task in the db,
+    set it as status=QUEUED, if ok send to celery."""
+
     import_snoop_tasks()
     if task_map[task.func].bulk:
         return
     col = collections.from_object(task)
+    if not col.process:
+        logger.warning('collection %s process=False, skipping task %s', col.name, task)
+        return
 
     # if queue is full, abort
     queue_length = get_rabbitmq_queue_length(rmq_queue_name(task.func))
@@ -476,6 +488,10 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
     """
     import_snoop_tasks()
     col = collections.ALL[col_name]
+    if not col.process:
+        logger.warning('collection %s process=False, skipping task %s', col.name, task_pk)
+        return
+
     logger.debug('collection %s: starting task %s', col_name, task_pk)
 
     def lock_children(task):
