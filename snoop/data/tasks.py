@@ -315,12 +315,12 @@ def queue_another_task(collection_name, func, *args, **kw):
                 for task in tasks:
                     queue_task(task)
 
-            with tracer.span('queue another task of any type'), \
+            with tracer.span('queue another task of a different type'), \
                     transaction.atomic(using=db_alias):
                 tasks = (
                     models.Task.objects
                     .select_for_update(skip_locked=True)
-                    .filter(status=models.Task.STATUS_PENDING)
+                    .filter(status=models.Task.STATUS_PENDING).exclude(func=func)
                     .order_by('date_modified')[:int(QUEUE_ANOTHER_TASK_BATCH_COUNT)].all()
                 )
                 for task in tasks:
