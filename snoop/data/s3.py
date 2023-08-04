@@ -401,7 +401,7 @@ def umount_s3fs(target, pid=None):
     def _data_mounted():
         try:
             return bool(os.listdir(target))
-        finally:
+        except Exception:
             return False
 
     subprocess.run(f"umount {target}", shell=True, check=False)
