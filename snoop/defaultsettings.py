@@ -294,11 +294,11 @@ WORKER_TASK_LIMIT = 1000
 """Max tasks count to be finished by 1 worker process before restarting it.
 """
 
-WORKER_PREFETCH = 1
+WORKER_PREFETCH = 10
 """Celery-rabbitmq prefetch count.
 """
 
-CHILD_QUEUE_LIMIT = 50
+CHILD_QUEUE_LIMIT = 100
 """ Limit for queueing large counts of children tasks.
 """
 
@@ -462,7 +462,7 @@ Only useful when running one worker per task, otherwise tasks will interfere wit
 SNOOP_S3FS_MOUNT_DIR = os.path.join(os.getenv('TMP', '/tmp'), 'snoop-s3fs-mounts')
 """Location ono disk where s3fs mounts are stored."""
 
-SNOOP_S3FS_MOUNT_LIMIT = int(os.getenv('SNOOP_S3FS_MOUNT_LIMIT', '4'))
+SNOOP_S3FS_MOUNT_LIMIT = int(os.getenv('SNOOP_S3FS_MOUNT_LIMIT', '5'))
 """Global limit of parallel S3 mounts (buckets)."""
 
 DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'

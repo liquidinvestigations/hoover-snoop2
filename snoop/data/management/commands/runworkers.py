@@ -98,10 +98,13 @@ class Command(BaseCommand):
             # every worker can run digests and filesystem and ocr (if enabled)
             all_queues.extend(rmq_queues_for('digests'))
             all_queues.extend(rmq_queues_for('filesystem'))
+            all_queues.extend(rmq_queues_for('default'))
+
             if settings.OCR_ENABLED:
                 all_queues.extend(rmq_queues_for('ocr'))
 
             if options['queue'] == 'default':
+                all_queues.extend(rmq_queues_for('default'))
                 all_queues.extend(rmq_queues_for('filesystem'))
                 all_queues.extend(rmq_queues_for('ocr'))
                 all_queues.extend(rmq_queues_for('digests'))
