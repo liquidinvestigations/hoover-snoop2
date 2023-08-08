@@ -110,6 +110,14 @@ class Collection:
             and bool(settings.SNOOP_PDF_PREVIEW_URL)
 
     @property
+    def unpack_pdf_enabled(self):
+        return self.opt.get('unpack_pdf_enabled', False)
+
+    @property
+    def unpack_tables_enabled(self):
+        return self.opt.get('unpack_tables_enabled', False)
+
+    @property
     def thumbnail_generator_enabled(self):
         return self.opt.get(
             'thumbnail_generator_enabled',

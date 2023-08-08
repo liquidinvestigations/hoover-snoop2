@@ -37,16 +37,21 @@ SEVENZIP_MIME_TYPES = {
 }
 
 # see a list of 7-zip supported types here: https://www.7-zip.org/
+# and remove the usual noisy suspects (docx, odt, ods, exe, msi)
 SEVENZIP_ACCEPTED_EXTENSIONS = {
-    ".7z", ".apm", ".apfs", ".ar", ".a", ".deb", ".lib", ".arj", ".bz2", ".bzip2", ".tbz2", ".tbz", ".cab",
-    ".chm", ".chi", ".chq", ".chw", ".hxs", ".hxi", ".hxr", ".hxq", ".hxw", ".lit", ".msi", ".msp", ".doc",
-    ".xls", ".ppt", ".cpio", ".cramfs", ".dmg", ".elf", ".ext", ".ext2", ".ext3", ".ext4", ".img", ".fat",
-    ".img", ".flv", ".gz", ".gzip", ".tgz", ".tpz", ".gpt", ".mbr", ".hfs", ".hfsx", ".ihex", ".iso", ".img",
-    ".lzh", ".lha", ".lzma", ".lzma86", ".macho", ".mbr", ".mslz", ".mub", ".nsis", ".ntfs", ".img", ".exe",
-    ".dll", ".sys", ".te", ".pmd", ".qcow", ".qcow2", ".qcow2c", ".rar", ".r00", ".rar", ".r00", ".rpm",
-    ".001", ".squashfs", ".swf", ".swf", ".tar", ".ova", ".udf", ".iso", ".img", ".scap", ".uefif", ".vdi",
-    ".vhd", ".vhdx", ".vmdk", ".wim", ".swm", ".esd", ".xar", ".pkg", ".xz", ".txz", ".z", ".taz", ".zip",
-    ".z01", ".zipx", ".jar", ".xpi", ".odt", ".ods", ".docx", ".xlsx", ".epub",
+    ".7z", ".apm", ".apfs", ".ar", ".a", ".deb", ".lib", ".arj", ".bz2",
+    ".bzip2", ".tbz2", ".tbz", ".cab", ".chm", ".chi", ".chq", ".chw", ".hxs",
+    ".hxi", ".hxr", ".hxq", ".hxw", ".lit", ".msp", ".doc", ".xls", ".ppt",
+    ".cpio", ".cramfs", ".dmg", ".elf", ".ext", ".ext2", ".ext3", ".ext4",
+    ".fat", ".gz", ".gzip", ".tgz", ".tpz", ".gpt", ".mbr", ".hfs", ".hfsx",
+    ".ihex", ".iso", ".lzh", ".lha", ".lzma", ".lzma86", ".macho", ".mbr",
+    ".mslz", ".mub", ".nsis", ".ntfs", ".img", ".te", ".pmd", ".qcow",
+    ".qcow2", ".qcow2c", ".rar", ".r00", ".rar", ".r00", ".rpm", ".001",
+    ".squashfs", ".tar", ".ova", ".udf", ".scap", ".uefif", ".vdi", ".vhd",
+    ".vhdx", ".vmdk", ".wim", ".swm", ".esd", ".xar", ".pkg", ".xz", ".txz",
+    ".z", ".taz", ".zip", ".z01", ".zipx",
+    # removed:".msi",  ".flv",  ".exe",".dll", ".sys", ".swf", ".swf",
+    #    ".jar", ".xpi", ".odt", ".ods", ".docx", ".xlsx", ".epub",
 }
 
 READPST_MIME_TYPES = {
@@ -575,13 +580,15 @@ def unarchive(blob):
     documents that embed images).
     """
     unpack_func = None
-    if blob.mime_type in TABLE_MIME_TYPES:
+    if collections.current().unpack_tables_enabled \
+            and blob.mime_type in TABLE_MIME_TYPES:
         unpack_func = unpack_table
     elif blob.mime_type in READPST_MIME_TYPES:
         unpack_func = call_readpst
     elif blob.mime_type in MBOX_MIME_TYPES:
         unpack_func = unpack_mbox
-    elif blob.mime_type in PDF_MIME_TYPES:
+    elif collections.current().unpack_pdf_enabled \
+            and blob.mime_type in PDF_MIME_TYPES:
         unpack_func = unpack_pdf
     else:
         if can_unpack_with_7z(blob):
