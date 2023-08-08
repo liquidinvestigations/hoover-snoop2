@@ -490,21 +490,19 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
 
     def lock_children(task):
         """Lock all children tasks to make sure we can update them after the results."""
-        next_tasks = [dep.next.pk for dep in task.next_set.all()]
-        if not next_tasks:
-            return []
-
-        try:
-            return list(
-                models.Task.objects
-                .select_for_update(nowait=True)
-                .filter(pk__in=next_tasks)
-                .all()
-            )
-        except Exception as e:
-            logger.warning('failed to lock child of %s (%s)',
-                           task.func, str(e))
-            raise
+        next_tasks = [dep.next for dep in task.next_set.all()]
+        for next_task in next_tasks:
+            try:
+                next_locked = (
+                    models.Task.objects
+                    .select_for_update(nowait=True)
+                    .get(pk=next_task.pk)
+                )
+                logger.debug('locked child: %s', next_locked.pk)
+            except Exception as e:
+                logger.warning('failed to lock child: %s -> %s (%s)',
+                               task.func, next_task.func, str(e))
+                raise
 
     with snoop_task_log_handler() as handler:
         with col.set_current():
