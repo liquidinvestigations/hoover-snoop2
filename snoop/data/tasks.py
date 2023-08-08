@@ -237,7 +237,8 @@ def _do_queue_task(task):
                 return
 
 
-def queue_next_tasks(*a, **kw):
+@tracer.wrap_function()
+def queue_next_tasks(task, reset=False):
     """Queues all Tasks that directly depend on this one.
 
     Also queues a pending task of the same type.
@@ -246,14 +247,7 @@ def queue_next_tasks(*a, **kw):
         task: will queue running all Tasks in `task.next_set`
         reset: if set, will set next Tasks status to "pending" before queueing it
     """
-    # attempt to avoid locks by running the update outside the first transaction
-    transaction.on_commit(lambda: _do_queue_next_tasks(*a, **kw))
-
-
-@tracer.wrap_function()
-def _do_queue_next_tasks(task, reset=False):
-    """Implementation for `queue_next_tasks`.
-    This is offset to the end of the Tx using on_commit."""
+    logger.debug('queue next task for: %s', task)
     for next_dependency in task.next_set.all():
         next_task = next_dependency.next
         if reset:
@@ -492,23 +486,25 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
         logger.warning('collection %s process=False, skipping task %s', col.name, task_pk)
         return
 
-    logger.debug('collection %s: starting task %s', col_name, task_pk)
+    logger.info('collection %s: init task %s', col_name, task_pk)
 
     def lock_children(task):
         """Lock all children tasks to make sure we can update them after the results."""
-        next_tasks = [dep.next for dep in task.next_set.all()]
-        for next_task in next_tasks:
-            try:
-                next_locked = (
-                    models.Task.objects
-                    .select_for_update(nowait=True)
-                    .get(pk=next_task.pk)
-                )
-                logger.debug('locked child: %s', next_locked.pk)
-            except Exception as e:
-                logger.warning('failed to lock child: %s -> %s (%s)',
-                               task.func, next_task.func, str(e))
-                raise
+        next_tasks = [dep.next.pk for dep in task.next_set.all()]
+        if not next_tasks:
+            return []
+
+        try:
+            return list(
+                models.Task.objects
+                .select_for_update(nowait=True)
+                .filter(pk__in=next_tasks)
+                .all()
+            )
+        except Exception as e:
+            logger.warning('failed to lock child of %s (%s)',
+                           task.func, str(e))
+            raise
 
     with snoop_task_log_handler() as handler:
         with col.set_current():
@@ -553,7 +549,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
 
             with tracer.span('check if task already completed', **_tracer_opt):
                 if is_completed(task):
-                    logger.debug("%r already completed", task)
+                    logger.warning("%r already completed", task)
                     tracer.count('task_already_completed', **_tracer_opt)
                     queue_next_tasks(task)
                     return
@@ -563,7 +559,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
 
                 all_prev_deps = list(task.prev_set.all())
                 if any(dep.prev.status == models.Task.STATUS_ERROR for dep in all_prev_deps):
-                    logger.debug("%r has a dependency in the ERROR state.", task)
+                    logger.warning("%r has a dependency in the ERROR state.", task)
                     task.update(
                         status=models.Task.STATUS_BROKEN,
                         error='',
@@ -586,7 +582,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                             version=task_map[task.func].version,
                         )
                         task.save()
-                        logger.debug("%r missing dependency %r", task, prev_task)
+                        logger.warning("%r missing dependency %r", task, prev_task)
                         tracer.count("task_missing_dependency", **_tracer_opt)
                         queue_task(prev_task)
                         return
@@ -626,6 +622,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                             col_name, task_pk, e,
                         )
                         return
+                logger.info('collection %s: executing task %s', col_name, task_pk)
                 run_task(task, depends_on, handler, raise_exceptions, _tracer_opt)
 
 

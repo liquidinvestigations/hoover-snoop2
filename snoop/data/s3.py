@@ -293,7 +293,12 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
 
 def target_is_mounted(path):
     """Returns True if the path is a linux mount point"""
-    return 0 == subprocess.call('findmnt ' + str(path), shell=True)
+    return 0 == subprocess.call(
+        'findmnt ' + str(path),
+        shell=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def adjust_s3_mounts(mount_name, old_info,

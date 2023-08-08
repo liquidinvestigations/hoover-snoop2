@@ -66,7 +66,7 @@ def test_children_of_archives_in_multiple_locations(taskmanager, monkeypatch):
     assert z1.blob == z2.blob
     assert c1.blob == c2.blob
 
-    assert [(str(x), list(x.child_file_set.all())) for x in sorted(dirs, key=str)] == [
+    assert [(x.path_str, list(x.child_file_set.all())) for x in sorted(dirs, key=str)] == [
         ('/', []),
         ('/location-1/', [z1]),
         ('/location-1/parent.zip//', []),

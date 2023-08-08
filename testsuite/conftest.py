@@ -111,6 +111,9 @@ class TaskManager:
                 .objects.using(self.collection.db_alias)
                 .get(pk=task_pk)
             )
+            if tasks.is_completed(task):
+                log.info('task %s already completed.', task)
+                continue
             log.debug(f"TaskManager #{count}: {task}")
             with mask_out_current_collection():
                 tasks.laterz_snoop_task(self.collection.name, task_pk)
@@ -118,6 +121,10 @@ class TaskManager:
                 raise RuntimeError(f"Task count limit exceeded (max task count: {limit})")
             if count >= max_count:
                 raise RuntimeError(f"Task limit exceeded (max exec count: {max_count})")
+        for task_pk in task_pks:
+            task = models.Task.objects.using(self.collection.db_alias).get(pk=task_pk)
+            if not tasks.is_completed(task):
+                log.error('TASK NOT COMPLETED: %s', task)
         return len(task_pks)
 
 
@@ -127,6 +134,7 @@ def taskmanager(monkeypatch):
     monkeypatch.setattr(tasks, 'queue_task', taskmanager.add)
     monkeypatch.setattr(tasks, 'get_rabbitmq_queue_length', lambda _: 0)
     monkeypatch.setattr(tasks, 'single_task_running', lambda _: True)
+    # ensure fake data bucket is running
     return taskmanager
 
 
@@ -173,6 +181,9 @@ class FakeData:
 
     def blob(self, data):
         return models.Blob.create_from_bytes(data)
+
+    def blob_from_file(self, path):
+        return models.Blob.create_from_file(path)
 
     def directory(self, parent, name):
         directory = parent.child_directory_set.create(

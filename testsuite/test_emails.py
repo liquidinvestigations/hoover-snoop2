@@ -8,7 +8,7 @@ from snoop.data.analyzers import emlx
 from snoop.data import models
 from snoop.data import filesystem
 from snoop.data import digests
-from conftest import mkdir, mkfile
+from conftest import mkdir, mkfile, FakeData
 
 pytestmark = [pytest.mark.django_db]
 
@@ -27,7 +27,7 @@ BYTE_ORDER_MARK = DATA / "eml-bom/with-bom.eml"
 
 @pytest.fixture(autouse=True)
 def root_directory():
-    models.Directory.objects.create()
+    FakeData().init()
 
 
 def test_convert_msg_to_eml():

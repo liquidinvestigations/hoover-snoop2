@@ -159,7 +159,8 @@ class Blob(models.Model):
     def __str__(self):
         """The string representation for a Blob is just its PK hash.
         """
-        return self.pk
+        the_str = truncatechars(self.pk, 10)
+        return f'Blob({the_str})'
 
     __repr__ = __str__
 
@@ -515,12 +516,18 @@ class Directory(models.Model):
             yield item
             item = item.parent
 
+    @property
+    def path_str(self):
+        """Returns a string representation of its full path."""
+        return ''.join(reversed([f'{item.name}/' for item in self.ancestry()]))
+
     def __str__(self):
         """String representation for this Directory is its full path.
         """
-        orig_str = ''.join(reversed([f'{item.name}/' for item in self.ancestry()]))
-        name_bytes = orig_str.encode('utf8', errors='surrogateescape')
-        return truncatechars(name_bytes.decode('utf8', errors='backslashreplace'), 120)
+        # ensure no display errors by replacing surrogates with backslashes
+        name = self.path_str.encode('utf8', errors='surrogateescape')
+        name = name.decode('utf8', errors='backslashreplace')
+        return truncatechars(name, 70)
 
     __repr__ = __str__
 
@@ -594,7 +601,8 @@ class File(models.Model):
         name_bytes = self.name_bytes
         if isinstance(name_bytes, memoryview):
             name_bytes = name_bytes.tobytes()
-        return truncatechars(name_bytes.decode('utf8', errors='backslashreplace'), 80)
+        the_str = truncatechars(name_bytes.decode('utf8', errors='backslashreplace'), 60)
+        return f'File({the_str})'
 
     __repr__ = __str__
 
@@ -774,7 +782,8 @@ class Task(models.Model):
         prev_set = self.prev_set.all()
         prev_ids = ', '.join(str(t.prev.pk) for t in prev_set)
         deps = '; depends on ' + prev_ids if prev_ids else ''
-        return f'#{self.pk} {self.func}({self.args}{deps}) [{self.status}]'
+        the_args = str([truncatechars(str(x), 12) for x in self.args])
+        return f'Task #{self.pk} {self.func}({the_args}{deps}) [{self.status}]'
 
     __repr__ = __str__
 
