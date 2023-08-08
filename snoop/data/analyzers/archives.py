@@ -41,8 +41,8 @@ SEVENZIP_MIME_TYPES = {
 SEVENZIP_ACCEPTED_EXTENSIONS = {
     ".7z", ".apm", ".apfs", ".ar", ".a", ".deb", ".lib", ".arj", ".bz2",
     ".bzip2", ".tbz2", ".tbz", ".cab", ".chm", ".chi", ".chq", ".chw", ".hxs",
-    ".hxi", ".hxr", ".hxq", ".hxw", ".lit", ".msp", ".doc", ".xls", ".ppt",
-    ".cpio", ".cramfs", ".dmg", ".elf", ".ext", ".ext2", ".ext3", ".ext4",
+    ".hxi", ".hxr", ".hxq", ".hxw", ".lit", ".msp",
+    ".cpio", ".cramfs", ".dmg", ".ext", ".ext2", ".ext3", ".ext4",
     ".fat", ".gz", ".gzip", ".tgz", ".tpz", ".gpt", ".mbr", ".hfs", ".hfsx",
     ".ihex", ".iso", ".lzh", ".lha", ".lzma", ".lzma86", ".macho", ".mbr",
     ".mslz", ".mub", ".nsis", ".ntfs", ".img", ".te", ".pmd", ".qcow",
@@ -50,8 +50,8 @@ SEVENZIP_ACCEPTED_EXTENSIONS = {
     ".squashfs", ".tar", ".ova", ".udf", ".scap", ".uefif", ".vdi", ".vhd",
     ".vhdx", ".vmdk", ".wim", ".swm", ".esd", ".xar", ".pkg", ".xz", ".txz",
     ".z", ".taz", ".zip", ".z01", ".zipx",
-    # removed:".msi",  ".flv",  ".exe",".dll", ".sys", ".swf", ".swf",
-    #    ".jar", ".xpi", ".odt", ".ods", ".docx", ".xlsx", ".epub",
+    # removed:".msi",  ".flv",  ".exe",".dll", ".sys", ".swf", ".swf",".elf",
+    #    ".jar", ".xpi", ".odt", ".ods", ".docx", ".xlsx", ".epub", ".doc", ".xls", ".ppt",
 }
 
 READPST_MIME_TYPES = {
@@ -580,21 +580,26 @@ def unarchive(blob):
     documents that embed images).
     """
     unpack_func = None
-    if collections.current().unpack_tables_enabled \
-            and blob.mime_type in TABLE_MIME_TYPES:
+    if blob.mime_type in TABLE_MIME_TYPES:
+        if not collections.current().unpack_tables_enabled:
+            log.warning('unpacking tables disabled')
+            return None
         unpack_func = unpack_table
     elif blob.mime_type in READPST_MIME_TYPES:
         unpack_func = call_readpst
     elif blob.mime_type in MBOX_MIME_TYPES:
         unpack_func = unpack_mbox
-    elif collections.current().unpack_pdf_enabled \
-            and blob.mime_type in PDF_MIME_TYPES:
+    elif blob.mime_type in PDF_MIME_TYPES:
+        if not collections.current().unpack_pdf_enabled:
+            log.warning('unpacking pdf disabled')
+            return None
         unpack_func = unpack_pdf
     else:
         if can_unpack_with_7z(blob):
             return unarchive_7z(blob)
         else:
-            raise RuntimeError('unarchive: unknown mime type')
+            log.warning('unarchive: unknown mime type')
+            return None
 
     with blob.mount_path() as blob_path:
         with collections.current().mount_blobs_root(readonly=False) as blobs_root:
