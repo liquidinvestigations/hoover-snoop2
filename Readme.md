@@ -29,7 +29,7 @@ If you want to interactively work on the tests, do the following:
     ./run-tests '-x || sleep 10000'
 
     # in another shell, identify the container running the test
-    docker ps  | grep hoover-snoop2
+    docker ps | grep snoop2 | grep $(git branch --show-current)
     # and exec a shell into it (where xxxx is your docker container ID from above)
     docker exec -it xxxx bash
 
