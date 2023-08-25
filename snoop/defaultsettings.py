@@ -471,7 +471,7 @@ This is needed since Django 3.2.
 """
 
 PELLET = {
-    "enabled": True,
+    "enabled": bool(os.getenv('SNOOP_ENABLE_PELLET', None)),
     "query_level_metrics_enabled": True,
     "headers": {
         "enabled": True,
