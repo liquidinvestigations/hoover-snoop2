@@ -4,13 +4,13 @@ Also see [snoop.data.collections][] for details on how models are bound to the d
 databases.
 """
 
+import hashlib
 import os
 import string
 import json
 from contextlib import contextmanager
 from pathlib import Path
 import tempfile
-import hashlib
 import logging
 
 from django.db import models
@@ -938,6 +938,21 @@ class Digest(models.Model):
         """To represent a Digest we use its blob hash and the result hash.
         """
         return f'{self.blob} -> {self.result.pk[:5]}...'
+
+    def get_etag(self):
+        etag = str(self.pk)
+        etag += ':'
+        if self.result:
+            etag += str(self.result.pk)
+        etag += ':'
+        if self.extra_result:
+            etag += str(self.extra_result.pk)
+        etag += ':'
+        etag += str(self.date_modified)
+        etag += ':'
+        etag += str(self.date_created)
+        etag = hashlib.sha256(etag.encode('ascii')).hexdigest()
+        return etag
 
     __repr__ = __str__
 

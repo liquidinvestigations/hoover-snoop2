@@ -8,7 +8,9 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
-from django.views.decorators.cache import cache_control
+from django.views.decorators.cache import cache_control, never_cache
+from django.views.decorators.http import condition
+from django.views.decorators.vary import vary_on_headers
 
 from . import collections, digests, models, ocr, serializers, tracing
 from .tasks import dispatch_directory_walk_tasks
@@ -16,6 +18,8 @@ from .analyzers import html
 
 TEXT_LIMIT = 10 ** 6  # one million characters
 tracer = tracing.Tracer(__name__)
+CACHE_VARY_ON_HEADERS = ['Cookie', 'Range']
+CACHE_MAX_AGE = 12 * 3600
 
 
 def collection_view(func):
@@ -64,6 +68,7 @@ def drf_collection_view(func):
 
 
 @collection_view
+@cache_control(private=True, max_age=60)
 def collection(request):
     """View returns basic stats for a collection as JSON.
 
@@ -117,6 +122,7 @@ def feed(request):
 
 
 @collection_view
+@never_cache
 def file_view(request, pk):
     """JSON view with data for a File.
 
@@ -131,6 +137,7 @@ def file_view(request, pk):
 
 
 @collection_view
+@never_cache
 def directory(request, pk):
     directory = get_object_or_404(models.Directory.objects, pk=pk)
     children_page = int(request.GET.get('children_page', 1))
@@ -155,6 +162,7 @@ def trim_text(data):
 
 
 @collection_view
+@never_cache
 def document(request, hash):
     """JSON view with data for a Digest.
 
@@ -170,7 +178,20 @@ def document(request, hash):
     return JsonResponse(trim_text(digests.get_document_data(blob, children_page)))
 
 
+def document_digest_last_modified(request, hash, *_args, **_kw):
+    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
+    return digest.date_modified
+
+
+def document_digest_etag_key(request, hash, *_args, **_kw):
+    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
+    return digest.get_etag()
+
+
 @collection_view
+@vary_on_headers(*CACHE_VARY_ON_HEADERS)
+@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_download(request, hash, filename):
     """View to download the `.original` Blob for the first File in a Digest's set.
 
@@ -212,6 +233,9 @@ def document_download(request, hash, filename):
 
 
 @collection_view
+@vary_on_headers(*CACHE_VARY_ON_HEADERS)
+@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_ocr(request, hash, ocrname):
     """View to download the OCR result binary for a given Document and OCR source combination.
 
@@ -253,6 +277,9 @@ def document_ocr(request, hash, ocrname):
 
 
 @collection_view
+@vary_on_headers(*CACHE_VARY_ON_HEADERS)
+@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_locations(request, hash):
     """JSON view to paginate through all locations for a Digest.
 
@@ -353,6 +380,9 @@ class TagViewSet(viewsets.ModelViewSet):
 
 
 @collection_view
+@vary_on_headers(*CACHE_VARY_ON_HEADERS)
+@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def thumbnail(request, hash, size):
     thumbnail_entry = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash)
     with thumbnail_entry.thumbnail.open(need_seek=True) as f:
@@ -360,13 +390,21 @@ def thumbnail(request, hash, size):
 
 
 @collection_view
+@vary_on_headers(*CACHE_VARY_ON_HEADERS)
+@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def pdf_preview(request, hash):
     pdf_preview_entry = get_object_or_404(models.PdfPreview.objects, blob__pk=hash)
-    with pdf_preview_entry.pdf_preview.open(need_seek=True) as f:
-        response = RangedFileResponse(request, f,
-                                      content_type='application/pdf')
-        response['Accept-Ranges'] = 'bytes'
+    blob = pdf_preview_entry.pdf_preview
+    with blob.open(need_seek=True) as f:
+        if 'HTTP_RANGE' in request.META:
+            response = RangedFileResponse(request, f, content_type=blob.content_type)
+        else:
+            response = FileResponse(f, as_attachment=True)
         response['Content-Disposition'] = f'attachment; filename="{hash}_preview.pdf"'
+        response['Accept-Ranges'] = 'bytes'
+        response['Content-Type'] = blob.content_type
+        response['Content-Length'] = blob.size
         return response
 
 
