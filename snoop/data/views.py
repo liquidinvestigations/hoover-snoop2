@@ -8,6 +8,7 @@ from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
+from django.views.decorators.cache import cache_control
 
 from . import collections, digests, models, ocr, serializers, tracing
 from .tasks import dispatch_directory_walk_tasks
@@ -199,10 +200,14 @@ def document_download(request, hash, filename):
     real_filename = real_filename.replace("\r", "").replace("\n", "")
 
     with blob.open(need_seek=True) as f:
-        response = RangedFileResponse(request, f, content_type=blob.content_type)
+        if 'HTTP_RANGE' in request.META:
+            response = RangedFileResponse(request, f, content_type=blob.content_type)
+        else:
+            response = FileResponse(f, as_attachment=True)
         response['Content-Disposition'] = f'attachment; filename="{real_filename}"'
         response['Accept-Ranges'] = 'bytes'
-
+        response['Content-Type'] = blob.content_type
+        response['Content-Length'] = blob.size
         return response
 
 
@@ -236,10 +241,14 @@ def document_ocr(request, hash, ocrname):
         blob = tesseract_task.result
 
     with blob.open(need_seek=True) as f:
-        response = RangedFileResponse(request, f,
-                                      content_type=blob.content_type)
+        if 'HTTP_RANGE' in request.META:
+            response = RangedFileResponse(request, f, content_type=blob.content_type)
+        else:
+            response = FileResponse(f, as_attachment=True)
         response['Content-Disposition'] = f'attachment; filename="{hash}_{ocrname}"'
         response['Accept-Ranges'] = 'bytes'
+        response['Content-Type'] = blob.content_type
+        response['Content-Length'] = blob.size
         return response
 
 
