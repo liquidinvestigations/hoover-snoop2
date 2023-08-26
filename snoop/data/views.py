@@ -19,7 +19,45 @@ from .analyzers import html
 TEXT_LIMIT = 10 ** 6  # one million characters
 tracer = tracing.Tracer(__name__)
 CACHE_VARY_ON_HEADERS = ['Cookie', 'Range']
-CACHE_MAX_AGE = 12 * 3600
+
+if settings.SNOOP_ENABLE_BROWSER_CACHING:
+    # for "immutable" endpoints, cache them for 10min,
+    # revalidate them every 20min. Used with `@condition`
+    IMMUTABLE_CACHE_OPTIONS = dict(
+        private=True,
+        max_age=600,
+        stale_while_revalidate=600,
+        stale_if_error=600,
+    )
+
+    # revalidate every minute, for things that can lag behind
+    SHORT_LIVED_CACHE_OPTIONS = dict(
+        private=True,
+        max_age=30,
+        stale_while_revalidate=30,
+        stale_if_error=600,
+    )
+
+    # these will revalidate every time, useful when we have ETAG/Modified,
+    # but we expect them to change often (e.g. doc/json). Used with `@condition`
+    CONTENT_BASED_CACHE_OPTIONS = dict(
+        private=True,
+        no_cache=True,
+        max_age=0,
+        must_revalidate=True,
+        stale_if_error=600,
+    )
+else:
+    CACHE_NO_STORE = dict(
+        no_cache=True,
+        no_store=True,
+        max_age=0,
+        must_revalidate=True,
+        private=True,
+    )
+    IMMUTABLE_CACHE_OPTIONS = CACHE_NO_STORE
+    SHORT_LIVED_CACHE_OPTIONS = CACHE_NO_STORE
+    CONTENT_BASED_CACHE_OPTIONS = CACHE_NO_STORE
 
 
 def collection_view(func):
@@ -68,7 +106,7 @@ def drf_collection_view(func):
 
 
 @collection_view
-@cache_control(private=True, max_age=60)
+@cache_control(**SHORT_LIVED_CACHE_OPTIONS)
 def collection(request):
     """View returns basic stats for a collection as JSON.
 
@@ -122,7 +160,7 @@ def feed(request):
 
 
 @collection_view
-@never_cache
+@cache_control(**SHORT_LIVED_CACHE_OPTIONS)
 def file_view(request, pk):
     """JSON view with data for a File.
 
@@ -137,7 +175,7 @@ def file_view(request, pk):
 
 
 @collection_view
-@never_cache
+@cache_control(**SHORT_LIVED_CACHE_OPTIONS)
 def directory(request, pk):
     directory = get_object_or_404(models.Directory.objects, pk=pk)
     children_page = int(request.GET.get('children_page', 1))
@@ -162,7 +200,7 @@ def trim_text(data):
 
 
 @collection_view
-@never_cache
+@cache_control(**SHORT_LIVED_CACHE_OPTIONS)
 def document(request, hash):
     """JSON view with data for a Digest.
 
@@ -190,7 +228,7 @@ def document_digest_etag_key(request, hash, *_args, **_kw):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@cache_control(**IMMUTABLE_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_download(request, hash, filename):
     """View to download the `.original` Blob for the first File in a Digest's set.
@@ -234,7 +272,7 @@ def document_download(request, hash, filename):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@cache_control(**IMMUTABLE_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_ocr(request, hash, ocrname):
     """View to download the OCR result binary for a given Document and OCR source combination.
@@ -278,7 +316,7 @@ def document_ocr(request, hash, ocrname):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@cache_control(**CONTENT_BASED_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_locations(request, hash):
     """JSON view to paginate through all locations for a Digest.
@@ -381,7 +419,7 @@ class TagViewSet(viewsets.ModelViewSet):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@cache_control(**IMMUTABLE_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def thumbnail(request, hash, size):
     thumbnail_entry = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash)
@@ -391,7 +429,7 @@ def thumbnail(request, hash, size):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(private=True, max_age=CACHE_MAX_AGE)
+@cache_control(**IMMUTABLE_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def pdf_preview(request, hash):
     pdf_preview_entry = get_object_or_404(models.PdfPreview.objects, blob__pk=hash)
@@ -409,6 +447,7 @@ def pdf_preview(request, hash):
 
 
 @collection_view
+@cache_control(**IMMUTABLE_CACHE_OPTIONS)
 def get_path(request, directory_pk):
     """Get the full path of a given directory"""
     directory = models.Directory.objects.get(pk=directory_pk)
@@ -420,6 +459,7 @@ def get_path(request, directory_pk):
 
 
 @collection_view
+@never_cache
 def rescan_directory(request, directory_pk):
     """Start a filesystem walk in the given directory."""
     dispatch_directory_walk_tasks(directory_pk)
@@ -427,6 +467,7 @@ def rescan_directory(request, directory_pk):
 
 
 @collection_view
+@cache_control(**IMMUTABLE_CACHE_OPTIONS)
 def file_exists(request, directory_pk, filename):
     """View that checks if a given file exists in the database.
 
@@ -451,6 +492,7 @@ def file_exists(request, directory_pk, filename):
 
 
 @collection_view
+@cache_control(**SHORT_LIVED_CACHE_OPTIONS)
 def processing_status(request, hash):
     """View that checks the processing status of a given blob.
 

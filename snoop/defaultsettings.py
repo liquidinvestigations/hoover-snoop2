@@ -470,6 +470,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 This is needed since Django 3.2.
 """
 
+SNOOP_ENABLE_BROWSER_CACHING = bool(os.getenv("SNOOP_ENABLE_BROWSER_CACHING", ''))
+"""Allow service responses to instruct browser to store content on private storage."""
+
 PELLET = {
     "enabled": bool(os.getenv('SNOOP_ENABLE_PELLET', None)),
     "query_level_metrics_enabled": True,
