@@ -226,6 +226,20 @@ def document_digest_etag_key(request, hash, *_args, **_kw):
     return digest.get_etag()
 
 
+def _get_http_response_for_blob(request, blob, filename=None):
+    with blob.open(need_seek=True, need_fileno=True) as f:
+        if 'HTTP_RANGE' in request.META:
+            response = RangedFileResponse(request, f, content_type=blob.content_type)
+        else:
+            response = FileResponse(f)
+            response['Accept-Ranges'] = 'bytes'
+            response['Content-Type'] = blob.content_type
+            response['Content-Length'] = blob.size
+            if filename:
+                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
 @cache_control(**IMMUTABLE_CACHE_OPTIONS)
@@ -258,16 +272,7 @@ def document_download(request, hash, filename):
     real_filename = first_file.name_bytes.tobytes().decode('utf-8', errors='replace')
     real_filename = real_filename.replace("\r", "").replace("\n", "")
 
-    with blob.open(need_seek=True) as f:
-        if 'HTTP_RANGE' in request.META:
-            response = RangedFileResponse(request, f, content_type=blob.content_type)
-        else:
-            response = FileResponse(f, as_attachment=True)
-        response['Content-Disposition'] = f'attachment; filename="{real_filename}"'
-        response['Accept-Ranges'] = 'bytes'
-        response['Content-Type'] = blob.content_type
-        response['Content-Length'] = blob.size
-        return response
+    return _get_http_response_for_blob(request, blob, real_filename)
 
 
 @collection_view
@@ -302,16 +307,7 @@ def document_ocr(request, hash, ocrname):
         tesseract_task = digest_task.prev_set.get(name=ocrname).prev
         blob = tesseract_task.result
 
-    with blob.open(need_seek=True) as f:
-        if 'HTTP_RANGE' in request.META:
-            response = RangedFileResponse(request, f, content_type=blob.content_type)
-        else:
-            response = FileResponse(f, as_attachment=True)
-        response['Content-Disposition'] = f'attachment; filename="{hash}_{ocrname}"'
-        response['Accept-Ranges'] = 'bytes'
-        response['Content-Type'] = blob.content_type
-        response['Content-Length'] = blob.size
-        return response
+    return _get_http_response_for_blob(request, blob)
 
 
 @collection_view
@@ -422,9 +418,8 @@ class TagViewSet(viewsets.ModelViewSet):
 @cache_control(**IMMUTABLE_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def thumbnail(request, hash, size):
-    thumbnail_entry = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash)
-    with thumbnail_entry.thumbnail.open(need_seek=True) as f:
-        return FileResponse(f, content_type='image/jpeg')
+    blob = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash).thumbnail
+    return _get_http_response_for_blob(request, blob)
 
 
 @collection_view
@@ -434,16 +429,7 @@ def thumbnail(request, hash, size):
 def pdf_preview(request, hash):
     pdf_preview_entry = get_object_or_404(models.PdfPreview.objects, blob__pk=hash)
     blob = pdf_preview_entry.pdf_preview
-    with blob.open(need_seek=True) as f:
-        if 'HTTP_RANGE' in request.META:
-            response = RangedFileResponse(request, f, content_type=blob.content_type)
-        else:
-            response = FileResponse(f, as_attachment=True)
-        response['Content-Disposition'] = f'attachment; filename="{hash}_preview.pdf"'
-        response['Accept-Ranges'] = 'bytes'
-        response['Content-Type'] = blob.content_type
-        response['Content-Length'] = blob.size
-        return response
+    return _get_http_response_for_blob(request, blob)
 
 
 @collection_view

@@ -75,6 +75,8 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
 
     'pellet.middleware.PelletMiddleware',
+
+    'snoop.data.middleware.PdfToolsMiddleware',
 ]
 """List of Django middleware to load."""
 

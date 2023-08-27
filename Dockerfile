@@ -19,6 +19,14 @@ WORKDIR /opt/hoover/snoop
 ADD Pipfile Pipfile.lock ./
 RUN pipenv install --system --deploy --ignore-pipfile
 
+
+RUN set -e \
+ && apt-get update -y \
+ && apt-get install -y pdftk poppler-utils ghostscript nodejs npm qpdf \
+ && apt-get clean \
+ && rm -rf /var/lib/apt/lists/*
+
+
 COPY . .
 COPY .git .
 RUN chmod +x /opt/hoover/snoop/docker-entrypoint.sh
