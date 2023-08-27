@@ -227,6 +227,7 @@ def document_digest_etag_key(request, hash, *_args, **_kw):
 
 
 def _get_http_response_for_blob(request, blob, filename=None):
+    """Return a streaming response that reads this blob, respecting Range headers."""
     with blob.open(need_seek=True, need_fileno=True) as f:
         if 'HTTP_RANGE' in request.META:
             response = RangedFileResponse(request, f, content_type=blob.content_type)

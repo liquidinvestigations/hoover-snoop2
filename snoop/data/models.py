@@ -940,6 +940,8 @@ class Digest(models.Model):
         return f'{self.blob} -> {self.result.pk[:5]}...'
 
     def get_etag(self):
+        """Compute HTTP ETag header for this Digest.
+        To be used for implementing caching mechanisms."""
         etag = str(self.pk)
         etag += ':'
         if self.result:

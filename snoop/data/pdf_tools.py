@@ -1,3 +1,6 @@
+"""Helpers for working with PDF files
+(splitting into pages, fetching info, extracting text for UI Find tool)"""
+
 import tempfile
 import contextlib
 import json
@@ -9,6 +12,8 @@ log = logging.getLogger(__name__)
 
 
 def write_content_to_handle(content, handle):
+    """Write streaming content to file handle, then close it.
+    Useful to run in parallel thread."""
     log.warning('writing content to handle %s', handle)
     try:
         for chunk in content:
@@ -24,6 +29,7 @@ def write_content_to_handle(content, handle):
 
 @contextlib.contextmanager
 def run_script(script, content, timeout='120s', kill='130s'):
+    """Yield a `subprocess.Popen` object that will have the content streamed to stdin."""
     cmd = ['/usr/bin/timeout', '-k', kill, timeout, '/bin/bash', '-exo', 'pipefail', '-c', script]
     with tempfile.TemporaryDirectory() as tmpdirname:
         proc = Popen(cmd, stdin=PIPE, stdout=PIPE, cwd=tmpdirname)
@@ -45,6 +51,7 @@ def run_script(script, content, timeout='120s', kill='130s'):
 #     with run_script(script, content) as proc
 
 def stream_script(script, content, chunk_size=16 * 1024):
+    """Stream content into stdin of script, and generate the stdout."""
     with run_script(script, content) as proc:
         while chunk := proc.stdout.read(chunk_size):
             yield chunk
@@ -65,8 +72,11 @@ def get_pdf_info(streaming_content):
 
 def split_pdf_file(streaming_content, _range):
     """Middleware streaming wrapper to split pdf file into a page range using pdftk."""
-    page_start, page_end = tuple(map(int, _range.split('-')))
-    # script = f"""cat > in.pdf && ( ( pdfseparate -f {page_start} -l {page_end} in.pdf 'out_%09d.pdf' && pdfunite out_*.pdf out.pdf ) 1>&2 )  && cat out.pdf"""  # noqa: E501
+    # page_start, page_end = tuple(map(int, _range.split('-')))
+    # script = f"""
+    # cat > in.pdf && ( ( pdfseparate -f {page_start} -l {page_end} in.pdf 'out_%09d.pdf'
+    # && pdfunite out_*.pdf out.pdf ) 1>&2 )  && cat out.pdf"""  # noqa: E501
+
     # script = f"export JAVA_TOOL_OPTIONS='-Xmx4g'; pdftk - cat '{_range}' output -"
     script = f"cat > in.pdf && qpdf --empty --pages in.pdf {_range} -- /dev/stdout"
     yield from stream_script(script, streaming_content)

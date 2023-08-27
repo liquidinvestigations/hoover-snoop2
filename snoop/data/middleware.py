@@ -57,6 +57,7 @@ class DisableCSRF():
 
 
 class PdfToolsMiddleware:
+    """Split PDF files into parts depending on GET options"""
     HEADER_RANGE = 'X-Hoover-PDF-Split-Page-Range'
     HEADER_PDF_INFO = 'X-Hoover-PDF-Info'
     HEADER_PDF_EXTRACT_TEXT = 'X-Hoover-PDF-Extract-Text'
@@ -142,7 +143,7 @@ class PdfToolsMiddleware:
             # parse the range to make sure it's 1-100 and not some bash injection
             page_start, page_end = get_range.split('-')
             page_start, page_end = int(page_start), int(page_end)
-            assert page_start > 0 and page_end > 0 and page_end >= page_start, 'bad page interval'
+            assert 0 < page_start <= page_end, 'bad page interval'
             _range = f'{page_start}-{page_end}'
 
             response[self.HEADER_RANGE] = _range
