@@ -953,7 +953,8 @@ class Digest(models.Model):
         etag += str(self.date_modified)
         etag += ':'
         etag += str(self.date_created)
-        etag = hashlib.sha256(etag.encode('ascii')).hexdigest()
+        etag = etag.encode('utf-8', errors='backslashreplace')
+        etag = hashlib.sha1(etag).hexdigest()
         return etag
 
     __repr__ = __str__

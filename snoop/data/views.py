@@ -2,7 +2,6 @@
 """
 from functools import wraps
 import logging
-from hashlib import sha1
 
 from django.conf import settings
 from django.db.models import Q
@@ -11,7 +10,7 @@ from django.shortcuts import get_object_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
 from django.views.decorators.cache import cache_control, never_cache
-from django.views.decorators.http import condition
+# from django.views.decorators.http import condition
 from django.views.decorators.vary import vary_on_headers
 from django.core.cache import caches as django_caches
 from django.db.models import Max
@@ -28,39 +27,141 @@ tracer = tracing.Tracer(__name__)
 log = logging.getLogger(__name__)
 CACHE_VARY_ON_HEADERS = ['Range']  # don't vary by Cookie, it's fake
 
-# cache all 'downloadable' documents on server for a week - these will never change
 DOWNLOAD_CACHE_MAX_AGE = 7 * 24 * 3600
+"""cache all 'downloadable' documents on server for a week - these will never change"""
 
-# cache settings for data expected to change, e.g. new file uploaded to directory,
-# or document data after a new tag. These can be re-evaludated every 1-2min,
-# to decrease load.
-MEDIUM_CACHE_OPTIONS = dict(
-    private=True,
-    max_age=0,
-    must_revalidate=True,
-)
+MAX_CACHE_ITEM_SIZE = 150 * 2**20
+"""The biggest object to be put in cache (and loaded in memory,
+since Django doesn't support streaming from caches). Should be max 100-200MB."""
 
-# for views we never expect to change, e.g. get path for directory ID.
-# revalidate every 5-10min
-LONG_CACHE_OPTIONS = dict(
-    private=True,
-    max_age=0,
-    must_revalidate=True,
-)
-
-MAX_CACHE_ITEM_SIZE = 150 * 2**20  # many MB
-
-# revalidate every 1min, for things that can lag behind, e.g. collection stats,
-# task processing status - useful to decrease load
 SHORT_LIVED_CACHE_OPTIONS = dict(
     private=True,
-    max_age=0,
-    must_revalidate=True,
+    max_age=30,
+    stale_while_revalidate=30,
 )
+"""Cache-Control options to revalidate every 30-60s, for things that can lag
+behind, e.g. collection stats, task processing status - useful to decrease load"""
 
 
-# these will revalidate every time, useful when we have ETAG/Modified,
-# but we expect them to change often (e.g. doc/json). Used with `@condition`
+def condition_cache(
+    etag_func=None, last_modified_func=None,
+    max_delay=0,
+    cache_content_age=DOWNLOAD_CACHE_MAX_AGE,
+):
+    """
+    Copypasta of `django.views.decorators.http.condition`, but augumented to
+    also correctly do server-side caching.
+
+    The generated etag, last-modified and request-generated metadata are
+    combined into a single cache key to cache the response -- but only if the
+    status code is 200.
+
+    The etag and last-modified headers are optionally cached for a set amount
+    of time, to limit the frequency of running `etag_func` and
+    `last_modified_func`. This causes a delay in getting the latest content.
+
+    The content is cached in `conditional_view_content`. The etag and
+    last-modified are cached in `conditional_view_etag`.
+
+    This system does not handle cache invalidation; outdated content is left to
+    expire after `cache_content_age`.
+    """
+    import datetime
+    from django.utils.http import http_date, quote_etag
+    from django.utils.cache import get_conditional_response
+    from django.utils import timezone
+    cache_etag = django_caches['conditional_view_etag']
+    cache_content = django_caches['conditional_view_content']
+    cache_control_opt = dict(
+        private=True,
+        must_revalidate=True,
+        max_age=max_delay or 0,
+    )
+    assert etag_func or last_modified_func, 'no function given'
+
+    def decorator(func):
+        def _pre_process_request(request, *args, **kwargs):
+            key_last_modified = _make_cache_key(request, 'last-modified')
+            key_etag = _make_cache_key(request, 'etag')
+
+            res_last_modified = None
+            if last_modified_func:
+                # Edit: get last modified from cache
+                if max_delay:
+                    res_last_modified = cache_etag.get(key_last_modified)
+                # Original: compute last modified
+                if not res_last_modified:
+                    if dt := last_modified_func(request, *args, **kwargs):
+                        if not timezone.is_aware(dt):
+                            dt = timezone.make_aware(dt, datetime.timezone.utc)
+                        res_last_modified = int(dt.timestamp())
+                # Edit: put last modified in cache
+                if res_last_modified and max_delay:
+                    cache_etag.add(key_last_modified, res_last_modified, timeout=max_delay)
+
+            # Edit: get etag from cache
+            res_etag = None
+            if max_delay:
+                res_etag = cache_etag.get(key_etag)
+
+            # Original: compute etag
+            if not res_etag:
+                res_etag = etag_func(request, *args, **kwargs) if etag_func else None
+                res_etag = quote_etag(res_etag) if res_etag is not None else None
+
+            # Edit: put etag in cache
+            if res_etag and max_delay:
+                cache_etag.add(key_etag, res_etag, timeout=max_delay)
+
+            # Edit: fetch response from cache
+            key_content = _make_cache_key(request, res_etag, res_last_modified)
+            if response := cache_content.get(key_content):
+                return response, res_etag, res_last_modified
+
+            # Original: get response
+            response = get_conditional_response(
+                request,
+                etag=res_etag,
+                last_modified=res_last_modified,
+            )
+
+            # Edit: put response in cache
+            if (
+                response
+                and not response.streaming
+                and 0 < len(response.content) <= MAX_CACHE_ITEM_SIZE
+                and 200 <= response.status_code < 300
+            ):
+                cache_content.add(key_content, response, timeout=cache_content_age)
+
+            return response, res_etag, res_last_modified
+
+        def _post_process_request(request, response, res_etag, res_last_modified):
+            # Set relevant headers on the response if they don't already exist
+            # and if the request method is safe.
+            if request.method in ("GET", "HEAD"):
+                if res_last_modified and not response.has_header("Last-Modified"):
+                    response.headers["Last-Modified"] = http_date(res_last_modified)
+                if res_etag:
+                    response.headers.setdefault("ETag", res_etag)
+
+        @vary_on_headers(*CACHE_VARY_ON_HEADERS)
+        @cache_control(**cache_control_opt)
+        @wraps(func)
+        def inner(request, *args, **kwargs):
+            response, res_etag, res_last_modified = _pre_process_request(
+                request, *args, **kwargs
+            )
+            if response is None:
+                response = func(request, *args, **kwargs)
+            _post_process_request(request, response, res_etag, res_last_modified)
+            return response
+
+        return inner
+
+    return decorator
+
+
 def collection_view(func):
     """Decorator for views Django bound to a collection.
 
@@ -176,13 +277,11 @@ def file_digest_last_modified(request, pk, *_args, **_kw):
 
 
 @collection_view
-@cache_control(**MEDIUM_CACHE_OPTIONS)
-@condition(last_modified_func=file_digest_last_modified)
+@condition_cache(last_modified_func=file_digest_last_modified, max_delay=120)
 def file_view(request, pk):
     """JSON view with data for a File.
 
     The primary key of the File is used to fetch it.
-
     Response is different from, but very similar to, the result of the `document()` view below.
     """
 
@@ -205,8 +304,7 @@ def directory_last_modified(request, pk, *_args, **_kw):
 
 
 @collection_view
-@cache_control(**MEDIUM_CACHE_OPTIONS)
-@condition(last_modified_func=directory_last_modified)
+@condition_cache(last_modified_func=directory_last_modified, max_delay=120)
 def directory(request, pk):
     directory = get_object_or_404(models.Directory.objects, pk=pk)
     children_page = int(request.GET.get('children_page', 1))
@@ -214,21 +312,9 @@ def directory(request, pk):
 
 
 @collection_view
-@cache_control(**MEDIUM_CACHE_OPTIONS)
-@condition(last_modified_func=directory_last_modified)
+@condition_cache(last_modified_func=directory_last_modified, max_delay=300)
 def file_exists(request, directory_pk, filename):
-    """View that checks if a given file exists in the database.
-
-    Args:
-        directory_pk: Primary key of the files parent directory.
-        filename: String that is the name of the file.
-
-    Returns:
-        A HTTP response containing the primary key (hash) of the original blob,
-        if the file exists.
-
-        A HTTP 404 response if the file doesn't exist.
-    """
+    """View that checks if a given file exists in the database. """
     try:
         file = models.File.objects.get(
             name_bytes=str.encode(filename),
@@ -237,6 +323,18 @@ def file_exists(request, directory_pk, filename):
         return HttpResponse(status=404)
     if file:
         return HttpResponse(file.original.pk)
+
+
+@collection_view
+@condition_cache(last_modified_func=directory_last_modified, max_delay=300)
+def get_path(request, directory_pk):
+    """Get the full path of a given directory"""
+    directory = models.Directory.objects.get(pk=directory_pk)
+    # check if there is a container file in the path
+    for ancestor in directory.ancestry():
+        if ancestor.container_file:
+            return HttpResponse(status=404)
+    return HttpResponse(str(directory))
 
 
 def trim_text(data):
@@ -267,8 +365,8 @@ def document_digest_etag_key(request, hash, *_args, **_kw):
 
 
 @collection_view
-@cache_control(**MEDIUM_CACHE_OPTIONS)
-@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
+@condition_cache(last_modified_func=document_digest_last_modified,
+                 etag_func=document_digest_etag_key, max_delay=30)
 def document(request, hash):
     """JSON view with data for a Digest.
 
@@ -348,8 +446,25 @@ def _apply_pdf_tools(request, blob):
         return response
 
 
-def _cache_small_streaming(func):
-    """Decorator for caching all non-streaming http view in the database,
+def _make_cache_key(request, *args):
+    """Make a short cache key from hashing request url, headers and `*args`."""
+    from hashlib import sha1
+    cache_key = (
+        ','.join(map(str, args))
+        + '::' + str(request.get_full_path())
+        + '::' + ','.join(
+            request.headers.get(h, '')
+            for h in CACHE_VARY_ON_HEADERS
+        )
+    )
+    cache_key = cache_key.encode('utf-8', errors='backslashreplace')
+    # stop django complaining about memcache not accepting long keys
+    cache_key = sha1(cache_key).hexdigest()
+    return cache_key
+
+
+def _cache_small_non_streaming(func):
+    """Decorator for caching all non-streaming http resp in the database,
     leaving untouched any streaming responses.
     """
     cache = django_caches['small_download_cache']
@@ -357,17 +472,7 @@ def _cache_small_streaming(func):
 
     @wraps(func)
     def view(request, blob, *args, **kw):
-        cache_key = (
-            CACHE_VERSION + ':: ' + str(blob.pk)
-            + '::' + str(request.get_full_path())
-            + '::' + ','.join(
-                request.headers.get(h, '')
-                for h in CACHE_VARY_ON_HEADERS
-            )
-        )
-        # stop django complaining about memcache not accepting long keys
-        cache_key = cache_key.encode('utf-8', errors='backslashreplace')
-        cache_key = sha1(cache_key).hexdigest()
+        cache_key = _make_cache_key(request, CACHE_VERSION, blob.pk)
         if resp := cache.get(cache_key):
             log.warning('CACHE HIT size %s: %s', len(resp.content), cache_key)
             return resp
@@ -386,7 +491,7 @@ def _cache_small_streaming(func):
     return view
 
 
-@_cache_small_streaming
+@_cache_small_non_streaming
 def _get_http_response_for_blob(request, blob, filename=None):
     """Return a streaming response that reads this blob,
     respecting Range headers and any special GET args.
@@ -433,9 +538,8 @@ def _get_http_response_for_blob(request, blob, filename=None):
 
 
 @collection_view
-@vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**LONG_CACHE_OPTIONS)
-@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
+@condition_cache(last_modified_func=document_digest_last_modified,
+                 etag_func=document_digest_etag_key, max_delay=3600)
 def document_download(request, hash, filename):
     """View to download the `.original` Blob for the first File in a Digest's set.
 
@@ -468,9 +572,8 @@ def document_download(request, hash, filename):
 
 
 @collection_view
-@vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**LONG_CACHE_OPTIONS)
-@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
+@condition_cache(last_modified_func=document_digest_last_modified,
+                 etag_func=document_digest_etag_key, max_delay=3600)
 def document_ocr(request, hash, ocrname):
     """View to download the OCR result binary for a given Document and OCR source combination.
 
@@ -503,8 +606,8 @@ def document_ocr(request, hash, ocrname):
 
 
 @collection_view
-@cache_control(**MEDIUM_CACHE_OPTIONS)
-@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
+@condition_cache(last_modified_func=document_digest_last_modified,
+                 etag_func=document_digest_etag_key, max_delay=300)
 def document_locations(request, hash):
     """JSON view to paginate through all locations for a Digest.
 
@@ -605,33 +708,19 @@ class TagViewSet(viewsets.ModelViewSet):
 
 
 @collection_view
-@vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**LONG_CACHE_OPTIONS)
-@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
+@condition_cache(last_modified_func=document_digest_last_modified,
+                 etag_func=document_digest_etag_key, max_delay=3600)
 def thumbnail(request, hash, size):
     blob = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash).thumbnail
     return _get_http_response_for_blob(request, blob)
 
 
 @collection_view
-@vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**LONG_CACHE_OPTIONS)
-@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
+@condition_cache(last_modified_func=document_digest_last_modified,
+                 etag_func=document_digest_etag_key, max_delay=3600)
 def pdf_preview(request, hash):
     blob = get_object_or_404(models.PdfPreview.objects, blob__pk=hash).pdf_preview
     return _get_http_response_for_blob(request, blob)
-
-
-@collection_view
-@cache_control(**LONG_CACHE_OPTIONS)
-def get_path(request, directory_pk):
-    """Get the full path of a given directory"""
-    directory = models.Directory.objects.get(pk=directory_pk)
-    # check if there is a container file in the path
-    for ancestor in directory.ancestry():
-        if ancestor.container_file:
-            return HttpResponse(status=404)
-    return HttpResponse(str(directory))
 
 
 @collection_view
