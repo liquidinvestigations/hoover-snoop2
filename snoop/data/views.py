@@ -19,6 +19,7 @@ from . import collections, digests, models, ocr, serializers, tracing
 from .tasks import dispatch_directory_walk_tasks
 from .analyzers import html
 
+
 from snoop.data.pdf_tools import split_pdf_file, get_pdf_info, pdf_extract_text
 
 
@@ -113,26 +114,41 @@ def condition_cache(
             if res_etag and max_delay:
                 cache_etag.add(key_etag, res_etag, timeout=max_delay)
 
-            # Edit: fetch response from cache
-            key_content = _make_cache_key(request, res_etag, res_last_modified)
-            if response := cache_content.get(key_content):
-                return response, res_etag, res_last_modified
-
-            # Original: get response
-            response = get_conditional_response(
+            # Original: get conditional response (304 Not Modified & friends)
+            if response := get_conditional_response(
                 request,
                 etag=res_etag,
                 last_modified=res_last_modified,
-            )
+            ):
+                return response, res_etag, res_last_modified
+
+            # Edit: fetch response from cache
+            key_content = _make_cache_key(request, res_etag, res_last_modified)
+            if response := cache_content.get(key_content):
+                log.warning('CONDITION CACHE HIT: %s', key_content)
+                return response, res_etag, res_last_modified
+
+            # Original: compute response (not conditional, not cached)
+            if response is None:
+                log.warning('CONDITION CACHE MISS: %s', key_content)
+                response = func(request, *args, **kwargs)
 
             # Edit: put response in cache
             if (
-                response
+                response is not None
                 and not response.streaming
                 and 0 < len(response.content) <= MAX_CACHE_ITEM_SIZE
                 and 200 <= response.status_code < 300
             ):
+                log.warning('CONDITION CACHE ADD: %s', key_content)
                 cache_content.add(key_content, response, timeout=cache_content_age)
+            else:
+                log.warning(
+                    'CONDITION CACHE REJECT: %s resp=%s streaming=%s len=%s status=%s',
+                    key_content, response, response.streaming,
+                    len(response) if response and response.streaming else 0,
+                    response.status_code,
+                )
 
             return response, res_etag, res_last_modified
 
@@ -474,7 +490,7 @@ def _cache_small_non_streaming(func):
     def view(request, blob, *args, **kw):
         cache_key = _make_cache_key(request, CACHE_VERSION, blob.pk)
         if resp := cache.get(cache_key):
-            log.warning('CACHE HIT size %s: %s', len(resp.content), cache_key)
+            log.warning('DOWNLOADABLE CACHE HIT size %s: %s', len(resp.content), cache_key)
             return resp
         resp = func(request, blob, *args, **kw)
         if (
@@ -482,10 +498,10 @@ def _cache_small_non_streaming(func):
             and 0 < len(resp.content) <= MAX_CACHE_ITEM_SIZE
             and 200 <= resp.status_code < 300
         ):
-            log.warning('CACHE ADD size %s: %s', len(resp.content), cache_key)
+            log.warning('DOWNLOADABLE CACHE ADD size %s: %s', len(resp.content), cache_key)
             cache.add(cache_key, resp, timeout=DOWNLOAD_CACHE_MAX_AGE)
         else:
-            log.warning('CACHE REJECT (streaming, non-200 or bad size): %s', cache_key)
+            log.warning('DOWNLOADABLE CACHE REJECT (streaming, non-200 or bad size): %s', cache_key)
         return resp
 
     return view
@@ -544,14 +560,10 @@ def document_download(request, hash, filename):
     """View to download the `.original` Blob for the first File in a Digest's set.
 
     Since all post-conversion `.blob`s are bound to the same `Digest` object, we assume the `.original`
-    Blobs are all equal too; so we present only the first one for downloading. This might cause problems
-    when this does not happen for various reasons; since users can't actually download all the different
-    original versions present in the dataset.
+    Blobs are all equal too; so we present only the first one for downloading.
 
-    In practice, the conversion tools we use generally produce
-    different results every time they're run on the same file, so the chance of this happening are
-    non-existant. This also means we don't de-duplicate properly for files that require conversion.
-    See `snoop.data.filesystem.handle_file()` for more details.
+    HTML files have special treatment (we remove the unsafe tags) - because of the risk of offensive
+    tracking scripts inside that could call out.
     """
 
     digest = get_object_or_404(

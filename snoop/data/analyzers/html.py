@@ -3,7 +3,8 @@
 
 import bleach
 
-HTML_MIME_TYPES = {'text/html', 'text/xml', 'application/xhtml+xml', 'application/xml'}
+# HTML_MIME_TYPES = {'text/html', 'text/xml', 'application/xhtml+xml', 'application/xml'}
+HTML_MIME_TYPES = {'text/html', 'application/xhtml+xml'}
 
 
 def is_html(blob):

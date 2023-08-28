@@ -224,6 +224,8 @@ def handle_file(file_pk, **depends_on):
     pointing to.  A dependency between this Task and that one is not made, since we have no use for such a
     dependency and it would only slow down the database.
     """
+    # TODO: remove `file.blob`, keep only `file.original`, and move the emlx_reconstruct/msg_to_eml
+    # into digests.launch
 
     file = models.File.objects.get(pk=file_pk)
 
