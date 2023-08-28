@@ -1,7 +1,5 @@
 import os
 
-from snoop.data.tracing import init_tracing
-
 
 # gunicorn configuration to get stable worker id
 # https://gist.github.com/hynek/ba655c8756924a5febc5285c712a7946
@@ -51,9 +49,18 @@ def pre_fork(server, worker):
 
 
 def post_fork(server, worker):
+    from snoop.data.s3 import clear_mounts, refresh_worker_index
+    from snoop.data.tracing import init_tracing
+
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "snoop.defaultsettings")
     server.log.info("Gunicorn Worker spawned #%s (pid: %s)", worker._worker_id, worker.pid)
 
     os.environ["GUNICORN_WORKER_ID"] = str(worker._worker_id)
 
     init_tracing('gunicorn')
+
+    try:
+        refresh_worker_index()
+        clear_mounts()
+    except Exception as e:
+        server.log.exception(e)

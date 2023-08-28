@@ -1,12 +1,15 @@
 """Helpers for working with PDF files
 (splitting into pages, fetching info, extracting text for UI Find tool)"""
 
+import subprocess
+import math
 import tempfile
 import contextlib
 import json
 from threading import Thread
 from subprocess import Popen, PIPE
 import logging
+import os
 
 log = logging.getLogger(__name__)
 
@@ -30,6 +33,9 @@ def write_content_to_handle(content, handle):
 @contextlib.contextmanager
 def run_script(script, content, timeout='120s', kill='130s'):
     """Yield a `subprocess.Popen` object that will have the content streamed to stdin."""
+    # vandalize script so we drop very long STDERR messages from the logs
+    # qpdf is sometimes very spammy with content warnings
+    script = script + ' 2> >(head -c200 >&2)'
     cmd = ['/usr/bin/timeout', '-k', kill, timeout, '/bin/bash', '-exo', 'pipefail', '-c', script]
     with tempfile.TemporaryDirectory() as tmpdirname:
         proc = Popen(cmd, stdin=PIPE, stdout=PIPE, cwd=tmpdirname)
@@ -45,6 +51,10 @@ def run_script(script, content, timeout='120s', kill='130s'):
             if proc.poll() is None:
                 proc.terminate()
             writer.join()
+            if proc.poll() is None:
+                proc.kill()
+            if proc.returncode != 0 and proc.returncode != 3:
+                raise RuntimeError('script failed')
 
 
 # def stream_script(script, content):
@@ -57,29 +67,43 @@ def stream_script(script, content, chunk_size=16 * 1024):
             yield chunk
 
 
-def get_pdf_info(streaming_content):
+def get_pdf_info(path):
     """Middleware streaming wrapper to extract pdf info using PDFTK and return it as json content"""
 #    script = "export JAVA_TOOL_OPTIONS='-Xmx3g'; pdftk - dump_data | grep NumberOfPages | head -n1"
-    script = "pdfinfo -  | grep Pages | head -n1"
+    # script = "pdfinfo -  | grep Pages | head -n1"
+    script = f"qpdf --show-npages {path}"
+    page_count = int(subprocess.check_output(script, shell=True).decode('ascii'))
+    size_mb = round(os.stat(path).st_size / 2**20, 3)
+    DESIRED_CHUNK_MB = 30
+    chunk_count = max(1, int(math.ceil(size_mb / DESIRED_CHUNK_MB)))
+    pages_per_chunk = int(math.ceil((page_count + 1) / chunk_count))
+    pages_per_chunk = min(pages_per_chunk, 6000)
+    expected_chunk_size_mb = round(size_mb / chunk_count, 3)
+    chunks = []
+    for i in range(0, chunk_count):
+        a = 1 + i * pages_per_chunk
+        b = a + pages_per_chunk - 1
+        b = min(b, page_count)
+        chunks.append(f'{a}-{b}')
 
-    with run_script(script, streaming_content) as proc:
-        for line in proc.stdout.readlines():
-            log.warning('line %s', line)
-            key, val = tuple(map(str.strip, line.decode('ascii', errors='replace').split(':')))
-            yield json.dumps({key: val}).encode('ascii', errors='replace')
-            break
+    data = {
+        'size_mb': size_mb,
+        'expected_chunk_size_mb': expected_chunk_size_mb,
+        'page_count': page_count,
+        'chunks': chunks,
+    }
+    yield json.dumps(data).encode('ascii', errors='replace')
 
 
-def split_pdf_file(streaming_content, _range):
+def split_pdf_file(path, _range):
     """Middleware streaming wrapper to split pdf file into a page range using pdftk."""
-    # page_start, page_end = tuple(map(int, _range.split('-')))
-    # script = f"""
-    # cat > in.pdf && ( ( pdfseparate -f {page_start} -l {page_end} in.pdf 'out_%09d.pdf'
-    # && pdfunite out_*.pdf out.pdf ) 1>&2 )  && cat out.pdf"""  # noqa: E501
-
-    # script = f"export JAVA_TOOL_OPTIONS='-Xmx4g'; pdftk - cat '{_range}' output -"
-    script = f"cat > in.pdf && qpdf --empty --pages in.pdf {_range} -- /dev/stdout"
-    yield from stream_script(script, streaming_content)
+    script = (
+        " qpdf --empty --no-warn --warning-exit-0 --deterministic-id "
+        " --object-streams=generate  --remove-unreferenced-resources=yes "
+        " --no-original-object-ids "  # --remove-restrictions
+        f" --pages {path} {_range}  -- /dev/stdout"
+    )
+    yield from stream_script(script, [])
 
 
 def pdf_extract_text(streaming_content, method):
@@ -87,5 +111,5 @@ def pdf_extract_text(streaming_content, method):
     script = {
         'pdftotext': "pdftotext - /dev/stdout",
         'nodejs': 'nodejs /opt/hoover/search/pdf_tools/extract_text.js',
-    }[method or 'nodejs']
+    }[method or 'pdftotext']
     yield from stream_script(script, streaming_content)

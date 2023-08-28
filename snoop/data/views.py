@@ -1,6 +1,9 @@
 """Django views, mostly JSON APIs.
 """
 from functools import wraps
+import logging
+import pickle
+from hashlib import sha1
 
 from django.conf import settings
 from django.db.models import Q
@@ -11,55 +14,49 @@ from rest_framework import viewsets
 from django.views.decorators.cache import cache_control, never_cache
 from django.views.decorators.http import condition
 from django.views.decorators.vary import vary_on_headers
+from django.core.cache import caches as django_caches
+from django.db.models import Max
 
 from . import collections, digests, models, ocr, serializers, tracing
 from .tasks import dispatch_directory_walk_tasks
 from .analyzers import html
 
+from snoop.data.pdf_tools import split_pdf_file, get_pdf_info, pdf_extract_text
+
+
 TEXT_LIMIT = 10 ** 6  # one million characters
 tracer = tracing.Tracer(__name__)
-CACHE_VARY_ON_HEADERS = ['Cookie', 'Range']
+log = logging.getLogger(__name__)
+CACHE_VARY_ON_HEADERS = ['Range']  # don't vary by cookie, we don't care about that
 
-if settings.SNOOP_ENABLE_BROWSER_CACHING:
-    # for "immutable" endpoints, cache them for 10min,
-    # revalidate them every 20min. Used with `@condition`
-    IMMUTABLE_CACHE_OPTIONS = dict(
-        private=True,
-        max_age=600,
-        stale_while_revalidate=600,
-        stale_if_error=600,
-    )
+# cache all 'downloadable' documents on server for a week - these will never change
+DOWNLOAD_CACHE_MAX_AGE = 7 * 24 * 3600
 
-    # revalidate every minute, for things that can lag behind
-    SHORT_LIVED_CACHE_OPTIONS = dict(
-        private=True,
-        max_age=30,
-        stale_while_revalidate=30,
-        stale_if_error=600,
-    )
+# cache settings for data expected to change, e.g. new file uploaded to directory,
+# or document data after a new tag. These can be delayed for 5min, to decrease load.
+# Ideally the backend cache should use our @condition decorators/etag/last modified
+# as part of the cache key, but it doesn't do that -- so we can't make this longer.
+# TODO: fix content-based backend caching
+MEDIUM_CACHE_OPTIONS = dict(
+    max_age=300,
+)
 
-    # these will revalidate every time, useful when we have ETAG/Modified,
-    # but we expect them to change often (e.g. doc/json). Used with `@condition`
-    CONTENT_BASED_CACHE_OPTIONS = dict(
-        private=True,
-        no_cache=True,
-        max_age=0,
-        must_revalidate=True,
-        stale_if_error=600,
-    )
-else:
-    CACHE_NO_STORE = dict(
-        no_cache=True,
-        no_store=True,
-        max_age=0,
-        must_revalidate=True,
-        private=True,
-    )
-    IMMUTABLE_CACHE_OPTIONS = CACHE_NO_STORE
-    SHORT_LIVED_CACHE_OPTIONS = CACHE_NO_STORE
-    CONTENT_BASED_CACHE_OPTIONS = CACHE_NO_STORE
+# for views we never expect to change, e.g. get path for directory ID.
+LONG_CACHE_OPTIONS = dict(
+    max_age=DOWNLOAD_CACHE_MAX_AGE,
+)
+
+MAX_CACHE_ITEM_SIZE = 150 * 2**20  # many MB
+
+# revalidate every 1min, for things that can lag behind, e.g. collection stats,
+# task processing status - useful to decrease load
+SHORT_LIVED_CACHE_OPTIONS = dict(
+    max_age=60,
+)
 
 
+# these will revalidate every time, useful when we have ETAG/Modified,
+# but we expect them to change often (e.g. doc/json). Used with `@condition`
 def collection_view(func):
     """Decorator for views Django bound to a collection.
 
@@ -159,8 +156,24 @@ def feed(request):
     })
 
 
+def file_digest_last_modified(request, pk, *_args, **_kw):
+    """Get the last modified ts of either this File obj or any of its children"""
+    file = get_object_or_404(models.File.objects, pk=pk)
+    try:
+        doc_ts = file.blob.digest.date_modified
+    except models.Blob.digest.RelatedObjectDoesNotExist:
+        doc_ts = file.date_modified
+
+    if file.child_directory_set.exists():
+        children_ts = file.child_directory_set.aggregate(maxval=Max('date_modified'))['maxval']
+        doc_ts = max(children_ts, doc_ts)
+
+    return doc_ts
+
+
 @collection_view
-@cache_control(**SHORT_LIVED_CACHE_OPTIONS)
+@cache_control(**MEDIUM_CACHE_OPTIONS)
+@condition(last_modified_func=file_digest_last_modified)
 def file_view(request, pk):
     """JSON view with data for a File.
 
@@ -174,8 +187,22 @@ def file_view(request, pk):
     return JsonResponse(trim_text(digests.get_file_data(file, children_page)))
 
 
+def directory_last_modified(request, pk, *_args, **_kw):
+    """Get the last modified ts of either this Dir obj or any of its children"""
+    directory = get_object_or_404(models.Directory.objects, pk=pk)
+    doc_ts = directory.date_modified
+    if directory.child_directory_set.exists():
+        children_ts = directory.child_directory_set.aggregate(maxval=Max('date_modified'))['maxval']
+        doc_ts = max(children_ts, doc_ts)
+    if directory.child_file_set.exists():
+        children_ts = directory.child_file_set.aggregate(maxval=Max('date_modified'))['maxval']
+        doc_ts = max(children_ts, doc_ts)
+    return doc_ts
+
+
 @collection_view
-@cache_control(**SHORT_LIVED_CACHE_OPTIONS)
+@cache_control(**MEDIUM_CACHE_OPTIONS)
+@condition(last_modified_func=directory_last_modified)
 def directory(request, pk):
     directory = get_object_or_404(models.Directory.objects, pk=pk)
     children_page = int(request.GET.get('children_page', 1))
@@ -199,8 +226,19 @@ def trim_text(data):
     return data
 
 
+def document_digest_last_modified(request, hash, *_args, **_kw):
+    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
+    return digest.date_modified
+
+
+def document_digest_etag_key(request, hash, *_args, **_kw):
+    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
+    return digest.get_etag()
+
+
 @collection_view
-@cache_control(**SHORT_LIVED_CACHE_OPTIONS)
+@cache_control(**MEDIUM_CACHE_OPTIONS)
+@condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document(request, hash):
     """JSON view with data for a Digest.
 
@@ -216,34 +254,154 @@ def document(request, hash):
     return JsonResponse(trim_text(digests.get_document_data(blob, children_page)))
 
 
-def document_digest_last_modified(request, hash, *_args, **_kw):
-    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
-    return digest.date_modified
+def _apply_pdf_tools(request, blob):
+    """Split PDF files into parts depending on GET options"""
+    HEADER_RANGE = 'X-Hoover-PDF-Split-Page-Range'
+    HEADER_PDF_INFO = 'X-Hoover-PDF-Info'
+    HEADER_PDF_EXTRACT_TEXT = 'X-Hoover-PDF-Extract-Text'
+    HEADER_PDF_EXTRACT_TEXT_METHOD = 'X-Hoover-PDF-Extract-Text-Method'
 
+    # pass over unrelated requests
+    _get_info = request.GET.get(HEADER_PDF_INFO, '')
+    _get_range = request.GET.get(HEADER_RANGE, '')
+    _get_text = request.GET.get(HEADER_PDF_EXTRACT_TEXT, '')
+    _get_text_method = request.GET.get(HEADER_PDF_EXTRACT_TEXT_METHOD, '')
 
-def document_digest_etag_key(request, hash, *_args, **_kw):
-    digest = get_object_or_404(models.Digest.objects, blob__pk=hash)
-    return digest.get_etag()
+    if (
+        request.method != 'GET'
+        or not (
+            _get_info or _get_range or _get_text
+        )
+    ):
+        log.warning('ignoring pdf tools...')
+        return None
 
+    if request.headers.get('Range'):
+        log.warning('PDF Tools: Reject Range query')
+        return HttpResponse('X-Hoover-PDF does not work with HTTP-Range', status=400)
 
-def _get_http_response_for_blob(request, blob, filename=None):
-    """Return a streaming response that reads this blob, respecting Range headers."""
-    with blob.open(need_seek=True, need_fileno=True) as f:
-        if 'HTTP_RANGE' in request.META:
-            response = RangedFileResponse(request, f, content_type=blob.content_type)
+    def _read_chunks(path):
+        with open(path, 'rb') as f:
+            while chunk := f.read(16 * 1024):
+                yield chunk
+
+    content_type = 'application/pdf'
+    streaming_content = None
+    with blob.mount_path() as blob_path:
+        if _get_info:
+            streaming_content = get_pdf_info(blob_path)
+            content_type = 'application/json'
         else:
-            response = FileResponse(f)
-            response['Accept-Ranges'] = 'bytes'
-            response['Content-Type'] = blob.content_type
-            response['Content-Length'] = blob.size
-            if filename:
-                response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            if _get_range:
+                # parse the range to make sure it's 1-100 and not some bash injection
+                page_start, page_end = _get_range.split('-')
+                page_start, page_end = int(page_start), int(page_end)
+                assert 0 < page_start <= page_end, 'bad page interval'
+                assert 0 <= page_end - page_start <= 7000, 'too many pages'
+                _range = f'{page_start}-{page_end}'
+                streaming_content = split_pdf_file(blob_path, _range)
+
+            if _get_text:
+                if not streaming_content:
+                    streaming_content = _read_chunks(blob_path)
+                streaming_content = pdf_extract_text(streaming_content, _get_text_method)
+                content_type = 'text/plain; charset=utf-8'
+
+        # load up response in memory because we want to cache this
+        content = b''.join(streaming_content)
+        response = HttpResponse(content, status=200)
+        response['Content-Type'] = content_type
+        response[HEADER_PDF_INFO] = _get_info
+        response[HEADER_RANGE] = _get_range
+        response[HEADER_PDF_EXTRACT_TEXT] = _get_text
+        response[HEADER_PDF_EXTRACT_TEXT_METHOD] = _get_text_method
         return response
+
+
+def _cache_small_streaming(func):
+    """Decorator for caching all non-streaming http view in the database,
+    leaving untouched any streaming responses.
+    """
+    cache = django_caches['small_download_cache']
+    CACHE_VERSION = '3'
+
+    @wraps(func)
+    def view(request, blob, *args, **kw):
+        cache_key = (
+            CACHE_VERSION + ':: ' + str(blob.pk)
+            + '::' + str(request.get_full_path())
+            + '::' + ','.join(
+                request.headers.get(h, '')
+                for h in CACHE_VARY_ON_HEADERS
+            )
+        )
+        # stop django complaining about memcache not accepting long keys
+        cache_key = cache_key.encode('utf-8', errors='backslashreplace')
+        cache_key = sha1(cache_key).hexdigest()
+        if data := cache.get(cache_key):
+            log.warning('CACHE HIT size %s: %s', len(data), cache_key)
+            return pickle.loads(data)
+        v = func(request, blob, *args, **kw)
+        if not v.streaming and len(v.content) < MAX_CACHE_ITEM_SIZE:
+            data = pickle.dumps(v)
+            log.warning('CACHE ADD size %s: %s', len(data), cache_key)
+            cache.add(cache_key, data, timeout=DOWNLOAD_CACHE_MAX_AGE)
+        else:
+            log.warning('CACHE REJECT (streaming): %s', cache_key)
+        return v
+
+    return view
+
+
+@_cache_small_streaming
+def _get_http_response_for_blob(request, blob, filename=None):
+    """Return a streaming response that reads this blob,
+    respecting Range headers and any special GET args.
+
+    Large responses are streaming, while small ones are loaded in
+    memory to be cached.
+    """
+
+    if _pdf_tools_resp := _apply_pdf_tools(request, blob):
+        return _pdf_tools_resp
+
+    def _set_headers(response, filename=None):
+        response['Accept-Ranges'] = 'bytes'
+        response['Content-Type'] = blob.content_type
+        if filename:
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    if 'HTTP_RANGE' in request.META:
+        with blob.open(need_seek=True, need_fileno=True) as f:
+            response = RangedFileResponse(request, f, content_type=blob.content_type)
+            response = _set_headers(response)
+            # if small chunk, read it all up to be cached
+            if int(response['Content-Length']) < MAX_CACHE_ITEM_SIZE:
+                content = b''.join(response.streaming_content)
+                return HttpResponse(
+                    content,
+                    headers=response.headers,
+                    status=response.status_code,
+                )
+            return response
+
+    # for small blobs, and no Range query, load in memory and return
+    if blob.size < MAX_CACHE_ITEM_SIZE:
+        with blob.open() as f:
+            content = f.read()
+            response = HttpResponse(content)
+            return _set_headers(response, filename)
+
+    # for big ones, just stream the thing back
+    with blob.open(need_seek=True, need_fileno=True) as f:
+        response = FileResponse(f)
+        return _set_headers(response, filename)
 
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**IMMUTABLE_CACHE_OPTIONS)
+@never_cache  # very big; cache manually
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_download(request, hash, filename):
     """View to download the `.original` Blob for the first File in a Digest's set.
@@ -278,7 +436,7 @@ def document_download(request, hash, filename):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**IMMUTABLE_CACHE_OPTIONS)
+@never_cache
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_ocr(request, hash, ocrname):
     """View to download the OCR result binary for a given Document and OCR source combination.
@@ -312,8 +470,7 @@ def document_ocr(request, hash, ocrname):
 
 
 @collection_view
-@vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**CONTENT_BASED_CACHE_OPTIONS)
+@cache_control(**MEDIUM_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_locations(request, hash):
     """JSON view to paginate through all locations for a Digest.
@@ -416,7 +573,7 @@ class TagViewSet(viewsets.ModelViewSet):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**IMMUTABLE_CACHE_OPTIONS)
+@never_cache
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def thumbnail(request, hash, size):
     blob = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash).thumbnail
@@ -425,16 +582,15 @@ def thumbnail(request, hash, size):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@cache_control(**IMMUTABLE_CACHE_OPTIONS)
+@never_cache
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def pdf_preview(request, hash):
-    pdf_preview_entry = get_object_or_404(models.PdfPreview.objects, blob__pk=hash)
-    blob = pdf_preview_entry.pdf_preview
+    blob = get_object_or_404(models.PdfPreview.objects, blob__pk=hash).pdf_preview
     return _get_http_response_for_blob(request, blob)
 
 
 @collection_view
-@cache_control(**IMMUTABLE_CACHE_OPTIONS)
+@cache_control(**LONG_CACHE_OPTIONS)
 def get_path(request, directory_pk):
     """Get the full path of a given directory"""
     directory = models.Directory.objects.get(pk=directory_pk)
@@ -454,7 +610,7 @@ def rescan_directory(request, directory_pk):
 
 
 @collection_view
-@cache_control(**IMMUTABLE_CACHE_OPTIONS)
+@cache_control(**MEDIUM_CACHE_OPTIONS)
 def file_exists(request, directory_pk, filename):
     """View that checks if a given file exists in the database.
 

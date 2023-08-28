@@ -74,9 +74,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
 
-    'pellet.middleware.PelletMiddleware',
+    "django.middleware.cache.UpdateCacheMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    "django.middleware.cache.FetchFromCacheMiddleware",
 
-    'snoop.data.middleware.PdfToolsMiddleware',
+    'pellet.middleware.PelletMiddleware',
 ]
 """List of Django middleware to load."""
 
@@ -153,6 +155,20 @@ DATABASES = {
 Gets populated from the [`SNOOP_COLLECTIONS`](./#snoop.defaultsettings.SNOOP_COLLECTIONS) constant at import
 time.
 """
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_snoop_default",
+    },
+    "small_download_cache": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_snoop_small_download",
+    },
+}
+CACHE_MIDDLEWARE_ALIAS = "default"
+CACHE_MIDDLEWARE_SECONDS = 0
+CACHE_MIDDLEWARE_KEY_PREFIX = 'snoop_api'
 
 SNOOP_COLLECTIONS = json.loads(os.environ.get('SNOOP_COLLECTIONS', '[]'))
 """Static configuration for the collections list and settings.
@@ -471,9 +487,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 """Define type for automatically generated primary keys.
 This is needed since Django 3.2.
 """
-
-SNOOP_ENABLE_BROWSER_CACHING = bool(os.getenv("SNOOP_ENABLE_BROWSER_CACHING", ''))
-"""Allow service responses to instruct browser to store content on private storage."""
 
 PELLET = {
     "enabled": bool(os.getenv('SNOOP_ENABLE_PELLET', None)),
