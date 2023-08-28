@@ -2,7 +2,6 @@
 """
 from functools import wraps
 import logging
-import pickle
 from hashlib import sha1
 
 from django.conf import settings
@@ -27,23 +26,26 @@ from snoop.data.pdf_tools import split_pdf_file, get_pdf_info, pdf_extract_text
 TEXT_LIMIT = 10 ** 6  # one million characters
 tracer = tracing.Tracer(__name__)
 log = logging.getLogger(__name__)
-CACHE_VARY_ON_HEADERS = ['Range']  # don't vary by cookie, we don't care about that
+CACHE_VARY_ON_HEADERS = ['Range']  # don't vary by Cookie, it's fake
 
 # cache all 'downloadable' documents on server for a week - these will never change
 DOWNLOAD_CACHE_MAX_AGE = 7 * 24 * 3600
 
 # cache settings for data expected to change, e.g. new file uploaded to directory,
-# or document data after a new tag. These can be delayed for 5min, to decrease load.
-# Ideally the backend cache should use our @condition decorators/etag/last modified
-# as part of the cache key, but it doesn't do that -- so we can't make this longer.
-# TODO: fix content-based backend caching
+# or document data after a new tag. These can be re-evaludated every 1-2min,
+# to decrease load.
 MEDIUM_CACHE_OPTIONS = dict(
-    max_age=300,
+    private=True,
+    max_age=0,
+    must_revalidate=True,
 )
 
 # for views we never expect to change, e.g. get path for directory ID.
+# revalidate every 5-10min
 LONG_CACHE_OPTIONS = dict(
-    max_age=DOWNLOAD_CACHE_MAX_AGE,
+    private=True,
+    max_age=0,
+    must_revalidate=True,
 )
 
 MAX_CACHE_ITEM_SIZE = 150 * 2**20  # many MB
@@ -51,7 +53,9 @@ MAX_CACHE_ITEM_SIZE = 150 * 2**20  # many MB
 # revalidate every 1min, for things that can lag behind, e.g. collection stats,
 # task processing status - useful to decrease load
 SHORT_LIVED_CACHE_OPTIONS = dict(
-    max_age=60,
+    private=True,
+    max_age=0,
+    must_revalidate=True,
 )
 
 
@@ -209,6 +213,32 @@ def directory(request, pk):
     return JsonResponse(digests.get_directory_data(directory, children_page))
 
 
+@collection_view
+@cache_control(**MEDIUM_CACHE_OPTIONS)
+@condition(last_modified_func=directory_last_modified)
+def file_exists(request, directory_pk, filename):
+    """View that checks if a given file exists in the database.
+
+    Args:
+        directory_pk: Primary key of the files parent directory.
+        filename: String that is the name of the file.
+
+    Returns:
+        A HTTP response containing the primary key (hash) of the original blob,
+        if the file exists.
+
+        A HTTP 404 response if the file doesn't exist.
+    """
+    try:
+        file = models.File.objects.get(
+            name_bytes=str.encode(filename),
+            parent_directory__pk=directory_pk)
+    except models.File.DoesNotExist:
+        return HttpResponse(status=404)
+    if file:
+        return HttpResponse(file.original.pk)
+
+
 def trim_text(data):
     """ Trim the text fields to TEXT_LIMIT chars """
     if not data.get('content'):
@@ -323,7 +353,7 @@ def _cache_small_streaming(func):
     leaving untouched any streaming responses.
     """
     cache = django_caches['small_download_cache']
-    CACHE_VERSION = '3'
+    CACHE_VERSION = '4'
 
     @wraps(func)
     def view(request, blob, *args, **kw):
@@ -338,17 +368,20 @@ def _cache_small_streaming(func):
         # stop django complaining about memcache not accepting long keys
         cache_key = cache_key.encode('utf-8', errors='backslashreplace')
         cache_key = sha1(cache_key).hexdigest()
-        if data := cache.get(cache_key):
-            log.warning('CACHE HIT size %s: %s', len(data), cache_key)
-            return pickle.loads(data)
-        v = func(request, blob, *args, **kw)
-        if not v.streaming and len(v.content) < MAX_CACHE_ITEM_SIZE:
-            data = pickle.dumps(v)
-            log.warning('CACHE ADD size %s: %s', len(data), cache_key)
-            cache.add(cache_key, data, timeout=DOWNLOAD_CACHE_MAX_AGE)
+        if resp := cache.get(cache_key):
+            log.warning('CACHE HIT size %s: %s', len(resp.content), cache_key)
+            return resp
+        resp = func(request, blob, *args, **kw)
+        if (
+            not resp.streaming
+            and 0 < len(resp.content) <= MAX_CACHE_ITEM_SIZE
+            and 200 <= resp.status_code < 300
+        ):
+            log.warning('CACHE ADD size %s: %s', len(resp.content), cache_key)
+            cache.add(cache_key, resp, timeout=DOWNLOAD_CACHE_MAX_AGE)
         else:
-            log.warning('CACHE REJECT (streaming): %s', cache_key)
-        return v
+            log.warning('CACHE REJECT (streaming, non-200 or bad size): %s', cache_key)
+        return resp
 
     return view
 
@@ -401,7 +434,7 @@ def _get_http_response_for_blob(request, blob, filename=None):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@never_cache  # very big; cache manually
+@cache_control(**LONG_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_download(request, hash, filename):
     """View to download the `.original` Blob for the first File in a Digest's set.
@@ -436,7 +469,7 @@ def document_download(request, hash, filename):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@never_cache
+@cache_control(**LONG_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def document_ocr(request, hash, ocrname):
     """View to download the OCR result binary for a given Document and OCR source combination.
@@ -573,7 +606,7 @@ class TagViewSet(viewsets.ModelViewSet):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@never_cache
+@cache_control(**LONG_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def thumbnail(request, hash, size):
     blob = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash).thumbnail
@@ -582,7 +615,7 @@ def thumbnail(request, hash, size):
 
 @collection_view
 @vary_on_headers(*CACHE_VARY_ON_HEADERS)
-@never_cache
+@cache_control(**LONG_CACHE_OPTIONS)
 @condition(last_modified_func=document_digest_last_modified, etag_func=document_digest_etag_key)
 def pdf_preview(request, hash):
     blob = get_object_or_404(models.PdfPreview.objects, blob__pk=hash).pdf_preview
@@ -607,31 +640,6 @@ def rescan_directory(request, directory_pk):
     """Start a filesystem walk in the given directory."""
     dispatch_directory_walk_tasks(directory_pk)
     return HttpResponse(status=200)
-
-
-@collection_view
-@cache_control(**MEDIUM_CACHE_OPTIONS)
-def file_exists(request, directory_pk, filename):
-    """View that checks if a given file exists in the database.
-
-    Args:
-        directory_pk: Primary key of the files parent directory.
-        filename: String that is the name of the file.
-
-    Returns:
-        A HTTP response containing the primary key (hash) of the original blob,
-        if the file exists.
-
-        A HTTP 404 response if the file doesn't exist.
-    """
-    try:
-        file = models.File.objects.get(
-            name_bytes=str.encode(filename),
-            parent_directory__pk=directory_pk)
-    except models.File.DoesNotExist:
-        return HttpResponse(status=404)
-    if file:
-        return HttpResponse(file.original.pk)
 
 
 @collection_view

@@ -61,10 +61,14 @@ INSTALLED_APPS = [
 """List of Django apps to load."""
 
 MIDDLEWARE = [
+    # https://docs.djangoproject.com/en/4.2/ref/middleware/#middleware-ordering
     'django.middleware.security.SecurityMiddleware',
+    # "django.middleware.cache.UpdateCacheMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
+
     'django.middleware.common.CommonMiddleware',
     # 'django.middleware.csrf.CsrfViewMiddleware',
+
     'snoop.data.middleware.DisableCSRF',
 
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -74,11 +78,9 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
 
-    "django.middleware.cache.UpdateCacheMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.cache.FetchFromCacheMiddleware",
+    # "django.middleware.cache.FetchFromCacheMiddleware",
 
-    'pellet.middleware.PelletMiddleware',
+    # 'pellet.middleware.PelletMiddleware',
 ]
 """List of Django middleware to load."""
 
@@ -157,18 +159,23 @@ time.
 """
 
 CACHES = {
-    "default": {
-        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
-        "LOCATION": "cache_snoop_default",
-    },
     "small_download_cache": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "cache_snoop_small_download",
     },
+    "conditional_view_etag": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_snoop_conditional_view_etag",
+    },
+    "conditional_view_content": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_snoop_conditional_view_content",
+    },
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_snoop_default",
+    }
 }
-CACHE_MIDDLEWARE_ALIAS = "default"
-CACHE_MIDDLEWARE_SECONDS = 0
-CACHE_MIDDLEWARE_KEY_PREFIX = 'snoop_api'
 
 SNOOP_COLLECTIONS = json.loads(os.environ.get('SNOOP_COLLECTIONS', '[]'))
 """Static configuration for the collections list and settings.
@@ -488,25 +495,25 @@ DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
 This is needed since Django 3.2.
 """
 
-PELLET = {
-    "enabled": bool(os.getenv('SNOOP_ENABLE_PELLET', None)),
-    "query_level_metrics_enabled": True,
-    "headers": {
-        "enabled": True,
-        "query_count_header": "X-Pellet-Count",
-        "query_time_header": "X-Pellet-Time"
-    },
-    "debug": {
-        "enabled": DEBUG,
-        "count_threshold": {
-            "min": 2,
-            "low": 5,
-            "medium": 10
-        }
-    },
-    "callback": None
-}
-"""Pellet configuration for detecting N+1 queries."""
+# PELLET = {
+#     "enabled": bool(os.getenv('SNOOP_ENABLE_PELLET', None)),
+#     "query_level_metrics_enabled": True,
+#     "headers": {
+#         "enabled": True,
+#         "query_count_header": "X-Pellet-Count",
+#         "query_time_header": "X-Pellet-Time"
+#     },
+#     "debug": {
+#         "enabled": DEBUG,
+#         "count_threshold": {
+#             "min": 2,
+#             "low": 5,
+#             "medium": 10
+#         }
+#     },
+#     "callback": None
+# }
+# """Pellet configuration for detecting N+1 queries."""
 
 # if Sentry is configured, start it.
 if os.getenv('SENTRY_DSN'):
