@@ -60,7 +60,7 @@ Jinja2 = '*'
 MarkupSafe = '*'
 prometheus_client = '*'
 Pygments = '*'
-PyICU = "==2.5"
+# PyICU = "==2.5"
 pyrabbit = "*"
 prompt_toolkit = "*"
 djangorestframework = "*"
