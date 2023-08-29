@@ -110,9 +110,15 @@ def split_pdf_file(path, _range):
 def pdf_extract_text(streaming_content):
     """Extract pdf text using script, into a stream."""
     # put streaming content in file, then run script on that file
-    with tempfile.NamedTemporaryFile(delete=True, prefix='pdf-extract-text-') as infile:
+    with tempfile.NamedTemporaryFile(delete=True, prefix='pdf-extract-in') as infile, \
+            tempfile.NamedTemporaryFile(delete=True, prefix='pdf-extract-out') as outfile:
         for chunk in streaming_content:
             infile.write(chunk)
         infile.seek(0)
-        script = f'/opt/hoover/snoop/pdf-tools/run.sh file://{infile.name}'
-        yield from stream_script(script, streaming_content)
+        script = f'/opt/hoover/snoop/pdf-tools/run.sh file://{infile.name} {outfile.name}'
+        for error_msg in stream_script(script, streaming_content):
+            log.warning('pdf extract text warning: %s', error_msg)
+
+        outfile.seek(0)
+        while chunk := outfile.read(128 * 1024):
+            yield chunk
