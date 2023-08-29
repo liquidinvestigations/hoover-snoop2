@@ -259,8 +259,9 @@ class CollectionApiClient:
         with mask_out_current_collection():
             resp = self.client.get(url, **headers)
             if range:
-                assert type(resp) is RangedFileResponse
+                assert type(resp) in [RangedFileResponse, HttpResponse]
                 assert resp.status_code == 206
-                assert len(resp.getvalue()) == 16
+                val = resp.getvalue() if type(resp) is RangedFileResponse else resp.content
+                assert len(val) == 16
             else:
                 assert resp.status_code == 200

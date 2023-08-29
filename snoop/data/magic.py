@@ -103,7 +103,8 @@ class Magic:
                 else:
                     self.mime_type = 'message/rfc822'
 
-        if self.magic_output.startswith('Microsoft Outlook email folder'):
+        if self.magic_output.startswith('Microsoft Outlook email folder') \
+                or self.magic_output.startswith('Microsoft Outlook Personal'):
             self.mime_type = 'application/x-hoover-pst'
         else:
             log.warning('NOT X HOOVER PST: %s', self.magic_output)

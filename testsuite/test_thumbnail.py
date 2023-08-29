@@ -55,7 +55,7 @@ def test_thumbnail_api(fakedata, taskmanager, client, settings_with_thumbnails):
         for size in models.Thumbnail.SizeChoices.values:
             thumbnail_original_blob = models.Thumbnail.objects.get(size=size, blob=blob).thumbnail
             thumbnail_response = api.get_thumbnail(blob.pk, size)
-            if thumbnail_response.streaming_content:
+            if thumbnail_response.streaming:
                 thumbnail_bytes = b''.join(thumbnail_response.streaming_content)
             else:
                 thumbnail_bytes = thumbnail_response.content

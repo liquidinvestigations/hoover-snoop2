@@ -145,10 +145,16 @@ def condition_cache(
                 log.warning('CONDITION CACHE ADD: %s', key_content)
                 cache_content.add(key_content, response, timeout=cache_content_age)
             else:
+                content_len = (
+                    len(response.content)
+                    if (response and not response.streaming)
+                    else 'unknown'
+                )
                 log.warning(
                     'CONDITION CACHE REJECT: %s resp=%s streaming=%s len=%s status=%s',
-                    key_content, response, response.streaming,
-                    len(response.content) if response and response.streaming else 'unknown',
+                    key_content, response,
+                    response.streaming,
+                    content_len,
                     response.status_code,
                 )
 
