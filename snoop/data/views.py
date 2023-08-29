@@ -1,11 +1,12 @@
 """Django views, mostly JSON APIs.
 """
 from functools import wraps
+from itertools import chain
 import logging
 
 from django.conf import settings
 from django.db.models import Q
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import get_object_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
@@ -450,10 +451,17 @@ def _apply_pdf_tools(request, blob):
                 streaming_content = pdf_extract_text(streaming_content)
                 content_type = 'application/json'
 
-        # TODO save response to temp file.
-        # load up response in memory only if small enough, otherwise stream back
-        content = b''.join(streaming_content)
-        response = HttpResponse(content, status=200)
+        content = b''
+        for chunk in streaming_content:
+            content += chunk
+            if len(content) > MAX_CACHE_ITEM_SIZE:
+                # stream the response back
+                # This is wishful thinking because the stream that we're reading from probably died.
+                new_stream = chain([content], streaming_content)
+                response = StreamingHttpResponse(new_stream)
+                break
+        else:
+            response = HttpResponse(content, status=200)
         response['Content-Type'] = content_type
         response[HEADER_PDF_INFO] = _get_info
         response[HEADER_RANGE] = _get_range
