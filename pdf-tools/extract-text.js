@@ -2,16 +2,16 @@ const fs = require('fs');
 
 const pdfjs = require('pdfjs-dist/build/pdf');
 
-pdfjs.GlobalWorkerOptions.workerSrc = 'tmp/pdf.worker.js';
+pdfjs.disableWorker = true;
 
 async function processPDF(filePath) {
-    const buffer = fs.readFileSync(filePath);
-    const loadingTask = pdfjs.getDocument({ data: buffer });
+    // const buffer = fs.readFileSync(filePath);
+    // const loadingTask = pdfjs.getDocument({ data: buffer });
+    const loadingTask = pdfjs.getDocument({ url: filePath });
 
     loadingTask.promise.then(
         async (doc) => {
-            const data = await extractTextContent(doc);
-            return data;
+            await extractTextContent(doc);
         },
         (error) => {
             console.error(error);
@@ -21,8 +21,7 @@ async function processPDF(filePath) {
 }
 
 const extractTextContent = async (doc) => {
-    const pagePromises = []
-
+    console.log('[')
     for (let pageNum = 1; pageNum <= doc.numPages; pageNum++) {
         const pagePromise = doc.getPage(pageNum).then(async (page) => {
             const textContent = await page.getTextContent()
@@ -32,10 +31,12 @@ const extractTextContent = async (doc) => {
                 .toLowerCase()
             return { pageNum, text }
         })
-        pagePromises.push(pagePromise)
+        if (pageNum > 1) {
+            console.log(',')
+        }
+        console.log(JSON.stringify(await pagePromise));
     }
-
-    return await Promise.all(pagePromises)
+    console.log(']')
 }
 
 processPDF(process.argv[2]);

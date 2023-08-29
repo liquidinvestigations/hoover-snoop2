@@ -21,6 +21,7 @@ from .analyzers import html
 
 
 from snoop.data.pdf_tools import split_pdf_file, get_pdf_info, pdf_extract_text
+from snoop.data.pdf_tools import MAX_PDF_PAGES_PER_CHUNK
 
 
 TEXT_LIMIT = 10 ** 6  # one million characters
@@ -403,13 +404,11 @@ def _apply_pdf_tools(request, blob):
     HEADER_RANGE = 'X-Hoover-PDF-Split-Page-Range'
     HEADER_PDF_INFO = 'X-Hoover-PDF-Info'
     HEADER_PDF_EXTRACT_TEXT = 'X-Hoover-PDF-Extract-Text'
-    HEADER_PDF_EXTRACT_TEXT_METHOD = 'X-Hoover-PDF-Extract-Text-Method'
 
     # pass over unrelated requests
     _get_info = request.GET.get(HEADER_PDF_INFO, '')
     _get_range = request.GET.get(HEADER_RANGE, '')
     _get_text = request.GET.get(HEADER_PDF_EXTRACT_TEXT, '')
-    _get_text_method = request.GET.get(HEADER_PDF_EXTRACT_TEXT_METHOD, '')
 
     if (
         request.method != 'GET'
@@ -417,7 +416,6 @@ def _apply_pdf_tools(request, blob):
             _get_info or _get_range or _get_text
         )
     ):
-        log.warning('ignoring pdf tools...')
         return None
 
     if request.headers.get('Range'):
@@ -441,24 +439,25 @@ def _apply_pdf_tools(request, blob):
                 page_start, page_end = _get_range.split('-')
                 page_start, page_end = int(page_start), int(page_end)
                 assert 0 < page_start <= page_end, 'bad page interval'
-                assert 0 <= page_end - page_start <= 7000, 'too many pages'
+                assert 0 <= page_end - page_start <= MAX_PDF_PAGES_PER_CHUNK + 10, \
+                    'too many pages'
                 _range = f'{page_start}-{page_end}'
                 streaming_content = split_pdf_file(blob_path, _range)
 
             if _get_text:
                 if not streaming_content:
                     streaming_content = _read_chunks(blob_path)
-                streaming_content = pdf_extract_text(streaming_content, _get_text_method)
-                content_type = 'text/plain; charset=utf-8'
+                streaming_content = pdf_extract_text(streaming_content)
+                content_type = 'application/json'
 
-        # load up response in memory because we want to cache this
+        # TODO save response to temp file.
+        # load up response in memory only if small enough, otherwise stream back
         content = b''.join(streaming_content)
         response = HttpResponse(content, status=200)
         response['Content-Type'] = content_type
         response[HEADER_PDF_INFO] = _get_info
         response[HEADER_RANGE] = _get_range
         response[HEADER_PDF_EXTRACT_TEXT] = _get_text
-        response[HEADER_PDF_EXTRACT_TEXT_METHOD] = _get_text_method
         return response
 
 
@@ -479,35 +478,6 @@ def _make_cache_key(request, *args):
     return cache_key
 
 
-def _cache_small_non_streaming(func):
-    """Decorator for caching all non-streaming http resp in the database,
-    leaving untouched any streaming responses.
-    """
-    cache = django_caches['small_download_cache']
-    CACHE_VERSION = '4'
-
-    @wraps(func)
-    def view(request, blob, *args, **kw):
-        cache_key = _make_cache_key(request, CACHE_VERSION, blob.pk)
-        if resp := cache.get(cache_key):
-            log.warning('DOWNLOADABLE CACHE HIT size %s: %s', len(resp.content), cache_key)
-            return resp
-        resp = func(request, blob, *args, **kw)
-        if (
-            not resp.streaming
-            and 0 < len(resp.content) <= MAX_CACHE_ITEM_SIZE
-            and 200 <= resp.status_code < 300
-        ):
-            log.warning('DOWNLOADABLE CACHE ADD size %s: %s', len(resp.content), cache_key)
-            cache.add(cache_key, resp, timeout=DOWNLOAD_CACHE_MAX_AGE)
-        else:
-            log.warning('DOWNLOADABLE CACHE REJECT (streaming, non-200 or bad size): %s', cache_key)
-        return resp
-
-    return view
-
-
-@_cache_small_non_streaming
 def _get_http_response_for_blob(request, blob, filename=None):
     """Return a streaming response that reads this blob,
     respecting Range headers and any special GET args.

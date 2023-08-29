@@ -31,6 +31,8 @@ COPY . .
 COPY .git .
 RUN chmod +x /opt/hoover/snoop/docker-entrypoint.sh
 
+RUN /opt/hoover/snoop/pdf-tools/install.sh
+
 COPY ./runserver /runserver
 
 RUN chown -R $UID:$GID /runserver && chmod +x /runserver

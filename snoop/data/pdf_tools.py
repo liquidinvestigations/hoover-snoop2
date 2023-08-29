@@ -12,6 +12,7 @@ import logging
 import os
 
 log = logging.getLogger(__name__)
+MAX_PDF_PAGES_PER_CHUNK = 6000
 
 
 def write_content_to_handle(content, handle):
@@ -68,7 +69,7 @@ def stream_script(script, content, chunk_size=16 * 1024):
 
 
 def get_pdf_info(path):
-    """Middleware streaming wrapper to extract pdf info using PDFTK and return it as json content"""
+    """streaming wrapper to extract pdf info json (page count, chunks)"""
 #    script = "export JAVA_TOOL_OPTIONS='-Xmx3g'; pdftk - dump_data | grep NumberOfPages | head -n1"
     # script = "pdfinfo -  | grep Pages | head -n1"
     script = f"qpdf --show-npages {path}"
@@ -77,7 +78,7 @@ def get_pdf_info(path):
     DESIRED_CHUNK_MB = 30
     chunk_count = max(1, int(math.ceil(size_mb / DESIRED_CHUNK_MB)))
     pages_per_chunk = int(math.ceil((page_count + 1) / chunk_count))
-    pages_per_chunk = min(pages_per_chunk, 6000)
+    pages_per_chunk = min(pages_per_chunk, MAX_PDF_PAGES_PER_CHUNK)
     expected_chunk_size_mb = round(size_mb / chunk_count, 3)
     chunks = []
     for i in range(0, chunk_count):
@@ -96,20 +97,22 @@ def get_pdf_info(path):
 
 
 def split_pdf_file(path, _range):
-    """Middleware streaming wrapper to split pdf file into a page range using pdftk."""
+    """streaming wrapper to split pdf file into a page range."""
     script = (
         " qpdf --empty --no-warn --warning-exit-0 --deterministic-id "
         " --object-streams=generate  --remove-unreferenced-resources=yes "
-        " --no-original-object-ids "  # --remove-restrictions
+        " --no-original-object-ids "
         f" --pages {path} {_range}  -- /dev/stdout"
     )
     yield from stream_script(script, [])
 
 
-def pdf_extract_text(streaming_content, method):
-    """Middleware streaming wrapper to extract pdf text using PDF.js (for parity with frontend)"""
-    script = {
-        'pdftotext': "pdftotext - /dev/stdout",
-        'nodejs': 'nodejs /opt/hoover/search/pdf_tools/extract_text.js',
-    }[method or 'pdftotext']
-    yield from stream_script(script, streaming_content)
+def pdf_extract_text(streaming_content):
+    """Extract pdf text using script, into a stream."""
+    # put streaming content in file, then run script on that file
+    with tempfile.NamedTemporaryFile(delete=True, prefix='pdf-extract-text-') as infile:
+        for chunk in streaming_content:
+            infile.write(chunk)
+        infile.seek(0)
+        script = f'/opt/hoover/snoop/pdf-tools/run.sh file://{infile.name}'
+        yield from stream_script(script, streaming_content)
