@@ -148,7 +148,7 @@ def condition_cache(
                 log.warning(
                     'CONDITION CACHE REJECT: %s resp=%s streaming=%s len=%s status=%s',
                     key_content, response, response.streaming,
-                    len(response) if response and response.streaming else 0,
+                    len(response.content) if response and response.streaming else 'unknown',
                     response.status_code,
                 )
 

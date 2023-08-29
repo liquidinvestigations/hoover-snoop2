@@ -10,6 +10,7 @@ cases even `find` doesn't take into account; such as the difference between a si
 collection.
 """
 
+import logging
 import subprocess
 import re
 from .utils import read_exactly
@@ -30,6 +31,8 @@ MAGIC_PROCESS_CMD = [
 MAGIC_REGEX = re.compile(
     r'(?P<magic_output>.+)',
 )
+
+log = logging.getLogger(__name__)
 
 
 def _parse_mime(output):
@@ -102,6 +105,8 @@ class Magic:
 
         if self.magic_output.startswith('Microsoft Outlook email folder'):
             self.mime_type = 'application/x-hoover-pst'
+        else:
+            log.warning('NOT X HOOVER PST: %s', self.magic_output)
 
 
 def looks_like_email(path):

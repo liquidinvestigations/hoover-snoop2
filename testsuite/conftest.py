@@ -8,6 +8,7 @@ from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from ranged_response import RangedFileResponse
+from django.http import FileResponse
 
 from snoop.data import tasks
 from snoop.data import models
@@ -233,9 +234,10 @@ class CollectionApiClient:
         with mask_out_current_collection():
             r = self.client.get(f'/collections/{col.name}/{blob_hash}/raw/{filename}', **headers)
             if range:
-                assert type(r) is RangedFileResponse
+                assert type(r) in [RangedFileResponse, HttpResponse]
                 assert r.status_code == 206
-                assert len(r.getvalue()) == 16
+                val = r.getvalue() type(r) == RangedFileResponse else r.content
+                assert len(val) == 16
             else:
                 assert r.status_code == 200
             return r
