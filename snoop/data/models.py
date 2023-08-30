@@ -13,6 +13,7 @@ from pathlib import Path
 import tempfile
 import logging
 
+from django.utils import timezone
 from django.db import models
 from django.conf import settings
 from django.template.defaultfilters import truncatechars
@@ -787,8 +788,29 @@ class Task(models.Model):
 
     __repr__ = __str__
 
-    def update(self, status=None, error=None, broken_reason=None, log=None, version=None):
-        """Helper method to update multiple fields at once, without saving.
+    def is_completed(task):
+        """Returns True if Task is in the "success" or "broken"
+        states, or for errors with a high enough retry count.
+
+        Returns False for outdated or uncompleted tasks.
+
+        Args:
+            task: will check `task.status` for values listed above
+        """
+        from snoop.data.tasks import task_map
+
+        COMPLETED = [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN]
+        retry_limit = settings.TASK_RETRY_FAIL_LIMIT * 3
+        return task.version == task_map[task.func].version and (
+            task.status in COMPLETED
+            or (
+                task.status == models.Task.STATUS_ERROR
+                and task.fail_count > retry_limit
+            )
+        )
+
+    def set(self, status=None, error=None, broken_reason=None, log=None, version=None):
+        """Helper method to update multiple fields at once, then saving.
 
         This method also truncates our Text fields to decent limits, so it's
         preferred to use this instead of the fields directly.
@@ -831,12 +853,23 @@ class Task(models.Model):
         if log is not None:
             self.log = _escape(log)[:2**14]  # 16k of log space
 
+        if self.status in [
+            models.Task.STATUS_SUCCESS,
+            models.Task.STATUS_BROKEN,
+            models.Task.STATUS_ERROR,
+        ]:
+            self.date_finished = timezone.now()
+        else:
+            self.date_finished = None
+
         # Increment fail_count only if we ran the same version and still got a bad status code.
         # Reset the fail count only when status is success, or if the version changed.
         if self.status == self.STATUS_SUCCESS or old_version != self.version:
             self.fail_count = 0
         elif self.status in [self.STATUS_BROKEN, self.STATUS_ERROR]:
             self.fail_count = self.fail_count + 1
+
+        self.save()
 
     def size(self):
         """Returns task size in bytes.
