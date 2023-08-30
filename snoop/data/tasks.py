@@ -218,7 +218,8 @@ def _do_queue_task(task):
                     .select_for_update(nowait=True)
                     .get(pk=task.pk)
                 )
-                task.set(status=models.Task.STATUS_QUEUED)
+                task.update(status=models.Task.STATUS_QUEUED)
+                task.save()
                 transaction.on_commit(send_to_celery)
             except DatabaseError as e:
                 logger.warning(
@@ -250,13 +251,14 @@ def queue_next_tasks(task, reset=False):
     for next_dependency in task.next_set.all():
         next_task = next_dependency.next
         if reset:
-            next_task.set(
+            next_task.update(
                 status=models.Task.STATUS_PENDING,
                 error='',
                 broken_reason='',
                 log='',
                 version=task_map[task.func].version,
             )
+            next_task.save()
 
         if task_map[next_task.func].bulk:
             logger.debug("Not queueing bulk task %r after %r", next_task, task)
@@ -406,6 +408,17 @@ def import_snoop_tasks():
     from .analyzers import tika  # noqa
 
 
+def is_completed(task):
+    """Returns True if Task is in the "success" or "broken" states, and if the task is at the latest
+    version.
+
+    Args:
+        task: will check `task.status` for values listed above
+    """
+    COMPLETED = [models.Task.STATUS_SUCCESS, models.Task.STATUS_BROKEN]
+    return task.status in COMPLETED and task.version == task_map[task.func].version
+
+
 @contextmanager
 def snoop_task_log_handler(level=logging.DEBUG):
     """Context manager for a text log handler.
@@ -533,7 +546,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
             }
 
             with tracer.span('check if task already completed', **_tracer_opt):
-                if task.is_completed():
+                if is_completed(task):
                     logger.warning("%r already completed", task)
                     tracer.count('task_already_completed', **_tracer_opt)
                     queue_next_tasks(task)
@@ -545,26 +558,28 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
                 all_prev_deps = list(task.prev_set.all())
                 if any(dep.prev.status == models.Task.STATUS_ERROR for dep in all_prev_deps):
                     logger.warning("%r has a dependency in the ERROR state.", task)
-                    task.set(
+                    task.update(
                         status=models.Task.STATUS_BROKEN,
                         error='',
                         broken_reason='dependency_has_error',
                         log=handler.stream.getvalue(),
                         version=task_map[task.func].version,
                     )
+                    task.save()
                     queue_next_tasks(task, reset=True)
                     return
 
                 for dep in all_prev_deps:
                     prev_task = dep.prev
-                    if not prev_task.is_completed():
-                        task.set(
+                    if not is_completed(prev_task):
+                        task.update(
                             status=models.Task.STATUS_DEFERRED,
                             error='',
                             broken_reason='',
                             log=handler.stream.getvalue(),
                             version=task_map[task.func].version,
                         )
+                        task.save()
                         logger.warning("%r missing dependency %r", task, prev_task)
                         tracer.count("task_missing_dependency", **_tracer_opt)
                         queue_task(prev_task)
@@ -657,7 +672,7 @@ def run_task(task, depends_on, log_handler, raise_exceptions=False, _tracer_opt=
                     msg = 'requests extra dependency: %r, dep = %r [%.03f s]' % (task, dep, time() - t0)
                     logger.debug(msg)
 
-                    task.ser(
+                    task.update(
                         status=models.Task.STATUS_DEFERRED,
                         error='',
                         broken_reason='',
@@ -679,7 +694,7 @@ def run_task(task, depends_on, log_handler, raise_exceptions=False, _tracer_opt=
                     task.prev_set.filter(
                         name=dep.name,
                     ).delete()
-                    task.set(
+                    task.update(
                         status=models.Task.STATUS_PENDING,
                         error='',
                         broken_reason='',
@@ -691,7 +706,7 @@ def run_task(task, depends_on, log_handler, raise_exceptions=False, _tracer_opt=
             except SnoopTaskBroken as e:
                 with tracer.span('handle task broken', **_tracer_opt):
                     tracer.count("task_broken", **_tracer_opt)
-                    task.set(
+                    task.update(
                         status=models.Task.STATUS_BROKEN,
                         error="{}: {}".format(e.reason, e.args[0]),
                         broken_reason=e.reason,
@@ -705,7 +720,7 @@ def run_task(task, depends_on, log_handler, raise_exceptions=False, _tracer_opt=
                 with tracer.span('handle connection error', **_tracer_opt):
                     tracer.count("task_connection_error", **_tracer_opt)
                     logger.exception(e)
-                    task.set(
+                    task.update(
                         status=models.Task.STATUS_PENDING,
                         error=repr(e),
                         broken_reason='',
@@ -721,7 +736,7 @@ def run_task(task, depends_on, log_handler, raise_exceptions=False, _tracer_opt=
                     else:
                         error = repr(e)
                     logger.exception(e)
-                    task.set(
+                    task.update(
                         status=models.Task.STATUS_ERROR,
                         error=error,
                         broken_reason='',
@@ -738,7 +753,7 @@ def run_task(task, depends_on, log_handler, raise_exceptions=False, _tracer_opt=
                 with tracer.span('save success', **_tracer_opt):
                     tracer.count("task_success", **_tracer_opt)
                     logger.debug("Succeeded: %r [%.03f s]", task, time() - t0)
-                    task.set(
+                    task.update(
                         status=models.Task.STATUS_SUCCESS,
                         error='',
                         broken_reason='',
@@ -751,7 +766,7 @@ def run_task(task, depends_on, log_handler, raise_exceptions=False, _tracer_opt=
                     task.date_finished = timezone.now()
                     task.save()
 
-    if task.is_completed():
+    if is_completed(task):
         queue_next_tasks(task, reset=True)
 
 
@@ -976,7 +991,7 @@ def dispatch_tasks(func, status=None, outdated=None, newest_first=True):
 def retry_task(task, fg=False):
     """Resets task status, logs and error messages to their blank value, then re-queues the Task.
     """
-    task.set(
+    task.update(
         status=models.Task.STATUS_PENDING,
         error='',
         broken_reason='',

@@ -112,7 +112,7 @@ class TaskManager:
                 .objects.using(self.collection.db_alias)
                 .get(pk=task_pk)
             )
-            if task.is_completed():
+            if tasks.is_completed(task):
                 log.info('task %s already completed.', task)
                 continue
             log.debug(f"TaskManager #{count}: {task}")
@@ -124,7 +124,7 @@ class TaskManager:
                 raise RuntimeError(f"Task limit exceeded (max exec count: {max_count})")
         for task_pk in task_pks:
             task = models.Task.objects.using(self.collection.db_alias).get(pk=task_pk)
-            if not task.is_completed():
+            if not tasks.is_completed(task):
                 log.error('TASK NOT COMPLETED: %s', task)
         return len(task_pks)
 
