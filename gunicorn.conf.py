@@ -56,7 +56,7 @@ def post_fork(server, worker):
     from snoop.data.tracing import init_tracing
 
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "snoop.defaultsettings")
-    server.log.info("Gunicorn Worker spawned #%s (pid: %s)", worker._worker_id, worker.pid)
+    server.log.debug("Gunicorn Worker spawned #%s (pid: %s)", worker._worker_id, worker.pid)
 
     os.environ["GUNICORN_WORKER_ID"] = str(worker._worker_id)
 
@@ -73,9 +73,9 @@ def post_fork(server, worker):
 def worker_exit(server, worker):
     if os.getenv('SENTRY_DSN'):
         try:
-            log.warning('gworker: flushing sentry...')
+            log.debug('gworker: flushing sentry...')
             from sentry_sdk import Hub
             client = Hub.current.client
             client.flush()
         except Exception as e:
-            log.debug('gworker: could not flush sentry: %s', str(e))
+            log.warning('gworker: could not flush sentry: %s', str(e))

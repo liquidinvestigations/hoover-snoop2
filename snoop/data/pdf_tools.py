@@ -6,8 +6,6 @@ from tempfile import NamedTemporaryFile
 import subprocess
 import logging
 import os
-import time
-import random
 
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.core.cache import caches as django_caches
@@ -123,15 +121,14 @@ def apply_pdf_tools(request, blob, max_size_before_stream):
         if _get_info:
             return JsonResponse(get_pdf_info(blob_path))
 
-        # the next function is under blocking lock, so if this execution will take a lot
-        # of time (>100MB) then we can delay it for a half-second -- in that time,
-        # smaller requests that are already locked might hit first
-        blob_size_gb = blob.size / 2**30
-        if blob_size_gb > 0.1:
-            delay = (0.3 + random.random() * 0.4) * blob_size_gb
-            time.sleep(delay)
+        # for very big PDFs >50MB, use lockfile so we don't OOM...
+        blob_size_mb = blob.size / 2**20
+        if blob_size_mb > 50:
+            _func = _lock_get_range_or_text
+        else:
+            _func = _do_get_range_or_text
 
-        return _get_range_or_text(
+        return _func(
             blob.pk,
             blob_path,
             _get_range,
@@ -144,7 +141,13 @@ def apply_pdf_tools(request, blob, max_size_before_stream):
 
 
 @flock_blocking  # qpdf takes lots of RAM, make sure only run 1/container
-def _get_range_or_text(
+def _lock_get_range_or_text(*args, **kw):
+    """Lockfile-protected execution of _do_get_range_or_text.
+    Useful to limit parallel execution of very big pdf"""
+    return _do_get_range_or_text(*args, **kw)
+
+
+def _do_get_range_or_text(
     blob_pk,
     blob_path,
     _get_range,
@@ -168,9 +171,10 @@ def _get_range_or_text(
         _range = f'{page_start}-{page_end}'
 
         # we need to cache the split pages for a while, since the UI will hit both
-        # endpoints with and without extract-text, in short succession, to get the
-        # short, since we cache the end result too for a long time.
-        CACHE_TIMEOUT = 3600
+        # endpoints with and without extract-text, in short succession.
+        # Cache only needs to live between the two fetches,
+        # since we will cache the end result too for a long time.
+        CACHE_TIMEOUT = 24 * 3600
         _cache_key = 'pdf-pages-' + blob_pk + ':' + _range
         out_file = split_file.name
         content_type = 'application/pdf'

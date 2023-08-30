@@ -468,7 +468,7 @@ def _get_http_response_for_blob(request, blob, filename=None):
 
 @collection_view
 @condition_cache(last_modified_func=document_digest_last_modified,
-                 etag_func=document_digest_etag_key, max_delay=3600)
+                 etag_func=document_digest_etag_key, max_delay=300)
 def document_download(request, hash, filename):
     """View to download the `.original` Blob for the first File in a Digest's set.
 
@@ -498,7 +498,7 @@ def document_download(request, hash, filename):
 
 @collection_view
 @condition_cache(last_modified_func=document_digest_last_modified,
-                 etag_func=document_digest_etag_key, max_delay=3600)
+                 etag_func=document_digest_etag_key, max_delay=300)
 def document_ocr(request, hash, ocrname):
     """View to download the OCR result binary for a given Document and OCR source combination.
 
@@ -634,7 +634,7 @@ class TagViewSet(viewsets.ModelViewSet):
 
 @collection_view
 @condition_cache(last_modified_func=document_digest_last_modified,
-                 etag_func=document_digest_etag_key, max_delay=3600)
+                 etag_func=document_digest_etag_key, max_delay=300)
 def thumbnail(request, hash, size):
     blob = get_object_or_404(models.Thumbnail.objects, size=size, blob__pk=hash).thumbnail
     return _get_http_response_for_blob(request, blob)
@@ -642,7 +642,7 @@ def thumbnail(request, hash, size):
 
 @collection_view
 @condition_cache(last_modified_func=document_digest_last_modified,
-                 etag_func=document_digest_etag_key, max_delay=3600)
+                 etag_func=document_digest_etag_key, max_delay=300)
 def pdf_preview(request, hash):
     blob = get_object_or_404(models.PdfPreview.objects, blob__pk=hash).pdf_preview
     return _get_http_response_for_blob(request, blob)
