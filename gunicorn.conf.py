@@ -1,4 +1,7 @@
 import os
+import logging
+
+log = logging.getLogger(__name__)
 
 
 # gunicorn configuration to get stable worker id
@@ -64,3 +67,15 @@ def post_fork(server, worker):
         clear_mounts()
     except Exception as e:
         server.log.exception(e)
+
+
+# Signal handler to flush sentry before shutting off process.
+def worker_exit(server, worker):
+    if os.getenv('SENTRY_DSN'):
+        try:
+            log.warning('gworker: flushing sentry...')
+            from sentry_sdk import Hub
+            client = Hub.current.client
+            client.flush()
+        except Exception as e:
+            log.debug('gworker: could not flush sentry: %s', str(e))

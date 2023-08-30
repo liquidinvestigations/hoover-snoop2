@@ -1,12 +1,11 @@
 """Django views, mostly JSON APIs.
 """
 from functools import wraps
-from itertools import chain
 import logging
 
 from django.conf import settings
 from django.db.models import Q
-from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from ranged_response import RangedFileResponse
 from rest_framework import viewsets
@@ -19,10 +18,7 @@ from django.db.models import Max
 from . import collections, digests, models, ocr, serializers, tracing
 from .tasks import dispatch_directory_walk_tasks
 from .analyzers import html
-
-
-from snoop.data.pdf_tools import split_pdf_file, get_pdf_info, pdf_extract_text
-from snoop.data.pdf_tools import MAX_PDF_PAGES_PER_CHUNK
+from snoop.data.pdf_tools import apply_pdf_tools
 
 
 TEXT_LIMIT = 10 ** 6  # one million characters
@@ -408,75 +404,6 @@ def document(request, hash):
     return JsonResponse(trim_text(digests.get_document_data(blob, children_page)))
 
 
-def _apply_pdf_tools(request, blob):
-    """Split PDF files into parts depending on GET options"""
-    HEADER_RANGE = 'X-Hoover-PDF-Split-Page-Range'
-    HEADER_PDF_INFO = 'X-Hoover-PDF-Info'
-    HEADER_PDF_EXTRACT_TEXT = 'X-Hoover-PDF-Extract-Text'
-
-    # pass over unrelated requests
-    _get_info = request.GET.get(HEADER_PDF_INFO, '')
-    _get_range = request.GET.get(HEADER_RANGE, '')
-    _get_text = request.GET.get(HEADER_PDF_EXTRACT_TEXT, '')
-
-    if (
-        request.method != 'GET'
-        or not (
-            _get_info or _get_range or _get_text
-        )
-    ):
-        return None
-
-    if request.headers.get('Range'):
-        log.warning('PDF Tools: Reject Range query')
-        return HttpResponse('X-Hoover-PDF does not work with HTTP-Range', status=400)
-
-    def _read_chunks(path):
-        with open(path, 'rb') as f:
-            while chunk := f.read(16 * 1024):
-                yield chunk
-
-    content_type = 'application/pdf'
-    streaming_content = None
-    with blob.mount_path() as blob_path:
-        if _get_info:
-            streaming_content = get_pdf_info(blob_path)
-            content_type = 'application/json'
-        else:
-            if _get_range:
-                # parse the range to make sure it's 1-100 and not some bash injection
-                page_start, page_end = _get_range.split('-')
-                page_start, page_end = int(page_start), int(page_end)
-                assert 0 < page_start <= page_end, 'bad page interval'
-                assert 0 <= page_end - page_start <= MAX_PDF_PAGES_PER_CHUNK + 10, \
-                    'too many pages'
-                _range = f'{page_start}-{page_end}'
-                streaming_content = split_pdf_file(blob_path, _range)
-
-            if _get_text:
-                if not streaming_content:
-                    streaming_content = _read_chunks(blob_path)
-                streaming_content = pdf_extract_text(streaming_content)
-                content_type = 'application/json'
-
-        content = b''
-        for chunk in streaming_content:
-            content += chunk
-            if len(content) > MAX_CACHE_ITEM_SIZE:
-                # stream the response back
-                # This is wishful thinking because the stream that we're reading from probably died.
-                new_stream = chain([content], streaming_content)
-                response = StreamingHttpResponse(new_stream)
-                break
-        else:
-            response = HttpResponse(content, status=200)
-        response['Content-Type'] = content_type
-        response[HEADER_PDF_INFO] = _get_info
-        response[HEADER_RANGE] = _get_range
-        response[HEADER_PDF_EXTRACT_TEXT] = _get_text
-        return response
-
-
 def _make_cache_key(request, *args):
     """Make a short cache key from hashing request url, headers and `*args`."""
     from hashlib import sha1
@@ -502,7 +429,7 @@ def _get_http_response_for_blob(request, blob, filename=None):
     memory to be cached.
     """
 
-    if _pdf_tools_resp := _apply_pdf_tools(request, blob):
+    if _pdf_tools_resp := apply_pdf_tools(request, blob, MAX_CACHE_ITEM_SIZE):
         return _pdf_tools_resp
 
     def _set_headers(response, filename=None):

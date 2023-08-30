@@ -159,6 +159,10 @@ time.
 """
 
 CACHES = {
+    "pdf_pages": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "cache_snoop_pdf_pages",
+    },
     "conditional_view_etag": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "cache_snoop_conditional_view_etag",
@@ -511,9 +515,10 @@ This is needed since Django 3.2.
 # }
 # """Pellet configuration for detecting N+1 queries."""
 
+
 # if Sentry is configured, start it.
 if os.getenv('SENTRY_DSN'):
     import sentry_sdk
     SENTRY_DSN = os.getenv('SENTRY_DSN')
     SENTRY_SAMPLE_RATE = float(os.getenv('SENTRY_SAMPLE_RATE', '1.0'))
-    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=SENTRY_SAMPLE_RATE)
+    sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=SENTRY_SAMPLE_RATE, shutdown_timeout=0)

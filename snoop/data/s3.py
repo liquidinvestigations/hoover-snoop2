@@ -12,41 +12,18 @@ import logging
 import psutil
 import os
 import json
-import fcntl
-from contextlib import contextmanager
 import subprocess
 import sys
 
 from django.conf import settings
 
 from . import tracing
+from .utils import open_exclusive
 
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 tracer = tracing.Tracer(__name__)
-
-
-@contextmanager
-def open_exclusive(file_path, *args, **kwargs):
-    """Context manager that uses exclusive blocking flock
-    to ensure singular access to opened file."""
-
-    def lock_file(fd):
-        fcntl.flock(fd, fcntl.LOCK_EX)
-
-    def unlock_file(fd):
-        fcntl.flock(fd, fcntl.LOCK_UN)
-
-    f = open(file_path, *args, **kwargs)
-    lock_file(f.fileno())
-    try:
-        yield f
-    finally:
-        f.flush()
-        os.fsync(f.fileno())
-        unlock_file(f.fileno())
-        f.close()
 
 
 def clean_makedirs(path):
@@ -148,7 +125,7 @@ def _get_worker_process_index():
 def refresh_worker_index():
     global WORKER_PROCESS_INDEX
     WORKER_PROCESS_INDEX = _get_worker_process_index()
-    logger.warning(
+    logger.debug(
         'WORKER PROCESS INDEX = %s  (pid=%s  args=%s)',
         WORKER_PROCESS_INDEX,
         os.getpid(),

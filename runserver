@@ -7,24 +7,27 @@ if [[ "$DEBUG" == "true" ]]; then
 	  exec gunicorn --reload \
 	    --access-logfile '-' \
 	    --error-logfile '-' \
-	    --log-level 'info' \
+	    --log-level 'warning' \
            --worker-class $GUNICORN_WORKER_CLASS \
            --workers $GUNICORN_WORKERS \
            --threads $GUNICORN_THREADS \
            --max-requests $GUNICORN_MAX_REQUESTS \
-	    --keep-alive 60 \
-	    --timeout 600 \
+	    --keep-alive 150 \
+	    --timeout 350 \
+	    --graceful-timeout 150 \
 	 -b 0.0.0.0:8080 \
 	snoop.wsgi:application
 else
 	exec gunicorn \
 	    --error-logfile '-' \
+	    --log-level 'warning' \
            --worker-class $GUNICORN_WORKER_CLASS \
            --workers $GUNICORN_WORKERS \
            --threads $GUNICORN_THREADS \
            --max-requests $GUNICORN_MAX_REQUESTS \
-	    --keep-alive 60 \
-	  --timeout 600 \
+	    --keep-alive 150 \
+	    --timeout 350 \
+	    --graceful-timeout 150 \
 	 -b 0.0.0.0:8080 \
 	snoop.wsgi:application
 fi
