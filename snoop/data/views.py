@@ -29,6 +29,7 @@ TEXT_LIMIT = 10 ** 6  # one million characters
 tracer = tracing.Tracer(__name__)
 log = logging.getLogger(__name__)
 CACHE_VARY_ON_HEADERS = ['Range']  # don't vary by Cookie, it's fake
+CACHE_VERSION = 1
 
 DOWNLOAD_CACHE_MAX_AGE = 7 * 24 * 3600
 """cache all 'downloadable' documents on server for a week - these will never change"""
@@ -50,6 +51,7 @@ def condition_cache(
     etag_func=None, last_modified_func=None,
     max_delay=0,
     cache_content_age=DOWNLOAD_CACHE_MAX_AGE,
+    version=CACHE_VERSION,
 ):
     """
     Copypasta of `django.views.decorators.http.condition`, but augumented to
@@ -84,8 +86,8 @@ def condition_cache(
 
     def decorator(func):
         def _pre_process_request(request, *args, **kwargs):
-            key_last_modified = _make_cache_key(request, 'last-modified')
-            key_etag = _make_cache_key(request, 'etag')
+            key_last_modified = _make_cache_key(request, 'last-modified', version)
+            key_etag = _make_cache_key(request, 'etag', version)
 
             res_last_modified = None
             if last_modified_func:
@@ -125,7 +127,7 @@ def condition_cache(
                 return response, res_etag, res_last_modified
 
             # Edit: fetch response from cache
-            key_content = _make_cache_key(request, res_etag, res_last_modified)
+            key_content = _make_cache_key(request, res_etag, res_last_modified, version)
             if response := cache_content.get(key_content):
                 log.warning('CONDITION CACHE HIT: %s', key_content)
                 return response, res_etag, res_last_modified

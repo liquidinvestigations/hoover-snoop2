@@ -159,10 +159,6 @@ time.
 """
 
 CACHES = {
-    "small_download_cache": {
-        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
-        "LOCATION": "cache_snoop_small_download",
-    },
     "conditional_view_etag": {
         "BACKEND": "django.core.cache.backends.db.DatabaseCache",
         "LOCATION": "cache_snoop_conditional_view_etag",

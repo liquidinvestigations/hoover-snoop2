@@ -75,7 +75,7 @@ def get_pdf_info(path):
     script = f"qpdf --show-npages {path}"
     page_count = int(subprocess.check_output(script, shell=True).decode('ascii'))
     size_mb = round(os.stat(path).st_size / 2**20, 3)
-    DESIRED_CHUNK_MB = 30
+    DESIRED_CHUNK_MB = 10
     chunk_count = max(1, int(math.ceil(size_mb / DESIRED_CHUNK_MB)))
     pages_per_chunk = int(math.ceil((page_count + 1) / chunk_count))
     pages_per_chunk = min(pages_per_chunk, MAX_PDF_PAGES_PER_CHUNK)
