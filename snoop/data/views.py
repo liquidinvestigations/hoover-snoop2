@@ -2,6 +2,7 @@
 """
 from functools import wraps
 import logging
+import time
 
 from django.conf import settings
 from django.db.models import Q
@@ -130,8 +131,13 @@ def condition_cache(
 
             # Original: compute response (not conditional, not cached)
             if response is None:
+                t0 = time.time()
                 log.warning('CONDITION CACHE MISS: %s', key_content)
                 response = func(request, *args, **kwargs)
+                # Edit: put compute time on the request
+                dt = time.time() - t0
+                dt_ms = 1 + int(dt * 1000)
+                response['X-Hoover-Request-Handle-Duration-ms'] = str(dt_ms)
 
             # Edit: put response in cache
             if (
