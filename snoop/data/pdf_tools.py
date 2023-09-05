@@ -2,7 +2,7 @@
 (splitting into pages, fetching info, extracting text for UI Find tool)"""
 
 import math
-from tempfile import NamedTemporaryFile
+from tempfile import NamedTemporaryFile, TemporaryDirectory
 import subprocess
 import logging
 import os
@@ -20,10 +20,12 @@ def run_script(script, timeout='120s', kill='130s'):
     """Call the script and return the stdout; add 2min timeout"""
     # vandalize script so we drop very long STDERR messages from the logs
     # qpdf is sometimes very spammy with content warnings
-    script = script + ' 2> >(head -c200 >&2)'
-    cmd = ['/usr/bin/timeout', '-k', kill, timeout, '/bin/bash', '-exo', 'pipefail', '-c', script]
-    log.warning('+ %s', script)
-    return subprocess.check_output(cmd)
+    with TemporaryDirectory(prefix='pdf-tools-pwd-') as pwd:
+        script = script + ' 2> >(head -c200 >&2)'
+        script = f'cd {pwd}; ' + script
+        cmd = ['/usr/bin/timeout', '-k', kill, timeout, '/bin/bash', '-exo', 'pipefail', '-c', script]
+        log.warning('+ %s', script)
+        return subprocess.check_output(cmd, cwd=pwd)
 
 
 def get_pdf_info(path):
@@ -66,7 +68,7 @@ def split_pdf_file(path, _range, dest_path):
 
 def pdf_extract_text(infile, outfile):
     """Extract pdf text using javascript."""
-    script = f'/opt/hoover/snoop/pdf-tools/run.sh file://{infile} {outfile}'
+    script = f'/opt/hoover/snoop/pdf-tools/run.sh {infile} {outfile}'
     run_script(script)
 
 

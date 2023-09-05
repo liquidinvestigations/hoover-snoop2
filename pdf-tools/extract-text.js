@@ -32,7 +32,6 @@ const extractTextContent = async (doc) => {
             const text = textContent.items
                 .map((item) => (item.hasEOL ? `${item.str} ` : item.str))
                 .join('')
-                .toLowerCase()
             return { pageNum, text }
         })
         if (pageNum > 1) {
