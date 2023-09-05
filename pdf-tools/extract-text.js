@@ -4,14 +4,14 @@ const pdfjs = require('pdfjs-dist/build/pdf');
 
 pdfjs.disableWorker = true;
 
-INPUT_URL = process.argv[2];
+INPUT_FILE = process.argv[2];
 OUTPUT_FILE = process.argv[3];
 OUTPUT_STREAM = fs.createWriteStream(OUTPUT_FILE, {flags : 'w'});
 
 async function processPDF() {
-    // const buffer = fs.readFileSync(filePath);
-    // const loadingTask = pdfjs.getDocument({ data: buffer });
-    const loadingTask = pdfjs.getDocument({ url: INPUT_URL });
+     const buffer = fs.readFileSync(INPUT_FILE);
+     const loadingTask = pdfjs.getDocument({ data: buffer });
+     // const loadingTask = pdfjs.getDocument({ url: INPUT_FILE });
 
     loadingTask.promise.then(
         async (doc) => {
