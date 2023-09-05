@@ -21,7 +21,7 @@ def run_script(script, timeout='120s', kill='130s'):
     # vandalize script so we drop very long STDERR messages from the logs
     # qpdf is sometimes very spammy with content warnings
     with TemporaryDirectory(prefix='pdf-tools-pwd-') as pwd:
-        script = script + ' 2> >(head -c200 >&2)'
+        # script = script + ' 2> >(head -c2000 >&2)'
         script = f'cd {pwd}; ' + script
         cmd = ['/usr/bin/timeout', '-k', kill, timeout, '/bin/bash', '-exo', 'pipefail', '-c', script]
         log.warning('+ %s', script)

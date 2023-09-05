@@ -3,13 +3,13 @@ import glob
 
 data = []
 for filename in glob.glob('output-*.pdf.json'):
-    i = int(filename.split('-')[1].split('.')[0])
+    # output-3-15.pdf.json
+    i, j = map(int, filename.split('.')[0].split('-')[1:3])
     with open(filename, 'r') as f:
-        txt = json.load(f)[0]['text']
-    # remove \n to make this byte-compatible with the pdfjs implementation
-    txt = txt.replace("\n", " ")
+        chunk = json.load(f)
 
-    line = {'pageNum': i, 'text': txt}
-    data.append(line)
+    for k, item in enumerate(chunk):
+        line = {'pageNum': i + k, 'text': item['text']}
+        data.append(line)
 data = sorted(data, key=lambda line: line['pageNum'])
 print(json.dumps(data, indent=2))
