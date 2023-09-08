@@ -258,6 +258,32 @@ def collection(request):
 
 
 @collection_view
+@never_cache
+def collection_modified_at(request):
+    import datetime
+    ts_digest = models.Digest.objects.aggregate(maxval=Max('date_modified'))['maxval']
+    ts_digest = datetime.datetime.timestamp(ts_digest) if ts_digest else 0
+
+    ts_tags = models.DocumentUserTag.objects.aggregate(maxval=Max('date_modified'))['maxval']
+    ts_tags = datetime.datetime.timestamp(ts_tags) if ts_tags else 0
+
+    ts_tags_idx = models.DocumentUserTag.objects.aggregate(maxval=Max('date_indexed'))['maxval']
+    ts_tags_idx = datetime.datetime.timestamp(ts_tags_idx) if ts_tags_idx else 0
+
+    ts_now = datetime.datetime.timestamp(datetime.datetime.now())
+
+    ts_tags = max(ts_tags, ts_tags_idx)
+    ts_modified = max(ts_digest, ts_tags)
+    return JsonResponse({
+        "modified_at": ts_modified,
+        "age": ts_now - ts_modified,
+        "modified_data_at": ts_digest,
+        "modified_tags_at": ts_tags,
+    })
+
+
+@collection_view
+@never_cache
 def feed(request):
     """JSON view used to paginate through entire Digest database, sorted by last modification date.
 
@@ -600,7 +626,8 @@ class TagViewSet(viewsets.ModelViewSet):
 
     @drf_collection_view
     def get_queryset(self):
-        """Sets this TagViewSet's queryset to tags that are private to the current user, or that are public.
+        """Sets this TagViewSet's queryset to tags that are private to the current user,
+        or that are public.
         """
 
         user = self.kwargs['username']

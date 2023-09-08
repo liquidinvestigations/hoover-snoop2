@@ -15,6 +15,7 @@ tags_router.register('/?', views.TagViewSet, basename='documentusertag')
 urlpatterns = [
     path('<collection>/feed', views.feed),
     path('<collection>/json', views.collection),
+    path('<collection>/modified_at', views.collection_modified_at),
 
     path('<collection>/_directory_<int:pk>/json', views.directory),
     path('<collection>/_file_<int:pk>/json', views.file_view),

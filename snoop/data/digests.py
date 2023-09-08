@@ -666,7 +666,7 @@ def update_all_tags():
     )
     digests = tags.distinct('digest').values('digest__blob')
     tasks = models.Task.objects.filter(
-        func='digests.index',
+        func='digests.bulk_index',
         blob_arg__pk__in=Subquery(digests),
     )
     tasks = tasks.exclude(status=models.Task.STATUS_PENDING)
