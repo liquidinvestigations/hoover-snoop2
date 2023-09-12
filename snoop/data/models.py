@@ -932,6 +932,7 @@ class Digest(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['date_modified']),
+            models.Index(fields=['date_created']),
         ]
 
     def __str__(self):

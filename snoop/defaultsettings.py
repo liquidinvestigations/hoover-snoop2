@@ -46,22 +46,32 @@ Loaded from environment variable `SNOOP_HOSTNAME`, default is `*` (no restrictio
 """
 
 INSTALLED_APPS = [
+    # must be at top
     'django_admin_inline_paginator',
+
+    # https://stackoverflow.com/questions/31925458/importance-of-apps-orders-in-installed-apps
+    'snoop.common_data.apps.CommonDataConfig',
     'snoop.data.apps.AdminConfig',
     'snoop.data.apps.DataConfig',
+
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    "django.contrib.postgres",
+
+    "psqlextra",
     'rest_framework',
     'drf_yasg',
     'graphene_django'
 ]
-"""List of Django apps to load."""
+"""List of Django apps to load. First apps override later ones in templates and
+commands."""
 
 MIDDLEWARE = [
     # https://docs.djangoproject.com/en/4.2/ref/middleware/#middleware-ordering
+
     'django.middleware.security.SecurityMiddleware',
     # "django.middleware.cache.UpdateCacheMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -82,7 +92,8 @@ MIDDLEWARE = [
 
     # 'pellet.middleware.PelletMiddleware',
 ]
-"""List of Django middleware to load."""
+"""List of Django middleware to load. Request callbacks run top to bottom;
+response callbacks bottom to top."""
 
 REST_FRAMEWORK = {
     # Use Django's standard `django.contrib.auth` permissions,
@@ -450,6 +461,10 @@ celery.app.conf.beat_schedule = {
         'task': 'snoop.data.tasks.run_bulk_tasks',
         'schedule': timedelta(seconds=63),
     },
+    'sync_common_data': {
+        'task': 'snoop.data.tasks.sync_common_data',
+        'schedule': timedelta(seconds=120),
+    },
 }
 
 celery.app.conf.task_routes = {
@@ -457,9 +472,16 @@ celery.app.conf.task_routes = {
     'snoop.data.tasks.save_stats': {'queue': 'save_stats'},
     'snoop.data.tasks.update_all_tags': {'queue': 'update_all_tags'},
     'snoop.data.tasks.run_bulk_tasks': {'queue': 'run_bulk_tasks'},
+    'snoop.data.tasks.sync_common_data': {'queue': 'sync_common_data'},
 }
 
-SYSTEM_QUEUES = ['run_dispatcher', 'save_stats', 'update_all_tags', 'run_bulk_tasks']
+SYSTEM_QUEUES = [
+    'run_dispatcher',
+    'save_stats',
+    'update_all_tags',
+    'run_bulk_tasks',
+    'sync_common_data',
+]
 """List of "system queues" - celery that must be executed periodically.
 
 One execution of any of these functions will work on all collections under a `for` loop.

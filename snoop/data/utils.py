@@ -72,7 +72,7 @@ def parse_zulu(txt):
     return utc.fromutc(datetime.strptime(txt, "%Y-%m-%dT%H:%M:%S.%fZ"))
 
 
-def _flock_acquire(lock_path):
+def _flock_acquire_nb(lock_path):
     """Acquire lock file at given path.
 
     Lock is exclusive, errors return immediately instead of waiting."""
@@ -99,9 +99,9 @@ def _flock_release(fd):
 
 
 @contextmanager
-def _flock_contextmanager(lock_path):
+def _flock_contextmanager_nb(lock_path):
     """Creates context with exclusive file lock at given path."""
-    fd = _flock_acquire(lock_path)
+    fd = _flock_acquire_nb(lock_path)
     try:
         yield
     finally:
@@ -121,11 +121,19 @@ def flock(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
-            with _flock_contextmanager(lock_path):
+            our_err = True
+            with _flock_contextmanager_nb(lock_path):
+                our_err = False
                 return func(*args, **kwargs)
         except Exception as e:
-            logger.warning('function already running: %s, %s', func.__name__, str(e))
-            return
+            if our_err:
+                logger.warning(
+                    'failed to get lock (maybe already running): %s, %s',
+                    func.__name__,
+                    str(e),
+                )
+                return
+            raise
     return wrapper
 
 

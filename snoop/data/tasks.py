@@ -30,13 +30,16 @@ from functools import wraps
 
 from django.conf import settings
 from django.db import transaction, DatabaseError
+from django.db import connections
 from django.utils import timezone
+from django.db.models import Max
 import pyrabbit.api
 
 from . import tracing
 from . import collections
 from . import celery
 from . import models
+from snoop.common_data import models as common_models
 from . import indexing
 from .templatetags import pretty_size
 from .utils import run_once, flock
@@ -1658,3 +1661,130 @@ def run_bulk_tasks():
                 indexing.update_refresh_interval()
         if time() > deadline:
             break
+
+
+@celery.app.task
+@tracer.wrap_function()
+@flock
+def sync_common_data():
+    """Periodic task that moves data into the common_data
+    app tables - used for de-duplication between collections. """
+
+    if not single_task_running('sync_common_data'):
+        logger.warning('sync_common_data function already running, exiting')
+        return
+
+    all_collection_keys = list(collections.ALL.keys())
+    random.shuffle(all_collection_keys)
+    deadline = settings.SYSTEM_TASK_DEADLINE_SECONDS + time()
+    while time() < deadline:
+        for collection_name in all_collection_keys:
+            if not _sync_common_data_single_batch(collection_name):
+                all_collection_keys.remove(collection_name)
+                break
+        if not all_collection_keys:
+            break
+    else:
+        logger.warning(
+            'reached timeout %s sec',
+            time() - deadline + settings.SYSTEM_TASK_DEADLINE_SECONDS,
+        )
+
+
+@transaction.atomic
+def _sync_common_data_single_batch(COLLECTION_NAME):
+    """Run a single batch of sync, then return True if we should run another
+    one or False if we found no data."""
+
+    def lock_table(model):
+        with connections["default"].cursor() as cursor:
+            query = f'LOCK TABLE {model._meta.db_table}'
+            cursor.execute(query)
+
+    t0 = time()
+
+    # make sure this is run single-threaded, lock on dest table
+    lock_table(common_models.CollectionDocumentHit)
+
+    # benchmarks on local machine 140k rows:
+    # process ram without processing: 100MB RAM used (sleep before running any requests)
+    #    5k -- 8.2s -- 25MB ram
+    #   13k -- 7.6s -- 30MB ram   <<-- sweet spot
+    #   25k -- 7.9s -- 50MB ram
+    #   50k -- 8.0s -- 75MB ram
+    # row size (collection name + hash) is max 0.3KB, so to get 4 MB of raw data
+    BATCH_SIZE = 13000
+    collection = collections.ALL[COLLECTION_NAME]
+
+    # timestamps for max date modified
+    with collection.set_current():
+        max_src = models.Digest.objects.aggregate(
+            maxval=Max('date_created')
+        )['maxval']
+        count_src = models.Digest.objects.count()
+
+    # if no src data, exit
+    if not max_src:
+        logger.info('collection %s: no src data', COLLECTION_NAME)
+        return False
+
+    max_saved = (
+        common_models.CollectionDocumentHit.objects
+        .filter(collection_name=COLLECTION_NAME)
+        .aggregate(maxval=Max('doc_date_added'))['maxval']
+    )
+    count_saved = (
+        common_models.CollectionDocumentHit.objects
+        .filter(collection_name=COLLECTION_NAME)
+        .count()
+    )
+
+    # if no new data, exit
+    if max_saved and (max_saved >= max_src):
+        logger.info(
+            'collection %20s: no new data; time_diff=%s, diff=%s, src=%s dst=%s',
+            COLLECTION_NAME,
+            max_src - max_saved,
+            count_src - count_saved,
+            count_src,
+            count_saved,
+        )
+        return False
+
+    # select new Digests to fetch
+    with collection.set_current():
+        query_src = models.Digest.objects
+        if max_saved:
+            query_src = query_src.filter(date_created__gt=max_saved)
+        new_entries = list(
+            query_src
+            .order_by('date_created')[:BATCH_SIZE]
+            .values('blob__pk', 'date_created')
+        )
+
+    if not new_entries:
+        return False
+    logger.info('collection %s: syncing %s rows', COLLECTION_NAME, len(new_entries))
+
+    new_entries = [
+        common_models.CollectionDocumentHit(
+            collection_name=COLLECTION_NAME,
+            doc_sha3_256=entry['blob__pk'],
+            doc_date_added=entry['date_created'],
+        )
+        for entry in new_entries
+    ]
+
+    # We don't care about updating the timestamp because date_created never changes.
+    # Doing that without Django 4.1 bulk_create(update_conflict=True, ...) is very slow,
+    # because it requires selecting in bulk by key to get the ID for the bulk_update.
+    common_models.CollectionDocumentHit.objects.bulk_create(
+        new_entries,
+        ignore_conflicts=True,
+    )
+
+    dt = time() - t0
+    speed = round(len(new_entries) / dt, 1)
+    logger.debug('speed: %s doc/s', speed)
+
+    return True

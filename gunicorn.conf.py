@@ -76,6 +76,7 @@ def worker_exit(server, worker):
             log.debug('gworker: flushing sentry...')
             from sentry_sdk import Hub
             client = Hub.current.client
-            client.flush()
+            if client:
+                client.flush()
         except Exception as e:
             log.warning('gworker: could not flush sentry: %s', str(e))
