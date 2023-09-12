@@ -151,7 +151,8 @@ if not dbm:
     raise RuntimeError("Can't parse SNOOP_DB value %r" % _snoop_db)
 
 default_db = {
-    'ENGINE': 'django.db.backends.postgresql',
+    # 'ENGINE': 'django.db.backends.postgresql',
+    'ENGINE': 'psqlextra.backend',
     'HOST': dbm.group('host'),
     'PORT': dbm.group('port'),
     'NAME': dbm.group('name'),
@@ -159,6 +160,7 @@ default_db = {
     'PASSWORD': dbm.group('password'),
     'CONN_MAX_AGE': 0,
 }
+POSTGRES_EXTRA_AUTO_EXTENSION_SET_UP = False  # not using hstore
 
 DATABASES = {
     'default': default_db,

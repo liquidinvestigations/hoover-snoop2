@@ -260,7 +260,10 @@ def collection(request):
 @collection_view
 @never_cache
 def collection_modified_at(request):
+    """Return timestamp timestamp to serve in cache invalidation. Any search request cached
+    before this timestmap should be ignored."""
     import datetime
+
     ts_digest = models.Digest.objects.aggregate(maxval=Max('date_modified'))['maxval']
     ts_digest = datetime.datetime.timestamp(ts_digest) if ts_digest else 0
 
