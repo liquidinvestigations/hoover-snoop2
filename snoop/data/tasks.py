@@ -239,7 +239,7 @@ def queue_another_task(collection_name, func, *args, **kw):
     if _is_rabbitmq_memory_full():
         return
 
-    with collections.get(collection_name].set_current():
+    with collections.get(collection_name).set_current():
         db_alias = collections.current().db_alias
         queue_length = get_rabbitmq_queue_length(rmq_queue_name(func))
         if queue_length < settings.DISPATCH_MAX_QUEUE_SIZE - QUEUE_ANOTHER_TASK_BATCH_COUNT:
