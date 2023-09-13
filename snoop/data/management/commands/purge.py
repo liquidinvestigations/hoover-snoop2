@@ -43,22 +43,22 @@ class Command(BaseCommand):
                     print('  - ', item)
                 print()
 
-        print(len(collections.ALL),
+        print(len(collections.list_keys()),
               'collections in "liquid.ini": ',
-              ', '.join(collections.ALL.keys()))
+              ', '.join(collections.list_keys()))
 
         es_indexes = set(indexing.all_indices())
-        active_indexes = set(c.es_index for c in collections.ALL.values())
+        active_indexes = set(c.es_index for c in collections.get_all())
         es_to_delete = es_indexes - active_indexes
         print_items('ElasticSearch indexes', es_to_delete)
 
         dbs = set(collections.all_collection_dbs())
-        active_dbs = set(c.db_name for c in collections.ALL.values())
+        active_dbs = set(c.db_name for c in collections.get_all())
         db_to_delete = dbs - active_dbs
         print_items('Databases', db_to_delete)
 
         blob_buckets = set([b.name for b in settings.BLOBS_S3.list_buckets()])
-        active_buckets = set(c.name for c in collections.ALL.values())
+        active_buckets = set(c.name for c in collections.get_all())
         buckets_to_delete = blob_buckets - active_buckets
         print_items('Minio/S3 Buckets (blob storage)', buckets_to_delete)
 

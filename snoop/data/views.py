@@ -200,7 +200,7 @@ def collection_view(func):
     @wraps(func)
     def view(request, *args, collection, **kwargs):
         try:
-            col = collections.ALL[collection]
+            col = collections.get(collection)
         except KeyError:
             raise Http404(f"Collection {collection} does not exist")
 
@@ -224,7 +224,7 @@ def drf_collection_view(func):
     def view(self, *args, **kwargs):
         try:
             collection = self.kwargs['collection']
-            col = collections.ALL[collection]
+            col = collections.get(collection)
         except KeyError:
             raise Http404("Collection does not exist")
 

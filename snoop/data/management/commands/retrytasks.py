@@ -30,9 +30,9 @@ class Command(BaseCommand):
         tasks.import_snoop_tasks()
 
         if collection == '__ALL__':
-            all_collections = [c for c in collections.ALL.values() if c.process]
+            all_collections = [c for c in collections.get_all() if c.process]
         else:
-            all_collections = [collections.ALL[collection]]
+            all_collections = [collections.get(collection)]
 
         for col in all_collections:
             with col.set_current():

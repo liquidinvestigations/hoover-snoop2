@@ -39,9 +39,9 @@ class Command(BaseCommand):
         logging_for_management_command()
         collection = options['collection']
         if collection == '__ALL__':
-            all_collections = list(collections.ALL.values())
+            all_collections = list(collections.get_all())
         else:
-            all_collections = [collections.ALL[collection]]
+            all_collections = [collections.get(collection)]
 
         for col in all_collections:
             with col.set_current():

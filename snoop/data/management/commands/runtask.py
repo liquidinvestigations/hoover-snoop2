@@ -18,5 +18,5 @@ class Command(BaseCommand):
 
     def handle(self, *args, collection, task_pk, **options):
         logging_for_management_command()
-        col = collections.ALL[collection]
+        col = collections.get(collection)
         tasks.laterz_snoop_task(col.db_alias, task_pk, raise_exceptions=True)

@@ -45,7 +45,7 @@ def get_top_mime_types(collections_list, row_count, print_supported=True):
     """
     res = {}
     for col in collections_list:
-        collection = collections.ALL[col]
+        collection = collections.get(col)
         with collection.set_current():
             queryset_mime = models.Blob.objects.all()
             if not print_supported:
@@ -80,7 +80,7 @@ def get_top_extensions(collections_list, row_count, print_supported=True):
                     join data_blob b on f.blob_id = b.sha3_256
                     group by ext, mime
                     order by size desc limit %s;""" % (row_count)
-        with connections[collections.ALL[col].db_alias].cursor() as cursor:
+        with connections[collections.get(col).db_alias].cursor() as cursor:
             cursor.execute(query)
             results = cursor.fetchall()
 
@@ -105,7 +105,7 @@ def get_description(col, mime_type):
         mime_type: Mime-Type for which the descriptions is returned.
     """
 
-    collection = collections.ALL[col]
+    collection = collections.get(col)
     with collection.set_current():
         try:
             queryset = models.File.objects \
@@ -161,7 +161,7 @@ class Command(BaseCommand):
 
         Results are sorted by total file size usage.
         """
-        collection_list = list(collections.ALL.keys())
+        collection_list = list(collections.list_keys())
         if options['collections']:
             collection_list = options['collections']
         supported = not unsupported

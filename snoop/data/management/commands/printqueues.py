@@ -25,7 +25,7 @@ class Command(BaseCommand):
 
         tasks.import_snoop_tasks()
 
-        collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
+        collection_list = sorted(collections.get_all(), key=lambda x: x.name)
         queue_list = list(set(f.queue for f in tasks.task_map.values() if f.queue))
         random.shuffle(collection_list)
         random.shuffle(queue_list)
