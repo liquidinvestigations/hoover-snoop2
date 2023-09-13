@@ -10,7 +10,6 @@ import string
 import json
 from contextlib import contextmanager
 from pathlib import Path
-import subprocess
 import tempfile
 import logging
 
@@ -1264,43 +1263,3 @@ class PdfPreview(models.Model):
         on_delete=models.RESTRICT,
         related_name='pdf_preview_result_set'
     )
-
-
-class NextcloudCollection(models.Model, collections.Collection):
-    """Model for storing nextcloud collection metadata."""
-
-    name = models.CharField(max_length=256, unique=True)
-    opt = models.JSONField(null=True, blank=True)
-
-    @property
-    def webdav_user(self):
-        return self.opt.get('webdav_user', '')
-
-    @property
-    def webdav_password(self):
-        return self.opt.get('webdav_password', '')
-
-    @property
-    def webdav_url(self):
-        return self.opt.get('webdav_url', '')
-
-    @contextmanager
-    def mount_collection_webdav(self, col, nc_col):
-        """Mount a nextcloud collection via webdav.
-        """
-        subprocess.run(['mkdir', '-p', f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{self.name}/data'], check=True)
-        secrets_content = f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{self.name}/data {self.webdav_user} {self.webdav_password}'  # noqa E501
-        with open('/etc/davfs2/secrets', 'a') as secrets_file:
-            secrets_file.write(f'\n{secrets_content}')
-            mount_command = (
-                f'mount -t davfs http://10.66.60.1:9972{self.webdav_url} '
-                f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{self.name}/data'
-            )
-            try:
-                result = subprocess.run(mount_command, shell=True, check=True)
-                print(result.returncode, result.stdout, result.stderr)
-                print(f'Mounted collection {self.name}.')
-            except subprocess.CalledProcessError as e:
-                print(e, e.output)
-                print(f'Could not mount collection {self.name}.')
-        yield os.path.join(settings.SNOOP_WEBDAV_MOUNT_DIR, self.name, 'data')
