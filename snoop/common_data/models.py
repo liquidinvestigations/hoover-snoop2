@@ -71,7 +71,11 @@ class NextcloudCollection(models.Model, Collection):
                             f'/{self.name}/data'
                         )
                         ], check=True)
-        secrets_content = f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{self.name}/data {self.webdav_user} {self.webdav_password}'  # noqa E501
+        secrets_content = (
+            f'{settings.SNOOP_WEBDAV_MOUNT_DIR}'
+            f'/{self.name}/data'
+            f' {self.webdav_user} {self.webdav_password}'
+        )
         with open('/etc/davfs2/secrets', 'a') as secrets_file:
             secrets_file.write(f'\n{secrets_content}')
             mount_command = (
