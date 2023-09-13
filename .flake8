@@ -10,3 +10,4 @@ exclude =
 per-file-ignores =
     testsuite/*: E501, F405, F403
     snoop/data/migrations/*: E501
+    snoop/common_data/migrations/*: E501, F401
