@@ -8,4 +8,6 @@ from . import apps, views
 app_name = apps.CommonDataConfig.name
 urlpatterns = [
     path('collection-hits', views.get_collection_hits),
+    path('nextcloudcollections', views.get_nextcloud_collections),
+    path('sync_nextcloudcollections', views.sync_nextlcoud_collections),
 ]

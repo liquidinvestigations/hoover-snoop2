@@ -5,7 +5,7 @@ from django.core.management.base import BaseCommand
 
 from ... import indexing
 from ...logs import logging_for_management_command
-from ...collections import Collection
+from ... import collections
 
 
 class Command(BaseCommand):
@@ -16,6 +16,6 @@ class Command(BaseCommand):
 
     def handle(self, collection, **options):
         logging_for_management_command(options['verbosity'])
-        with Collection(collection).set_current():
+        with collections.get(collection).set_current():
             indexing.delete_index()
             indexing.create_index()

@@ -32,6 +32,7 @@ from .tasks import snoop_task, require_dependency, remove_dependency, SnoopTaskB
 from .utils import time_from_unix
 from .indexing import delete_doc
 from ._file_types import allow_processing_for_mime_type
+from snoop.common_data import models as common_models
 
 log = logging.getLogger(__name__)
 
@@ -109,6 +110,7 @@ def walk(directory_pk):
     the `transaction.on_commit` call from `queue_task()` when queueing `walk()` from this function.
     """
     directory = models.Directory.objects.get(pk=directory_pk)
+
     url_stat = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-stat'
     url_list = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-list'
     url_obj = settings.SNOOP_BROKEN_FILENAME_SERVICE + '/get-object'
@@ -122,9 +124,17 @@ def walk(directory_pk):
             collections.current().name,
             relative_path,
         ).encode('utf-8', errors='surrogateescape')
-        arg = {'path_base64': base64.b64encode(service_path_bytes).decode()}
 
-        for i, thing in enumerate(requests.post(url_list, json=arg).json()['list']):
+# root_data_path /alloc/data/snoop-s3fs-mounts/-1/hoover-testdata-ro-collections/target/data
+# dir_path: /alloc/data/snoop-s3fs-mounts/-1/hoover-testdata-ro-collections/target/data
+# relative_path: data
+# service_path: hoover-testdata/data
+
+# root_data_path /mnt/snoop-webdav-mounts/collections/testdataroot/data/data
+# dir_path: /mnt/snoop-webdav-mounts/collections/testdataroot/data/data
+# relative_path: data
+# service_path: testdataroot/data
+        for i, thing in enumerate(listdir(dir_path, service_path_bytes, url_list)):
             queue_limit = i >= settings.CHILD_QUEUE_LIMIT
             thing['name_bytes'] = base64.b64decode(thing['name_bytes'])
             thing['name'] = thing['name_bytes'].decode('utf8', errors='surrogateescape')
@@ -180,28 +190,68 @@ def walk(directory_pk):
                     finally:
                         os.unlink(temp_name)
 
-            file, created = directory.child_file_set.get_or_create(
-                name_bytes=thing['name_bytes'],
-                defaults=dict(
-                    ctime=time_from_unix(stat_ctime),
-                    mtime=time_from_unix(stat_mtime),
-                    size=stat_size,
-                    original=original,
-                    blob=original,
-                ),
-            )
-            # if file is already loaded, and size+mtime are the same,
-            # don't retry handle task
-            if created \
-                    or file.mtime != time_from_unix(stat_mtime) \
-                    or file.size != stat_size:
-                file.mtime = time_from_unix(stat_mtime)
-                file.size = stat_size
-                file.original = original
-                file.save()
-                handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
-            else:
-                handle_file.laterz(file.pk, queue_now=False)
+            create_file(thing, directory, original, stat_ctime, stat_mtime,
+                        stat_size, queue_limit)
+
+
+def listdir(dir_path, service_path_bytes, url_list):
+    """Helper function to list the contents of a directory.
+
+    If the directory is a static collection it uses the broken
+    file name service to get a list of the contents. If it
+    is a collection mounted via webdav it uses path.iterdir()
+    to get the contents.
+
+    Args:
+        dir_path: Full path of the directory as a Path object.
+        service_path_bytes: The service path (the collection name +
+        the relative path of the directory) as bytes.
+        url_list: The url of the list api of the broken filename service as string
+    """
+    if isinstance(collections.current(), common_models.NextcloudCollection):
+        for i in dir_path.iterdir():
+            yield {
+                'name': i.name,
+                'name_bytes': base64.b64encode(i.name.encode('utf-8')),
+                'is_dir': i.is_dir()
+            }
+    else:
+        arg = {'path_base64': base64.b64encode(service_path_bytes).decode()}
+        for i in requests.post(url_list, json=arg).json()['list']:
+            yield i
+
+
+def create_file(thing_to_create, directory, original, stat_ctime,
+                stat_mtime, stat_size, queue_limit):
+    """Create a file object for a file that is found while walking the filesystem.
+
+    If the file is accessed via nextcloud and webdav we get the name from the file directly,
+    if not the filename is retrieved from the brokenfilename service and passed
+    in the dictionary.
+    """
+    name_bytes = thing_to_create['name_bytes']
+    file, created = directory.child_file_set.get_or_create(
+        name_bytes=name_bytes,
+        defaults=dict(
+            ctime=time_from_unix(stat_ctime),
+            mtime=time_from_unix(stat_mtime),
+            size=stat_size,
+            original=original,
+            blob=original,
+        ),
+    )
+    # if file is already loaded, and size+mtime are the same,
+    # don't retry handle task
+    if created \
+       or file.mtime != time_from_unix(stat_mtime) \
+       or file.size != stat_size:
+        file.mtime = time_from_unix(stat_mtime)
+        file.size = stat_size
+        file.original = original
+        file.save()
+        handle_file.laterz(file.pk, retry=True, queue_now=not queue_limit)
+    else:
+        handle_file.laterz(file.pk, queue_now=False)
 
 
 @snoop_task('filesystem.handle_file', version=5, queue='filesystem')
