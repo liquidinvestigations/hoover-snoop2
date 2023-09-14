@@ -426,7 +426,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
         raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
     """
     import_snoop_tasks()
-    col = collections.ALL[col_name]
+    col = collections.get(col_name)
     if not col.process:
         logger.warning('collection %s process=False, skipping task %s', col.name, task_pk)
         return
@@ -1674,7 +1674,7 @@ def sync_common_data():
         logger.warning('sync_common_data function already running, exiting')
         return
 
-    all_collection_keys = list(collections.ALL.keys())
+    all_collection_keys = collections.list_keys()
     random.shuffle(all_collection_keys)
     deadline = settings.SYSTEM_TASK_DEADLINE_SECONDS + time()
     while time() < deadline:
@@ -1714,7 +1714,7 @@ def _sync_common_data_single_batch(COLLECTION_NAME):
     #   50k -- 8.0s -- 75MB ram
     # row size (collection name + hash) is max 0.3KB, so to get 4 MB of raw data
     BATCH_SIZE = 13000
-    collection = collections.ALL[COLLECTION_NAME]
+    collection = collections.get(COLLECTION_NAME)
 
     # timestamps for max date modified
     with collection.set_current():
