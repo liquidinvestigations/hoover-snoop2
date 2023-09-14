@@ -546,3 +546,10 @@ if os.getenv('SENTRY_DSN'):
     SENTRY_DSN = os.getenv('SENTRY_DSN')
     SENTRY_SAMPLE_RATE = float(os.getenv('SENTRY_SAMPLE_RATE', '1.0'))
     sentry_sdk.init(dsn=SENTRY_DSN, traces_sample_rate=SENTRY_SAMPLE_RATE, shutdown_timeout=0)
+
+ENABLE_DYNAMIC_COLLECTION_ADMINS = os.getenv('ENABLE_DYNAMIC_COLLECTION_ADMINS', False)
+"""Used to disable collection admins during CI build.
+We need this because otherwise the admin site will try
+to hit the database, which is not available during that stage
+of the CI build.
+"""

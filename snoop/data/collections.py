@@ -478,5 +478,5 @@ def get(key):
     return NextcloudCollection.objects.get(name=key)
 
 
-def get_all(static=False):
+def get_all(static_only=False):
     return [get(c_name) for c_name in list_keys(static=static)]
