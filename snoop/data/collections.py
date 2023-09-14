@@ -412,11 +412,7 @@ class CollectionsRouter:
     snoop_app_labels = ['data']
 
     def db_for_read(self, model, instance=None, **hints):
-        """NextcloudCollection Table needs to go into default db."""
-
         if model._meta.app_label in self.snoop_app_labels:
-            if model._meta.object_name == 'NextcloudCollection':
-                return 'default'
             if instance is None:
                 db_alias = current().db_alias
             else:
@@ -432,8 +428,6 @@ class CollectionsRouter:
         Snoop models not allowed in 'default'; other models not allowed
         in collection_* databases
         """
-        if model_name == 'nextcloudcollection':
-            return True
         if db == 'default':
             return (app_label not in self.snoop_app_labels)
         else:
