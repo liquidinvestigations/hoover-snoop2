@@ -344,8 +344,7 @@ def create_databases():
     """Go through [snoop.data.collections.list_keys()][] and create databases that don't exist yet."""
 
     dbs = all_collection_dbs()
-    for col_name in list_keys():
-        col = get(col_name)
+    for col in get_all():
         if col.db_name not in dbs:
             logger.info(f'Creating database {col.db_name}')
             with connection.cursor() as conn:
