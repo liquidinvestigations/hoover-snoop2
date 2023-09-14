@@ -463,9 +463,9 @@ for item in settings.SNOOP_COLLECTIONS:
     STATIC[col.name] = col
 
 
-def list_keys(static=False):
+def list_keys(static_only=False):
     static_keys = list(STATIC.keys())
-    if static:
+    if static_only:
         return static_keys
     from snoop.common_data.models import NextcloudCollection
     return list(static_keys + [c.name for c in NextcloudCollection.objects.all()])
@@ -479,4 +479,4 @@ def get(key):
 
 
 def get_all(static_only=False):
-    return [get(c_name) for c_name in list_keys(static=static)]
+    return [get(c_name) for c_name in list_keys(static_only=static_only)]
