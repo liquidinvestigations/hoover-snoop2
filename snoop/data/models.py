@@ -20,6 +20,10 @@ from django.db.models import JSONField
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from smart_open import open as smart_open
 
+from psqlextra.types import PostgresPartitioningMethod
+from psqlextra.models import PostgresPartitionedModel
+from psqlextra.indexes import UniqueIndex
+
 from .magic import Magic
 
 from . import collections
@@ -673,7 +677,7 @@ class Task(models.Model):
 
     blob_arg = models.ForeignKey(Blob, null=True, blank=True,
                                  on_delete=models.CASCADE,
-                                 related_name='task_arg_set')
+                                 related_name='task_arg_set_old')
     """ If the first argument is a Blob, it will be duplicated here.
 
     Used to optimize fetching tasks, as most tasks will only process one Blob as input.
@@ -692,6 +696,7 @@ class Task(models.Model):
     """
 
     # these timestamps are used for logging and debugging, not for dispatching
+    # so don't index them!
     date_created = models.DateTimeField(auto_now_add=True)
     date_modified = models.DateTimeField(auto_now=True)
 
@@ -860,14 +865,14 @@ class TaskDependency(models.Model):
     prev = models.ForeignKey(
         Task,
         on_delete=models.CASCADE,
-        related_name='next_set',
+        related_name='next_set_old',
     )
     """the task needed by another task"""
 
     next = models.ForeignKey(
         Task,
         on_delete=models.CASCADE,
-        related_name='prev_set',
+        related_name='prev_set_old',
     )
     """ the task that depends on `prev`"""
 
@@ -1263,3 +1268,290 @@ class PdfPreview(models.Model):
         on_delete=models.RESTRICT,
         related_name='pdf_preview_result_set'
     )
+
+
+class TaskPartitioned(PostgresPartitionedModel):
+    """Database model for tracking status of the processing pipeline.
+
+    Each row in this table tracks an application of a Python function to some
+    arguments. Additional arguments can also be supplied as other Tasks that
+    must run before this one.
+    """
+
+    STATUS_PENDING = 'pending'
+    """Task either wasn't run yet, or was started but not finished.
+
+    Making the difference between `pending` and `running` requires a write to happen inside our transaction,
+    so we can't tell from outside the runner anyway.
+    """
+
+    STATUS_SUCCESS = 'success'
+    """Task finished successfully."""
+
+    STATUS_ERROR = 'error'
+    """Unexpected error.
+
+    Might be termporary, might be permanent, we don't know.
+    """
+
+    STATUS_STARTED = 'started'
+    """Has been started by the worker at some point.
+
+    Used to detect when Python process was unexpectedly Killed, e.g. from OOM."""
+
+    STATUS_QUEUED = 'queued'
+    """Used for tasks that have been put on the queue."""
+
+    STATUS_DEFERRED = 'deferred'
+    """Waiting on some other task to finish."""
+
+    STATUS_BROKEN = 'broken'
+    """Permanent error.
+
+    Used to some known type of breakage, such as: encrypted archives, encrypted PDFs, or if dependencies are
+    in an ERROR state too."""
+
+    ALL_STATUS_CODES = [STATUS_PENDING, STATUS_BROKEN,
+                        STATUS_DEFERRED, STATUS_ERROR, STATUS_SUCCESS, STATUS_STARTED, STATUS_QUEUED]
+    """List of all valid status codes.
+
+    TODO:
+        We should really change these out for Enums at some point.
+    """
+
+    func = models.CharField(max_length=1024)
+    """ String key for Python function.
+
+    Supplied as argument in the decorator [snoop.data.tasks.snoop_task][].
+
+    See [snoop.data.tasks][] for general definition and [snoop.data.filesystem][],
+    [snoop.data.analyzers.__init__][] and [snoop.data.digests][] for actual Task implementations.
+    """
+
+    blob_arg = models.ForeignKey(Blob, null=True, blank=True,
+                                 on_delete=models.CASCADE,
+                                 related_name='task_arg_set')
+    """ If the first argument is a Blob, it will be duplicated here.
+
+    Used to optimize fetching tasks, as most tasks will only process one Blob as input.
+    """
+
+    args = JSONField()
+    """JSON containing arguments.
+    """
+
+    result = models.ForeignKey(Blob, null=True, blank=True,
+                               on_delete=models.RESTRICT)
+    """
+    Binary object with result of running the function.
+
+    Is set if finished successfully, and if the function actually returns a Blob value.
+    """
+
+    # these timestamps are used for logging and debugging, not for dispatching
+    # so don't index them!
+    date_created = models.DateTimeField(auto_now_add=True)
+    date_modified = models.DateTimeField(auto_now=True)
+
+    date_started = models.DateTimeField(null=True, blank=True)
+    """Moment when task started running.
+
+    This isn't saved on the object when the task actually starts, in order to limit database writes.
+    """
+
+    date_finished = models.DateTimeField(null=True, blank=True)
+    """Moment when task finished running.
+
+    Used in logic for retrying old errors and re-running sync tasks.
+    """
+
+    version = models.IntegerField(default=0)
+    """The version of the function that ran this task.
+
+    Used to re-process data when the code (version number) is changed.
+    """
+
+    fail_count = models.IntegerField(default=0)
+    """The number of times this function has failed in a row.
+
+    Used to stop retrying tasks that will never make it.
+    """
+
+    status = models.CharField(max_length=16, default=STATUS_PENDING)
+    """String token with task status; see above.
+    """
+
+    error = models.TextField(blank=True)
+    """Text with stack trace, if status is "error" or "broken".
+    """
+
+    broken_reason = models.CharField(max_length=128, default='', blank=True)
+    """Identifier with reason for this permanent failure.
+    """
+
+    log = models.TextField(blank=True)
+    """Text with first few KB of logs generated when this task was run.
+    """
+
+    class Meta:
+        """Sets up indexes for the various types of requests.
+
+        New indexes on this table tend to be quite costly to add (3-4h of
+        downtime per collection with 1M docs), but required for queries that
+        will run a lot.
+
+        Note:
+            all foreign keys and primary keys are indexed by default, so
+            there's no need to worry about those.
+        """
+        indexes = [
+            # ensure only one variant of the task exists
+            UniqueIndex(fields=['func', 'args']),
+
+            # list through each status type (all dispatch)
+            models.Index(fields=['status']),
+
+            # stats for last minute
+            models.Index(fields=['date_finished']),
+
+            # for main dispatch loop
+            models.Index(fields=['func', 'status']),
+
+            # for dispatching in reverse order
+            models.Index(fields=['status', 'date_modified']),
+
+            # for retrying all walks, in order
+            models.Index(fields=['func', 'date_modified']),
+
+            # for task admin and browsing errors
+            models.Index(fields=['broken_reason']),
+
+            # for the 5M task matrix in statistics
+            models.Index(fields=['func', 'date_started', 'date_finished']),
+
+            # for selecting outdated tasks
+            models.Index(fields=['func', 'version']),
+
+            # for selecting errors to retry
+            models.Index(fields=['status', 'fail_count']),
+        ]
+
+    class PartitioningMeta:
+        """Partition the Tasks table by func, args. This means these become part
+        of the primary key, and will be part of all foreign keys."""
+
+        method = PostgresPartitioningMethod.HASH
+        key = ["func", "args"]
+
+    def __str__(self):
+        """String representation for a Task contains its name, args and status.
+        """
+        deps = ''
+        prev_set = self.prev_set.all()
+        prev_ids = ', '.join(str(t.prev.pk) for t in prev_set)
+        deps = '; depends on ' + prev_ids if prev_ids else ''
+        the_args = str([truncatechars(str(x), 12) for x in self.args])
+        return f'Task #{self.pk} {self.func}({the_args}{deps}) [{self.status}]'
+
+    __repr__ = __str__
+
+    def update(self, status=None, error=None, broken_reason=None, log=None, version=None):
+        """Helper method to update multiple fields at once, without saving.
+
+        This method also truncates our Text fields to decent limits, so it's
+        preferred to use this instead of the fields directly.
+
+        Args:
+            status: field to set, if not None
+            error: field to set, if not None
+            broken_reason: field to set, if not None
+            log: field to set, if not None
+            version: field to set, if not None
+        """
+        def _escape(s):
+            """Escapes non-printable characters as \\XXX.
+
+            Args:
+                s: string to escape
+            """
+            def _translate(x):
+                """Turns non-printable characters into \\XXX, prerves the rest.
+
+                Args:
+                    x:
+                """
+                if x in string.printable:
+                    return x
+                return f'\\{ord(x)}'
+            return "".join(map(_translate, s))
+
+        old_version = self.version
+        if version is not None:
+            self.version = version
+
+        if status is not None:
+            self.status = status
+
+        if error is not None:
+            self.error = _escape(error)[:2**13]  # 8k of error screen
+        if broken_reason is not None:
+            self.broken_reason = _escape(broken_reason)[:2**12]  # 4k reason
+        if log is not None:
+            self.log = _escape(log)[:2**14]  # 16k of log space
+
+        # Increment fail_count only if we ran the same version and still got a bad status code.
+        # Reset the fail count only when status is success, or if the version changed.
+        if self.status == self.STATUS_SUCCESS or old_version != self.version:
+            self.fail_count = 0
+        elif self.status in [self.STATUS_BROKEN, self.STATUS_ERROR]:
+            self.fail_count = self.fail_count + 1
+
+    def size(self):
+        """Returns task size in bytes.
+        Includes blob argument size, JSON argument size, and all dependency result blob sizes, all added up.
+        """
+        s = len(json.dumps(self.args))
+        if self.blob_arg:
+            s += self.blob_arg.size
+
+        for dep in self.prev_set.all():
+            if dep.prev.result:
+                s += dep.prev.result.size
+
+        return s
+
+
+class TaskDependencyPartitioned(models.Model):
+    """Database model for tracking which Tasks depend on which.
+    """
+
+    prev = models.ForeignKey(
+        TaskPartitioned,
+        on_delete=models.CASCADE,
+        related_name='next_set',
+    )
+    """the task needed by another task"""
+
+    next = models.ForeignKey(
+        TaskPartitioned,
+        on_delete=models.CASCADE,
+        related_name='prev_set',
+    )
+    """ the task that depends on `prev`"""
+
+    name = models.CharField(max_length=1024)
+    """ a string used to identify the kwarg name of this dependency"""
+
+    class Meta:
+        unique_together = ('prev', 'next', 'name')
+        verbose_name_plural = 'task dependencies'
+
+    def __str__(self):
+        """String representation for a TaskDependency contains both task IDs
+        and an arrow.
+        """
+        return f'{self.prev} -> {self.next}'
+
+    __repr__ = __str__
+
+
