@@ -295,7 +295,7 @@ def _get_stats(old_values):
                 return pretty_size.pretty_timedelta(timedelta(seconds=value))
         return value
 
-    task_matrix = get_task_matrix(models.Task.objects, old_values.get('_old_task_matrix', {}))
+    task_matrix = get_task_matrix(models.TaskPartitioned.objects, old_values.get('_old_task_matrix', {}))
     task2 = []
     task_matrix_header = ['func']
     for row in task_matrix.values():
