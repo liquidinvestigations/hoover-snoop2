@@ -233,10 +233,10 @@ class Collection:
         """
         return self.name
 
-    def migrate(self):
+    def migrate(self, *args):
         """Run `django migrate` on this collection's database."""
 
-        management.call_command('migrate', '--database', self.db_alias)
+        management.call_command('migrate', '--database', self.db_alias, *args)
 
     @contextmanager
     def set_current(self):
@@ -333,13 +333,13 @@ def create_databases():
                 conn.execute(f'CREATE DATABASE "{col.db_name}"')
 
 
-def migrate_databases():
+def migrate_databases(*args):
     """Run database migrations for everything in [snoop.data.collections.ALL][]"""
 
     for col in ALL.values():
         try:
             logger.info(f'Migrating database {col.db_name}')
-            col.migrate()
+            col.migrate(*args)
         except Exception as e:
             logger.exception(e)
             logger.error("Failed to migrate database {col.db_name}")

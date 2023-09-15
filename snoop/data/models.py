@@ -12,11 +12,13 @@ from contextlib import contextmanager
 from pathlib import Path
 import tempfile
 import logging
+import operator
+import functools
 
 from django.db import models
 from django.conf import settings
 from django.template.defaultfilters import truncatechars
-from django.db.models import JSONField
+from django.db.models import JSONField, Q
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from smart_open import open as smart_open
 
@@ -1520,31 +1522,63 @@ class TaskPartitioned(PostgresPartitionedModel):
 
         return s
 
+    def next_set(self):
+        next_deps = TaskDependency.objects.filter(prev_func=self.func, prev_args=self.args)
+        _filter = functools.reduce(
+            operator.or_,
+            (Q(func=d.next_func, args=d.next_args) for d in next_deps)
+        )
+        return TaskPartitioned.objects.filter(_filter)
+
+    def prev_set(self):
+        prev_deps = TaskDependency.objects.filter(next_func=self.func, next_args=self.args)
+
+        _filter = functools.reduce(
+            operator.or_,
+            (Q(func=d.prev_func, args=d.prev_args) for d in prev_deps)
+        )
+        return TaskPartitioned.objects.filter(_filter)
+
 
 class TaskDependencyPartitioned(models.Model):
     """Database model for tracking which Tasks depend on which.
+    This works like a simple M2M relationship - but we have extra metadata
+    (dep. variable name).
     """
 
-    prev = models.ForeignKey(
-        TaskPartitioned,
-        on_delete=models.CASCADE,
-        related_name='next_set',
-    )
-    """the task needed by another task"""
+    prev_func = models.CharField(max_length=1024)
+    prev_args = JSONField()
+    next_func = models.CharField(max_length=1024)
+    next_args = JSONField()
 
-    next = models.ForeignKey(
-        TaskPartitioned,
-        on_delete=models.CASCADE,
-        related_name='prev_set',
-    )
-    """ the task that depends on `prev`"""
+    @property
+    def next(self):
+        return TaskPartitioned.objects.get(func=self.next_func, args=self.next_args)
+
+    @property
+    def prev(self):
+        return TaskPartitioned.objects.get(func=self.prev_func, args=self.prev_args)
+
+    # prev = models.ForeignKey(
+    #     TaskPartitioned,
+    #     on_delete=models.CASCADE,
+    #     related_name='next_set',
+    # )
+    # """the task needed by another task"""
+
+    # next = models.ForeignKey(
+    #     TaskPartitioned,
+    #     on_delete=models.CASCADE,
+    #     related_name='prev_set',
+    # )
+    # """ the task that depends on `prev`"""
 
     name = models.CharField(max_length=1024)
     """ a string used to identify the kwarg name of this dependency"""
 
     class Meta:
-        unique_together = ('prev', 'next', 'name')
-        verbose_name_plural = 'task dependencies'
+        unique_together = ('prev_func', 'next_func', 'prev_args', 'next_args', 'name')
+        verbose_name_plural = 'task dependencies_p'
 
     def __str__(self):
         """String representation for a TaskDependency contains both task IDs
@@ -1553,5 +1587,3 @@ class TaskDependencyPartitioned(models.Model):
         return f'{self.prev} -> {self.next}'
 
     __repr__ = __str__
-
-
