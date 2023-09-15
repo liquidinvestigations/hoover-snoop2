@@ -295,7 +295,7 @@ def _get_stats(old_values):
                 return pretty_size.pretty_timedelta(timedelta(seconds=value))
         return value
 
-    task_matrix = get_task_matrix(models.TaskPartitioned.objects, old_values.get('_old_task_matrix', {}))
+    task_matrix = get_task_matrix(models.Task.objects, old_values.get('_old_task_matrix', {}))
     task2 = []
     task_matrix_header = ['func']
     for row in task_matrix.values():
@@ -831,19 +831,19 @@ class BlobAdmin(MultiDBModelAdmin):
         verbose_name_plural = 'found in files as original'
         verbose_name = 'found in file as original'
 
-    class TaskArgumentInline(BaseInline):
-        model = models.Task
-        fk_name = 'blob_arg'
-        pagination_key = 'found-in-task-arg'
-        verbose_name_plural = 'found in tasks as argument'
-        verbose_name = 'found in task as argument'
+    # class TaskArgumentInline(BaseInline):
+    #     model = models.Task
+    #     fk_name = 'blob_arg'
+    #     pagination_key = 'found-in-task-arg'
+    #     verbose_name_plural = 'found in tasks as argument'
+    #     verbose_name = 'found in task as argument'
 
-    class TaskResultInline(BaseInline):
-        model = models.Task
-        fk_name = 'result'
-        pagination_key = 'found-in-task-res'
-        verbose_name_plural = 'found in tasks as result'
-        verbose_name = 'found in task as result'
+    # class TaskResultInline(BaseInline):
+    #     model = models.Task
+    #     fk_name = 'result'
+    #     pagination_key = 'found-in-task-res'
+    #     verbose_name_plural = 'found in tasks as result'
+    #     verbose_name = 'found in task as result'
 
     class DigestArgumentInline(BaseInline):
         model = models.Digest
@@ -872,7 +872,7 @@ class BlobAdmin(MultiDBModelAdmin):
     inlines = [
         BlobFileInline, OriginalFileInline,
         DigestResultInline, DigestExtraResultInline, DigestArgumentInline,
-        TaskResultInline, TaskArgumentInline,
+        # TaskResultInline, # TaskArgumentInline,
     ]
 
     def _collection_source_key(self, obj):
@@ -932,143 +932,143 @@ class BlobAdmin(MultiDBModelAdmin):
             return ''
 
 
-class TaskAdmin(MultiDBModelAdmin):
-    """List and detail views for the Tasks with Retry action.
-    """
-
-    class PrevInline(BaseInline):
-        model = models.TaskDependency
-        fk_name = 'next'
-        pagination_key = 'prev-tasks'
-        verbose_name_plural = 'prev tasks'
-        verbose_name = 'prev task'
-
-    class NextInline(BaseInline):
-        model = models.TaskDependency
-        fk_name = 'prev'
-        pagination_key = 'next-tasks'
-        verbose_name_plural = 'next tasks'
-        verbose_name = 'next task'
-
-    inlines = [PrevInline, NextInline]
-
-    raw_id_fields = ['blob_arg', 'result']
-    readonly_fields = ['_blob_arg', '_result', 'pk', 'func', 'args', 'date_created', 'date_started',
-                       'date_finished', 'date_modified', 'status', 'details', 'error', 'log',
-                       'broken_reason', 'version', 'fail_count',
-                       'duration', 'size']
-    list_display = ['pk', 'func', 'args', '_blob_arg', '_result', 'created', 'finished',
-                    'status', 'details', 'broken_reason', 'duration',
-                    'size']
-    list_filter = ['func', 'status', 'broken_reason']
-    search_fields = [
-        'pk',
-        'func',
-        'args',
-        'error',
-        'log',
-        'broken_reason',
-        'result__pk',
-        'result__sha3_256',
-        'result__sha256',
-        'result__sha1',
-        'result__md5',
-        'result__magic',
-        'result__mime_type',
-        'result__mime_encoding',
-        'blob_arg__pk',
-        'blob_arg__sha3_256',
-        'blob_arg__sha256',
-        'blob_arg__sha1',
-        'blob_arg__md5',
-        'blob_arg__magic',
-        'blob_arg__mime_type',
-        'blob_arg__mime_encoding',
-    ]
-    actions = ['retry_selected_tasks']
-
-    change_form_template = 'snoop/admin_task_change_form.html'
-
-    LINK_STYLE = {
-        'pending': 'color: gray',
-        'success': 'color: green',
-        'broken': 'color: orange',
-        'error': 'color: red',
-        'deferred': 'color: grey',
-        'started': 'color: light blue',
-    }
-
-    def change_view(self, request, object_id, form_url='', extra_context=None):
-        """Adds links to the detail page pointing to the Tasks this one depends on."""
-
-        with self.collection.set_current():
-            extra_context = extra_context or {}
-
-            if object_id:
-                obj = models.Task.objects.get(pk=object_id)
-                extra_context['task_dependency_links'] = self.dependency_links(obj)
-
-            return super().change_view(
-                request, object_id, form_url, extra_context=extra_context,
-            )
-
-    def created(self, obj):
-        return naturaltime(obj.date_created)
-
-    created.admin_order_field = 'date_created'
-
-    def finished(self, obj):
-        return naturaltime(obj.date_finished)
-
-    finished.admin_order_field = 'date_finished'
-
-    def dependency_links(self, obj):
-        def link(dep):
-            task = dep.prev
-            url = reverse(f'{self.collection.name}:data_task_change', args=[task.pk])
-            style = self.LINK_STYLE.get(task.status, 'color: purple')
-            return f'<a href="{url}" style="{style}">{dep.name}</a>'
-
-        dep_list = [link(dep) for dep in obj.prev_set.order_by('name')]
-        return mark_safe(', '.join(dep_list))
-
-    def details(self, obj):
-        pre = f'v{obj.version} '
-        if obj.fail_count:
-            pre += 'fail=' + str(obj.fail_count) + ' '
-        if obj.status == models.Task.STATUS_ERROR:
-            return pre + obj.error[:100]
-        return mark_safe(pre + self.dependency_links(obj))
-
-    def retry_selected_tasks(self, request, queryset):
-        """Action to retry selected tasks."""
-
-        tasks.retry_tasks(queryset)
-        self.message_user(request, f"requeued {queryset.count()} tasks")
-
-    def duration(self, obj):
-        if obj.date_finished:
-            return pretty_size.pretty_timedelta(obj.date_finished - obj.date_started)
-        return ''
-    duration.admin_order_field = (
-        F('date_finished') - F('date_started')
-    ).desc(nulls_last=True)
-
-    def size(self, obj):
-        return pretty_size.pretty_size(obj.size())
-    size.admin_order_field = 'blob_arg__size'
-
-    def _blob_arg(self, obj):
-        with self.collection.set_current():
-            if obj.blob_arg:
-                return blob_link(obj.blob_arg.pk)
-    _blob_arg.admin_order_field = 'blob_arg__pk'
-
-    def _result(self, obj):
-        with self.collection.set_current():
-            if obj.result:
-                return blob_link(obj.result.pk)
-    _result.admin_order_field = 'result__pk'
+# class TaskAdmin(MultiDBModelAdmin):
+#     """List and detail views for the Tasks with Retry action.
+#     """
+# 
+#     class PrevInline(BaseInline):
+#         model = models.TaskDependency
+#         fk_name = 'next'
+#         pagination_key = 'prev-tasks'
+#         verbose_name_plural = 'prev tasks'
+#         verbose_name = 'prev task'
+# 
+#     class NextInline(BaseInline):
+#         model = models.TaskDependency
+#         fk_name = 'prev'
+#         pagination_key = 'next-tasks'
+#         verbose_name_plural = 'next tasks'
+#         verbose_name = 'next task'
+# 
+#     inlines = [PrevInline, NextInline]
+# 
+#     raw_id_fields = ['blob_arg', 'result']
+#     readonly_fields = ['_blob_arg', '_result', 'pk', 'func', 'args', 'date_created', 'date_started',
+#                        'date_finished', 'date_modified', 'status', 'details', 'error', 'log',
+#                        'broken_reason', 'version', 'fail_count',
+#                        'duration', 'size']
+#     list_display = ['pk', 'func', 'args', '_blob_arg', '_result', 'created', 'finished',
+#                     'status', 'details', 'broken_reason', 'duration',
+#                     'size']
+#     list_filter = ['func', 'status', 'broken_reason']
+#     search_fields = [
+#         'pk',
+#         'func',
+#         'args',
+#         'error',
+#         'log',
+#         'broken_reason',
+#         'result__pk',
+#         'result__sha3_256',
+#         'result__sha256',
+#         'result__sha1',
+#         'result__md5',
+#         'result__magic',
+#         'result__mime_type',
+#         'result__mime_encoding',
+#         'blob_arg__pk',
+#         'blob_arg__sha3_256',
+#         'blob_arg__sha256',
+#         'blob_arg__sha1',
+#         'blob_arg__md5',
+#         'blob_arg__magic',
+#         'blob_arg__mime_type',
+#         'blob_arg__mime_encoding',
+#     ]
+#     actions = ['retry_selected_tasks']
+# 
+#     change_form_template = 'snoop/admin_task_change_form.html'
+# 
+#     LINK_STYLE = {
+#         'pending': 'color: gray',
+#         'success': 'color: green',
+#         'broken': 'color: orange',
+#         'error': 'color: red',
+#         'deferred': 'color: grey',
+#         'started': 'color: light blue',
+#     }
+# 
+#     def change_view(self, request, object_id, form_url='', extra_context=None):
+#         """Adds links to the detail page pointing to the Tasks this one depends on."""
+# 
+#         with self.collection.set_current():
+#             extra_context = extra_context or {}
+# 
+#             if object_id:
+#                 obj = models.Task.objects.get(pk=object_id)
+#                 extra_context['task_dependency_links'] = self.dependency_links(obj)
+# 
+#             return super().change_view(
+#                 request, object_id, form_url, extra_context=extra_context,
+#             )
+# 
+#     def created(self, obj):
+#         return naturaltime(obj.date_created)
+# 
+#     created.admin_order_field = 'date_created'
+# 
+#     def finished(self, obj):
+#         return naturaltime(obj.date_finished)
+# 
+#     finished.admin_order_field = 'date_finished'
+# 
+#     def dependency_links(self, obj):
+#         def link(dep):
+#             task = dep.prev
+#             url = reverse(f'{self.collection.name}:data_task_change', args=[task.pk])
+#             style = self.LINK_STYLE.get(task.status, 'color: purple')
+#             return f'<a href="{url}" style="{style}">{dep.name}</a>'
+# 
+#         dep_list = [link(dep) for dep in obj.prev_set.order_by('name')]
+#         return mark_safe(', '.join(dep_list))
+# 
+#     def details(self, obj):
+#         pre = f'v{obj.version} '
+#         if obj.fail_count:
+#             pre += 'fail=' + str(obj.fail_count) + ' '
+#         if obj.status == models.Task.STATUS_ERROR:
+#             return pre + obj.error[:100]
+#         return mark_safe(pre + self.dependency_links(obj))
+# 
+#     def retry_selected_tasks(self, request, queryset):
+#         """Action to retry selected tasks."""
+# 
+#         tasks.retry_tasks(queryset)
+#         self.message_user(request, f"requeued {queryset.count()} tasks")
+# 
+#     def duration(self, obj):
+#         if obj.date_finished:
+#             return pretty_size.pretty_timedelta(obj.date_finished - obj.date_started)
+#         return ''
+#     duration.admin_order_field = (
+#         F('date_finished') - F('date_started')
+#     ).desc(nulls_last=True)
+# 
+#     def size(self, obj):
+#         return pretty_size.pretty_size(obj.size())
+#     size.admin_order_field = 'blob_arg__size'
+# 
+#     def _blob_arg(self, obj):
+#         with self.collection.set_current():
+#             if obj.blob_arg:
+#                 return blob_link(obj.blob_arg.pk)
+#     _blob_arg.admin_order_field = 'blob_arg__pk'
+# 
+#     def _result(self, obj):
+#         with self.collection.set_current():
+#             if obj.result:
+#                 return blob_link(obj.result.pk)
+#     _result.admin_order_field = 'result__pk'
 
 
 class TaskDependencyAdmin(MultiDBModelAdmin):
@@ -1272,8 +1272,8 @@ def make_collection_admin_site(collection):
         site.register(models.Directory, DirectoryAdmin)
         site.register(models.File, FileAdmin)
         site.register(models.Blob, BlobAdmin)
-        site.register(models.Task, TaskAdmin)
-        site.register(models.TaskDependency, TaskDependencyAdmin)
+        # site.register(models.Task, TaskAdmin)
+        # site.register(models.TaskDependency, TaskDependencyAdmin)
         site.register(models.Digest, DigestAdmin)
         site.register(models.DocumentUserTag, DocumentUserTagAdmin)
         site.register(models.OcrSource, OcrSourceAdmin)

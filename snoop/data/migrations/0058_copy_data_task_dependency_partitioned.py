@@ -12,20 +12,32 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             """
+            INSERT INTO data_taskpartitioned ("id","func","args","date_created","date_modified","date_started","date_finished","result_id","error","status","blob_arg_id","broken_reason","log","fail_count","version")
+            SELECT "id","func","args","date_created","date_modified","date_started","date_finished","result_id","error","status","blob_arg_id","broken_reason","log","fail_count","version"
+            FROM data_task;
+
             INSERT INTO data_taskdependencypartitioned
                      ("id", "name", "prev_func", "prev_args", "next_func", "next_args")
             SELECT dep.id, dep.name, _prev.func, _prev.args, _next.func, _next.args
             FROM data_taskdependency dep
             JOIN data_task _prev ON _prev.id = dep.prev_id
-            JOIN data_task _next ON _next.id = dep.next_id
+            JOIN data_task _next ON _next.id = dep.next_id;
             """,
+
             """
+            INSERT INTO data_task ("id","func","args","date_created","date_modified","date_started","date_finished","result_id","error","status","blob_arg_id","broken_reason","log","fail_count","version")
+            SELECT "id","func","args","date_created","date_modified","date_started","date_finished","result_id","error","status","blob_arg_id","broken_reason","log","fail_count","version"
+            FROM data_taskpartitioned;
+            -- ON CONFLICT DO NOTHING;
+
             INSERT INTO data_taskdependency
                      ("id", "name", "prev_id", "next_id")
             SELECT dep.id, dep.name, _prev.id, _next.id
             FROM data_taskdependencypartitioned dep
             JOIN data_taskpartitioned _prev ON _prev.func = dep.prev_func AND _prev.args = dep.prev_args
-            JOIN data_taskpartitioned _next ON _next.func = dep.next_func AND _next.args = dep.next_args
+            JOIN data_taskpartitioned _next ON _next.func = dep.next_func AND _next.args = dep.next_args;
+            -- ON CONFLICT DO NOTHING;
+
             """,
         ),
     ]
