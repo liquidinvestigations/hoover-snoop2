@@ -935,23 +935,23 @@ class BlobAdmin(MultiDBModelAdmin):
 # class TaskAdmin(MultiDBModelAdmin):
 #     """List and detail views for the Tasks with Retry action.
 #     """
-# 
+#
 #     class PrevInline(BaseInline):
 #         model = models.TaskDependency
 #         fk_name = 'next'
 #         pagination_key = 'prev-tasks'
 #         verbose_name_plural = 'prev tasks'
 #         verbose_name = 'prev task'
-# 
+#
 #     class NextInline(BaseInline):
 #         model = models.TaskDependency
 #         fk_name = 'prev'
 #         pagination_key = 'next-tasks'
 #         verbose_name_plural = 'next tasks'
 #         verbose_name = 'next task'
-# 
+#
 #     inlines = [PrevInline, NextInline]
-# 
+#
 #     raw_id_fields = ['blob_arg', 'result']
 #     readonly_fields = ['_blob_arg', '_result', 'pk', 'func', 'args', 'date_created', 'date_started',
 #                        'date_finished', 'date_modified', 'status', 'details', 'error', 'log',
@@ -986,9 +986,9 @@ class BlobAdmin(MultiDBModelAdmin):
 #         'blob_arg__mime_encoding',
 #     ]
 #     actions = ['retry_selected_tasks']
-# 
+#
 #     change_form_template = 'snoop/admin_task_change_form.html'
-# 
+#
 #     LINK_STYLE = {
 #         'pending': 'color: gray',
 #         'success': 'color: green',
@@ -997,41 +997,41 @@ class BlobAdmin(MultiDBModelAdmin):
 #         'deferred': 'color: grey',
 #         'started': 'color: light blue',
 #     }
-# 
+#
 #     def change_view(self, request, object_id, form_url='', extra_context=None):
 #         """Adds links to the detail page pointing to the Tasks this one depends on."""
-# 
+#
 #         with self.collection.set_current():
 #             extra_context = extra_context or {}
-# 
+#
 #             if object_id:
 #                 obj = models.Task.objects.get(pk=object_id)
 #                 extra_context['task_dependency_links'] = self.dependency_links(obj)
-# 
+#
 #             return super().change_view(
 #                 request, object_id, form_url, extra_context=extra_context,
 #             )
-# 
+#
 #     def created(self, obj):
 #         return naturaltime(obj.date_created)
-# 
+#
 #     created.admin_order_field = 'date_created'
-# 
+#
 #     def finished(self, obj):
 #         return naturaltime(obj.date_finished)
-# 
+#
 #     finished.admin_order_field = 'date_finished'
-# 
+#
 #     def dependency_links(self, obj):
 #         def link(dep):
 #             task = dep.prev
 #             url = reverse(f'{self.collection.name}:data_task_change', args=[task.pk])
 #             style = self.LINK_STYLE.get(task.status, 'color: purple')
 #             return f'<a href="{url}" style="{style}">{dep.name}</a>'
-# 
+#
 #         dep_list = [link(dep) for dep in obj.prev_set.order_by('name')]
 #         return mark_safe(', '.join(dep_list))
-# 
+#
 #     def details(self, obj):
 #         pre = f'v{obj.version} '
 #         if obj.fail_count:
@@ -1039,13 +1039,13 @@ class BlobAdmin(MultiDBModelAdmin):
 #         if obj.status == models.Task.STATUS_ERROR:
 #             return pre + obj.error[:100]
 #         return mark_safe(pre + self.dependency_links(obj))
-# 
+#
 #     def retry_selected_tasks(self, request, queryset):
 #         """Action to retry selected tasks."""
-# 
+#
 #         tasks.retry_tasks(queryset)
 #         self.message_user(request, f"requeued {queryset.count()} tasks")
-# 
+#
 #     def duration(self, obj):
 #         if obj.date_finished:
 #             return pretty_size.pretty_timedelta(obj.date_finished - obj.date_started)
@@ -1053,17 +1053,17 @@ class BlobAdmin(MultiDBModelAdmin):
 #     duration.admin_order_field = (
 #         F('date_finished') - F('date_started')
 #     ).desc(nulls_last=True)
-# 
+#
 #     def size(self, obj):
 #         return pretty_size.pretty_size(obj.size())
 #     size.admin_order_field = 'blob_arg__size'
-# 
+#
 #     def _blob_arg(self, obj):
 #         with self.collection.set_current():
 #             if obj.blob_arg:
 #                 return blob_link(obj.blob_arg.pk)
 #     _blob_arg.admin_order_field = 'blob_arg__pk'
-# 
+#
 #     def _result(self, obj):
 #         with self.collection.set_current():
 #             if obj.result:

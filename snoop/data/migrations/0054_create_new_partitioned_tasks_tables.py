@@ -74,44 +74,44 @@ class Migration(migrations.Migration):
                 'unique_together': {('prev_func', 'next_func', 'prev_args', 'next_args', 'name')},
             },
         ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=psqlextra.indexes.unique_index.UniqueIndex(fields=['func', 'args'], name='data_taskpa_func_0609f2_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['status'], name='data_taskpa_status_ad7925_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['date_finished'], name='data_taskpa_date_fi_cee01f_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['func', 'status'], name='data_taskpa_func_2ed6ba_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['status', 'date_modified'], name='data_taskpa_status_e9181f_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['func', 'date_modified'], name='data_taskpa_func_f10cf0_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['broken_reason'], name='data_taskpa_broken__5a76f6_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['func', 'date_started', 'date_finished'], name='data_taskpa_func_b62ce4_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['func', 'version'], name='data_taskpa_func_f72a50_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='taskpartitioned',
-            index=models.Index(fields=['status', 'fail_count'], name='data_taskpa_status_e0ae3a_idx'),
-        ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=psqlextra.indexes.unique_index.UniqueIndex(fields=['func', 'args'], name='data_taskpa_func_0609f2_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['status'], name='data_taskpa_status_ad7925_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['date_finished'], name='data_taskpa_date_fi_cee01f_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['func', 'status'], name='data_taskpa_func_2ed6ba_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['status', 'date_modified'], name='data_taskpa_status_e9181f_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['func', 'date_modified'], name='data_taskpa_func_f10cf0_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['broken_reason'], name='data_taskpa_broken__5a76f6_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['func', 'date_started', 'date_finished'], name='data_taskpa_func_b62ce4_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['func', 'version'], name='data_taskpa_func_f72a50_idx'),
+        # ),
+        # migrations.AddIndex(
+        #     model_name='taskpartitioned',
+        #     index=models.Index(fields=['status', 'fail_count'], name='data_taskpa_status_e0ae3a_idx'),
+        # ),
     ]

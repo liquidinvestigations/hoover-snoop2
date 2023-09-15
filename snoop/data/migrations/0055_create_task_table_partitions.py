@@ -6,6 +6,7 @@ from psqlextra.backend.migrations.operations import PostgresAddHashPartition
 
 TASK_PARTITION_COUNT = 24
 
+
 class Migration(migrations.Migration):
 
     dependencies = [

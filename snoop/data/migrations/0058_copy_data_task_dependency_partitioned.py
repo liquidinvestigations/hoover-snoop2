@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('data', '0057_task_table_into_task_partitioned'),
+        ('data', '0055_create_task_table_partitions'),
     ]
 
     operations = [

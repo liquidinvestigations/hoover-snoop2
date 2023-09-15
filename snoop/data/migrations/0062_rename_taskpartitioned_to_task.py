@@ -15,84 +15,71 @@ class Migration(migrations.Migration):
             old_name='TaskPartitioned',
             new_name='Task',
         ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_func_0609f2_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_status_ad7925_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_date_fi_cee01f_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_func_2ed6ba_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_status_e9181f_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_func_f10cf0_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_broken__5a76f6_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_func_b62ce4_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_func_f72a50_idx',
-        # ),
-        # migrations.RemoveIndex(
-        #     model_name='task',
-        #     name='data_taskpa_status_e0ae3a_idx',
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=psqlextra.indexes.unique_index.UniqueIndex(fields=['func', 'args'], name='data_task_func_c1d523_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['status'], name='data_task_status_ab742f_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['date_finished'], name='data_task_date_fi_c937d4_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['func', 'status'], name='data_task_func_7a9361_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['status', 'date_modified'], name='data_task_status_6689af_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['func', 'date_modified'], name='data_task_func_bd935b_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['broken_reason'], name='data_task_broken__46ebc8_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['func', 'date_started', 'date_finished'], name='data_task_func_1fdea3_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['func', 'version'], name='data_task_func_0370da_idx'),
-        # ),
-        # migrations.AddIndex(
-        #     model_name='task',
-        #     index=models.Index(fields=['status', 'fail_count'], name='data_task_status_5061c8_idx'),
-        # ),
+        migrations.AddIndex(
+            model_name='task',
+            index=psqlextra.indexes.unique_index.UniqueIndex(fields=['func', 'args'], name='data_task_func_c1d523_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['status'], name='data_task_status_ab742f_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['date_finished'], name='data_task_date_fi_c937d4_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['func', 'status'], name='data_task_func_7a9361_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['status', 'date_modified'], name='data_task_status_6689af_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['func', 'date_modified'], name='data_task_func_bd935b_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['broken_reason'], name='data_task_broken__46ebc8_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['func', 'date_started', 'date_finished'], name='data_task_func_1fdea3_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['func', 'version'], name='data_task_func_0370da_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='task',
+            index=models.Index(fields=['status', 'fail_count'], name='data_task_status_5061c8_idx'),
+        ),
+
+        migrations.RunSQL(
+            """
+            ALTER TABLE data_taskdependency
+            ADD CONSTRAINT data_taskdependencypartitioned_fk_next
+            FOREIGN KEY (next_func, next_args)
+            REFERENCES data_task (func, args)
+            ON DELETE CASCADE
+            """,
+            """
+            ALTER TABLE data_taskdependency
+            DROP CONSTRAINT data_taskdependencypartitioned_fk_next
+            """,
+        ),
+        migrations.RunSQL(
+            """
+            ALTER TABLE data_taskdependency
+            ADD CONSTRAINT data_taskdependencypartitioned_fk_prev
+            FOREIGN KEY (prev_func, prev_args)
+            REFERENCES data_task (func, args)
+            ON DELETE CASCADE
+            """,
+            """
+            ALTER TABLE data_taskdependency
+            DROP CONSTRAINT data_taskdependencypartitioned_fk_prev
+            """,
+        ),
     ]
