@@ -543,6 +543,7 @@ def bulk_index(batch):
     """
 
     # list of (task, body) tuples to send to ES as a single batch request
+    log.warning('running bulk index len(batch) = %s', len(batch))
     result = {}
     doc_tasks = []
     doc_body = {}
@@ -643,6 +644,7 @@ def bulk_index(batch):
         if tags_count:
             _set_tags_timestamps(task.digest_id, body)
 
+    log.warning('finished bulk index len(batch) = %s', len(batch))
     return result
 
 

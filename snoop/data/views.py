@@ -264,6 +264,9 @@ def collection_modified_at(request):
     before this timestmap should be ignored."""
     import datetime
 
+    ts_task = models.Task.objects.aggregate(maxval=Max('date_finished'))['maxval']
+    ts_task = datetime.datetime.timestamp(ts_task) if ts_task else 0
+
     ts_digest = models.Digest.objects.aggregate(maxval=Max('date_modified'))['maxval']
     ts_digest = datetime.datetime.timestamp(ts_digest) if ts_digest else 0
 
@@ -276,12 +279,13 @@ def collection_modified_at(request):
     ts_now = datetime.datetime.timestamp(datetime.datetime.now())
 
     ts_tags = max(ts_tags, ts_tags_idx)
-    ts_modified = max(ts_digest, ts_tags)
+    ts_modified = max(ts_digest, ts_tags, ts_task)
     return JsonResponse({
         "modified_at": ts_modified,
         "age": ts_now - ts_modified,
         "modified_data_at": ts_digest,
         "modified_tags_at": ts_tags,
+        "modified_task_at": ts_task,
     })
 
 

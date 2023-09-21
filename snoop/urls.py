@@ -22,6 +22,7 @@ def redirect_to_admin(request):
 base_urlpatterns = [
     re_path(r'^_health$', views.health),
     re_path(r'^collections/', include('snoop.data.urls', namespace='data')),
+    re_path(r'^common/', include('snoop.common_data.urls', namespace='common_data')),
     path(r'drf-api-auth/', include('rest_framework.urls', namespace='rest_framework')),
 ]
 
