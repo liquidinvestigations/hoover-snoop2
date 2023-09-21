@@ -544,7 +544,8 @@ def bulk_index(batch):
 
     # list of (task, body) tuples to send to ES as a single batch request
     result = {}
-    documents_to_index = []
+    doc_tasks = []
+    doc_body = {}
     if not batch:
         return result
 
@@ -616,18 +617,28 @@ def bulk_index(batch):
 
         log.debug('Bulk Task %s uploading body with keys = %s', task, ", ".join(sorted(list(body.keys()))))
 
-        documents_to_index.append((task, body))
+        doc_tasks.append((task, body))
+        doc_body[task.blob_arg.pk] = body
 
-    if not documents_to_index:
+    if not doc_tasks:
         return result
 
-    rv = indexing.bulk_index([(task.blob_arg.pk, body) for task, body in documents_to_index])
+    rv = indexing.bulk_index([(task.blob_arg.pk, body) for task, body in doc_tasks])
     for x in rv['items']:
         blob = x['index']['_id']
         ok = 200 <= x['index']['status'] < 300
         result[blob] = ok
+        if ok:
+            log.debug('bulk index for blob=%s succeeded', blob)
+        else:
+            log.warning(
+                'bulk index failed: status=%s \nreq=%s \nresp=%s',
+                x['index']['status'],
+                doc_body[blob],
+                x,
+            )
 
-    for task, body in documents_to_index:
+    for task, body in doc_tasks:
         tags_count = Count(models.DocumentUserTag.objects.filter(digest=task.digest_id))
         if tags_count:
             _set_tags_timestamps(task.digest_id, body)
