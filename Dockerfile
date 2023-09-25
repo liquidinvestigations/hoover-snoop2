@@ -1,4 +1,5 @@
-FROM liquidinvestigations/hoover-snoop2:0.28-base
+ARG BASE_TAG=0-base
+FROM liquidinvestigations/hoover-snoop2:${BASE_TAG}
 
 ARG USER_NAME=liquid
 ARG UID=666

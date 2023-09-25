@@ -1,3 +1,6 @@
+# #########################################################
+#                       LINT TEST
+# #########################################################
 kind: pipeline
 name: static-tests
 
@@ -18,6 +21,10 @@ steps:
   - pylint snoop
 
 ---
+# #########################################################
+#                       build arm64
+# #########################################################
+
 kind: pipeline
 name: build arm64
 
@@ -46,12 +53,12 @@ steps:
   commands:
   - git fetch --tags
 
-- name: build base docker image
+- name: build base tag
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
     auto_tag: true
-    auto_tag_suffix: base
+    auto_tag_suffix: base-arm64
     dockerfile: Dockerfile.base
     username:
       from_secret: docker_username
@@ -63,11 +70,12 @@ steps:
   depends_on:
   - fetch
 
-- name: docker push branch
+- name: build base master branch
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
-    tags: ${DRONE_COMMIT_BRANCH}
+    tags: 0-base-arm64
+    dockerfile: Dockerfile.base
     username:
       from_secret: docker_username
     password:
@@ -75,8 +83,29 @@ steps:
   when:
     event:
     - push
+    - cron
+    branch:
+    - master
   depends_on:
-  - build base docker image
+  - fetch
+
+- name: docker push branch
+  image: plugins/docker
+  settings:
+    repo: liquidinvestigations/hoover-snoop2
+    tags: ${DRONE_COMMIT_BRANCH}-arm64
+    build_args:
+      BASE_TAG: 0-base-arm64
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+  when:
+    event:
+    - push
+    - cron
+  depends_on:
+  - build base master branch
   - fetch
 
 - name: docker push autotag + latest
@@ -84,15 +113,22 @@ steps:
   settings:
     repo: liquidinvestigations/hoover-snoop2
     auto_tag: true
+    auto_tag_suffix: arm64
+    build_args:
+      BASE_TAG: 0-base-arm64
     username:
       from_secret: docker_username
     password:
       from_secret: docker_password
   depends_on:
-  - build base docker image
+  - build base master branch
   - fetch
 
 ---
+# #########################################################
+#                       build x86
+# #########################################################
+
 kind: pipeline
 name: build x86
 
@@ -117,7 +153,7 @@ steps:
   commands:
   - git fetch --tags
 
-- name: build base docker image
+- name: build base tag
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
@@ -134,6 +170,25 @@ steps:
   depends_on:
   - fetch
 
+- name: build base master branch
+  image: plugins/docker
+  settings:
+    repo: liquidinvestigations/hoover-snoop2
+    tags: 0-base
+    dockerfile: Dockerfile.base
+    username:
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+  when:
+    event:
+    - push
+    - cron
+    branch:
+    - master
+  depends_on:
+  - fetch
+
 - name: docker push branch
   image: plugins/docker
   settings:
@@ -146,8 +201,9 @@ steps:
   when:
     event:
     - push
+    - cron
   depends_on:
-  - build base docker image
+  - build base master branch
   - fetch
 
 - name: docker push autotag + latest
@@ -160,10 +216,14 @@ steps:
     password:
       from_secret: docker_password
   depends_on:
-  - build base docker image
+  - build base master branch
   - fetch
 
 ---
+# #########################################################
+#                       test
+# #########################################################
+
 kind: pipeline
 name: test
 
@@ -366,7 +426,12 @@ volumes:
   temp: {}
 - name: nlp-service
   temp: {}
+
 ---
+# #########################################################
+#                       secrets
+# #########################################################
+
 kind: secret
 name: docker_username
 get:
@@ -379,6 +444,7 @@ name: docker_password
 get:
   path: liquid/ci/drone.docker
   name: password
+
 ---
 kind: secret
 name: ghcr_docker_username
