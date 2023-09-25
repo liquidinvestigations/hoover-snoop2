@@ -37,7 +37,6 @@ psycopg2-binary = '*'
 py = '*'
 pyasn1-modules = '*'
 pyasn1 = '*'
-pycld2 = '*'
 pycodestyle = '*'
 pytest-django = '==4.2.0' # later version breaks database access in tests
 pytest = '*'
