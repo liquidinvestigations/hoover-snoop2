@@ -95,7 +95,7 @@ steps:
     repo: liquidinvestigations/hoover-snoop2
     tags: ${DRONE_COMMIT_BRANCH}-arm64
     build_args:
-      BASE_TAG: 0-base-arm64
+    - BASE_TAG=0-base-arm64
     username:
       from_secret: docker_username
     password:
@@ -115,7 +115,7 @@ steps:
     auto_tag: true
     auto_tag_suffix: arm64
     build_args:
-      BASE_TAG: 0-base-arm64
+    - BASE_TAG=0-base-arm64
     username:
       from_secret: docker_username
     password:
@@ -174,7 +174,7 @@ steps:
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
-    tags: 0-base
+    tags: 0-base-x86
     dockerfile: Dockerfile.base
     username:
       from_secret: docker_username
