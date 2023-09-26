@@ -1,5 +1,6 @@
 FROM python:3.9-bookworm
 ENV PYTHONUNBUFFERED 1
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN set -e \
  && echo 'deb http://deb.debian.org/debian bullseye non-free' >> /etc/apt/sources.list \
@@ -26,6 +27,7 @@ RUN set -e \
      gpg gpg-agent \
      gosu tini \
      s3fs pdftk poppler-utils ghostscript nodejs npm qpdf \
+     davfs2 \
  && cpanm --notest Email::Outlook::Message \
  && apt-get clean && rm -rf /var/lib/apt/lists/* \
  && pip3 install --upgrade pip \
