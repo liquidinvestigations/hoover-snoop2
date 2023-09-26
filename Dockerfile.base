@@ -15,7 +15,6 @@ RUN set -e \
      build-essential \
      p7zip-full p7zip-rar \
      cpanminus \
-     poppler-utils \
      libgsf-1-dev \
      postgresql-client \
      imagemagick \
@@ -60,7 +59,7 @@ RUN wget https://github.com/liquidinvestigations/snoop-deps/raw/master/$SEVEN_Z_
 ENV PATH="/opt/7z:${PATH}"
 
 # install pdf2pdfocr
-RUN pip3 install --upgrade Pillow reportlab \
+RUN pip3 install --upgrade Pillow reportlab packaging psutil Pillow reportlab \
  && pip3 install --upgrade lxml beautifulsoup4 \
  && pip3 install --upgrade wheel \
  && pip3 install PyPDF2==1.27.12
@@ -72,9 +71,17 @@ RUN git clone https://github.com/liquidinvestigations/pdf2pdfocr --branch master
 # download others
 ADD https://github.com/liquidinvestigations/snoop-deps/raw/master/wait_v2.3.0 /wait
 RUN chmod +x /wait
+# Download & Install TINI
+ADD https://github.com/liquidinvestigations/snoop-deps/raw/master/tini_v0.19.0 /tini
+RUN chmod +x /tini
 
 # extra python libs
 RUN pip install -e 'git+https://github.com/liquidinvestigations/pycld2.git#egg=pycld2'
+
+# install PDF tools
+RUN mkdir -p /opt/hoover/snoop/pdf-tools
+ADD ./pdf-tools /opt/hoover/snoop/pdf-tools
+RUN bash /opt/hoover/snoop/pdf-tools/install.sh
 
 # install snoop libs
 RUN mkdir -p /opt/hoover/snoop
