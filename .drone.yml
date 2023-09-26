@@ -174,7 +174,7 @@ steps:
   image: plugins/docker
   settings:
     repo: liquidinvestigations/hoover-snoop2
-    tags: 0-base-x86
+    tags: 0-base
     dockerfile: Dockerfile.base
     username:
       from_secret: docker_username
@@ -221,6 +221,56 @@ steps:
 
 ---
 # #########################################################
+#                   build multiplatform
+# #########################################################
+
+kind: pipeline
+name: build multiplatform
+
+depends_on:
+- build x86
+- build arm64
+
+clone:
+  disable: true
+
+
+steps:
+- name: docker multiplatform branch
+  image: docker
+  pull: if-not-exists
+  environment:
+    IMG: "liquidinvestigations/hoover-snoop2:${DRONE_COMMIT_BRANCH}"
+    DOCKER_USERNAME:
+      from_secret: docker_username
+    DOCKER_PASSWORD:
+      from_secret: docker_password
+  commands:
+  - "docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD"
+  - "docker buildx imagetools  create --append $IMG --append $IMG-arm64 --tag  $IMG"
+  when:
+    event:
+    - push
+    - cron
+
+- name: docker multiplatform tag
+  image: docker
+  pull: if-not-exists
+  environment:
+    IMG: "liquidinvestigations/hoover-snoop2:${DRONE_TAG:1}"
+    DOCKER_USERNAME:
+      from_secret: docker_username
+    DOCKER_PASSWORD:
+      from_secret: docker_password
+  commands:
+  - "docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD"
+  - "docker buildx imagetools  create --append $IMG --append $IMG-arm64 --tag  $IMG"
+  when:
+    event:
+    - tag
+---
+
+# #########################################################
 #                       test
 # #########################################################
 
@@ -228,8 +278,7 @@ kind: pipeline
 name: test
 
 depends_on:
-- build x86
-- build arm64
+- build multiplatform
 
 concurrency:
   limit: 1
