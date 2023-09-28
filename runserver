@@ -31,4 +31,4 @@ else
 	 -b 0.0.0.0:8080 \
 	snoop.wsgi:application
 fi
-export ENABLE_COLLECTION_ADMINS="True"
+export ENABLE_DYNAMIC_COLLECTION_ADMINS="True"
