@@ -38,7 +38,7 @@ def testdata_transaction(request):
 
 @pytest.fixture(autouse=True)
 def testdata_current():
-    testdata = collections.ALL['testdata']
+    testdata = collections.get('testdata')
     with testdata.set_current():
         yield
 
@@ -131,7 +131,7 @@ class TaskManager:
 
 @pytest.fixture
 def taskmanager(monkeypatch):
-    taskmanager = TaskManager(collections.ALL['testdata'])
+    taskmanager = TaskManager(collections.get('testdata'))
     monkeypatch.setattr(tasks, 'queue_task', taskmanager.add)
     monkeypatch.setattr(tasks, 'get_rabbitmq_queue_length', lambda _: 0)
     monkeypatch.setattr(tasks, 'single_task_running', lambda _: True)

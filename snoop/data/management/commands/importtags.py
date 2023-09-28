@@ -65,7 +65,7 @@ class Command(BaseCommand):
         logging_for_management_command(options['verbosity'])
         collection_name = options.get('collection')
         try:
-            collection = collections.ALL[collection_name]
+            collection = collections.get(collection_name)
         except KeyError:
             log.info(f'Collection: "{collection_name}" does not exists.')
             log.info('Exiting!')

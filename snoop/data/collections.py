@@ -22,8 +22,10 @@ The list of collections is static and supplied through a single dict in
 [settings.SNOOP_COLLECTIONS][snoop.defaultsettings.SNOOP_COLLECTIONS]. This means a Django server restart is
 required whenever the collection count or configuration is changed.
 
-This module creates Collection instances from the setting and stores them in a global called
-[`ALL`][snoop.data.collections.ALL]. This global is usually used in management commands to select the
+This module creates Collection instances from the setting and stores them
+The Collections can be used using the [snoop.data.collections.list_keys()],
+[snoop.data.collections.get()] and [snoop.data.collections.get_all()] functions.
+Theses functions are usually used in management commands to select the
 collection requested by the user.
 """
 
@@ -44,10 +46,6 @@ from snoop.threadlocal import threadlocal
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
-ALL = {}
-"""Global dictionary storing all the collections.
-"""
 
 
 ALL_TESSERACT_LANGS = subprocess.check_output(
@@ -73,7 +71,7 @@ class Collection:
     DATA_DIR = 'data'
     GPGHOME_DIR = 'gpghome'
 
-    def __init__(self, name, process=False, sync=False, **opt):
+    def __init__(self, name, **opt):
         """Initialize object.
 
         Raises:
@@ -81,27 +79,47 @@ class Collection:
         """
 
         self.name = name
-        self.process = process
-        self.sync = sync and process
-        self.ocr_languages = opt.get('ocr_languages', [])
-        self.max_result_window = opt.get('max_result_window', 10000)
-        self.refresh_interval = opt.get('refresh_interval', "1s")
         self.opt = opt
 
-        for lang_grp in self.ocr_languages:
+    @property
+    def process(self):
+        return self.opt.get('process', False)
+
+    @property
+    def sync(self):
+        return self.opt.get('process', False) and self.opt.get('sync', False)
+
+    @property
+    def ocr_languages(self):
+        ocr_languages = self.opt.get('ocr_languages', [])
+        for lang_grp in ocr_languages:
             assert lang_grp.strip() != ''
             for lang in lang_grp.split('+'):
                 assert lang in ALL_TESSERACT_LANGS, \
                     f'language code "{lang}" is not available'
+        return ocr_languages
 
+    @property
+    def max_result_window(self):
+        return self.opt.get('max_result_window', 10000)
+
+    @property
+    def refresh_interval(self):
+        return self.opt.get('refresh_interval', "1s")
+
+    @property
+    def default_table_head_by_len(self):
         # parse default table heads: different variante
         table_headers = self.opt.get('default_table_header', '').strip()
         variant_list = [[col.strip() for col in variant.split(':')] for variant in table_headers.split(';')]
-        self.default_table_head_by_len = {
+        return {
             len(variant): variant
             for variant in variant_list
             if len(variant) > 1
         }
+
+    @property
+    def explode_table_rows(self):
         self.explode_table_rows = self.opt.get('explode_table_rows', False)
 
     @property
@@ -323,10 +341,10 @@ def drop_db(db_name):
 
 
 def create_databases():
-    """Go through [snoop.data.collections.ALL][] and create databases that don't exist yet."""
+    """Go through [snoop.data.collections.list_keys()][] and create databases that don't exist yet."""
 
     dbs = all_collection_dbs()
-    for col in ALL.values():
+    for col in get_all():
         if col.db_name not in dbs:
             logger.info(f'Creating database {col.db_name}')
             with connection.cursor() as conn:
@@ -334,9 +352,9 @@ def create_databases():
 
 
 def migrate_databases():
-    """Run database migrations for everything in [snoop.data.collections.ALL][]"""
+    """Run database migrations for everything in [snoop.data.collections.get_all()][]"""
 
-    for col in ALL.values():
+    for col in get_all():
         try:
             logger.info(f'Migrating database {col.db_name}')
             col.migrate()
@@ -347,10 +365,10 @@ def migrate_databases():
 
 
 def create_es_indexes():
-    """Create elasticsearch indexes for everything in [snoop.data.collections.ALL][]"""
+    """Create elasticsearch indexes for everything in [snoop.data.collections.get_all()][]"""
 
     from snoop.data import indexing
-    for col in ALL.values():
+    for col in get_all():
         with col.set_current():
             if not indexing.index_exists():
                 logger.info(f'Creating index {col.es_index}')
@@ -366,7 +384,7 @@ def create_roots():
 
     from .models import Directory
 
-    for col in ALL.values():
+    for col in get_all():
         with transaction.atomic(using=col.db_alias), col.set_current():
             if settings.BLOBS_S3.bucket_exists(col.name):
                 logger.info('found bucket %s', col.name)
@@ -386,6 +404,9 @@ class CollectionsRouter:
 
     Uses the current collection's `.db_alias` to decide what database to route the reads and writes to.
     """
+
+    # TODO change router so that it doesn't have to know which model goes where
+    # make a new base class for collection routed models
 
     snoop_app_labels = ['data']
 
@@ -417,7 +438,7 @@ def from_object(obj):
 
     db_alias = obj._state.db
     assert db_alias.startswith('collection_')
-    return ALL[db_alias.split('_', 1)[1]]
+    return get(db_alias.split('_', 1)[1])
 
 
 def current():
@@ -430,6 +451,31 @@ def current():
     return col
 
 
+class StaticCollection(Collection):
+    pass
+
+
+STATIC = {}
+
 for item in settings.SNOOP_COLLECTIONS:
-    col = Collection(**item)
-    ALL[col.name] = col
+    col = StaticCollection(**item)
+    STATIC[col.name] = col
+
+
+def list_keys(static_only=False):
+    static_keys = list(STATIC.keys())
+    if static_only:
+        return static_keys
+    from snoop.common_data.models import NextcloudCollection
+    return list(static_keys + [c.name for c in NextcloudCollection.objects.all()])
+
+
+def get(key):
+    from snoop.common_data.models import NextcloudCollection
+    if key in STATIC:
+        return STATIC[key]
+    return NextcloudCollection.objects.get(name=key)
+
+
+def get_all(static_only=False):
+    return [get(c_name) for c_name in list_keys(static_only=static_only)]

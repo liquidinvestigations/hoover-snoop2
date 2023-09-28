@@ -48,6 +48,6 @@ class Command(BaseCommand):
 
         mapping = json.load(sys.stdin)
 
-        for col in collections.ALL.values():
+        for col in collections.get_all():
             with col.set_current():
                 fix(col, mapping)

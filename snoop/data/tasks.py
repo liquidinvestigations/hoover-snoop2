@@ -239,7 +239,7 @@ def queue_another_task(collection_name, func, *args, **kw):
     if _is_rabbitmq_memory_full():
         return
 
-    with collections.ALL[collection_name].set_current():
+    with collections.get(collection_name).set_current():
         db_alias = collections.current().db_alias
         queue_length = get_rabbitmq_queue_length(rmq_queue_name(func))
         if queue_length < settings.DISPATCH_MAX_QUEUE_SIZE - QUEUE_ANOTHER_TASK_BATCH_COUNT:
@@ -426,7 +426,7 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
         raise_exceptions: if set, will propagate any Exceptions after Task.status is set to "error"
     """
     import_snoop_tasks()
-    col = collections.ALL[col_name]
+    col = collections.get(col_name)
     if not col.process:
         logger.warning('collection %s process=False, skipping task %s', col.name, task_pk)
         return
@@ -1179,7 +1179,7 @@ def save_stats():
         logger.warning('save_stats function already running, exiting')
         return
 
-    shuffled_col_list = list(collections.ALL.values())
+    shuffled_col_list = list(collections.get_all())
     random.shuffle(shuffled_col_list)
 
     for collection in shuffled_col_list:
@@ -1209,7 +1209,7 @@ def run_dispatcher():
         logger.warning('run_dispatcher function already running, exiting')
         return
 
-    collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
+    collection_list = sorted(collections.get_all(), key=lambda x: x.name)
     func_list = sorted(set(f.func for f in task_map.values() if f.queue))
     random.shuffle(collection_list)
     random.shuffle(func_list)
@@ -1240,7 +1240,7 @@ def update_all_tags():
         logger.warning('run_all_tags function already running, exiting')
         return
 
-    collection_list = sorted(collections.ALL.values(), key=lambda x: x.name)
+    collection_list = sorted(collections.get_all(), key=lambda x: x.name)
     random.shuffle(collection_list)
 
     deadline = time() + settings.SYSTEM_TASK_DEADLINE_SECONDS
@@ -1632,7 +1632,7 @@ def run_bulk_tasks():
         logger.warning('run_bulk_tasks function already running, exiting')
         return
 
-    all_collections = list(collections.ALL.values())
+    all_collections = list(collections.get_all())
     random.shuffle(all_collections)
     deadline = settings.SYSTEM_TASK_DEADLINE_SECONDS + time()
     for collection in all_collections:
@@ -1674,7 +1674,7 @@ def sync_common_data():
         logger.warning('sync_common_data function already running, exiting')
         return
 
-    all_collection_keys = list(collections.ALL.keys())
+    all_collection_keys = collections.list_keys()
     random.shuffle(all_collection_keys)
     deadline = settings.SYSTEM_TASK_DEADLINE_SECONDS + time()
     while time() < deadline:
@@ -1714,7 +1714,7 @@ def _sync_common_data_single_batch(COLLECTION_NAME):
     #   50k -- 8.0s -- 75MB ram
     # row size (collection name + hash) is max 0.3KB, so to get 4 MB of raw data
     BATCH_SIZE = 13000
-    collection = collections.ALL[COLLECTION_NAME]
+    collection = collections.get(COLLECTION_NAME)
 
     # timestamps for max date modified
     with collection.set_current():

@@ -19,6 +19,6 @@ class Command(BaseCommand):
                             "Files will be searched under $collections/$collection/ocr/$name.")
 
     def handle(self, collection, name, *args, **options):
-        assert collection in collections.ALL, 'collection does not exist'
-        with collections.ALL[collection].set_current():
+        assert collection in collections.get_all(), 'collection does not exist'
+        with collections.get(collection).set_current():
             ocr.create_ocr_source(name=name)
