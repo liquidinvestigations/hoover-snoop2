@@ -399,7 +399,7 @@ def _get_stats(old_values):
     }
 
 
-def get_stats(force_reset=False):
+def get_stats(force_reset=False, allow_recompute=True):
     """This function runs (and caches) expensive collection statistics."""
 
     col_name_hash = int(hash(collections.current().name))
@@ -420,13 +420,18 @@ def get_stats(force_reset=False):
 
     # ensure we don't fill up the worker with a single collection
     REFRESH_AFTER_SEC += duration * 2
-    if force_reset or not old_value or time.time() - old_value.get('_last_updated', 0) > REFRESH_AFTER_SEC:
-        s.value = _get_stats(old_value)
-    else:
-        log.info('skipping stats for collection %s, need to pass %s sec since last one',
-                 collections.current().name,
-                 REFRESH_AFTER_SEC)
-    s.save()
+    if allow_recompute or not old_value:
+        if (
+            force_reset
+            or not old_value
+            or time.time() - old_value.get('_last_updated', 0) > REFRESH_AFTER_SEC
+        ):
+            s.value = _get_stats(old_value)
+        else:
+            log.info('skipping stats for collection %s, need to pass %s sec since last one',
+                     collections.current().name,
+                     REFRESH_AFTER_SEC)
+        s.save()
     return s.value
 
 
@@ -1287,15 +1292,22 @@ def make_collection_admin_site(collection):
         return site
 
 
+DEFAULT_ADMIN_NAME = '_default'
+
+
 def get_admin_links():
     """Yields tuples with admin site name and URL from the global `sites`."""
 
     global sites
     for name in sorted(sites.keys()):
-        yield name, f'/{settings.URL_PREFIX}admin/{name}/'
+        if name == DEFAULT_ADMIN_NAME:
+            yield name, f'/{settings.URL_PREFIX}admin/{name}/', None
+        else:
+            with collections.get(name).set_current():
+                stats = get_stats(allow_recompute=False)
+            yield name, f'/{settings.URL_PREFIX}admin/{name}/stats', stats
 
 
-DEFAULT_ADMIN_NAME = '_default'
 sites = {}
 for collection in collections.get_all(static_only=not settings.ENABLE_DYNAMIC_COLLECTION_ADMINS):
     sites[collection.name] = make_collection_admin_site(collection)

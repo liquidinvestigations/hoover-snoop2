@@ -1,4 +1,5 @@
 {% extends "admin/index.html" %}
+{% load pretty_size %}
 
 {% block content %}
 
@@ -9,9 +10,16 @@
     <p>
     Navigate to other admin sites from here.
     <ol>
-    {% for name, link in collection_links %}
+    {% for name, link, stats in collection_links %}
       <li>
-        <a href={{link}}><b>{{name}}</b></a>
+        <a href={{link}}>
+          <b>{{name}}</b>
+          {% if stats %}
+            {{stats.progress_str}}, {{stats.counts.}},
+            <strong>{{ stats.counts.collection_source_size|pretty_size }}</strong> in collection,
+            <strong>{{ stats.counts.blob_total_size|pretty_size }}</strong> in blobs.
+          {% endif %}
+        </a>
       </li>
     {% endfor %}
     </ol>
