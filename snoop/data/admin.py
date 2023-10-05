@@ -439,6 +439,7 @@ class MultiDBModelAdmin(admin.ModelAdmin):
 
     allow_delete = False
     allow_change = False
+    list_per_page = 20
 
     # A handy constant for the name of the alternate database.
     def __init__(self, *args, **kwargs):
@@ -523,7 +524,7 @@ class DirectoryAdmin(MultiDBModelAdmin):
         'container_file',
         'date_modified',
         'date_created',
-        'name',
+        # 'name',  # causes error with non-utf8 filenames, use name_str
         'name_str',
     ]
     list_display = ['pk', '__str__', 'name_str', 'date_created', 'date_modified']
