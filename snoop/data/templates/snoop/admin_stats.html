@@ -41,8 +41,14 @@ stats collection time: <strong>{{ stats_collection_time }}s</strong><br>
 
 <h2>Collection Configuration</h2>
 
+<p>
+  Processing {% if processing_enabled %}
+  <b>ENABLED</b> {% else %} <b>DISABLED</b> {% endif %}
+</p>
+
 <pre>
 {{ options }}
 </pre>
+
 
 {% endblock %}

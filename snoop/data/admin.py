@@ -344,7 +344,9 @@ def _get_stats(old_values):
             eta = int(math.ceil(eta / 60) * 60)
         eta_str = ', ETA: ' + tr('eta', eta) if eta > 1 else ''
         if not collections.current().process:
-            eta_str = ''
+            eta_str = ', processing OFF'
+        elif collections.current().sync:
+            eta_str = eta_str + ', sync ON'
         for row in task_matrix.values():
             for state in row:
                 if state in models.Task.ALL_STATUS_CODES:
@@ -360,7 +362,7 @@ def _get_stats(old_values):
         error_percent = round(100.0 * count_error / count_all, 2)
         finished_percent = round(100.0 * count_finished / count_all, 2)
         error_str = ', %0.2f%% errors' % error_percent if count_error > 0 else ''
-        return '%0.1f%% processed%s%s' % (finished_percent, error_str, eta_str)
+        return '%0.1f%% done%s%s' % (finished_percent, error_str, eta_str)
 
     stored_blobs = (
         blobs
@@ -396,6 +398,7 @@ def _get_stats(old_values):
         'stats_collection_time': int(time.time() - __t0) + 1,
         '_old_task_matrix': {k: tr(k, v) for k, v in task_matrix.items()},
         'options': json.dumps(collections.current().opt, indent=2),
+        'processing_enabled': collections.current().process,
     }
 
 
@@ -417,13 +420,15 @@ def get_stats(force_reset=False, allow_recompute=True):
     s, _ = models.Statistics.objects.get_or_create(key='stats')
     old_value = s.value
     duration = old_value.get('stats_collection_time', 1) if old_value else 1
+    old_process = old_value.get('processing_enabled', False)
 
     # ensure we don't fill up the worker with a single collection
     REFRESH_AFTER_SEC += duration * 2
-    if allow_recompute or not old_value:
+    if allow_recompute or not old_value or old_process != collections.current().process:
         if (
             force_reset
             or not old_value
+            or old_process != collections.current().process
             or time.time() - old_value.get('_last_updated', 0) > REFRESH_AFTER_SEC
         ):
             s.value = _get_stats(old_value)
@@ -1260,7 +1265,6 @@ class CollectionAdminSite(SnoopAdminSite):
             context = dict(self.each_context(request))
             # stats, _ = models.Statistics.objects.get_or_create(key='stats')
             context.update(get_stats())
-            print(context)
             return render(request, 'snoop/admin_stats.html', context)
 
 
