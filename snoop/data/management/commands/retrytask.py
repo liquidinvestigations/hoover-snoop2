@@ -30,7 +30,7 @@ class Command(BaseCommand):
         """Runs [snoop.data.tasks.retry_task][] with given options."""
 
         logging_for_management_command()
-        assert collection in collections.get_all(), 'collection does not exist'
+        assert collection in collections.list_keys(), 'collection does not exist'
         import_snoop_tasks()
         with collections.get(collection).set_current():
             task = models.Task.objects.get(pk=task_pk)

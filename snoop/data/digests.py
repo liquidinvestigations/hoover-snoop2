@@ -67,16 +67,21 @@ def launch(blob):
         log.error('failed to get filename extension: %s', e)
         first_file_extension = None
     if allow_processing_for_mime_type(blob.mime_type, first_file_extension):
+        log.warning('launching processing for type: %s %s', blob.mime_type, first_file_extension)
         if blob.mime_type == 'message/rfc822':
+            log.info('launching email parse')
             depends_on['email_parse'] = email.parse.laterz(blob)
 
         if tika.can_process(blob):
+            log.info('launching tika parse')
             depends_on['tika_rmeta'] = tika.rmeta.laterz(blob)
 
         if exif.can_extract(blob):
+            log.info('launching exif parse')
             depends_on['exif_data'] = exif.extract.laterz(blob)
 
         if current_collection().pdf_preview_enabled and pdf_preview.can_create(blob):
+            log.info('launching pdf preview')
             depends_on['get_pdf_preview'] = pdf_preview.get_pdf.laterz(blob)
 
         # either process OCR on the original, or on a PDF conversion
@@ -84,6 +89,7 @@ def launch(blob):
             for lang in current_collection().ocr_languages:
                 log.info('dispatching direct OCR in language %s', lang)
                 depends_on[f'tesseract_{lang}'] = ocr.run_tesseract.laterz(blob, lang)
+                log.info(f'launching ocr tesseract_{lang} on original')
         elif depends_on.get('get_pdf_preview'):
             for lang in current_collection().ocr_languages:
                 log.info('dispatching OCR for PDF preview language %s', lang)
@@ -91,6 +97,7 @@ def launch(blob):
                     blob, lang,
                     depends_on={'target_pdf': depends_on['get_pdf_preview']},
                 )
+                log.info(f'launching ocr tesseract_{lang} on pdf-preview')
 
         if current_collection().thumbnail_generator_enabled and thumbnails.can_create(blob):
             if depends_on.get('get_pdf_preview'):
@@ -99,16 +106,22 @@ def launch(blob):
                     blob,
                     depends_on={'pdf_preview': depends_on.get('get_pdf_preview')},
                 )
+                log.info('launching thumbnail for pdf preview')
             elif thumbnails.can_create(blob):
                 depends_on['get_thumbnail'] = thumbnails.get_thumbnail.laterz(blob)
+                log.info('launching thumbnail for original')
 
         if current_collection().image_classification_object_detection_enabled \
                 and image_classification.can_detect(blob):
             depends_on['detect_objects'] = (image_classification.detect_objects.laterz(blob))
+            log.info('launching imgproct obj detection')
 
         if current_collection().image_classification_classify_images_enabled \
                 and image_classification.can_detect(blob):
             depends_on['classify_image'] = (image_classification.classify_image.laterz(blob))
+            log.info('launching imgproct classification')
+    else:
+        log.warning('skipped processing for this file type: %s %s', blob.mime_type, first_file_extension)
 
     gather_task = gather.laterz(blob, depends_on=depends_on, retry=True, delete_extra_deps=True)
 
@@ -116,6 +129,7 @@ def launch(blob):
 
     bulk_index.laterz(blob, depends_on={'digests_index': index_task, 'digests_gather': gather_task},
                       retry=True, queue_now=False)
+    log.info('digests.launch() finished')
 
 
 def can_read_text(blob):
