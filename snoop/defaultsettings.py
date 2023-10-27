@@ -377,7 +377,7 @@ UNARCHIVE_THREADS = int(os.getenv('SNOOP_UNARCHIVE_THREADS', '4'))
 """Number of threads that will be used by 7z to unarchive."""
 assert UNARCHIVE_THREADS >= 1
 
-TABLES_SPLIT_FILE_ROW_COUNT = 2000
+TABLES_SPLIT_FILE_ROW_COUNT = 20000
 """Number of rows inside each table splt.
 Limits the time spent by a single unarchive
 task to a few minutes, increasing parallelism.

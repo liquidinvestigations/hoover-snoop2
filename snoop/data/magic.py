@@ -106,8 +106,9 @@ class Magic:
         if self.magic_output.startswith('Microsoft Outlook email folder') \
                 or self.magic_output.startswith('Microsoft Outlook Personal'):
             self.mime_type = 'application/x-hoover-pst'
-        else:
-            log.warning('NOT X HOOVER PST: %s', self.magic_output)
+
+        if self.mime_type == 'application/x-ole-storage':
+            self.mime_type = "application/vnd.ms-excel"
 
 
 def looks_like_email(path):
