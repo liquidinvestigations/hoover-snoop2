@@ -251,15 +251,32 @@ class Blob(models.Model):
         """
         sha3_256 = hashlib.sha3_256()
         sha3_256.update(data)
-
+        pk = sha3_256.hexdigest()
         try:
-            b = Blob.objects.get(pk=sha3_256.hexdigest())
-            return b
+            b = Blob.objects.get(pk=pk)
 
-        except ObjectDoesNotExist:
+            # ensure the S3 object still exists by checking it
+            stat = settings.BLOBS_S3.stat_object(
+                collections.current().name,
+                blob_repo_path(pk),
+            )
+            assert stat is not None, 'empty stat'
+            return b
+        except Exception as e:
+            logger.warning('error fetching old stat -- rewriting blob: %s', str(e))
             with cls.create() as writer:
                 writer.write(data)
             return writer.blob
+
+    def stat_blobs_s3(self):
+        try:
+            return settings.BLOBS_S3.stat_object(
+                collections.current().name,
+                blob_repo_path(self.pk),
+            )
+        except Exception as e:
+            logger.warning('could not stat S3 blob: %s', str(e))
+            return None
 
     @classmethod
     def create_json(cls, data):

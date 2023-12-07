@@ -232,6 +232,7 @@ def gather(blob, **depends_on):
         # Info Gathering section
         if archives.is_table(blob):
             rv['is-table'] = True
+            log.info('getting table metadata...')
             try:
                 with blob.mount_path() as path:
                     table_info = archives.get_table_info(
@@ -252,6 +253,7 @@ def gather(blob, **depends_on):
         # extract text and meta with apache tika
         tika_rmeta_blob = depends_on.get('tika_rmeta')
         if tika_rmeta_blob:
+            log.info('getting tika metadata...')
             if isinstance(tika_rmeta_blob, SnoopTaskBroken):
                 rv['broken'].append(tika_rmeta_blob.reason)
                 log.warning("tika_rmeta task is broken; skipping")
@@ -268,6 +270,7 @@ def gather(blob, **depends_on):
         # parse email for text and headers
         email_parse_blob = depends_on.get('email_parse')
         if email_parse_blob:
+            log.info('getting email metadata...')
             if isinstance(email_parse_blob, SnoopTaskBroken):
                 rv['broken'].append(email_parse_blob.reason)
                 log.warning("email_parse task is broken; skipping")
@@ -280,9 +283,10 @@ def gather(blob, **depends_on):
         # directly from the file (limiting by indexing.MAX_TEXT_FIELD_SIZE) and ignore any files without a
         # valid encoding.
         if not rv.get('text') and can_read_text(blob):
+            log.info('backup text extraction...')
             rv['text'] = read_text(blob) or ''
 
-        # check if pdf-preview is available
+        log.info('check if pdf-preview is available...')
         rv['has-pdf-preview'] = False
         pdf_preview = depends_on.get('get_pdf_preview')
         if isinstance(pdf_preview, SnoopTaskBroken):
@@ -292,6 +296,7 @@ def gather(blob, **depends_on):
             rv['has-pdf-preview'] = True
 
         # combine OCR results, limiting string sizes to indexing.MAX_TEXT_FIELD_SIZE
+        log.info('combine ocr results...')
         ocr_results = dict(ocr.ocr_texts_for_blob(blob))
         if ocr.can_process(blob) or rv['has-pdf-preview']:
             for lang in current_collection().ocr_languages:
@@ -374,6 +379,7 @@ def gather(blob, **depends_on):
     _delete_empty_keys(rv)
 
     result_blob = models.Blob.create_json(rv)
+    log.info('got result %s', result_blob.pk)
 
     _, _ = models.Digest.objects.update_or_create(
         blob=blob,

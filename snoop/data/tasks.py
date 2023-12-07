@@ -500,6 +500,26 @@ def laterz_snoop_task(col_name, task_pk, raise_exceptions=False):
             with tracer.span('check dependencies', **_tracer_opt):
                 depends_on = {}
 
+                # if blob is in blob storage,
+                # check S3 data still there (and in correct file length)
+                if (
+                    task.blob_arg is not None
+                    and task.blob_arg.collection_source_key == b''
+                    and task.blob_arg.stat_blobs_s3() is None
+                ):
+                    logging.error('argument data not found in blob s3 - cannot run task!')
+                    task.update(
+                        status=models.Task.STATUS_BROKEN,
+                        error='',
+                        broken_reason='missing_arg_from_blobs_s3',
+                        log=handler.stream.getvalue(),
+                        version=task_map[task.func].version,
+                    )
+                    task.save()
+                    queue_next_tasks(task, reset=True)
+                    return
+
+                # check previous tasks are all there
                 all_prev_deps = list(task.prev_set.all())
                 if any(dep.prev.status == models.Task.STATUS_ERROR for dep in all_prev_deps):
                     logger.warning("%r has a dependency in the ERROR state.", task)
@@ -954,14 +974,14 @@ def retry_task(task, fg=False):
 
 
 @tracer.wrap_function()
-def retry_tasks(queryset, reset_fail_count=False, one_slice_only=False):
+def retry_tasks(queryset, reset_fail_count=False, one_slice_only=False, disable_queueing=False):
     """Efficient re-queueing of an entire QuerySet pointing to Tasks.
 
     This is using bulk_update to reset the status, logs and error messages on the table; then only queues
     the first few thousand tasks."""
 
     # relatively low number to avoid memory leak / crash
-    BATCH_SIZE = 1000
+    BATCH_SIZE = 2000
 
     logger.info('Retrying %s tasks...', queryset.count())
 
@@ -991,12 +1011,12 @@ def retry_tasks(queryset, reset_fail_count=False, one_slice_only=False):
             update_options['fail_count'] = 0
         queryset.update(**update_options)
 
-    logger.info('Queueing first %s tasks...', task_count)
-    for task in first_batch:
-        queue_task(task)
-    logger.info('Done queueing first %s tasks.', task_count)
-
-    logger.info('100% done submitting tasks.')
+    if not disable_queueing:
+        logger.info('Queueing first %s tasks...', task_count)
+        for task in first_batch:
+            queue_task(task)
+        logger.info('Done queueing first %s tasks.', task_count)
+        logger.info('100% done submitting tasks.')
 
 
 def require_dependency(name, depends_on, callback, return_error=False):

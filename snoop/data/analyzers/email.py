@@ -162,7 +162,7 @@ def dump_part(message, depends_on):
         else:
             log.warning('tika HTML for Email Text failed!')
         # Sometimes, even Tika leaves in some HTML tags...
-        if rv['text']:
+        if rv.get('text'):
             try:
                 rv['text'] = html.clean_str(rv['text'])
             except Exception as e:

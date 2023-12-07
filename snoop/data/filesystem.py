@@ -235,9 +235,15 @@ def handle_file(file_pk, **depends_on):
     file.blob = file.original
 
     # update mime type / magic information
-    file.blob.update_magic()
+    file.original.update_magic()
     if file.blob != file.original:
-        file.original.update_magic()
+        try:
+            file.blob.update_magic()
+        except Exception as e:
+            log.warning('cannot compute file magic from blob S3; %s', str(e))
+            log.warning('resetting it to original %s', file.original.pk)
+            file.blob = file.original
+            file.save()
 
     extension = pathlib.Path(file.name).suffix.lower()
     if allow_processing_for_mime_type(file.original.mime_type, extension):

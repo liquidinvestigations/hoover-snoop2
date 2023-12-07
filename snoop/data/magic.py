@@ -49,7 +49,7 @@ def _parse_mime(output):
         mime_encoding = m.group('mime_encoding')
         return mime_type, mime_encoding
     else:
-        return ''
+        return '', ''
 
 
 def _parse_magic(output):

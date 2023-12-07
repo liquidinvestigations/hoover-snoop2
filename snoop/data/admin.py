@@ -102,6 +102,17 @@ ERROR_STATS_QUERY = (
     "ORDER BY count DESC;"
 )
 
+BROKEN_STATS_QUERY = (
+    "SELECT "
+    "    func, "
+    "    broken_reason AS error_type, "
+    "    COUNT(*) "
+    "FROM data_task "
+    "WHERE status = 'broken' "
+    "GROUP BY func, broken_reason "
+    "ORDER BY count DESC;"
+)
+
 
 def get_task_matrix(task_queryset, prev_matrix={}):
     """Runs expensive database aggregation queries to fetch the Task matrix.
@@ -321,7 +332,14 @@ def _get_stats(old_values):
             for row in cursor.fetchall():
                 yield {
                     'func': row[0],
-                    'error_type': row[1],
+                    'error_type': '(E) ' + row[1],
+                    'count': row[2],
+                }
+            cursor.execute(BROKEN_STATS_QUERY)
+            for row in cursor.fetchall():
+                yield {
+                    'func': row[0],
+                    'error_type': '(B) ' + row[1],
                     'count': row[2],
                 }
 
@@ -816,14 +834,14 @@ class BlobAdmin(MultiDBModelAdmin):
     """List and detail views for the blobs."""
 
     list_display = ['__str__', 'mime_type', 'mime_encoding', 'created',
-                    'storage', 'size',
+                    'storage', 'size', 'blob_stat_s3_size',
                     ]
     list_filter = ['mime_type']
     search_fields = ['sha3_256', 'sha256', 'sha1', 'md5',
                      'magic', 'mime_type', 'mime_encoding',
                      'collection_source_key']
     readonly_fields = ['sha3_256', 'sha256', 'sha1', 'md5', 'created',
-                       'size', 'magic', 'mime_type', 'mime_encoding',
+                       'size', 'blob_stat_s3_size', 'magic', 'mime_type', 'mime_encoding',
                        '_collection_source_key']
 
     change_form_template = 'snoop/admin_blob_change_form.html'
@@ -922,6 +940,15 @@ class BlobAdmin(MultiDBModelAdmin):
     def size(self, obj):
         return obj.size
     size.admin_order_field = 'size'
+
+    def blob_stat_s3_size(self, obj):
+        with self.collection.set_current():
+            if obj.collection_source_key:
+                return 'from source'
+            stat = obj.stat_blobs_s3()
+            if stat is None:
+                return 'ERROR - not found'
+            return stat.size
 
     def get_preview_content(self, blob):
         """Returns string with text for Blobs that are JSON or text.

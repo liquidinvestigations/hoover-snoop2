@@ -11,3 +11,5 @@ per-file-ignores =
     testsuite/*: E501, F405, F403
     snoop/data/migrations/*: E501
     snoop/common_data/migrations/*: E501, F401
+    snoop/data/management/commands/*: E501, E302, E306, E126, E131, E502
+    snoop/data/utils/*: E501, E302, E306, E126, E131, E502, E401, E128, E261, E711
