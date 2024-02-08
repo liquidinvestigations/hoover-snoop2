@@ -46,9 +46,12 @@ stats collection time: <strong>{{ stats_collection_time }}s</strong><br>
   <b>ENABLED</b> {% else %} <b>DISABLED</b> {% endif %}
 </p>
 
-<pre>
-{{ options }}
-</pre>
+<h3>Options</h2>
+  <ul>
+{% for key, value in options.items %}
+    <li><b>{{ key }}</b>: {{ value }} </li>
+    {% endfor %}
+</ul>
 
 
 {% endblock %}

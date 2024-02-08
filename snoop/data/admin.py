@@ -395,6 +395,24 @@ def _get_stats(old_values):
     def __get_size(q):
         return q.aggregate(Sum('size'))['size__sum']
 
+    def get_filtered_options():
+        KEYS_TO_FILTER = [
+            'webdav_url',
+            'webdav_password',
+            'webdav_username',
+            's3_blobs_access_key',
+            's3_blobs_access_key',
+            's3_blobs_address',
+        ]
+        filtered = {}
+        for key, value in collections.current().opt.items():
+            if key in KEYS_TO_FILTER:
+                # censor sensitive fields
+                filtered[key] = '*' * len(value)
+            else:
+                filtered[key] = value
+        return filtered
+
     return {
         'task_matrix_header': task_matrix_header,
         'task_matrix': sorted(task2),
@@ -415,7 +433,7 @@ def _get_stats(old_values):
         '_last_updated': time.time(),
         'stats_collection_time': int(time.time() - __t0) + 1,
         '_old_task_matrix': {k: tr(k, v) for k, v in task_matrix.items()},
-        'options': json.dumps(collections.current().opt, indent=2),
+        'options': get_filtered_options(),
         'processing_enabled': collections.current().process,
     }
 
