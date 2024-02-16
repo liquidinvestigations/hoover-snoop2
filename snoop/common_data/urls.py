@@ -10,4 +10,5 @@ urlpatterns = [
     path('collection-hits', views.get_collection_hits),
     path('nextcloudcollections', views.get_nextcloud_collections),
     path('sync_nextcloudcollections', views.sync_nextlcoud_collections),
+    path('validate_new_collection_name', views.validate_new_collection_name)
 ]

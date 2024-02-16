@@ -1,11 +1,13 @@
 """Views for the common data."""
 import json
 import logging
+from django.conf import settings
 from django.http import JsonResponse, HttpResponse
 from django.views.decorators.cache import never_cache
 
 from . import models
 from snoop.data import collections
+from snoop.data.indexing import all_indices
 from collections import defaultdict
 
 logger = logging.getLogger(__name__)
@@ -77,3 +79,22 @@ def sync_nextlcoud_collections(request):
             collections.create_roots()
             logger.info(f'Created roots for: {col_name}.')
         return HttpResponse(status=200)
+
+
+def validate_new_collection_name(request):
+    """View that checks if a new nextcloud collection name collides with existing data.
+    """
+    if request.method == 'POST':
+        name = json.loads(request.body).get('name')
+        elastic_indices = set(all_indices())
+        databases = set(collections.all_collection_dbs())
+        blob_buckets = set([b.name for b in settings.BLOBS_S3.list_buckets()])
+        names = elastic_indices | databases | blob_buckets
+        if name not in names:
+            return JsonResponse({
+                'valid': True,
+            })
+        else:
+            return JsonResponse({
+                'valid': False,
+            })
