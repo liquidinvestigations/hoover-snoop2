@@ -296,6 +296,9 @@ SNOOP_PDF_PREVIEW_URL = os.environ.get('SNOOP_PDF_PREVIEW_URL')
 SNOOP_IMAGE_CLASSIFICATION_URL = os.environ.get('SNOOP_IMAGE_CLASSIFICATION_URL')
 SNOOP_OBJECT_DETECTION_URL = os.environ.get('SNOOP_OBJECT_DETECTION_URL')
 
+HOOVER_SEARCH_URL = os.environ.get('HOOVER_SEARCH_URL')
+"""Hoover Search API URL."""
+
 SNOOP_FEED_PAGE_SIZE = 100
 """Pagination size for the /feed URLs.
 
@@ -467,6 +470,10 @@ celery.app.conf.beat_schedule = {
         'task': 'snoop.data.tasks.sync_common_data',
         'schedule': timedelta(seconds=120),
     },
+    'sync_nextcloud_collections': {
+        'task': 'snoop.data.tasks.sync_nextcloud_collections',
+        'schedule': timedelta(seconds=63),
+    },
 }
 
 celery.app.conf.task_routes = {
@@ -475,7 +482,9 @@ celery.app.conf.task_routes = {
     'snoop.data.tasks.update_all_tags': {'queue': 'update_all_tags'},
     'snoop.data.tasks.run_bulk_tasks': {'queue': 'run_bulk_tasks'},
     'snoop.data.tasks.sync_common_data': {'queue': 'sync_common_data'},
+    'snoop.data.tasks.sync_nextcloud_collections': {'queue': 'sync_nextcloud_collections'},
 }
+
 
 SYSTEM_QUEUES = [
     'run_dispatcher',
@@ -483,6 +492,7 @@ SYSTEM_QUEUES = [
     'update_all_tags',
     'run_bulk_tasks',
     'sync_common_data',
+    'sync_nextcloud_collections'
 ]
 """List of "system queues" - celery that must be executed periodically.
 
@@ -553,3 +563,6 @@ We need this because otherwise the admin site will try
 to hit the database, which is not available during that stage
 of the CI build.
 """
+
+SNOOP_NEXTCLOUD_URL = os.getenv('SNOOP_NEXTCLOUD_URL')
+"""URL of the Nextcloud instance."""

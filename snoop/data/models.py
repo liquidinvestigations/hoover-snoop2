@@ -18,7 +18,8 @@ from django.conf import settings
 from django.template.defaultfilters import truncatechars
 from django.db.models import JSONField
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from smart_open import open as smart_open
+# workaround for s3 bucket not found error
+# from smart_open import open as smart_open
 
 from .magic import Magic
 
@@ -386,30 +387,32 @@ class Blob(models.Model):
         In that case, just use the `mount_path` contextmanager to get a POSIX filesystem path.
         """
         # if (need_seek and need_fileno):
-        if (need_fileno):
-            with self.mount_path() as blob_path:
-                yield open(blob_path, mode='rb')
-                return
-
-        if self.collection_source_key:
-            bucket = collections.current().name
-            key = self.collection_source_key.tobytes().decode('utf-8', errors='surrogateescape')
-            smart_transport_params = settings.SNOOP_COLLECTIONS_SMART_OPEN_TRANSPORT_PARAMS
-            minio_client = settings.COLLECTIONS_S3
-        else:
-            bucket = collections.current().name
-            key = blob_repo_path(self.pk)
-            smart_transport_params = settings.SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS
-            minio_client = settings.BLOBS_S3
-
-        if need_seek:
-            url = f's3u://{bucket}/{key}'
-            yield smart_open(
-                url,
-                transport_params=smart_transport_params,
-                mode='rb',
-            )
+        # workaround fix for s3 bucket doesn't exist error?
+        # if (need_fileno):
+        with self.mount_path() as blob_path:
+            yield open(blob_path, mode='rb')
             return
+
+        # possible s3 bucket not found error fix
+        # if self.collection_source_key:
+        #     bucket = collections.current().name
+        #     key = self.collection_source_key.tobytes().decode('utf-8', errors='surrogateescape')
+        #     smart_transport_params = settings.SNOOP_COLLECTIONS_SMART_OPEN_TRANSPORT_PARAMS
+        #     minio_client = settings.COLLECTIONS_S3
+        # else:
+        #     bucket = collections.current().name
+        #     key = blob_repo_path(self.pk)
+        #     smart_transport_params = settings.SNOOP_BLOBS_SMART_OPEN_TRANSPORT_PARAMS
+        #     minio_client = settings.BLOBS_S3
+
+        # if need_seek:
+        #     url = f's3u://{bucket}/{key}'
+        #     yield smart_open(
+        #         url,
+        #         transport_params=smart_transport_params,
+        #         mode='rb',
+        #     )
+        #     return
 
         # This works on subprocess calls, **but** if the process fails, they hang forever.
         # TODO We need to find an alternative to this, that works good when the process fails.
@@ -435,15 +438,17 @@ class Blob(models.Model):
         #                     r.release_conn()
         #                 logger.info('child process: exit')
         #                 os._exit(0)
-        else:
-            r = None
-            try:
-                r = minio_client.get_object(bucket, key)
-                yield r
-            finally:
-                if r:
-                    r.close()
-                    r.release_conn()
+
+        # possible s3 bucket not found error fix
+        # else:
+        #     r = None
+        #     try:
+        #         r = minio_client.get_object(bucket, key)
+        #         yield r
+        #     finally:
+        #         if r:
+        #             r.close()
+        #             r.release_conn()
 
     def read_json(self):
         """Load a JSON encoded binary into a python dict in memory.

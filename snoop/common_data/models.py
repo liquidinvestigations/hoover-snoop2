@@ -1,15 +1,16 @@
 """Models that should be in the default db, not in the specific collection db."""
 
-import os
-import subprocess
-from django.conf import settings
 from django.db import models
+import logging
 
 from contextlib import contextmanager
 from snoop.data.collections import Collection
+from snoop.data.s3 import get_webdav_mount
 from psqlextra.types import PostgresPartitioningMethod
 from psqlextra.models import PostgresPartitionedModel
 from psqlextra.indexes import UniqueIndex
+
+logger = logging.getLogger(__name__)
 
 
 class CollectionDocumentHit(PostgresPartitionedModel):
@@ -49,9 +50,18 @@ class NextcloudCollection(models.Model, Collection):
     name = models.CharField(max_length=256, unique=True)
     opt = models.JSONField(null=True, blank=True)
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # django will call the constructor with a list of arguments
+        # instead of keyword arguments
+        if 'opt' not in kwargs:
+            Collection.initialize(self, **args[2])
+        else:
+            Collection.initialize(self, **kwargs.get('opt'))
+
     @property
-    def webdav_user(self):
-        return self.opt.get('webdav_user', '')
+    def webdav_username(self):
+        return self.opt.get('webdav_username', '')
 
     @property
     def webdav_password(self):
@@ -62,31 +72,18 @@ class NextcloudCollection(models.Model, Collection):
         return self.opt.get('webdav_url', '')
 
     @contextmanager
-    def mount_collection_webdav(self, col, nc_col):
+    def mount_collections_root(self):
         """Mount a nextcloud collection via webdav.
         """
-        subprocess.run(['mkdir', '-p',
-                        (
-                            f'{settings.SNOOP_WEBDAV_MOUNT_DIR}'
-                            f'/{self.name}/data'
-                        )
-                        ], check=True)
-        secrets_content = (
-            f'{settings.SNOOP_WEBDAV_MOUNT_DIR}'
-            f'/{self.name}/data'
-            f' {self.webdav_user} {self.webdav_password}'
+        yield get_webdav_mount(
+            mount_name=f'{self.name}-collections',
+            webdav_username=self.webdav_username,
+            webdav_password=self.webdav_password,
+            webdav_url=self.webdav_url,
         )
-        with open('/etc/davfs2/secrets', 'a') as secrets_file:
-            secrets_file.write(f'\n{secrets_content}')
-            mount_command = (
-                f'mount -t davfs http://10.66.60.1:9972{self.webdav_url} '
-                f'{settings.SNOOP_WEBDAV_MOUNT_DIR}/{self.name}/data'
-            )
-            try:
-                result = subprocess.run(mount_command, shell=True, check=True)
-                print(result.returncode, result.stdout, result.stderr)
-                print(f'Mounted collection {self.name}.')
-            except subprocess.CalledProcessError as e:
-                print(e, e.output)
-                print(f'Could not mount collection {self.name}.')
-        yield os.path.join(settings.SNOOP_WEBDAV_MOUNT_DIR, self.name, 'data')
+
+    def __repr__(self):
+        """String representation for a Collection.
+        """
+
+        return f"<Collection {self.name} process={self.process} sync={self.sync}>"

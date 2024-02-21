@@ -88,6 +88,7 @@ class Command(BaseCommand):
         logging_for_management_command()
 
         tasks.import_snoop_tasks()
+
         all_queues = []
         if options['queue'] == 'system':
             all_queues = settings.SYSTEM_QUEUES
