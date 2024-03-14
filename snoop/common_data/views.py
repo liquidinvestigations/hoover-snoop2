@@ -3,6 +3,7 @@ import json
 import logging
 from django.conf import settings
 from django.http import JsonResponse, HttpResponse
+from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import never_cache
 
 from . import models
@@ -43,13 +44,6 @@ def get_collection_hits(request):
     return JsonResponse({"hits": hits})
 
 
-def get_nextcloud_collections(request):
-    """View that returns names of nextcloud collections."""
-    nextcloud_collections = models.NextcloudCollection.objects.all()
-    result = {'nextcloud_collections': [{'name': nc_col.name} for nc_col in nextcloud_collections]}
-    return JsonResponse(result)
-
-
 def sync_nextlcoud_collections(request):
     """View that syncs nextcloud collections with hoover search.
 
@@ -79,6 +73,13 @@ def sync_nextlcoud_collections(request):
             collections.create_roots()
             logger.info(f'Created roots for: {col_name}.')
         return HttpResponse(status=200)
+
+
+def remove_nextcloud_collection(request, collection_name):
+    """Remove a nextcloud collection."""
+    nextcloud_collection = get_object_or_404(models.NextcloudCollection, name=collection_name)
+    nextcloud_collection.delete()
+    return HttpResponse(status=200)
 
 
 def validate_new_collection_name(request):
