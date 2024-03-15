@@ -255,7 +255,6 @@ def get_webdav_mount(mount_name, webdav_username, webdav_password, webdav_url):
     Returns:
         The path in the filesystem where the webdav share is mounted.
     """
-
     paths = get_paths(mount_name)
     target_path = os.path.join(paths.get('target_path'), 'data')
 
@@ -304,7 +303,7 @@ def write_password_file(path, content):
     """
     with open(path, 'wb') as pass_temp:
         password_file = pass_temp.name
-        subprocess.check_call(f"chmod 600 {password_file}", shell=True)
+        subprocess.check_call(['chmod', '600', password_file])
         pass_str = content
         pass_temp.write(pass_str)
         pass_temp.close()
@@ -448,8 +447,8 @@ def adjust_mounts(mount_name, old_info,
     # create new mount
     logger.info('creating new mount: %s', mount_name)
     clean_makedirs(mount_args.get('target_path'))
-    pid = mount_func(mount_args)
 
+    pid = mount_func(mount_args)
     # create new entry with pid and timestamp
     new_info[mount_name] = {
         'pid': pid, 'timestamp': timestamp(),

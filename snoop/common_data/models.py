@@ -72,7 +72,7 @@ class NextcloudCollection(models.Model, Collection):
         return self.opt.get('webdav_url', '')
 
     @contextmanager
-    def mount_collections_root(self):
+    def mount_collections_root(self, *args, **kwargs):
         """Mount a nextcloud collection via webdav.
         """
         yield get_webdav_mount(
