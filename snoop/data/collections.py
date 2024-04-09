@@ -36,17 +36,16 @@ import subprocess
 from contextlib import contextmanager
 
 from django.conf import settings
-from django.db import connection
+from django.db import connection, connections
 from django.core import management
 from django.db import transaction
 
-from .s3 import get_mount
+from .s3 import get_s3_mount
 
 from snoop.threadlocal import threadlocal
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
-
 
 ALL_TESSERACT_LANGS = subprocess.check_output(
     "tesseract --list-langs | tail -n +2",
@@ -71,15 +70,32 @@ class Collection:
     DATA_DIR = 'data'
     GPGHOME_DIR = 'gpghome'
 
-    def __init__(self, name, **opt):
+    # def __init__(self, **opt):
+    #     """Initialize object.
+
+    #     Raises:
+    #         AssertionError: if OCR language configuration is incorrect.
+    #     """
+    #     if not opt.get('name'):
+    #         logger.info(f'OPT: {opt}')
+    #         raise ValueError('No collection name given.')
+    #     self.name = opt.get('name')
+    #     self.opt = opt
+
+    def initialize(self, **opt):
         """Initialize object.
 
         Raises:
             AssertionError: if OCR language configuration is incorrect.
         """
-
-        self.name = name
+        if not opt.get('name'):
+            logger.info(f'OPT: {opt}')
+            raise ValueError('No collection name given.')
+        self.name = opt.get('name')
         self.opt = opt
+        db_name = f'collection_{self.name}'
+        default_db = settings.DATABASES['default']
+        connections.databases[db_name] = dict(default_db, NAME=db_name)
 
     @property
     def process(self):
@@ -120,7 +136,7 @@ class Collection:
 
     @property
     def explode_table_rows(self):
-        self.explode_table_rows = self.opt.get('explode_table_rows', False)
+        return self.opt.get('explode_table_rows', False)
 
     @property
     def pdf_preview_enabled(self):
@@ -286,7 +302,7 @@ class Collection:
         Another temporary directory is created to store the cache."""
 
         mount_mode = 'ro' if readonly else 'rw'
-        yield get_mount(
+        yield get_s3_mount(
             mount_name=f'{self.name}-{mount_mode}-blobs',
             bucket=self.name,
             mount_mode=mount_mode,
@@ -300,7 +316,7 @@ class Collection:
         Another temporary directory is created to store the cache."""
 
         mount_mode = 'ro' if readonly else 'rw'
-        yield get_mount(
+        yield get_s3_mount(
             mount_name=f'{self.name}-{mount_mode}-collections',
             bucket=self.name,
             mount_mode=mount_mode,
@@ -411,7 +427,11 @@ class CollectionsRouter:
     snoop_app_labels = ['data']
 
     def db_for_read(self, model, instance=None, **hints):
+        """NextcloudCollection Table needs to go into default db."""
+
         if model._meta.app_label in self.snoop_app_labels:
+            if model._meta.object_name == 'NextcloudCollection':
+                return 'default'
             if instance is None:
                 db_alias = current().db_alias
             else:
@@ -427,6 +447,8 @@ class CollectionsRouter:
         Snoop models not allowed in 'default'; other models not allowed
         in collection_* databases
         """
+        if model_name == 'nextcloudcollection':
+            return True
         if db == 'default':
             return (app_label not in self.snoop_app_labels)
         else:
@@ -458,11 +480,18 @@ class StaticCollection(Collection):
 STATIC = {}
 
 for item in settings.SNOOP_COLLECTIONS:
-    col = StaticCollection(**item)
+    col = StaticCollection()
+    col.initialize(**item)
     STATIC[col.name] = col
 
 
 def list_keys(static_only=False):
+    """Get back the list of collection names (keys).
+
+    If static_only=True it will only give the collections
+    that are specified in the liquid.ini file. Otherwise
+    it will also include dynamic collections.
+    """
     static_keys = list(STATIC.keys())
     if static_only:
         return static_keys
@@ -471,6 +500,7 @@ def list_keys(static_only=False):
 
 
 def get(key):
+    """Get the collection with the corresponding name."""
     from snoop.common_data.models import NextcloudCollection
     if key in STATIC:
         return STATIC[key]
@@ -478,4 +508,11 @@ def get(key):
 
 
 def get_all(static_only=False):
-    return [get(c_name) for c_name in list_keys(static_only=static_only)]
+    """Get all collections.
+
+    If static_only=True it will only give the collections
+    that are specified in the liquid.ini file. Otherwise
+    it will also include dynamic collections.
+    """
+    all = [get(c_name) for c_name in list_keys(static_only=static_only)]
+    return all

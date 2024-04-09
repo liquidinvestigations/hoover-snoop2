@@ -172,7 +172,7 @@ def clear_mounts():
                 except Exception as e:
                     logger.debug('clear mounts info corrupted: %s', e)
         for mount_value in mount_info.values():
-            umount_s3fs(mount_value['target'], mount_value['pid'])
+            umount(mount_value['target'], mount_value['pid'])
         os.remove(mount_info_path)
     # in case json is kaputt, let's use `find` to try to unmount all targets
     targets = subprocess.check_output(
@@ -186,7 +186,7 @@ def clear_mounts():
         target = target.strip()
         if target:
             try:
-                umount_s3fs(target)
+                umount(target)
             except Exception as e:
                 logger.warning('could not umount s3fs! %s', str(e))
                 raise
@@ -209,10 +209,115 @@ def clear_mounts():
     )
 
 
-def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
+def get_s3_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
+
     """Ensure requested S3fs is mounted, while also
     unmounting least recently used mounts over the limit."""
 
+    paths = get_paths(mount_name)
+
+    clean_makedirs(paths.get('base_path'))
+
+    pass_str = (access_key + ':' + secret_key).encode('latin-1')
+    write_password_file(paths.get('password_file_path'), pass_str)
+
+    mount_args = {
+        'bucket': bucket,
+        'mount_mode': mount_mode,
+        'password_file_path': paths.get('password_file_path'),
+        'address': address,
+        'target_path': paths.get('target_path'),
+        'logfile_path': paths.get('logfile_path'),
+        'check_pid': True,
+    }
+
+    adjust_and_write_mount_info(paths.get('mount_info_path'),
+                                paths.get('target_path'),
+                                mount_name,
+                                mount_s3fs,
+                                mount_args
+                                )
+
+    return paths.get('target_path')
+
+
+def get_webdav_mount(mount_name, webdav_username, webdav_password, webdav_url):
+    """Ensure requested webdav is mounted, while also
+    unmounting least recently used mounts over the limit.
+
+    Args:
+        mount_name: Name of the mount (collection name).
+        webdav_username: The username which is used for mounting the webdav files.
+        webdav_password: The password which is used for mounting the webdav files.
+        webdav_url: The url of the webdav share. It's the relative path after the base url.
+          It looks like this: /remote.php/dav/files/user/collectionname
+
+    Returns:
+        The path in the filesystem where the webdav share is mounted.
+    """
+    paths = get_paths(mount_name)
+    target_path = os.path.join(paths.get('target_path'), 'data')
+
+    clean_makedirs(paths.get('base_path'))
+
+    pass_str = (
+        f'{target_path}'
+        f' {webdav_username} {webdav_password}'
+    ).encode('latin-1')
+
+    write_password_file(paths.get('password_file_path'), pass_str)
+
+    config_content = (
+        f'[{target_path}]\n'
+        f'secrets {paths.get("password_file_path")}'
+    )
+    config_file_path = os.path.join(paths.get('base_path'), 'config')
+    write_config_file(config_file_path, config_content)
+
+    mount_args = {
+        'password_file_path': paths.get('password_file_path'),
+        'target_path': target_path,
+        'logfile_path': paths.get('logfile_path'),
+        'configfile_path': config_file_path,
+        'webdav_username': webdav_username,
+        'webdav_url': webdav_url,
+        'check_pid': False,
+    }
+
+    adjust_and_write_mount_info(paths.get('mount_info_path'),
+                                target_path,
+                                mount_name,
+                                mount_webdav,
+                                mount_args
+                                )
+
+    return paths.get('target_path')
+
+
+def write_password_file(path, content):
+    """Write the password file to disk and set permissions.
+
+    Args:
+        path: Path where the password file should be written to.
+        content: Encoded content of the file as bytes.
+    """
+    with open(path, 'wb') as pass_temp:
+        password_file = pass_temp.name
+        subprocess.check_call(['chmod', '600', password_file])
+        pass_str = content
+        pass_temp.write(pass_str)
+        pass_temp.close()
+
+
+def get_paths(mount_name):
+    """Get all the paths that are needed for mounting.
+
+    Args:
+        mount_name: Name of the mount (collection name).
+
+    Returns:
+        A dictionary with paths that are needed for mounting.
+    """
     worker_base_path = _get_worker_base_path()
     mount_info_path = os.path.join(worker_base_path, 'mount-info.json')
     base_path = os.path.join(worker_base_path, mount_name)
@@ -220,16 +325,32 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
     logfile_path = os.path.join(base_path, 'mount-log.txt')
     password_file_path = os.path.join(base_path, 'password-file')
 
-    clean_makedirs(base_path)
+    return {
+        'worker_base_path': worker_base_path,
+        'mount_info_path': mount_info_path,
+        'base_path': base_path,
+        'target_path': target_path,
+        'logfile_path': logfile_path,
+        'password_file_path': password_file_path,
+    }
 
-    # write password file
-    with open(password_file_path, 'wb') as pass_temp:
-        password_file = pass_temp.name
-        subprocess.check_call(f"chmod 600 {password_file}", shell=True)
-        pass_str = (access_key + ':' + secret_key).encode('latin-1')
-        pass_temp.write(pass_str)
-        pass_temp.close()
 
+def adjust_and_write_mount_info(mount_info_path, target_path, mount_name, mount_func, mount_args):
+    """Check the mount info file and adjust the mount if needed.
+
+    This will open the info file and call the function that adjusts the mounts as needed.
+    Then it will write the new mount info to the info file.
+
+    Args:
+        mount_info_path: Path to the file containing the mount info.
+        target_path: Path where the filesystem should be mounted.
+        mount_name: Name of the mount (collection name).
+        mount_func: Function to use for mounting. Can be either
+          mount_s3fs or mount_webdav.
+        mount_args: Arguments that should be passed to the mounting function
+          as a dictionary.
+
+    """
     with open_exclusive(mount_info_path, 'a+') as f:
         f.seek(0)
         old_info_str = f.read()
@@ -245,9 +366,10 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
             old_info = dict()
 
         t0 = time.time()
-        new_info = adjust_s3_mounts(
+
+        new_info = adjust_mounts(
             mount_name, old_info,
-            bucket, mount_mode, password_file_path, address, target_path, logfile_path
+            mount_func, mount_args
         )
 
         f.seek(0)
@@ -265,7 +387,16 @@ def get_mount(mount_name, bucket, mount_mode, access_key, secret_key, address):
             dt = round(time.time() - t0, 3)
             raise RuntimeError(f's3 mount did not start for {target_path} after {dt} sec!')
 
-    return target_path
+
+def write_config_file(config_file_path, config):
+    """Write the content to the config file.
+
+    Args:
+        config_file_path: Path to the config file.
+        config: Config content as a string.
+    """
+    with open(config_file_path, 'w') as confs_file:
+        confs_file.write(config)
 
 
 def target_is_mounted(path):
@@ -278,12 +409,12 @@ def target_is_mounted(path):
     )
 
 
-def adjust_s3_mounts(mount_name, old_info,
-                     bucket, mount_mode,
-                     password_file_path, address, target_path, logfile_path):
+def adjust_mounts(mount_name, old_info,
+                  mount_func, mount_args):
     """Implement Least Recently used cache for the S3 mounts.
 
-    - check all mount PIDs: if any process is dead, remove from list
+    - check all mount PIDs for s3 mounts: if any process is dead, remove from list,
+      webdav mounts run in background so we don't check the PID (check_pid argument)
     - if mount exists in list, update timestamp, return
     - if mount doesn't exist, then:
       - create new mount, save PID
@@ -302,7 +433,10 @@ def adjust_s3_mounts(mount_name, old_info,
         return info
 
     # need to clear dead before checking, in case something died by itself
-    new_info = _clear_dead(old_info)
+    if mount_args.get('check_pid'):
+        new_info = _clear_dead(old_info)
+    else:
+        new_info = old_info
 
     # if mount exists in list, update timestamp, return
     if mount_name in new_info:
@@ -312,13 +446,13 @@ def adjust_s3_mounts(mount_name, old_info,
 
     # create new mount
     logger.info('creating new mount: %s', mount_name)
-    clean_makedirs(target_path)
-    pid = mount_s3fs(bucket, mount_mode, password_file_path, address, target_path, logfile_path)
+    clean_makedirs(mount_args.get('target_path'))
 
+    pid = mount_func(mount_args)
     # create new entry with pid and timestamp
     new_info[mount_name] = {
         'pid': pid, 'timestamp': timestamp(),
-        'target': target_path,
+        'target': mount_args.get('target_path'),
     }
 
     # if above mount limit, then send signals to unmount and stop
@@ -333,9 +467,9 @@ def adjust_s3_mounts(mount_name, old_info,
                 logger.info('removing old mount: pid=%s target=%s', pid, target)
 
                 try:
-                    umount_s3fs(target, pid)
+                    umount(target, pid)
                 except Exception as e:
-                    logger.exception('failed to run "umount_s3fs" for target=%s (%s)', target, e)
+                    logger.exception('failed to run "umount" for target=%s (%s)', target, e)
             time.sleep(0.001)
 
         new_info = _clear_dead(old_info)
@@ -343,7 +477,7 @@ def adjust_s3_mounts(mount_name, old_info,
     return new_info
 
 
-def mount_s3fs(bucket, mount_mode, password_file, address, target, logfile):
+def mount_s3fs(mount_args):
     """Run subprocess to mount s3fs disk to target. Will wait until completed."""
 
     # unused options:
@@ -355,13 +489,13 @@ def mount_s3fs(bucket, mount_mode, password_file, address, target, logfile):
     cmd_bash = f"""
     s3fs \\
         -f \\
-        -o {mount_mode} \\
+        -o {mount_args.get("mount_mode")} \\
         -o allow_other \\
         -o max_dirty_data=64 \\
-        -o passwd_file={password_file}  \\
+        -o passwd_file={mount_args.get("password_file_path")}  \\
         -o use_path_request_style  \\
-        -o url=http://{address} \\
-        {bucket} {target} > {logfile} \\
+        -o url=http://{mount_args.get("address")} \\
+        {mount_args.get("bucket")} {mount_args.get("target_path")} > {mount_args.get("logfile_path")} \\
         2>&1 & echo $!
     """
     logger.info('running s3fs process: %s', cmd_bash)
@@ -372,8 +506,8 @@ def mount_s3fs(bucket, mount_mode, password_file, address, target, logfile):
     return pid
 
 
-def umount_s3fs(target, pid=None):
-    """Run subprocess to umount s3fs disk from target. Will wait until completed."""
+def umount(target, pid=None):
+    """Run subprocess to umount mount from target. Will wait until completed."""
 
     def _pid_alive():
         if pid:
@@ -421,10 +555,31 @@ def umount_s3fs(target, pid=None):
                 logger.warning('Failed to os.rmdir() the target directory %s (%s)', target, e)
 
         if not _pid_alive() and not _data_mounted() and not os.path.isdir(target):
-            tracer.count("umount_s3fs_success")
+            tracer.count("umount_success")
             return
 
         time.sleep(0.05 + 0.05 * retry)
 
-    tracer.count("umount_s3fs_failed")
-    raise RuntimeError(f'cannot remove old S3 mounts! target={target}, pid={pid}')
+    tracer.count("umount_failed")
+    raise RuntimeError(f'cannot remove old mounts! target={target}, pid={pid}')
+
+
+def mount_webdav(mount_args):
+    """Run subprocess to mount webdav share to target. Will wait until completed."""
+
+    pid = -1
+    if target_is_mounted(mount_args.get("target_path")):
+        return pid
+
+    cmd_bash = f"""
+    mount -t davfs {settings.SNOOP_NEXTCLOUD_URL}{mount_args.get("webdav_url")} \\
+        -o conf={mount_args.get("configfile_path")} \\
+        {mount_args.get("target_path")} 2>&1 | tee {mount_args.get("logfile_path")} \\
+        2>&1
+    """
+    logger.info('running davfs process: %s', cmd_bash)
+    tracer.count("mount_webdav_start")
+    subprocess.check_call(cmd_bash, shell=True)
+
+    logger.info('davfs process started with pid %s', pid)
+    return pid

@@ -128,3 +128,4 @@ pyrabbit.api
 pyexcel
 pellet
 pellet.middleware
+psqlextra
