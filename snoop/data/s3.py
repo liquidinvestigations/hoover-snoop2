@@ -572,7 +572,7 @@ def mount_webdav(mount_args):
         return pid
 
     cmd_bash = f"""
-    mount -t davfs {settings.SNOOP_NEXTCLOUD_URL}{mount_args.get("webdav_url")} \\
+    mount -t davfs '{settings.SNOOP_NEXTCLOUD_URL}{mount_args.get("webdav_url")}' \\
         -o conf={mount_args.get("configfile_path")} \\
         {mount_args.get("target_path")} 2>&1 | tee {mount_args.get("logfile_path")} \\
         2>&1
