@@ -44,4 +44,4 @@ ENV GUNICORN_WORKERS=2
 ENV GUNICORN_THREADS=1
 ENV GUNICORN_MAX_REQUESTS=1
 
-CMD /wait && /runserver
+CMD /wait && echo "wait done -- running server" && /runserver
