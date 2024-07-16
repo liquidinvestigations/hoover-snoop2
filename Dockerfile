@@ -17,7 +17,7 @@ RUN pipenv install --system --deploy --ignore-pipfile
 
 
 COPY . .
-COPY .git .
+COPY .git ./
 RUN chmod +x /opt/hoover/snoop/docker-entrypoint.sh
 
 COPY ./runserver /runserver
