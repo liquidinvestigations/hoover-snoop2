@@ -9,7 +9,7 @@ if [[ "$DEBUG" == "true" ]]; then
 	  exec gunicorn --reload \
 	       --access-logfile '-' \
 	       --error-logfile '-' \
-	       --log-level 'warning' \
+	       --log-level 'debug' \
          --worker-class $GUNICORN_WORKER_CLASS \
          --workers $GUNICORN_WORKERS \
          --threads $GUNICORN_THREADS \

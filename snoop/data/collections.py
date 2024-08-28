@@ -272,6 +272,11 @@ class Collection:
 
         management.call_command('migrate', '--database', self.db_alias)
 
+    @property
+    def public(self):
+        """Flag to indicate whether this collection should be accessible for all users."""
+        return self.opt.get('public', None)
+
     @contextmanager
     def set_current(self):
         """Creates context where this collection is the current one.
