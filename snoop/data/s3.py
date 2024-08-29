@@ -22,7 +22,14 @@ from .utils import open_exclusive
 
 
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler()
 logger.setLevel(logging.INFO)
+handler.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - [%(levelname)s] - %(message)s')
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
 tracer = tracing.Tracer(__name__)
 
 
