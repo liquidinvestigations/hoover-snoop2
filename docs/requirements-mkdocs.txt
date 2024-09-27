@@ -4,7 +4,7 @@
 #
 #    pip-compile requirements-mkdocs.in
 #
-amqp==5.0.5
+amqp==5.0.9
     # via kombu
 aniso8601==7.0.0
     # via graphene
@@ -24,7 +24,7 @@ certifi==2020.12.5
     # via requests
 chardet==4.0.0
     # via requests
-click==7.1.2
+click==8.0.3
     # via
     #   -r requirements-mkdocs.in
     #   celery
@@ -37,7 +37,7 @@ click-didyoumean==0.0.3
     # via celery
 click-plugins==1.1.1
     # via celery
-click-repl==0.1.6
+click-repl==0.2.0
     # via celery
 coreapi==2.3.3
     # via drf-yasg
@@ -88,7 +88,7 @@ joblib==1.0.1
     # via
     #   -r requirements-mkdocs.in
     #   nltk
-kombu==5.0.2
+kombu==5.2.3
     # via celery
 livereload==2.6.3
     # via
