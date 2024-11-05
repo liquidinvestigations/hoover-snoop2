@@ -329,7 +329,7 @@ def get_paths(mount_name):
     mount_info_path = os.path.join(worker_base_path, 'mount-info.json')
     base_path = os.path.join(worker_base_path, mount_name)
     target_path = os.path.join(base_path, 'target')
-    logfile_path = os.path.join('/tmp', f'{mount_name}' 'mount-log.txt')
+    logfile_path = os.path.join('/tmp', f'{mount_name}-mount-log.txt')
     password_file_path = os.path.join(base_path, 'password-file')
 
     return {
