@@ -224,14 +224,20 @@ def index_exists():
     return head_resp.status_code == 200
 
 
+def create_index_by_name(name):
+    """Create Elasticsearch index."""
+
+    url = f'{ES_URL}/{name}'
+    log.info("PUT %s", url)
+    put_resp = put_json(url, CONFIG)
+    check_response(put_resp)
+
+
 def create_index():
     """Create Elasticsearch index for current collection."""
 
     es_index = collections.current().es_index
-    url = f'{ES_URL}/{es_index}'
-    log.info("PUT %s", url)
-    put_resp = put_json(url, CONFIG)
-    check_response(put_resp)
+    create_index_by_name(es_index)
 
 
 def update_mapping():
