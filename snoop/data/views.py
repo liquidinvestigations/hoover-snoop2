@@ -529,7 +529,7 @@ def document_download(request, hash, filename):
 
     if html.is_html(blob):
         clean_html = html.clean(blob)
-        response =  HttpResponse(clean_html, content_type=blob.content_type)
+        response = HttpResponse(clean_html, content_type=blob.content_type)
         response['Content-Disposition'] = f'attachment; filename="{real_filename}"'
         return response
 
