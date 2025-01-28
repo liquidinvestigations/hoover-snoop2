@@ -524,13 +524,14 @@ def document_download(request, hash, filename):
     )
     first_file = digest.blob.file_set.first()
     blob = first_file.original
+    real_filename = first_file.name_bytes.tobytes().decode('utf-8', errors='replace')
+    real_filename = real_filename.replace("\r", "").replace("\n", "")
 
     if html.is_html(blob):
         clean_html = html.clean(blob)
-        return HttpResponse(clean_html, content_type='text/html')
-
-    real_filename = first_file.name_bytes.tobytes().decode('utf-8', errors='replace')
-    real_filename = real_filename.replace("\r", "").replace("\n", "")
+        response =  HttpResponse(clean_html, content_type=blob.content_type)
+        response['Content-Disposition'] = f'attachment; filename="{real_filename}"'
+        return response
 
     return _get_http_response_for_blob(request, blob, real_filename)
 
